@@ -48,11 +48,11 @@ set.seed(999)
 #---DATA SECTION-----
 
 #Total catch
-setwd("C:/Matias/Analyses/Catch and effort/Data_outs")
+setwd("C:/Matias/Analyses/Data_outs")
 
 #Total catch data
 Data.monthly=read.csv("Data.monthly.csv",stringsAsFactors=F)
-Data.monthly.north=read.csv("Data.monthly.north.csv",stringsAsFactors=F)
+Data.monthly.north=read.csv("Data.monthly.NSF.csv",stringsAsFactors=F)
 Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT  
 
 Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
@@ -60,7 +60,7 @@ Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
 
 #source shark bio
 User="Matias"
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Source_Shark_bio.R")
+source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
 
 #species codes
 All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/Other species/Outputs/Species_names.csv")
@@ -512,7 +512,7 @@ Pt.ktch.sp=function(sp,SP,LWD)
   }
   
   mtext(SP,3,0,cex=1.5)
-  legend("topleft",c("Total","North of 26°S","South of 26°S"),bty='n',lty=c(1,1,4),
+  legend("topleft",c("Total","North of 26?S","South of 26?S"),bty='n',lty=c(1,1,4),
          lwd=LWD,col=c("black","grey50","Grey75"),cex=1.5,pt.lwd=4)
   mtext("Catch (tonnes)",2,3,cex=2,las=3)
   mtext("Financial year",1,2.5,cex=2)
@@ -1018,8 +1018,8 @@ for(s in 1: length(Map.sp))
   if(s%in%c(7,8,9))axis(side = 1, at =seq(xlm[1],xlm[2],4), labels = seq(xlm[1],xlm[2],4), tcl = .5,las=1,cex.axis=1)
   if(s%in%c(1,4,7))axis(side = 2, at = seq(ylm[1],ylm[2],4), labels = -seq(ylm[1],ylm[2],4),tcl = .5,las=2,cex.axis=1)
 }
-mtext("Latitude (ºS)",side=2,line=0.6,las=3,cex=1.2,outer=T)
-mtext("Longitude (ºE)",side=1,line=0.65,cex=1.2,outer=T)
+mtext("Latitude (?S)",side=2,line=0.6,las=3,cex=1.2,outer=T)
+mtext("Longitude (?E)",side=1,line=0.65,cex=1.2,outer=T)
 dev.off()
 
 
@@ -1417,7 +1417,7 @@ for(s in 1: N.sp)
   polygon(c(all.yrs,rev(all.yrs)),  c(rep(Mean.MSY_LOW,length(all.yrs)),rep(Mean.MSY_UP,length(all.yrs))),
           col=rgb(.1,.1,.1,alpha=.15),border="transparent")  
   abline(h=Mean.MSY,col="grey50", lwd=2.5,lty=3)
-  if(s==9)legend("topright",c("MSY (±1.96 SE)"),bty='n',col=c("grey50"),lty=3,lwd=2.5,cex=1.25)
+  if(s==9)legend("topright",c("MSY (?1.96 SE)"),bty='n',col=c("grey50"),lty=3,lwd=2.5,cex=1.25)
   
 }
 mtext("Financial year",1,0.25,cex=1.35,outer=T)
@@ -1450,7 +1450,7 @@ for(s in 1: N.sp)
     polygon(c(all.yrs,rev(all.yrs)),  c(rep(Mean.MSY_LOW,length(all.yrs)),rep(Mean.MSY_UP,length(all.yrs))),
             col=rgb(.1,.1,.1,alpha=.15),border="transparent")  
     abline(h=Mean.MSY,col="grey50", lwd=2.5,lty=3)
-    #if(s==4)legend("topright",c("MSY (±1.96 SE)"),bty='n',col=c("grey50"),lty=3,lwd=2.5,cex=1.25)
+    #if(s==4)legend("topright",c("MSY (?1.96 SE)"),bty='n',col=c("grey50"),lty=3,lwd=2.5,cex=1.25)
     SCNE.nm=names(store.species[[s]]$KTCH.MSY)[sc]
     if(s==1) mtext(SCNE.nm,3,0)
     if(NMs=="Low") NMs="Low resilience"
