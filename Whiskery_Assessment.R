@@ -602,6 +602,15 @@ if(Do.sim.test=="YES")
 }
 
 
+#Control if doing MSY   
+Do.MSY="NO"
+MSY.yrs=100  
+MSY.sd.rec=0    #no recruitment deviations (in log space)
+#MSY.sd.rec=0.05
+MSY.sims=100
+F.vec=seq(0,.2,by=.01)
+
+
   #MCMC 
 DO.MCMC="YES"
 nSims=1e6
