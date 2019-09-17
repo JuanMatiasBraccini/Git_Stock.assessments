@@ -1,13 +1,13 @@
-#script for creating input files and running stock assessment models of TDGDLF targets
+#script for creating input files and running stock assessment models of WA shark resources
 
 #Steps: Section A: Bring in data (this brings in all the data series from "Organise data.R")
 #       Section B: Bring in parameters (this brings in all parameters from "Organise parameters.R")
 #       Section C: Put data together for scenarios
 #       Section D: Run models
 #       Section E: Display model outputs 
-#       Section F: Run base case McMc and display outputs
+#       Section F: Run base case MCMC and display outputs
   #     Section G: RUN CATCH-msy method and display outputs
-#       Section h: Not used code
+#       Section H: Dropped code
 
 
 #source Handy function for plotting
@@ -21,8 +21,7 @@ if(First.run=="YES")
 {
   set.seed(999)  #for reproducibility
   
-  # ................. Section A: BRING IN INPUT DATA ......................
-  
+# Section A: BRING IN INPUT DATA -------------------------------------------
   fn.source("Organise data.R")
   fn.input.data(SP=species,Yr.assess=AssessYr,Conv.cal.mn.to.fin.mn="NO",           
                 Historic.Ktch="NO",Bin.size=TL.bins.cm,What.Efrt=What.Effort)  
@@ -362,9 +361,8 @@ if(First.run=="YES")
   rm(data.list)
     
   
-  
-  # ................. Section B: BRING IN PARAMETERS ......................
-  
+
+# Section B: BRING IN PARAMETERS ------------------------------------------
   hndl=paste("C:/Matias/Analyses/Population dynamics/",Spec," shark/",sep='')
   
     #B.1 Source all input parameters
@@ -539,9 +537,9 @@ if(First.run=="YES")
   
 
 
-  # ................. Section C: PUT DATA TOGETHER FOR SCENARIOS ......................
-    
-  #D.1 Construct relationships at TL and at age
+# Section C: PUT DATA TOGETHER FOR SCENARIOS ------------------------------
+  
+  #C.1 Construct relationships at TL and at age
   fn.plt.rel=function(one,two,add,three,four,CL,CL1)
   {
     YLIM=c(0,max(two)*1.15)
@@ -567,15 +565,15 @@ if(First.run=="YES")
   }
   TL.from.age=function(age,Linf,k,to) Linf*(1-exp(-k*(age-to)))  
   
-    #D.1.1 At length relationships
-      #D.1.1.1. set length vector
+    #C.1.1 At length relationships
+      #C.1.1.1. set length vector
   if(MN.SZE=="size.at.birth") Min.size.bin=floor(Min.size.TL$a)
   if(MN.SZE==0) Min.size.bin=0
   TL.bin.low=seq(Min.size.bin,Max.size.TL$a*Plus.gp.size,by=5)        
   TL.bin.mid=TL.bin.low+(TL.bins.cm/2)     
   TL.bin.up=TL.bin.low+TL.bins.cm
     
-      #D.1.1.2. at TL relationships
+      #C.1.1.2. at TL relationships
   #TL and FL (cm) (mid year)
   FL.bin.mid=(TL.bin.mid-TL.FL$b)/TL.FL$a
   
@@ -725,13 +723,13 @@ if(First.run=="YES")
   dev.off()
   
 
-    #D.1.2 At age relationships
+    #C.1.2 At age relationships
   
-      #D.1.2.1. set age vector
+      #C.1.2.1. set age vector
   age.M=0:Max.age.M
   age.F=0:Max.age.F
   
-      #D.1.2.2. constant relationships
+      #C.1.2.2. constant relationships
   #M
   Mort.M.k=rep(M,length(age.M))
   Mort.F.k=rep(M,length(age.F))
@@ -746,7 +744,7 @@ if(First.run=="YES")
   Litter.size.k=Litter.size.k*Mat.k
   
   
-      #D.1.2.3. at age relationships
+      #C.1.2.3. at age relationships
   #TL and FL (cm) (mid year)
   mid.TL.M=Growth.M$TL_inf*(1-exp(-Growth.M$k*(age.F+0.5-Growth.M$to)))  #use same number of ages
   mid.TL.F=Growth.F$TL_inf*(1-exp(-Growth.F$k*(age.F+0.5-Growth.F$to)))
@@ -1283,9 +1281,9 @@ if(First.run=="YES")
   }
   
   
-  #D.3 Create input files (data and parameters) for population models as required by ADMB
+  #C.3 Create input files (data and parameters) for population models as required by ADMB
   
-    #D3.1. Input data and parameters
+    #C.3.1. Input data and parameters
   setPath=function(Scen)setwd(paste(hndl,AssessYr,"/",Scen,sep="")) #set paths
   
   Scenarios=Tabla.scen
@@ -2506,8 +2504,7 @@ if(First.run=="YES")
 }
 
 
-
-# ................. Section D: RUN MODELS ......................
+# Section D: RUN MODELS ---------------------------------------------------
 if(BaseCase=="Age-based") ID.base.Model="Base case_age"
 if(BaseCase=="Size-based") ID.base.Model="Base case"
 
@@ -2515,7 +2512,7 @@ library(R2admb)
 library(beepr)
 fn.source("reptoRlist.R")
 fn.source("ADMB_read.fit.R")
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/send.emails.R")
+source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/send.emails.R")
 
 #1. Run model scenarios
 if(!First.run=="YES") Scenarios=Tabla.scen[match(ID.base.Model,Tabla.scen$Model),]   
@@ -3052,9 +3049,9 @@ if(Do.MSY=="YES")
 #plot(dd, xlab="Estimate", ylab="Density", type="l") 
 
 
-# ................. Section E: DISPLAY MODEL OUTPUTS ......................
+# Section E: DISPLAY MODEL OUTPUTS ----------------------------------------
 fn.source("Pearson.Residuals.R")
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Smart_par.R")
+source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R")
 library(plotrix)
 library(gridExtra)
 library(grid)
@@ -5327,8 +5324,7 @@ if(Run.future.proj=="YES")
 }
 
 
-# ................. Section F: RUN BASE CASE MCMC AND DISPLAY OUTPUTS ..................            
-
+# Section F: RUN BASE CASE MCMC AND DISPLAY OUTPUTS -----------------------
 #notes:    First compile the ADMB code once to create the .exe file    
 #         mceval stops abruptly, execute manually and then import chains
 if(DO.MCMC=="YES")
@@ -5779,376 +5775,408 @@ if(DO.MCMC=="YES")
 }
 
 
-# ................. Section G: RUN CATCH-MSY METHOD AND DISPLAY OUTPUTS ..................     
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Population dynamics/Catch_MSY.R")
-
-#r prior
-fn.source("Leslie.matrix.R") 
-library(MASS)
-Rprior=fun.Leslie(N.sims=10000,k=Growth.F$k,Linf=Growth.F$FL_inf,Aver.T=TEMP,
-                  A=Max.age.F,first.age=0,RangeMat=Age.50.mat,Rangefec=Fecundity,
-                  sexratio=0.5,Reprod_cycle=Breed.cycle,Hoenig.only="NO")  
-
-#get mean and SD from gamma distribution
-gamma.pars=suppressWarnings(fitdistr(Rprior, "gamma"))  
-shape=gamma.pars$estimate[1]        
-rate=gamma.pars$estimate[2]      
-r.pars=c(shape,rate)
-
-#get mean and SD from lognormal distribution
-#LogN.pars=fitdistr(Rprior, "lognormal")  
-#log_mean.r=LogN.pars$estimate[1]    #already in log space     
-#log_sd.r=LogN.pars$estimate[2]      #already in log space     
-#r.pars=c(log_mean.r,log_sd.r)
-
-for(sc in 1:length(ktch_msy_scen)) if(!is.na(ktch_msy_scen[[sc]]$r.prior)[1]) ktch_msy_scen[[sc]]$r.prior=r.pars
-
-
-#run catch_msy function                   #takes 0.0001 seconds per iteration per scenario
-setPath(paste("2_Outputs/Model_outputs/",ID.base.Model,sep=""))
-if(!file.exists(file.path(getwd(), "/Catch_MSY"))) dir.create(file.path(getwd(), "/Catch_MSY"))   
-setwd(file.path(getwd(), "/Catch_MSY"))
-Path.ktch_msy=getwd()
-
-Ktch_MSY=ktch_msy_scen
-system.time(for(sc in 1:length(ktch_msy_scen))
-  {
-  Folder=names(Ktch_MSY)[sc]
-  if(!file.exists(paste(Path.ktch_msy,Folder,sep="/"))) dir.create(paste(Path.ktch_msy,Folder,sep="/"))   
-  setwd(paste(Path.ktch_msy,Folder,sep="/"))
-  
-  ct=Store.Reports$`Base case`$TC_out[1:length(Yrs)]
-  Current=Yrs[length(Yrs)]
-  
-  #forward projections
-  ct.future=rep(mean(ct[(length(ct)-4):length(ct)]),years.futures)
-  yr.future=Current+(1:years.futures)
-  
-  
-   Ktch_MSY[[sc]]=Catch_MSY(ct=ct,
-                            yr=Yrs,
-                            r.prior=ktch_msy_scen[[sc]]$r.prior,
-                            user=ktch_msy_scen[[sc]]$user,
-                            k.max=ktch_msy_scen[[sc]]$k.max,
-                            startbio=ktch_msy_scen[[sc]]$startbio,
-                            finalbio=ktch_msy_scen[[sc]]$finalbio,
-                            res=ktch_msy_scen[[sc]]$res,
-                            n=ktch_msy_scen[[sc]]$niter,
-                            sigR=ktch_msy_scen[[sc]]$sigR,
-                            ct.future=ct.future,           
-                            yr.future=yr.future)
-   
-   #Export outputs
-   Table1_ktch_MSY=with(Ktch_MSY[[sc]],data.frame(`geom. mean r`,`r +/- 1.96 SD`,`geom. mean k (tons)`,`k +/- 1.96 SD (tons)`,
-                                            `geom. mean MSY (tons)`,`MSY +/- 1.96 SD (tons)`))
-   write.csv(Table1_ktch_MSY,"Table1_ktch_MSY.csv",row.names=F)
-   write.csv(cbind(Yrs=c(Yrs,yr.future),ct=c(ct,ct.future)),"ct.future.csv",row.names=F)
-   
-  })
-
-
-#Outputs
-setwd(Path.ktch_msy)
-
-
-#Output table of scenarios
-Tabl.scen.Ktch.MSY=vector('list',length(ktch_msy_scen))
-for(i in 1:length(ktch_msy_scen))
+# Section G: RUN CATCH-MSY METHOD AND DISPLAY OUTPUTS ---------------------
+source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/Catch_MSY.R")
+if(DO.CatchMSY=="YES")
 {
-  dummy=ktch_msy_scen[[i]]
-  for(a in 1:length(ktch_msy_scen[[i]])) if(length(dummy[[a]])>1) dummy[[a]]=paste(dummy[[a]],collapse=";")
-  Tabl.scen.Ktch.MSY[[i]]=unlist(dummy)
-}
-Tabl.scen.Ktch.MSY=do.call(rbind,Tabl.scen.Ktch.MSY)
-row.names(Tabl.scen.Ktch.MSY)=names(ktch_msy_scen)
-write.csv(Tabl.scen.Ktch.MSY,"Scenarios.csv")
-
-
-
-#Plot r prior dist
-fn.fig("Prior_r", 2000, 2000)
-par(las=1,mai=c(1,1.15,.1,.15),mgp=c(3.5,.75,0))
-plot(density(rgamma(10000, shape = r.pars[1], rate = r.pars[2])),
-     lwd=3,main="",xlab=expression(paste(plain("Intrinsic rate of increase (year") ^ plain("-1"),")",sep="")),
-     cex.lab=2,cex.axis=1.25,col=1)
-# plot(density(rlnorm(10000, meanlog = r.pars[1], sdlog = r.pars[2])),
-#      lwd=3,main="",xlab=expression(paste(plain("Intrinsic rate of increase (years") ^ plain("-1"),")",sep="")),
-#      cex.lab=2,cex.axis=1.25,col=1)
-dev.off()
-
-
-
-
-
-#Relative biomass trend
-CL.mean="transparent"
-Yrs=c(Yrs,yr.future)
-indx.ftur=(length(Yrs)-years.futures+1):length(Yrs)
-
-Low.percentile=function(Nper,DAT) apply(DAT, 1, function(x) quantile(x, (0+Nper)/100))   #get percentiles
-High.percentile=function(Nper,DAT) apply(DAT, 1, function(x) quantile(x, (100-Nper)/100))
-fn.cons.po=function(low,up) c(low, tail(up, 1), rev(up), low[1])  #construct polygon
-
-#colfunc <- colorRampPalette(c("grey90","grey50"))
-colfunc <- colorRampPalette(c("aliceblue","lightblue3"))
-COLS=colfunc(3)
-colfunc.f <- colorRampPalette(c("white","burlywood3"))
-COLS.f=colfunc.f(3)
-fn.plot.percentile=function(DAT,YR,ADD.prob)
-{
-  #50% of data
-  Nper=(100-50)/2
-  LOW.50=Low.percentile(Nper,DAT)
-  UP.50=High.percentile(Nper,DAT)
+  #r prior
+  fn.source("Leslie.matrix.R") 
+  library(MASS)
+  Rprior=fun.Leslie(N.sims=10000,k=Growth.F$k,Linf=Growth.F$FL_inf,Aver.T=TEMP,
+                    A=Max.age.F,first.age=0,RangeMat=Age.50.mat,Rangefec=Fecundity,
+                    sexratio=0.5,Reprod_cycle=Breed.cycle,Hoenig.only="NO")  
   
-  #75% of data
-  Nper=(100-75)/2
-  LOW.75=Low.percentile(Nper,DAT)
-  UP.75=High.percentile(Nper,DAT)
+  #get mean and SD from gamma distribution
+  gamma.pars=suppressWarnings(fitdistr(Rprior, "gamma"))  
+  shape=gamma.pars$estimate[1]        
+  rate=gamma.pars$estimate[2]      
+  r.pars=c(shape,rate)
   
-  #100% of data
-  Nper=(100-100)/2
-  LOW.100=Low.percentile(Nper,DAT)
-  UP.100=High.percentile(Nper,DAT)
+  #get mean and SD from lognormal distribution
+  #LogN.pars=fitdistr(Rprior, "lognormal")  
+  #log_mean.r=LogN.pars$estimate[1]    #already in log space     
+  #log_sd.r=LogN.pars$estimate[2]      #already in log space     
+  #r.pars=c(log_mean.r,log_sd.r)
   
-  #construct polygons
-  Year.Vec <-  fn.cons.po(YR[-indx.ftur],YR[-indx.ftur])
-  Biom.Vec.50 <- fn.cons.po(LOW.50[-indx.ftur],UP.50[-indx.ftur]) 
-  Biom.Vec.75 <- fn.cons.po(LOW.75[-indx.ftur],UP.75[-indx.ftur]) 
-  Biom.Vec.100 <-fn.cons.po(LOW.100[-indx.ftur],UP.100[-indx.ftur]) 
-  
-  id.futr=c((indx.ftur[1]-1),indx.ftur)
-  Year.Vec.f <-  fn.cons.po(YR[id.futr],YR[id.futr])
-  Biom.Vec.50.f <- fn.cons.po(LOW.50[id.futr],UP.50[id.futr]) 
-  Biom.Vec.75.f <- fn.cons.po(LOW.75[id.futr],UP.75[id.futr]) 
-  Biom.Vec.100.f <-fn.cons.po(LOW.100[id.futr],UP.100[id.futr]) 
+  for(sc in 1:length(ktch_msy_scen)) if(!is.na(ktch_msy_scen[[sc]]$r.prior)[1]) ktch_msy_scen[[sc]]$r.prior=r.pars
   
   
-  #plot
-  plot(YR,UP.100,ylim=c(0,max(UP.100)),type="l",ylab="",xlab="",xaxt='n',col='transparent',cex.axis=1.25)
+  #run catch_msy function                   #takes 0.0001 seconds per iteration per scenario
+  setPath(paste("2_Outputs/Model_outputs/",ID.base.Model,sep=""))
+  if(!file.exists(file.path(getwd(), "/Catch_MSY"))) dir.create(file.path(getwd(), "/Catch_MSY"))   
+  setwd(file.path(getwd(), "/Catch_MSY"))
+  Path.ktch_msy=getwd()
   
-  polygon(Year.Vec, Biom.Vec.100, col = COLS[3], border = "grey20")
-  polygon(Year.Vec, Biom.Vec.75, col = COLS[2], border = "grey20")
-  polygon(Year.Vec, Biom.Vec.50, col = COLS[1], border = "grey20")
-  
-  polygon(Year.Vec.f, Biom.Vec.100.f, col = COLS.f[3], border = "grey20")
-  polygon(Year.Vec.f, Biom.Vec.75.f, col = COLS.f[2], border = "grey20")
-  polygon(Year.Vec.f, Biom.Vec.50.f, col = COLS.f[1], border = "grey20")
-  
-  
-  #add probs
-  if(ADD.prob=="YES")
+  Ktch_MSY=ktch_msy_scen
+  system.time(for(sc in 1:length(ktch_msy_scen))
   {
-    add.probs(id.yr=match(Current,YR),YR,DAT,UP.100,LOW.100)
-    add.probs(id.yr=length(YR),YR,DAT,UP.100,LOW.100)
+    Folder=names(Ktch_MSY)[sc]
+    if(!file.exists(paste(Path.ktch_msy,Folder,sep="/"))) dir.create(paste(Path.ktch_msy,Folder,sep="/"))   
+    setwd(paste(Path.ktch_msy,Folder,sep="/"))
     
-    abline(h=B.target,lwd=2,col='grey30',lty=2)
-    text(YR[4],B.target,"Target",pos=3,cex=1.1)
-    abline(h=B.threshold,lwd=2,col='grey30',lty=2)
-    text(YR[4],B.threshold,"Threshold",pos=3,cex=1.1)
-    abline(h=B.limit,lwd=2,col='grey30',lty=2)
-    text(YR[4],B.limit,"Limit",pos=3,cex=1.1)
-  }
-  axis(1,at=YR,labels=F,tck=-0.01)
-  axis(1,at=seq(YR[1],YR[length(YR)],5),labels=seq(YR[1],YR[length(YR)],5),tck=-0.02,cex.axis=1.25)
-}
-add.probs=function(id.yr,YR,DAT,UP.100,LOW.100)
-{
-  f=ecdf(DAT[id.yr,])
-  P.below.target=f(B.target)
-  P.below.threshold=f(B.threshold)
-  P.below.limit=f(B.limit)
-  P.above.target=1-P.below.target
-  P.above.threshold=1-P.below.threshold
-  P.above.limit=1-P.below.limit
-  P.between.thre.tar=P.below.target-P.below.threshold
-  P.between.lim.thre=P.below.threshold-P.below.limit
-  if(P.above.target>0)
+    ct=Store.Reports$`Base case`$TC_out[1:length(Yrs)]
+    Current=Yrs[length(Yrs)]
+    
+    #forward projections
+    ct.future=rep(mean(ct[(length(ct)-4):length(ct)]),years.futures)
+    yr.future=Current+(1:years.futures)
+    
+    
+    Ktch_MSY[[sc]]=Catch_MSY(ct=ct,
+                             yr=Yrs,
+                             r.prior=ktch_msy_scen[[sc]]$r.prior,
+                             user=ktch_msy_scen[[sc]]$user,
+                             k.max=ktch_msy_scen[[sc]]$k.max,
+                             startbio=ktch_msy_scen[[sc]]$startbio,
+                             finalbio=ktch_msy_scen[[sc]]$finalbio,
+                             res=ktch_msy_scen[[sc]]$res,
+                             n=ktch_msy_scen[[sc]]$niter,
+                             sigR=ktch_msy_scen[[sc]]$sigR,
+                             ct.future=ct.future,           
+                             yr.future=yr.future)
+    
+    #Export outputs
+    Table1_ktch_MSY=with(Ktch_MSY[[sc]],data.frame(`geom. mean r`,`r +/- 1.96 SD`,`geom. mean k (tons)`,`k +/- 1.96 SD (tons)`,
+                                                   `geom. mean MSY (tons)`,`MSY +/- 1.96 SD (tons)`))
+    write.csv(Table1_ktch_MSY,"Table1_ktch_MSY.csv",row.names=F)
+    write.csv(cbind(Yrs=c(Yrs,yr.future),ct=c(ct,ct.future)),"ct.future.csv",row.names=F)
+    
+  })
+  
+  
+  #Outputs
+  setwd(Path.ktch_msy)
+  
+  
+  #Output table of scenarios
+  Tabl.scen.Ktch.MSY=vector('list',length(ktch_msy_scen))
+  for(i in 1:length(ktch_msy_scen))
   {
-    segments(YR[id.yr],B.target,YR[id.yr],UP.100[id.yr],col="forestgreen",lwd=8,lend="butt")  
-    text(YR[id.yr],B.target*1.5,paste(round(100*P.above.target,1),"%",sep=""),
-         col="black",cex=1.1,srt=45,pos=2,font=2)
+    dummy=ktch_msy_scen[[i]]
+    for(a in 1:length(ktch_msy_scen[[i]])) if(length(dummy[[a]])>1) dummy[[a]]=paste(dummy[[a]],collapse=";")
+    Tabl.scen.Ktch.MSY[[i]]=unlist(dummy)
   }
-  if(P.between.thre.tar>0)
+  Tabl.scen.Ktch.MSY=do.call(rbind,Tabl.scen.Ktch.MSY)
+  row.names(Tabl.scen.Ktch.MSY)=names(ktch_msy_scen)
+  write.csv(Tabl.scen.Ktch.MSY,"Scenarios.csv")
+  
+  
+  
+  #Plot r prior dist
+  fn.fig("Prior_r", 2000, 2000)
+  par(las=1,mai=c(1,1.15,.1,.15),mgp=c(3.5,.75,0))
+  plot(density(rgamma(10000, shape = r.pars[1], rate = r.pars[2])),
+       lwd=3,main="",xlab=expression(paste(plain("Intrinsic rate of increase (year") ^ plain("-1"),")",sep="")),
+       cex.lab=2,cex.axis=1.25,col=1)
+  # plot(density(rlnorm(10000, meanlog = r.pars[1], sdlog = r.pars[2])),
+  #      lwd=3,main="",xlab=expression(paste(plain("Intrinsic rate of increase (years") ^ plain("-1"),")",sep="")),
+  #      cex.lab=2,cex.axis=1.25,col=1)
+  dev.off()
+  
+  
+  
+  
+  
+  #Relative biomass trend
+  CL.mean="transparent"
+  Yrs=c(Yrs,yr.future)
+  indx.ftur=(length(Yrs)-years.futures+1):length(Yrs)
+  
+  Low.percentile=function(Nper,DAT) apply(DAT, 1, function(x) quantile(x, (0+Nper)/100))   #get percentiles
+  High.percentile=function(Nper,DAT) apply(DAT, 1, function(x) quantile(x, (100-Nper)/100))
+  fn.cons.po=function(low,up) c(low, tail(up, 1), rev(up), low[1])  #construct polygon
+  
+  #colfunc <- colorRampPalette(c("grey90","grey50"))
+  colfunc <- colorRampPalette(c("aliceblue","lightblue3"))
+  COLS=colfunc(3)
+  colfunc.f <- colorRampPalette(c("white","burlywood3"))
+  COLS.f=colfunc.f(3)
+  fn.plot.percentile=function(DAT,YR,ADD.prob)
   {
-    segments(YR[id.yr],B.target,YR[id.yr],B.threshold,col="yellow",lwd=8,lend="butt")  
-    text(YR[id.yr],mean(c(B.target,B.threshold))*1.1,paste(round(100*P.between.thre.tar,1),"%",sep=""),
-         col="black",cex=1.1,srt=45,pos=2,font=2)
+    #50% of data
+    Nper=(100-50)/2
+    LOW.50=Low.percentile(Nper,DAT)
+    UP.50=High.percentile(Nper,DAT)
+    
+    #75% of data
+    Nper=(100-75)/2
+    LOW.75=Low.percentile(Nper,DAT)
+    UP.75=High.percentile(Nper,DAT)
+    
+    #100% of data
+    Nper=(100-100)/2
+    LOW.100=Low.percentile(Nper,DAT)
+    UP.100=High.percentile(Nper,DAT)
+    
+    #construct polygons
+    Year.Vec <-  fn.cons.po(YR[-indx.ftur],YR[-indx.ftur])
+    Biom.Vec.50 <- fn.cons.po(LOW.50[-indx.ftur],UP.50[-indx.ftur]) 
+    Biom.Vec.75 <- fn.cons.po(LOW.75[-indx.ftur],UP.75[-indx.ftur]) 
+    Biom.Vec.100 <-fn.cons.po(LOW.100[-indx.ftur],UP.100[-indx.ftur]) 
+    
+    id.futr=c((indx.ftur[1]-1),indx.ftur)
+    Year.Vec.f <-  fn.cons.po(YR[id.futr],YR[id.futr])
+    Biom.Vec.50.f <- fn.cons.po(LOW.50[id.futr],UP.50[id.futr]) 
+    Biom.Vec.75.f <- fn.cons.po(LOW.75[id.futr],UP.75[id.futr]) 
+    Biom.Vec.100.f <-fn.cons.po(LOW.100[id.futr],UP.100[id.futr]) 
+    
+    
+    #plot
+    plot(YR,UP.100,ylim=c(0,max(UP.100)),type="l",ylab="",xlab="",xaxt='n',col='transparent',cex.axis=1.25)
+    
+    polygon(Year.Vec, Biom.Vec.100, col = COLS[3], border = "grey20")
+    polygon(Year.Vec, Biom.Vec.75, col = COLS[2], border = "grey20")
+    polygon(Year.Vec, Biom.Vec.50, col = COLS[1], border = "grey20")
+    
+    polygon(Year.Vec.f, Biom.Vec.100.f, col = COLS.f[3], border = "grey20")
+    polygon(Year.Vec.f, Biom.Vec.75.f, col = COLS.f[2], border = "grey20")
+    polygon(Year.Vec.f, Biom.Vec.50.f, col = COLS.f[1], border = "grey20")
+    
+    
+    #add probs
+    if(ADD.prob=="YES")
+    {
+      add.probs(id.yr=match(Current,YR),YR,DAT,UP.100,LOW.100)
+      add.probs(id.yr=length(YR),YR,DAT,UP.100,LOW.100)
+      
+      abline(h=B.target,lwd=2,col='grey30',lty=2)
+      text(YR[4],B.target,"Target",pos=3,cex=1.1)
+      abline(h=B.threshold,lwd=2,col='grey30',lty=2)
+      text(YR[4],B.threshold,"Threshold",pos=3,cex=1.1)
+      abline(h=B.limit,lwd=2,col='grey30',lty=2)
+      text(YR[4],B.limit,"Limit",pos=3,cex=1.1)
+    }
+    axis(1,at=YR,labels=F,tck=-0.01)
+    axis(1,at=seq(YR[1],YR[length(YR)],5),labels=seq(YR[1],YR[length(YR)],5),tck=-0.02,cex.axis=1.25)
   }
-  if(P.between.lim.thre>0)
+  add.probs=function(id.yr,YR,DAT,UP.100,LOW.100)
   {
-    segments(YR[id.yr],B.threshold,YR[id.yr],B.limit,col="orange",lwd=8,lend="butt")
-    text(YR[id.yr],mean(c(B.threshold,B.limit))*1.1,paste(round(100*P.between.lim.thre,1),"%",sep=""),
-         col="black",cex=1.1,srt=45,font=2,pos=2)
+    f=ecdf(DAT[id.yr,])
+    P.below.target=f(B.target)
+    P.below.threshold=f(B.threshold)
+    P.below.limit=f(B.limit)
+    P.above.target=1-P.below.target
+    P.above.threshold=1-P.below.threshold
+    P.above.limit=1-P.below.limit
+    P.between.thre.tar=P.below.target-P.below.threshold
+    P.between.lim.thre=P.below.threshold-P.below.limit
+    if(P.above.target>0)
+    {
+      segments(YR[id.yr],B.target,YR[id.yr],UP.100[id.yr],col="forestgreen",lwd=8,lend="butt")  
+      text(YR[id.yr],B.target*1.5,paste(round(100*P.above.target,1),"%",sep=""),
+           col="black",cex=1.1,srt=45,pos=2,font=2)
+    }
+    if(P.between.thre.tar>0)
+    {
+      segments(YR[id.yr],B.target,YR[id.yr],B.threshold,col="yellow",lwd=8,lend="butt")  
+      text(YR[id.yr],mean(c(B.target,B.threshold))*1.1,paste(round(100*P.between.thre.tar,1),"%",sep=""),
+           col="black",cex=1.1,srt=45,pos=2,font=2)
+    }
+    if(P.between.lim.thre>0)
+    {
+      segments(YR[id.yr],B.threshold,YR[id.yr],B.limit,col="orange",lwd=8,lend="butt")
+      text(YR[id.yr],mean(c(B.threshold,B.limit))*1.1,paste(round(100*P.between.lim.thre,1),"%",sep=""),
+           col="black",cex=1.1,srt=45,font=2,pos=2)
+    }
+    if(P.below.limit>0)
+    {
+      segments(YR[id.yr],B.limit,YR[id.yr],LOW.100[id.yr],col="red",lwd=8,lend="butt")
+      text(YR[id.yr],B.limit*0.8,paste(round(100*P.below.limit,1),"%",sep=""),
+           col="black",cex=1.1,srt=45,pos=2,font=2)
+    }
   }
-  if(P.below.limit>0)
-  {
-    segments(YR[id.yr],B.limit,YR[id.yr],LOW.100[id.yr],col="red",lwd=8,lend="butt")
-    text(YR[id.yr],B.limit*0.8,paste(round(100*P.below.limit,1),"%",sep=""),
-         col="black",cex=1.1,srt=45,pos=2,font=2)
-  }
-}
-
-
+  
+  
   #All scenarios
-fn.fig("Biomass_relative",2000,2400)
-smart.par(n.plots=length(ktch_msy_scen),MAR=c(3,4,1,1),OMA=rep(.5,4),MGP=c(1,.6,0))
-for(sc in 1:length(ktch_msy_scen))
-{
+  fn.fig("Biomass_relative",2000,2400)
+  smart.par(n.plots=length(ktch_msy_scen),MAR=c(3,4,1,1),OMA=rep(.5,4),MGP=c(1,.6,0))
+  for(sc in 1:length(ktch_msy_scen))
+  {
+    Ktch_MSY_Rel.bio=rbind(Ktch_MSY[[sc]]$bt.rel,Ktch_MSY[[sc]]$bt.rel.future)  
+    
+    #Percentile   
+    fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES")
+    
+    # #Geometric mean
+    # Ktch_MSY_rel_bt_mean=Ktch_MSY_rel_bt_lowSE=Ktch_MSY_rel_bt_upSE=nrow(Ktch_MSY_Rel.bio)
+    # for(nr in 1:nrow(Ktch_MSY_Rel.bio))
+    # {
+    #   zz=Ktch_MSY_Rel.bio[nr,]
+    #   zz[zz<0]=1e-6
+    #   Ktch_MSY_rel_bt_mean[nr]=exp(mean(log(zz)))
+    #   Ktch_MSY_rel_bt_upSE[nr]=exp(mean(log(zz)) + 1.96 * sd(log(zz)))
+    #   Ktch_MSY_rel_bt_lowSE[nr]=exp(mean(log(zz)) - 1.96 * sd(log(zz)))
+    # }
+    # plot(Yrs,Ktch_MSY_rel_bt_mean,cex=1.5,pch=19,col=CL.mean,lwd=3,ylim=c(0,1),xaxt='n',xlab="",ylab="",cex.axis=1.25)
+    # segments(Yrs,Ktch_MSY_rel_bt_lowSE,Yrs,Ktch_MSY_rel_bt_upSE,col=CL)
+    # points(Yrs[indx.ftur],Ktch_MSY_rel_bt_mean[indx.ftur],pch=19,col=CL.mean,cex=1.65)  #highlight future projections
+    # segments(Yrs[indx.ftur],Ktch_MSY_rel_bt_lowSE[indx.ftur],Yrs[indx.ftur],Ktch_MSY_rel_bt_upSE[indx.ftur],col="brown4")
+    # abline(h=B.target,lwd=2,col='grey30',lty=2)
+    # text(Yrs[3],B.target,"Target",pos=3,cex=1.1)
+    # abline(h=B.threshold,lwd=2,col='grey30',lty=2)
+    # text(Yrs[5],B.threshold,"Threshold",pos=3,cex=1.1)
+    # abline(h=B.limit,lwd=2,col='grey30',lty=2)
+    # text(Yrs[3],B.limit,"Limit",pos=3,cex=1.1)
+    # axis(1,Yrs,labels=F,tck=-0.015)
+    # axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
+    
+    
+    legend("bottomleft",names(Ktch_MSY)[sc],bty='n',cex=1.5)
+  }
+  mtext("Relative biomass",2,cex=1.75,las=3,line=-1,outer=T)
+  mtext("Financial year",1,line=-1,cex=1.75,outer=T)
+  dev.off()
+  
+  #Base case only
+  fn.fig("Biomass_relative_Base case",2000,2400)
+  par(mar=c(3,3.5,1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
+  sc=match("Base case",names(ktch_msy_scen))
   Ktch_MSY_Rel.bio=rbind(Ktch_MSY[[sc]]$bt.rel,Ktch_MSY[[sc]]$bt.rel.future)  
   
   #Percentile   
   fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES")
   
-  # #Geometric mean
-  # Ktch_MSY_rel_bt_mean=Ktch_MSY_rel_bt_lowSE=Ktch_MSY_rel_bt_upSE=nrow(Ktch_MSY_Rel.bio)
-  # for(nr in 1:nrow(Ktch_MSY_Rel.bio))
-  # {
-  #   zz=Ktch_MSY_Rel.bio[nr,]
-  #   zz[zz<0]=1e-6
-  #   Ktch_MSY_rel_bt_mean[nr]=exp(mean(log(zz)))
-  #   Ktch_MSY_rel_bt_upSE[nr]=exp(mean(log(zz)) + 1.96 * sd(log(zz)))
-  #   Ktch_MSY_rel_bt_lowSE[nr]=exp(mean(log(zz)) - 1.96 * sd(log(zz)))
-  # }
+  #     #Geometric mean
+  Ktch_MSY_rel_bt_mean=Ktch_MSY_rel_bt_lowSE=Ktch_MSY_rel_bt_upSE=nrow(Ktch_MSY_Rel.bio)
+  for(nr in 1:nrow(Ktch_MSY_Rel.bio))
+  {
+    Ktch_MSY_rel_bt_mean[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])))
+    Ktch_MSY_rel_bt_upSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) + 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
+    Ktch_MSY_rel_bt_lowSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) - 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
+  }
   # plot(Yrs,Ktch_MSY_rel_bt_mean,cex=1.5,pch=19,col=CL.mean,lwd=3,ylim=c(0,1),xaxt='n',xlab="",ylab="",cex.axis=1.25)
   # segments(Yrs,Ktch_MSY_rel_bt_lowSE,Yrs,Ktch_MSY_rel_bt_upSE,col=CL)
   # points(Yrs[indx.ftur],Ktch_MSY_rel_bt_mean[indx.ftur],pch=19,col=CL.mean,cex=1.65)  #highlight future projections
   # segments(Yrs[indx.ftur],Ktch_MSY_rel_bt_lowSE[indx.ftur],Yrs[indx.ftur],Ktch_MSY_rel_bt_upSE[indx.ftur],col="brown4")
   # abline(h=B.target,lwd=2,col='grey30',lty=2)
-  # text(Yrs[3],B.target,"Target",pos=3,cex=1.1)
+  # text(Yrs[3],B.target,"Target",pos=3,cex=1.25)
   # abline(h=B.threshold,lwd=2,col='grey30',lty=2)
-  # text(Yrs[5],B.threshold,"Threshold",pos=3,cex=1.1)
+  # text(Yrs[5],B.threshold,"Threshold",pos=3,cex=1.25)
   # abline(h=B.limit,lwd=2,col='grey30',lty=2)
-  # text(Yrs[3],B.limit,"Limit",pos=3,cex=1.1)
+  # text(Yrs[3],B.limit,"Limit",pos=3,cex=1.25)
   # axis(1,Yrs,labels=F,tck=-0.015)
   # axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
+  legend("bottomleft",c("50%","75%","100%"),fill=COLS,bty='n',title="Percentile",cex=1.25)
+  mtext("Relative biomass",2,cex=1.75,las=3,line=-1,outer=T)
+  mtext("Financial year",1,line=-1,cex=1.75,outer=T)
+  dev.off()
+  
+  write.csv(cbind(Yrs=Yrs,geom.mean=Ktch_MSY_rel_bt_mean,
+                  lowSE=Ktch_MSY_rel_bt_lowSE,UpSE=Ktch_MSY_rel_bt_upSE),"rel.biom.base.case.csv",row.names=F)
   
   
-  legend("bottomleft",names(Ktch_MSY)[sc],bty='n',cex=1.5)
-}
-mtext("Relative biomass",2,cex=1.75,las=3,line=-1,outer=T)
-mtext("Financial year",1,line=-1,cex=1.75,outer=T)
-dev.off()
-
+  #show example of all runs
+  rain.col=colorRampPalette(c("black", "grey","white"))(ncol(Ktch_MSY_Rel.bio))
+  fn.fig("Biomass_relative_all_runs",2000,2400)
+  par(mar=c(3,3.5,1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
+  plot(Yrs,Ktch_MSY_Rel.bio[,1],ylim=c(0,1),xaxt='n',xlab="",ylab="",type='l')
+  for(nn in 2:ncol(Ktch_MSY_Rel.bio)) lines(Yrs,Ktch_MSY_Rel.bio[,nn],col=sample(rain.col,1))
+  abline(h=B.target,lwd=3,col='green',lty=2)
+  text(Yrs[3],B.target,"Target",pos=3,cex=1.25)
+  abline(h=B.threshold,lwd=3,col='yellow',lty=2)
+  text(Yrs[5],B.threshold,"Threshold",pos=3,cex=1.25)
+  abline(h=B.limit,lwd=3,col='orange',lty=2)
+  text(Yrs[3],B.limit,"Limit",pos=3,cex=1.25)
+  axis(1,Yrs,labels=F,tck=-0.015)
+  axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
+  mtext("Relative biomass",2,cex=1.75,las=3,line=-1,outer=T)
+  mtext("Financial year",1,line=-1,cex=1.75,outer=T)
+  dev.off()
+  
+  
+  #Current depletion of total biomass
+  
   #Base case only
-fn.fig("Biomass_relative_Base case",2000,2400)
-par(mar=c(3,3.5,1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
-sc=match("Base case",names(ktch_msy_scen))
-Ktch_MSY_Rel.bio=rbind(Ktch_MSY[[sc]]$bt.rel,Ktch_MSY[[sc]]$bt.rel.future)  
-
-  #Percentile   
-fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES")
-
-#     #Geometric mean
-Ktch_MSY_rel_bt_mean=Ktch_MSY_rel_bt_lowSE=Ktch_MSY_rel_bt_upSE=nrow(Ktch_MSY_Rel.bio)
-for(nr in 1:nrow(Ktch_MSY_Rel.bio))
-{
-  Ktch_MSY_rel_bt_mean[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])))
-  Ktch_MSY_rel_bt_upSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) + 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
-  Ktch_MSY_rel_bt_lowSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) - 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
-}
-# plot(Yrs,Ktch_MSY_rel_bt_mean,cex=1.5,pch=19,col=CL.mean,lwd=3,ylim=c(0,1),xaxt='n',xlab="",ylab="",cex.axis=1.25)
-# segments(Yrs,Ktch_MSY_rel_bt_lowSE,Yrs,Ktch_MSY_rel_bt_upSE,col=CL)
-# points(Yrs[indx.ftur],Ktch_MSY_rel_bt_mean[indx.ftur],pch=19,col=CL.mean,cex=1.65)  #highlight future projections
-# segments(Yrs[indx.ftur],Ktch_MSY_rel_bt_lowSE[indx.ftur],Yrs[indx.ftur],Ktch_MSY_rel_bt_upSE[indx.ftur],col="brown4")
-# abline(h=B.target,lwd=2,col='grey30',lty=2)
-# text(Yrs[3],B.target,"Target",pos=3,cex=1.25)
-# abline(h=B.threshold,lwd=2,col='grey30',lty=2)
-# text(Yrs[5],B.threshold,"Threshold",pos=3,cex=1.25)
-# abline(h=B.limit,lwd=2,col='grey30',lty=2)
-# text(Yrs[3],B.limit,"Limit",pos=3,cex=1.25)
-# axis(1,Yrs,labels=F,tck=-0.015)
-# axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
-legend("bottomleft",c("50%","75%","100%"),fill=COLS,bty='n',title="Percentile",cex=1.25)
-mtext("Relative biomass",2,cex=1.75,las=3,line=-1,outer=T)
-mtext("Financial year",1,line=-1,cex=1.75,outer=T)
-dev.off()
-
-write.csv(cbind(Yrs=Yrs,geom.mean=Ktch_MSY_rel_bt_mean,
-                lowSE=Ktch_MSY_rel_bt_lowSE,UpSE=Ktch_MSY_rel_bt_upSE),"rel.biom.base.case.csv",row.names=F)
-
-
-#show example of all runs
-rain.col=colorRampPalette(c("black", "grey","white"))(ncol(Ktch_MSY_Rel.bio))
-fn.fig("Biomass_relative_all_runs",2000,2400)
-par(mar=c(3,3.5,1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
-plot(Yrs,Ktch_MSY_Rel.bio[,1],ylim=c(0,1),xaxt='n',xlab="",ylab="",type='l')
-for(nn in 2:ncol(Ktch_MSY_Rel.bio)) lines(Yrs,Ktch_MSY_Rel.bio[,nn],col=sample(rain.col,1))
-abline(h=B.target,lwd=3,col='green',lty=2)
-text(Yrs[3],B.target,"Target",pos=3,cex=1.25)
-abline(h=B.threshold,lwd=3,col='yellow',lty=2)
-text(Yrs[5],B.threshold,"Threshold",pos=3,cex=1.25)
-abline(h=B.limit,lwd=3,col='orange',lty=2)
-text(Yrs[3],B.limit,"Limit",pos=3,cex=1.25)
-axis(1,Yrs,labels=F,tck=-0.015)
-axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
-mtext("Relative biomass",2,cex=1.75,las=3,line=-1,outer=T)
-mtext("Financial year",1,line=-1,cex=1.75,outer=T)
-dev.off()
-
-
-#Current depletion of total biomass
-
-    #Base case only
-fn.fig("Posterior_current_year_depletion_Base case",1200,2400)
-par(mfcol=c(3,1),mar=c(3.5,3.5,.1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
-sc=match("Base case",names(ktch_msy_scen))
-Ktch_MSY_Rel.bio=rbind(Ktch_MSY[[sc]]$bt.rel,Ktch_MSY[[sc]]$bt.rel.future)
-Ktch_MSY_current_yr=Ktch_MSY_Rel.bio[match(Current,Yrs),]
-density.fun2(what=Ktch_MSY_current_yr,B.ref=B.target,CEX=1.5) 
-legend('bottomright',"Target",bty='n',cex=2)
-density.fun2(what=Ktch_MSY_current_yr,B.ref=B.threshold,CEX=1.5) 
-legend('bottomright',"Threshold",bty='n',cex=2)
-density.fun2(what=Ktch_MSY_current_yr,B.ref=B.limit,CEX=1.5) 
-legend('bottomright',"Limit",bty='n',cex=2)
-mtext("Probability",2,cex=1.75,las=3,line=-1.75,outer=T)
-mtext(paste(Current,"relative biomass"),1,line=-1,cex=1.75,outer=T)
-dev.off()
-
-
-#export probabilities for Weight of Evidence
-write.csv(Probs.ref.point(what=Ktch_MSY_current_yr),"Consequence_likelihood_total.csv",row.names=F)
-
-#export relative biomass runs
-write.csv(Ktch_MSY_Rel.bio,"Base case/Ktch_MSY_Rel.bio.csv",row.names=F)
-
-#Future depletion of total biomass
-
-#Base case only
-Ktch_MSY_future=Ktch_MSY_Rel.bio[length(Yrs),]
-
-fn.fig("Posterior_future_year_depletion_Base case",1200,2400)
-par(mfcol=c(3,1),mar=c(3.5,3.5,.1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
-density.fun2(what=Ktch_MSY_future,B.ref=B.target,CEX=1.5) 
-legend('bottomright',"Target",bty='n',cex=2)
-density.fun2(what=Ktch_MSY_future,B.ref=B.threshold,CEX=1.5) 
-legend('bottomright',"Threshold",bty='n',cex=2)
-density.fun2(what=Ktch_MSY_future,B.ref=B.limit,CEX=1.5) 
-legend('bottomright',"Limit",bty='n',cex=2)
-mtext("Probability",2,cex=1.75,las=3,line=-1.75,outer=T)
-mtext(paste(Yrs[length(Yrs)],"relative biomass"),1,line=-1,cex=1.75,outer=T)
-dev.off()
-
-#export probabilities for Weight of Evidence
-write.csv(Probs.ref.point(what=Ktch_MSY_future),"Consequence_likelihood_total_future.csv",row.names=F)
-
-
-
-
-#Fishing mortality trend
-Yrs=Yrs[-match(yr.future,Yrs)]             
-
+  fn.fig("Posterior_current_year_depletion_Base case",1200,2400)
+  par(mfcol=c(3,1),mar=c(3.5,3.5,.1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
+  sc=match("Base case",names(ktch_msy_scen))
+  Ktch_MSY_Rel.bio=rbind(Ktch_MSY[[sc]]$bt.rel,Ktch_MSY[[sc]]$bt.rel.future)
+  Ktch_MSY_current_yr=Ktch_MSY_Rel.bio[match(Current,Yrs),]
+  density.fun2(what=Ktch_MSY_current_yr,B.ref=B.target,CEX=1.5) 
+  legend('bottomright',"Target",bty='n',cex=2)
+  density.fun2(what=Ktch_MSY_current_yr,B.ref=B.threshold,CEX=1.5) 
+  legend('bottomright',"Threshold",bty='n',cex=2)
+  density.fun2(what=Ktch_MSY_current_yr,B.ref=B.limit,CEX=1.5) 
+  legend('bottomright',"Limit",bty='n',cex=2)
+  mtext("Probability",2,cex=1.75,las=3,line=-1.75,outer=T)
+  mtext(paste(Current,"relative biomass"),1,line=-1,cex=1.75,outer=T)
+  dev.off()
+  
+  
+  #export probabilities for Weight of Evidence
+  write.csv(Probs.ref.point(what=Ktch_MSY_current_yr),"Consequence_likelihood_total.csv",row.names=F)
+  
+  #export relative biomass runs
+  write.csv(Ktch_MSY_Rel.bio,"Base case/Ktch_MSY_Rel.bio.csv",row.names=F)
+  
+  #Future depletion of total biomass
+  
+  #Base case only
+  Ktch_MSY_future=Ktch_MSY_Rel.bio[length(Yrs),]
+  
+  fn.fig("Posterior_future_year_depletion_Base case",1200,2400)
+  par(mfcol=c(3,1),mar=c(3.5,3.5,.1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
+  density.fun2(what=Ktch_MSY_future,B.ref=B.target,CEX=1.5) 
+  legend('bottomright',"Target",bty='n',cex=2)
+  density.fun2(what=Ktch_MSY_future,B.ref=B.threshold,CEX=1.5) 
+  legend('bottomright',"Threshold",bty='n',cex=2)
+  density.fun2(what=Ktch_MSY_future,B.ref=B.limit,CEX=1.5) 
+  legend('bottomright',"Limit",bty='n',cex=2)
+  mtext("Probability",2,cex=1.75,las=3,line=-1.75,outer=T)
+  mtext(paste(Yrs[length(Yrs)],"relative biomass"),1,line=-1,cex=1.75,outer=T)
+  dev.off()
+  
+  #export probabilities for Weight of Evidence
+  write.csv(Probs.ref.point(what=Ktch_MSY_future),"Consequence_likelihood_total_future.csv",row.names=F)
+  
+  
+  
+  
+  #Fishing mortality trend
+  Yrs=Yrs[-match(yr.future,Yrs)]             
+  
   #All scenarios
-fn.fig("Fishing_mortality",2000,2400)
-smart.par(n.plots=length(ktch_msy_scen),MAR=c(3,5,1,1),OMA=rep(.5,4),MGP=c(1,.6,0))
-for(sc in 1:length(ktch_msy_scen))
-{
+  fn.fig("Fishing_mortality",2000,2400)
+  smart.par(n.plots=length(ktch_msy_scen),MAR=c(3,5,1,1),OMA=rep(.5,4),MGP=c(1,.6,0))
+  for(sc in 1:length(ktch_msy_scen))
+  {
+    Fish.mort=Ktch_MSY[[sc]]$Fish.mort
+    
+    #Percentiles
+    fn.plot.percentile(DAT=Fish.mort,YR=Yrs,ADD.prob="NO")
+    
+    #Geometric mean
+    # Fish.mort_mean=Fish.mort_lowSE=Fish.mort_upSE=nrow(Fish.mort)
+    # for(nr in 1:nrow(Fish.mort))
+    # {
+    #   Fish.mort_mean[nr]=exp(mean(log(Fish.mort[nr,])))
+    #   Fish.mort_upSE[nr]=exp(mean(log(Fish.mort[nr,])) + 1.96 * sd(log(Fish.mort[nr,])))
+    #   Fish.mort_lowSE[nr]=exp(mean(log(Fish.mort[nr,])) - 1.96 * sd(log(Fish.mort[nr,])))
+    # }
+    # plot(Yrs,Fish.mort_mean,cex=1.5,pch=19,col=CL.mean,lwd=3,ylim=c(0,1),xaxt='n',xlab="",ylab="",cex.axis=1.25)
+    # segments(Yrs,Fish.mort_lowSE,Yrs,Fish.mort_upSE,col=CL)
+    # points(Yrs[indx.ftur],Fish.mort_mean[indx.ftur],pch=19,col=CL.mean,cex=1.65)  #highlight future projections
+    # segments(Yrs[indx.ftur],Fish.mort_lowSE[indx.ftur],Yrs[indx.ftur],Fish.mort_upSE[indx.ftur],col="brown4")
+    # axis(1,Yrs,labels=F,tck=-0.015)
+    # axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
+    legend("topleft",names(Ktch_MSY)[sc],bty='n',cex=1.5)
+  }
+  mtext(expression(paste(plain("Fishing mortality (year") ^ plain("-1"),")",sep="")),
+        2,cex=1.75,las=3,line=-2.5,outer=T)   
+  mtext("Financial year",1,line=-1,cex=1.75,outer=T)
+  dev.off()
+  
+  
+  #Base case only
+  fn.fig("Fishing_mortality_Base case",2000,2400)
+  par(mar=c(3,5,1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
+  sc=match("Base case",names(ktch_msy_scen))
   Fish.mort=Ktch_MSY[[sc]]$Fish.mort
   
   #Percentiles
   fn.plot.percentile(DAT=Fish.mort,YR=Yrs,ADD.prob="NO")
   
-  #Geometric mean
+  #   #Get geometric mean
   # Fish.mort_mean=Fish.mort_lowSE=Fish.mort_upSE=nrow(Fish.mort)
   # for(nr in 1:nrow(Fish.mort))
   # {
@@ -6156,55 +6184,24 @@ for(sc in 1:length(ktch_msy_scen))
   #   Fish.mort_upSE[nr]=exp(mean(log(Fish.mort[nr,])) + 1.96 * sd(log(Fish.mort[nr,])))
   #   Fish.mort_lowSE[nr]=exp(mean(log(Fish.mort[nr,])) - 1.96 * sd(log(Fish.mort[nr,])))
   # }
-  # plot(Yrs,Fish.mort_mean,cex=1.5,pch=19,col=CL.mean,lwd=3,ylim=c(0,1),xaxt='n',xlab="",ylab="",cex.axis=1.25)
+  # plot(Yrs,Fish.mort_mean,cex=1.5,pch=19,col=CL.mean,lwd=3,ylim=c(0,max(Fish.mort_upSE)),xaxt='n',xlab="",ylab="",cex.axis=1.25)
   # segments(Yrs,Fish.mort_lowSE,Yrs,Fish.mort_upSE,col=CL)
   # points(Yrs[indx.ftur],Fish.mort_mean[indx.ftur],pch=19,col=CL.mean,cex=1.65)  #highlight future projections
   # segments(Yrs[indx.ftur],Fish.mort_lowSE[indx.ftur],Yrs[indx.ftur],Fish.mort_upSE[indx.ftur],col="brown4")
   # axis(1,Yrs,labels=F,tck=-0.015)
   # axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
-   legend("topleft",names(Ktch_MSY)[sc],bty='n',cex=1.5)
+  
+  mtext(expression(paste(plain("Fishing mortality (year") ^ plain("-1"),")",sep="")),
+        2,cex=1.75,las=3,line=-2,outer=T)
+  mtext("Financial year",1,line=-1,cex=1.75,outer=T)
+  legend("topleft",c("50%","75%","100%"),fill=COLS,bty='n',title="Percentile",cex=1.25)
+  dev.off()
 }
-mtext(expression(paste(plain("Fishing mortality (year") ^ plain("-1"),")",sep="")),
-      2,cex=1.75,las=3,line=-2.5,outer=T)   
-mtext("Financial year",1,line=-1,cex=1.75,outer=T)
-dev.off()
-
-
-  #Base case only
-fn.fig("Fishing_mortality_Base case",2000,2400)
-par(mar=c(3,5,1,1),oma=rep(.5,4),mgp=c(1,.6,0),las=1)
-sc=match("Base case",names(ktch_msy_scen))
-Fish.mort=Ktch_MSY[[sc]]$Fish.mort
-
-#Percentiles
-fn.plot.percentile(DAT=Fish.mort,YR=Yrs,ADD.prob="NO")
-
-#   #Get geometric mean
-# Fish.mort_mean=Fish.mort_lowSE=Fish.mort_upSE=nrow(Fish.mort)
-# for(nr in 1:nrow(Fish.mort))
-# {
-#   Fish.mort_mean[nr]=exp(mean(log(Fish.mort[nr,])))
-#   Fish.mort_upSE[nr]=exp(mean(log(Fish.mort[nr,])) + 1.96 * sd(log(Fish.mort[nr,])))
-#   Fish.mort_lowSE[nr]=exp(mean(log(Fish.mort[nr,])) - 1.96 * sd(log(Fish.mort[nr,])))
-# }
-# plot(Yrs,Fish.mort_mean,cex=1.5,pch=19,col=CL.mean,lwd=3,ylim=c(0,max(Fish.mort_upSE)),xaxt='n',xlab="",ylab="",cex.axis=1.25)
-# segments(Yrs,Fish.mort_lowSE,Yrs,Fish.mort_upSE,col=CL)
-# points(Yrs[indx.ftur],Fish.mort_mean[indx.ftur],pch=19,col=CL.mean,cex=1.65)  #highlight future projections
-# segments(Yrs[indx.ftur],Fish.mort_lowSE[indx.ftur],Yrs[indx.ftur],Fish.mort_upSE[indx.ftur],col="brown4")
-# axis(1,Yrs,labels=F,tck=-0.015)
-# axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
-
-mtext(expression(paste(plain("Fishing mortality (year") ^ plain("-1"),")",sep="")),
-       2,cex=1.75,las=3,line=-2,outer=T)
-mtext("Financial year",1,line=-1,cex=1.75,outer=T)
-legend("topleft",c("50%","75%","100%"),fill=COLS,bty='n',title="Percentile",cex=1.25)
-dev.off()
 
 
 
 
-# ................. Section H: NOT USED CODE .................. 
-
+# Section H: DROPPED CODE -------------------------------------------------
 #R2admb way of running scripts
 # source("C:/Matias/Analyses/SOURCE_SCRIPTS/setupADMB.R") 
 # system.time(for(i in 1:nrow(Scenarios))

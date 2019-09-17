@@ -76,19 +76,22 @@ Move.mode="Individual-based"
 #Combine all size classes for tagging model
 conv.tag.all="YES"    
 
+Fz.off=-22
+
   #Define species and year of assessment
 Spec=c("Whiskery","Gummy","Dusky","Sandbar","Other")
 
 List.sp=vector('list',length(Spec))
 names(List.sp)=Spec
 
+
   #Fill in Whiskery
 N.Scens=14   #Scenarios tested
 List.sp$Whiskery=list(
   
   #Biology
-  Spec="Whiskery",
   SPEC=17003,
+  Spec="Whiskery",
   Sp2='whiskery',
   species="WH",
   TL.bins.cm=5,
@@ -186,6 +189,14 @@ List.sp$Whiskery=list(
   #log.Q.tag.ZN2=-5,
   #log.tau=1
   
+    #Estimation phases
+  Par.phases=list('Base case'=c(dummy=Fz.off,lnR_zero=1,lnR_prop_west=1,lnR_prop_zn1=1,
+                               lnq=2,lnq2=2,log_Qdaily=2,ln_Init_F=Fz.off,log_tau=5,
+                               k=3,lnLinf=3,k_M=3,lnLinf_M=3,sd_growth=4,
+                               log_p11=1,log_p22=1,log_p21=1,log_p33=1),
+                  S1=c(dummy=Fz.off,r=2,ln_k=2,ln_q1=1,ln_q2=1,ln_qdaily=-1,ln_tau=3),
+                  S2=c(dummy=Fz.off,Rstar=2,z=3,q1=1,q2=1,qdaily=Fz.off,Fo=4)),
+  
     #catch-MSY arguments
   Growth.F=data.frame(k=0.369,FL_inf=121),
   TEMP=18,
@@ -194,19 +205,376 @@ List.sp$Whiskery=list(
   Fecundity=c(4,28),
   Breed.cycle=2,  #years
   years.futures=5
-  
-  
   )
 
 
   #fill in Gummy
+N.Scens=6
+List.sp$Gummy=list(
+  
+  #Biology
+  SPEC=17001,     
+  Spec="Gummy",
+  Sp2='gummy',
+  species="GM",
+  TL.bins.cm=5,
+  Max.FL.obs=175,          #Maximimum observed FL
+  Lo=33,                   #Size at birth
+  Prior.mean.Fo=0.01,
+  Prior.SD.Log.Fo=0.5,
+  
+  #Steepness
+  h.M.constant=0.481,  #Braccini et al 2015 
+  h.M.constant.low=0.461,    #80% percentile
+  h.M.constant.up=0.5,
+  
+  #Natural mortality
+  M_val=0.283,          #Walker empirical
+  M_val.low=0.22,      #using Hoenig set to Max age=19 exp(1.46-1.01*log(19))
+  M_val.high=0.32,     #using Hoenig set to Max age=13 exp(1.46-1.01*log(13))
+  
+  #Initial F
+  Fo=0.05,                #This leaves B1975 at 95% unfished 
+  Fo_Simp=0.003,              
+  Fo_M=0.1,                
+  Fo_AS=0.004,             #This leaves B1975 at 95% unfished 
+  
+  Po_spm=0.95,  #Po for surplus production, consistent with the Fo value used in Size based model
+   
+  
+  #Data
+  AssessYr=2019,
+  Data.yr="2017-18",         #last year of catch
+  Frst.yr.ktch="1975-76",    #first year of catch)
+  AREAS=c("West","Zone1","Zone2"),  #Define spatial areas; 1 is West, 2 is Zn1, 3 is Zn2.
+  Yr_q_change=0,   #last year before targeting practices changed (Simpfendorfer 2000)
+  Yr_q_daily=2006,
+  Do_var=0,        #How to calculate cpue variance in Simpfendorfer's age-structured
+  Var1=0.029,
+  Var2=Var1,
+
+  
+  #Scenarios
+  N.Scens=N.Scens,       
+  Zens=paste("S",1:(N.Scens-1),sep=""),
+  Models=c("Base case",paste("S",1:(N.Scens-1),sep="")),
+  Q.scen=c(rep("two",2),"one","N/A","two","two"),
+
+  #Initial value of estimable parameters
+    #Dummy for switching on/off phase estimation in simulation testing
+  Dummy=1,   
+  
+    #Biomass dynamics
+  r_BD=fn.ji(0.3),
+  k_BD=fn.ji(5000),
+  Q1_BD=fn.ji(1e-7),
+  Q2_BD=fn.ji(1e-7),
+  daily_BD=fn.ji(1e-7),
+  tau2_BD=fn.ji(0.1353),
+  
+    #Age-structured
+  RSTAR_AS=100,
+  z_AS=1,
+  Q1_AS=1.4,
+  Q2_AS=fn.ji(0.8),
+  q_daily_AS=fn.ji(0.8),
+  
+    #Size-base
+  RZERO_in_1000_individuals_SB=fn.ji(1000),
+  Q1_SB=fn.ji(1e-4),
+  Q2_SB=fn.ji(1e-4),
+  Q_daily_SB=fn.ji(1e-4),
+  Fo_SB=NA,   #no jit because it's fixed
+  tau_SB=fn.ji(0.3),
+  
+  K.F=fn.ji(0.15),
+  Linf.F=fn.ji(180),
+  K.M=fn.ji(0.25),
+  Linf.M=fn.ji(150),
+  SD.growth_SB=fn.ji(10),
+  Prop.west=fn.ji(0.02),   #proportion of recruitment by zone calculated based on average prop catch by zone
+  Prop.zn1=fn.ji(0.08),
+  
+    #Movement 
+  p11=0.999,
+  p22=0.999,
+  p21=0.00024,
+  p33=0.999,
+  # mov.WC_WC=.9,
+  # mov.WC_ZN1=.1,
+  # mov.ZN1_WC=.1,
+  # mov.ZN1_ZN1=.9,
+  # mov.ZN2_ZN1=.1,
+  # mov.ZN2_ZN2=.9,
+  # log.Q.tag.WC=-5,
+  # log.Q.tag.ZN1=-5,
+  # log.Q.tag.ZN2=-5,
+  # log.tau=1,
+  
+  #Estimation phases
+  Par.phases=list('Base case'=c(dummy=Fz.off,lnR_zero=3,lnR_prop_west=-3,lnR_prop_zn1=-3,
+                                lnq=4,lnq2=Fz.off,log_Qdaily=4,ln_Init_F=Fz.off,log_tau=5,
+                                k=1,lnLinf=1,k_M=1,lnLinf_M=1,sd_growth=2,
+                                log_p11=1,log_p22=1,log_p21=1,log_p33=1),
+                  S1=c(dummy=Fz.off,r=2,ln_k=2,ln_q1=1,ln_q2=Fz.off,ln_qdaily=1,ln_tau=3),
+                  S2=c(dummy=Fz.off,Rstar=1,z=1,q1=1,q2=Fz.off,qdaily=Fz.off,Fo=-4)),
+  
+  
+  #catch-MSY arguments
+  Growth.F=data.frame(k=0.123,FL_inf=202),
+  TEMP=18,
+  Max.age.F=c(16,20),
+  Age.50.mat=c(4,6),
+  Fecundity=c(3,31),
+  Breed.cycle=1,  #years
+  years.futures=5
+)
   
   #fill in Dusky
+N.Scens=6
+List.sp$Dusky=list(
+    #Biology
+  SPEC=18003, #note: Dusky includes C. brachyurus as well (in "Organise data.R")   CHECK 2 species used..MISSING
+  Spec="Dusky",
+  Sp2='dusky',
+  species="BW",
+  TL.bins.cm=5,
+  Max.FL.obs=250,          #Maximimum observed FL    MISSING, change accordingly
+  Lo=33,                   #Size at birth            MISSING, change accordingly
+  Prior.mean.Fo=0.01,
+  Prior.SD.Log.Fo=0.5,
   
+  #Steepness
+  h.M.constant=0.481,  #Braccini et al 2015      #change accordingly    MISSING!!
+  h.M.constant.low=0.461,    #80% percentile     #change accordingly    MISSING!!
+  h.M.constant.up=0.5,                           #change accordingly    MISSING!!
+  
+  #Natural mortality
+  M_val=0.283,          #using Hoenig set to Max age=15  (Simpfendorfer et al 2000)  #MISSING!!
+  M_val.low=0.22,      #using Hoenig set to Max age=18 exp(1.46-1.01*log(18))        #MISSING!!
+  M_val.high=0.32,     #using Hoenig set to Max age=12 exp(1.46-1.01*log(12))        #MISSING!!
+  
+  #Initial F
+  Fo=0.05,                #This leaves B1975 at 95% unfished   #change accordingly    MISSING!!
+  Fo_Simp=0.003,                 #change accordingly    MISSING  
+  Fo_M=0.1,                      #change accordingly    MISSING
+  Fo_AS=0.004,             #This leaves B1975 at 95% unfished    #change accordingly    MISSING!!
+  Po_spm=0.95,  #Po for surplus production, consistent with the Fo value used in Size based model  #MISSING!!
+  
+  
+  #Data
+  Ktch.source="WA.only",  #select whether to use all catch series or only WA
+  #Ktch.source="ALL",
+  AssessYr=2019,
+  Data.yr="2017-18",         #last year of catch
+  Frst.yr.ktch="1975-76",    #first year of catch)
+  AREAS=c("West","Zone1","Zone2"),  #Define spatial areas; 1 is West, 2 is Zn1, 3 is Zn2.  #MISSING!!
+  Yr_q_change=0,   #last year before targeting practices changed (Simpfendorfer 2000)
+  Yr_q_daily=2006,
+  
+
+  #Scenarios
+  N.Scens=N.Scens,       
+  Zens=paste("S",1:(N.Scens-1),sep=""),
+  Models=c("Base case",paste("S",1:(N.Scens-1),sep="")),
+  Q.scen=c(rep("two",2),"one","N/A","two","two"),  #change accordingly    MISSING!!
+  
+  
+  #Initial value of estimable parameters
+    #Dummy for switching on/off phase estimation in simulation testing
+  Dummy=1,   
+  
+    #Biomass dynamics      #change accordingly  all pars  MISSING!!
+  r_BD=fn.ji(0.3),
+  k_BD=fn.ji(5000),
+  Q1_BD=fn.ji(1e-7),
+  Q2_BD=fn.ji(1e-7),
+  daily_BD=fn.ji(1e-7),
+  tau2_BD=fn.ji(0.1353),
+  
+    #Age-structured
+  RSTAR_AS=100,
+  z_AS=1,
+  Q1_AS=1.4,
+  Q2_AS=fn.ji(0.8),
+  q_daily_AS=fn.ji(0.8),
+  
+    #Size-base
+  RZERO_in_1000_individuals_SB=fn.ji(1000),
+  Q1_SB=fn.ji(1e-4),
+  Q2_SB=fn.ji(1e-4),
+  Q_daily_SB=fn.ji(1e-4),
+  Fo_SB=NA,  #no jit because it's fixed
+  tau_SB=fn.ji(0.3), 
+  
+  K.F=fn.ji(0.15),
+  Linf.F=fn.ji(180),
+  K.M=fn.ji(0.25),
+  Linf.M=fn.ji(150),
+  SD.growth_SB=fn.ji(10),
+  Prop.west=fn.ji(0.02),   #proportion of recruitment by zone calculated based on average prop catch by zone
+  Prop.zn1=fn.ji(0.08),
+  
+    #Movement 
+  p11=0.999,
+  p22=0.999,
+  p21=0.00024,
+  p33=0.999,
+  # mov.WC_WC=.9,
+  # mov.WC_ZN1=.1,
+  # mov.ZN1_WC=.1,
+  # mov.ZN1_ZN1=.9,
+  # mov.ZN2_ZN1=.1,
+  # mov.ZN2_ZN2=.9,
+  # log.Q.tag.WC=-5,
+  # log.Q.tag.ZN1=-5,
+  # log.Q.tag.ZN2=-5,
+  # log.tau=1,
+  
+  #Estimation phases             change accordingly   MISSING!!!
+  Par.phases=list('Base case'=c(dummy=Fz.off,lnR_zero=3,lnR_prop_west=-3,lnR_prop_zn1=-3,
+                                lnq=4,lnq2=Fz.off,log_Qdaily=4,ln_Init_F=Fz.off,log_tau=5,
+                                k=1,lnLinf=1,k_M=1,lnLinf_M=1,sd_growth=2,
+                                log_p11=1,log_p22=1,log_p21=1,log_p33=1),
+                  S1=c(dummy=Fz.off,r=2,ln_k=2,ln_q1=1,ln_q2=Fz.off,ln_qdaily=1,ln_tau=3),
+                  S2=c(dummy=Fz.off,Rstar=1,z=1,q1=1,q2=Fz.off,qdaily=Fz.off,Fo=-4)),
+  
+  
+  #catch-MSY arguments
+  Growth.F=data.frame(k=0.0367,FL_inf=374),
+  TEMP=18,
+  Max.age.F=c(40,55),
+  Age.50.mat=c(16,26),  #from McAuley et al 2005 FRDC 151, page 89 50% Mat is at ~26, not 35; Geraghty et al 2016 reports 16
+  Fecundity=c(2,18),
+  Breed.cycle=c(2,3),  #years
+  years.futures=5
+)
+
+
+
   #fill in Sandbar
+#fill in Sandbar
+N.Scens=6
+List.sp$Sandbar=list(
+  #Biology
+  SPEC=18007,     
+  Spec="Sandbar",   #check species (Thickskin?)  MISSING!!!!!!!!!!!!!!!!!
+  Sp2='sandbar',   #check species (Thickskin?)  MISSING!!!!!!!!!!!!!!!!!
+  species="TK",
+  TL.bins.cm=5,
+  Max.FL.obs=200,          #Maximimum observed FL    MISSING, change accordingly
+  Lo=33,                   #Size at birth            MISSING, change accordingly
+  Prior.mean.Fo=0.01,
+  Prior.SD.Log.Fo=0.5,
+  
+  #Steepness
+  h.M.constant=0.481,  #Braccini et al 2015      #change accordingly    MISSING!!
+  h.M.constant.low=0.461,    #80% percentile     #change accordingly    MISSING!!
+  h.M.constant.up=0.5,                           #change accordingly    MISSING!!
+  
+  #Natural mortality
+  M_val=0.283,          #using Hoenig set to Max age=15  (Simpfendorfer et al 2000)  #MISSING!!
+  M_val.low=0.22,      #using Hoenig set to Max age=18 exp(1.46-1.01*log(18))        #MISSING!!
+  M_val.high=0.32,     #using Hoenig set to Max age=12 exp(1.46-1.01*log(12))        #MISSING!!
+  
+  #Initial F
+  Fo=0.05,                #This leaves B1975 at 95% unfished   #change accordingly    MISSING!!
+  Fo_Simp=0.003,                 #change accordingly    MISSING  
+  Fo_M=0.1,                      #change accordingly    MISSING
+  Fo_AS=0.004,             #This leaves B1975 at 95% unfished    #change accordingly    MISSING!!
+  Po_spm=0.95,  #Po for surplus production, consistent with the Fo value used in Size based model  #MISSING!!
+  
+  
+  #Data
+  Ktch.source="WA.only",  #select whether to use all catch series or only WA
+  #Ktch.source="ALL",
+  AssessYr=2019,
+  Data.yr="2017-18",         #last year of catch
+  Frst.yr.ktch="1975-76",    #first year of catch)
+  AREAS=c("West","Zone1","Zone2"),  #Define spatial areas; 1 is West, 2 is Zn1, 3 is Zn2.  #MISSING!!
+  Yr_q_change=0,   #last year before targeting practices changed (Simpfendorfer 2000)
+  Yr_q_daily=2006,
+  
+  
+  #Scenarios
+  N.Scens=N.Scens,       
+  Zens=paste("S",1:(N.Scens-1),sep=""),
+  Models=c("Base case",paste("S",1:(N.Scens-1),sep="")),
+  Q.scen=c(rep("two",2),"one","N/A","two","two"),  #change accordingly    MISSING!!
+  
+  
+  #Initial value of estimable parameters
+    #Dummy for switching on/off phase estimation in simulation testing
+  Dummy=1,   
+  
+    #Biomass dynamics      #change accordingly  all pars  MISSING!!
+  r_BD=fn.ji(0.3),
+  k_BD=fn.ji(5000),
+  Q1_BD=fn.ji(1e-7),
+  Q2_BD=fn.ji(1e-7),
+  daily_BD=fn.ji(1e-7),
+  tau2_BD=fn.ji(0.1353),
+  
+    #Age-structured
+  RSTAR_AS=100,
+  z_AS=1,
+  Q1_AS=1.4,
+  Q2_AS=fn.ji(0.8),
+  q_daily_AS=fn.ji(0.8),
+  
+    #Size-base
+  RZERO_in_1000_individuals_SB=fn.ji(1000),
+  Q1_SB=fn.ji(1e-4),
+  Q2_SB=fn.ji(1e-4),
+  Q_daily_SB=fn.ji(1e-4),
+  Fo_SB=NA,  #no jit because it's fixed
+  tau_SB=fn.ji(0.3), 
+  
+  K.F=fn.ji(0.15),
+  Linf.F=fn.ji(180),
+  K.M=fn.ji(0.25),
+  Linf.M=fn.ji(150),
+  SD.growth_SB=fn.ji(10),
+  Prop.west=fn.ji(0.02),   #proportion of recruitment by zone calculated based on average prop catch by zone
+  Prop.zn1=fn.ji(0.08),
+  
+    #Movement 
+  p11=0.999,
+  p22=0.999,
+  p21=0.00024,
+  p33=0.999,
+  # mov.WC_WC=.9,
+  # mov.WC_ZN1=.1,
+  # mov.ZN1_WC=.1,
+  # mov.ZN1_ZN1=.9,
+  # mov.ZN2_ZN1=.1,
+  # mov.ZN2_ZN2=.9,
+  # log.Q.tag.WC=-5,
+  # log.Q.tag.ZN1=-5,
+  # log.Q.tag.ZN2=-5,
+  # log.tau=1,
+  
+  #Estimation phases             change accordingly   MISSING!!!
+  Par.phases=list('Base case'=c(dummy=Fz.off,lnR_zero=3,lnR_prop_west=-3,lnR_prop_zn1=-3,
+                                lnq=4,lnq2=Fz.off,log_Qdaily=4,ln_Init_F=Fz.off,log_tau=5,
+                                k=1,lnLinf=1,k_M=1,lnLinf_M=1,sd_growth=2,
+                                log_p11=1,log_p22=1,log_p21=1,log_p33=1),
+                  S1=c(dummy=Fz.off,r=2,ln_k=2,ln_q1=1,ln_q2=Fz.off,ln_qdaily=1,ln_tau=3),
+                  S2=c(dummy=Fz.off,Rstar=1,z=1,q1=1,q2=Fz.off,qdaily=Fz.off,Fo=-4)),
+  
+  
+  #catch-MSY arguments
+  Growth.F=data.frame(k=0.04,FL_inf=244),
+  TEMP=24,
+  Max.age.F=c(30,39),
+  Age.50.mat=c(13,19),  
+  Fecundity=c(4,10),
+  Breed.cycle=2,  #years
+  years.futures=5
+)
   
   #fill in Other shark species
-
+#MISSING
 
 
 # 2. Define Scenarios for sensitivity tests -------------------------------
@@ -218,9 +586,9 @@ BaseCase="Size-based"
 Do.cols="YES"  
 #Do.cols="NO"
 
-  #Define scenarios
-SIMS=1e5
-Proc.err=0.05 #sigR is PROCESS ERROR; 0 if deterministic model
+SIMS=1e5      #Catch-MSY; simulations
+Proc.err=0.05 #Catch-MSY; sigR is PROCESS ERROR; 0 if deterministic model
+
 
       #fill in Whiskery
 List.sp$Whiskery=with(List.sp$Whiskery,
@@ -254,154 +622,208 @@ List.sp$Whiskery=with(List.sp$Whiskery,
         )
     })
 ktch_msy_scen=list()
-ktch_msy_scen$'Base case'=list(
-  r.prior="USER",    
-  user="Yes",
-  k.max=50,
-  startbio=c(0.7,.95),
-  finalbio=c(0.2, 0.7),
-  res="low",
-  niter=SIMS,
-  sigR=Proc.err)
-ktch_msy_scen$S1=list(
-  r.prior="USER",    
-  user="Yes",
-  k.max=50,
-  startbio=c(0.7,.95),
-  finalbio=c(0.2, 0.7),
-  res="low",
-  niter=SIMS,
-  sigR=0.02)
-ktch_msy_scen$S2=list(
-  r.prior=NA,  
-  user="No",
-  k.max=50,
-  startbio=c(0.7,.95),
-  finalbio=c(0.2, 0.7),
-  res="low",     
-  niter=SIMS,
-  sigR=Proc.err)
+ktch_msy_scen$'Base case'=list(r.prior="USER",user="Yes",k.max=50,startbio=c(0.7,.95),
+                          finalbio=c(0.2, 0.7),res="low",niter=SIMS,sigR=Proc.err)
+ktch_msy_scen$S1=list(r.prior="USER",user="Yes",k.max=50,startbio=c(0.7,.95),
+                      finalbio=c(0.2, 0.7),res="low",niter=SIMS,sigR=0.02)
+ktch_msy_scen$S2=list(r.prior=NA,user="No",k.max=50,startbio=c(0.7,.95),
+                      finalbio=c(0.2, 0.7),res="low",niter=SIMS,sigR=Proc.err)
 List.sp$Whiskery=list.append(List.sp$Whiskery,ktch_msy_scen=ktch_msy_scen)
 
+
       #fill in Gummy
+List.sp$Gummy=with(List.sp$Gummy,
+   {
+      list.append(List.sp$Gummy,
+                  Tabla.scen=data.frame(
+                    Model=Models,
+                    Size_comp.=c('Yes',"N/A",'No','Yes','No','Yes'),
+                    CPUE=c(rep("Stand.",2),"Effective","No","Stand.","Stand.hours"),
+                    Age.Growth=c('Yes',"N/A",'No','Yes','No','Yes'),
+                    Ktch.sx.r=c('Observed','N/A','Equal','Observed','Equal','Observed'),
+                    Tagging=c('No','N/A',rep('No',4)),
+                    Fec.=c(rep('N/A',2),'constant','N/A','constant','N/A'),
+                    Maturity=c('at length','N/A','knife edge',"at length",'knife edge',"at length"),
+                    M=c("constant","N/A",rep("constant",4)),
+                    M.value=c(M_val,NA,rep(M_val,4)),
+                    SteepnesS=c(h.M.constant,rep("N/A",2),h.M.constant,"N/A",h.M.constant),
+                    Q=Q.scen,   
+                    Spatial_structure=rep('Single zone',6),
+                    Movement=c("No","N/A",rep("No",4)),
+                    Fo=c(Fo,"N/A",Fo_AS,Fo,Fo_AS,Fo),
+                    Model_type=c('Length-based','Biomass dynamics',"Age-structured","Length-based","Age-structured","Length-based")
+                  )
+      )
+    })
+ktch_msy_scen=list()
+ktch_msy_scen$'Base case'=list(r.prior="USER",user="Yes",k.max=50,startbio=c(0.8,.95),
+                               finalbio=c(0.2, 0.7),res="low",niter=SIMS,sigR=Proc.err)
+ktch_msy_scen$S1=list(r.prior="USER",user="Yes",k.max=50,startbio=c(0.8,.95),
+                      finalbio=c(0.2, 0.7),res="low",niter=SIMS,sigR=0.02)
+ktch_msy_scen$S2=list(r.prior=NA,user="No",k.max=50,startbio=c(0.8,.95),
+                      finalbio=c(0.2, 0.7),res="low",niter=SIMS,sigR=Proc.err)
+List.sp$Gummy=list.append(List.sp$Gummy,ktch_msy_scen=ktch_msy_scen)
+
 
       #fill in Dusky
-      
+List.sp$Dusky$Tabla.scen=List.sp$Gummy$Tabla.scen     #change accordingly   MISSING!!
+ktch_msy_scen=list()
+ktch_msy_scen$'Base case'=list(r.prior="USER",user="Yes",k.max=50,startbio=c(0.7,.95),
+                               finalbio=c(0.2, 0.6),res="Very low",niter=SIMS,sigR=Proc.err)
+ktch_msy_scen$S1=list(r.prior="USER",user="Yes",k.max=50,startbio=c(0.7,.95),
+                      finalbio=c(0.2, 0.6),res="Very low",niter=SIMS,sigR=0.02)
+ktch_msy_scen$S2=list(r.prior=NA,user="No",k.max=50,startbio=c(0.7,.95),
+                      finalbio=c(0.2, 0.6),res="Very low",niter=SIMS,sigR=Proc.err)
+List.sp$Dusky=list.append(List.sp$Dusky,ktch_msy_scen=ktch_msy_scen)
+
+
       #fill in Sandbar
-      
+List.sp$Sandbar$Tabla.scen=List.sp$Gummy$Tabla.scen     #change accordingly   MISSING!!
+ktch_msy_scen=list()
+ktch_msy_scen$'Base case'=list(r.prior="USER",user="Yes",k.max=50,startbio=c(0.85,.95),
+                               finalbio=c(0.2, 0.6),res="Very low",niter=SIMS,sigR=Proc.err)
+ktch_msy_scen$S1=list(r.prior="USER",user="Yes",k.max=50,startbio=c(0.85,.95),
+                      finalbio=c(0.2, 0.6),res="Very low",niter=SIMS,sigR=0.02)
+ktch_msy_scen$S2=list(r.prior=NA,user="No",k.max=50,startbio=c(0.85,.95),
+                      finalbio=c(0.2, 0.6),res="Very low",niter=SIMS,sigR=Proc.err)
+List.sp$Sandbar=list.append(List.sp$Sandbar,ktch_msy_scen=ktch_msy_scen)
+
+
+     
       #fill in Other shark species
+#MISSING
 
-
+rm(ktch_msy_scen)
 
   #Add number of areas and handle, create path/folders, add fixed Fo
 for(l in 1:length(List.sp))
 {
-  n.areas=length(List.sp[[l]]$AREAS)
-  List.sp[[l]]$n.areas=n.areas
-  List.sp[[l]]$Areas.zones=data.frame(area=1:n.areas,zone=List.sp[[l]]$AREAS)
-  
-  List.sp[[l]]$hndl=paste("C:/Matias/Analyses/Population dynamics/",Spec[l]," shark/",sep='')
-  
-  List.sp[[l]]$Fo_SB=List.sp[[l]]$Fo  #fixed
-  
-  with(List.sp[[l]],
+  if(!is.null(List.sp[[l]]))
   {
-    #create folders if new run
-     kriat.path=paste(hndl,AssessYr,sep="")
-     if(!dir.exists(kriat.path))dir.create(kriat.path)
-     kriate.this=as.character(Tabla.scen$Model)
-     for (i in 1:length(kriate.this)) 
-     { 
-         NEW=paste(kriat.path,kriate.this[i], sep="/")
-         if(!dir.exists(NEW))dir.create(NEW) 
-     }
-     
-     #drop conv tag if not using
-     if(add.conv.tag=="NO") List.sp[[l]]$Tabla.scen=Tabla.scen[,-match("Tagging",names(Tabla.scen))]
-     
-     
-     #Edit scenarios table
-     inpt.pz=paste(hndl,AssessYr,"/1_Inputs",sep="")
-     if(!dir.exists(inpt.pz))dir.create(inpt.pz)
-     setwd(inpt.pz)
-  })
-  
-  #output scenarios table
-  if(First.run=="YES" )
-  {
+    n.areas=length(List.sp[[l]]$AREAS)
+    List.sp[[l]]$n.areas=n.areas
+    List.sp[[l]]$Areas.zones=data.frame(area=1:n.areas,zone=List.sp[[l]]$AREAS)
     
-    Tabla.scen.show=List.sp[[l]]$Tabla.scen
-    Tabla.scen.show=Tabla.scen.show[,-match(c("Fec.","M"),colnames(Tabla.scen.show))]
-    Tabla.scen.show[is.na(Tabla.scen.show)]="N/A"
-    names(Tabla.scen.show)[match(c("Model","SteepnesS"),names(Tabla.scen.show))]=c("Model_name","Steepness")
-    Tabla.scen.show=Tabla.scen.show[,match(c("Model_name","Model_type","Spatial_structure"
-                                             ,"Movement","Size_comp.","CPUE","CPUE_years_dropped","Age.Growth"         
-                                             ,"Ktch.sx.r","Tagging","M.value","Steepness","Fo","Maturity","Q"),names(Tabla.scen.show))]
-    Tabla.scen.show=Tabla.scen.show[match(c(Zens,"Base case" ),Tabla.scen.show$Model_name),]
-    Tabla.scen.show$Q=as.character(Tabla.scen.show$Q)
-    Tabla.scen.show$Q=with(Tabla.scen.show,ifelse(Q=="three",3,ifelse(Q=="two",2,ifelse(Q=="one",1,Q))))
-    Tabla.scen.show$Q=with(Tabla.scen.show,ifelse(!Q=="N/A"& Q>1,paste(Q,"periods"),
-                                                  ifelse(!Q=="N/A"& Q==1,paste(Q,"period"),Q))) 
+    List.sp[[l]]$hndl=paste("C:/Matias/Analyses/Population dynamics/1.",Spec[l]," shark/",sep='')
     
+    List.sp[[l]]$Fo_SB=List.sp[[l]]$Fo  #fixed
     
-    Scenarios.tbl=function(WD,Tbl,Doc.nm,caption,paragph,HdR.col,HdR.bg,Hdr.fnt.sze,Hdr.bld,
-                           body.fnt.sze,Zebra,Zebra.col,Grid.col,Fnt.hdr,Fnt.body,
-                           HDR.names,HDR.span,HDR.2nd,HDR.3rd)
+    with(List.sp[[l]],
+         {
+           #create folders if new run
+           kriat.path=paste(hndl,AssessYr,sep="")
+           if(!dir.exists(kriat.path))dir.create(kriat.path)
+           kriate.this=as.character(Tabla.scen$Model)
+           for (i in 1:length(kriate.this)) 
+           { 
+             NEW=paste(kriat.path,kriate.this[i], sep="/")
+             if(!dir.exists(NEW))dir.create(NEW) 
+           }
+           
+           #drop conv tag if not using
+           if(add.conv.tag=="NO") List.sp[[l]]$Tabla.scen=Tabla.scen[,-match("Tagging",names(Tabla.scen))]
+           
+           
+           #Edit scenarios table
+           inpt.pz=paste(hndl,AssessYr,"/1_Inputs",sep="")
+           if(!dir.exists(inpt.pz))dir.create(inpt.pz)
+           setwd(inpt.pz)
+         })
+    
+    #output scenarios table
+    if(First.run=="YES" )
     {
-      mydoc = docx(Doc.nm)  #create r object
-      mydoc = addSection( mydoc, landscape = T )   #landscape table
-      # add title
-      if(!is.na(caption))mydoc = addParagraph(mydoc, caption, stylename = "TitleDoc" )
+      if(names(List.sp)[l]=="Whiskery")
+      {
+        THiS=c("Model_name","Model_type","Spatial_structure"
+               ,"Movement","Size_comp.","CPUE","CPUE_years_dropped","Age.Growth"         
+               ,"Ktch.sx.r","Tagging","M.value","Steepness","Fo","Maturity","Q")
+        HDR.span=c(2,1,1,6,4,1)
+        HDR.2nd=c("Name","Type","structure",'',"Size","CPUE","CPUE years","Age &",
+                  "Prop. male","Tagging","M","h","Fo","Maturity","")
+        HDR.3rd=c("","","","","composition","","not used in likelihood","growth","in catch",
+                  "","","","","","")
+      }else
+      {
+        THiS=c("Model_name","Model_type","Spatial_structure"
+               ,"Movement","Size_comp.","CPUE","Age.Growth"         
+               ,"Ktch.sx.r","Tagging","M.value","Steepness","Fo","Maturity","Q")
+        HDR.span=c(2,1,1,5,4,1)
+        HDR.2nd=c("Name","Type","structure",'',"Size","CPUE","Age &",
+                  "Prop. male","Tagging","M","h","Fo","Maturity","")
+        HDR.3rd=c("","","","","composition","","growth","in catch",
+                  "","","","","","")
+      }
       
-      # add a paragraph
-      if(!is.na(paragph))mydoc = addParagraph(mydoc , paragph, stylename="Citationintense")
+      Tabla.scen.show=List.sp[[l]]$Tabla.scen
+      Tabla.scen.show=Tabla.scen.show[,-match(c("Fec.","M"),colnames(Tabla.scen.show))]
+      Tabla.scen.show[is.na(Tabla.scen.show)]="N/A"
+      names(Tabla.scen.show)[match(c("Model","SteepnesS"),names(Tabla.scen.show))]=c("Model_name","Steepness")
+      Tabla.scen.show=Tabla.scen.show[,match(THiS,names(Tabla.scen.show))]
+      Tabla.scen.show=Tabla.scen.show[match(c(Zens,"Base case" ),Tabla.scen.show$Model_name),]
+      Tabla.scen.show$Q=as.character(Tabla.scen.show$Q)
+      Tabla.scen.show$Q=with(Tabla.scen.show,ifelse(Q=="three",3,ifelse(Q=="two",2,ifelse(Q=="one",1,Q))))
+      Tabla.scen.show$Q=with(Tabla.scen.show,ifelse(!Q=="N/A"& Q>1,paste(Q,"periods"),
+                                                    ifelse(!Q=="N/A"& Q==1,paste(Q,"period"),Q))) 
       
-      #add table
-      MyFTable=FlexTable(Tbl,header.column=F,add.rownames =F,
-                         header.cell.props = cellProperties(background.color=HdR.bg), 
-                         header.text.props = textProperties(color=HdR.col,font.size=Hdr.fnt.sze,
-                                                            font.weight="bold",font.family =Fnt.hdr), 
-                         body.text.props = textProperties(font.size=body.fnt.sze,font.family =Fnt.body))
       
-      #Add header
-      MyFTable = addHeaderRow(MyFTable,text.properties=textBold(),value=HDR.names,colspan=HDR.span)
-      
-      #Add second header
-      MyFTable = addHeaderRow(MyFTable, text.properties = textBold(),value =HDR.2nd)
-      
-      #Add third header
-      MyFTable = addHeaderRow(MyFTable, text.properties = textBold(),value =HDR.3rd)
-      
-      # zebra stripes - alternate colored backgrounds on table rows
-      if(Zebra=="YES") MyFTable = setZebraStyle(MyFTable, odd = Zebra.col, even = "white" )
-      
-      # table borders
-      MyFTable = setFlexTableBorders(MyFTable,
-                                     inner.vertical = borderNone(),inner.horizontal = borderNone(),
-                                     outer.vertical = borderNone(),
-                                     outer.horizontal = borderProperties(color=Grid.col, style="solid", width=4))
-      
-      # set columns widths (in inches)
-      #MyFTable = setFlexTableWidths( MyFTable, widths = Col.width)
-      
-      mydoc = addFlexTable( mydoc, MyFTable)   
-      mydoc = addSection( mydoc, landscape = F ) 
-      
-      # write the doc 
-      writeDoc( mydoc, file = paste(Doc.nm,".docx",sep=''))
+      Scenarios.tbl=function(WD,Tbl,Doc.nm,caption,paragph,HdR.col,HdR.bg,Hdr.fnt.sze,Hdr.bld,
+                             body.fnt.sze,Zebra,Zebra.col,Grid.col,Fnt.hdr,Fnt.body,
+                             HDR.names,HDR.span,HDR.2nd,HDR.3rd)
+      {
+        mydoc = docx(Doc.nm)  #create r object
+        mydoc = addSection( mydoc, landscape = T )   #landscape table
+        # add title
+        if(!is.na(caption))mydoc = addParagraph(mydoc, caption, stylename = "TitleDoc" )
+        
+        # add a paragraph
+        if(!is.na(paragph))mydoc = addParagraph(mydoc , paragph, stylename="Citationintense")
+        
+        #add table
+        MyFTable=FlexTable(Tbl,header.column=F,add.rownames =F,
+                           header.cell.props = cellProperties(background.color=HdR.bg), 
+                           header.text.props = textProperties(color=HdR.col,font.size=Hdr.fnt.sze,
+                                                              font.weight="bold",font.family =Fnt.hdr), 
+                           body.text.props = textProperties(font.size=body.fnt.sze,font.family =Fnt.body))
+        
+        #Add header
+        MyFTable = addHeaderRow(MyFTable,text.properties=textBold(),value=HDR.names,colspan=HDR.span)
+        
+        #Add second header
+        MyFTable = addHeaderRow(MyFTable, text.properties = textBold(),value =HDR.2nd)
+        
+        #Add third header
+        MyFTable = addHeaderRow(MyFTable, text.properties = textBold(),value =HDR.3rd)
+        
+        # zebra stripes - alternate colored backgrounds on table rows
+        if(Zebra=="YES") MyFTable = setZebraStyle(MyFTable, odd = Zebra.col, even = "white" )
+        
+        # table borders
+        MyFTable = setFlexTableBorders(MyFTable,
+                                       inner.vertical = borderNone(),inner.horizontal = borderNone(),
+                                       outer.vertical = borderNone(),
+                                       outer.horizontal = borderProperties(color=Grid.col, style="solid", width=4))
+        
+        # set columns widths (in inches)
+        #MyFTable = setFlexTableWidths( MyFTable, widths = Col.width)
+        
+        mydoc = addFlexTable( mydoc, MyFTable)   
+        mydoc = addSection( mydoc, landscape = F ) 
+        
+        # write the doc 
+        writeDoc( mydoc, file = paste(Doc.nm,".docx",sep=''))
+      }
+      options('ReporteRs-fontsize'= 12, 'ReporteRs-default-font'='Arial')   
+      Scenarios.tbl(WD=getwd(),Tbl=Tabla.scen.show,Doc.nm="Model scenarios",
+                    caption=NA,paragph=NA,HdR.col='black',HdR.bg='white',
+                    Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+                    Zebra='NO',Zebra.col='grey60',Grid.col='black',
+                    Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman",
+                    HDR.names=c('Model','Spatial','Movement', 'Data','Input parameters','Q'),
+                    HDR.span=HDR.span,
+                    HDR.2nd=HDR.2nd,
+                    HDR.3rd=HDR.3rd)
     }
-    options('ReporteRs-fontsize'= 12, 'ReporteRs-default-font'='Arial')   
-    Scenarios.tbl(WD=getwd(),Tbl=Tabla.scen.show,Doc.nm="Model scenarios",
-                  caption=NA,paragph=NA,HdR.col='black',HdR.bg='white',
-                  Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
-                  Zebra='NO',Zebra.col='grey60',Grid.col='black',
-                  Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman",
-                  HDR.names=c('Model','Spatial','Movement', 'Data','Input parameters','Q'),
-                  HDR.span=c(2,1,1,6,4,1),
-                  HDR.2nd=c("Name","Type","structure",'',"Size","CPUE","CPUE years","Age &",
-                            "Prop. male","Tagging","M","h","Fo","Maturity",""),
-                  HDR.3rd=c("","","","","composition","","not used in likelihood","growth","in catch",
-                            "","","","","",""))
   }
 }
   
@@ -409,25 +831,42 @@ for(l in 1:length(List.sp))
 #Define groups for comparing model outputs 
 if(First.run=="YES" )
 {
-  MatCh=function(what,where) as.character(Tabla.scen$Model[match(what,where)])
-  Compr.grup=list(
-    c("Base case",MatCh(c("Biomass dynamics","Age-structured"),Tabla.scen$Model_type),
-      MatCh("Three zones",Tabla.scen$Spatial_structure)),
-    c("Base case","S3","S4"),
-    c("Base case","S5"),
-    c("Base case","S6"),
-    c("Base case",MatCh(c(M_val.low,M_val.high),Tabla.scen$M.value)),
-    c("Base case",MatCh(c(Fo_Simp,Fo_M),Tabla.scen$Fo)),
-    c("Base case",MatCh(c(h.M.constant.low,h.M.constant.up),Tabla.scen$SteepnesS))
-  )
-  names(Compr.grup)=c("Model_type","CPUE_years_dropped","CPUE","Ktch.sx.r","M.value","Fo","SteepnesS")
-  Title.Compr.grup=c("Model structure","CPUE years not used in likelihood","Effective vs standardised CPUE",
-                     "Proportion of males in catch","M","Fo","Steepness")
+  MatCh=function(what,where) as.character(List.sp[[l]]$Tabla.scen$Model[match(what,where)])
+  for(l in 1:length(List.sp))
+  {
+    if(!is.null(List.sp[[l]]))
+    {
+      if(names(List.sp)[l]=="Whiskery")
+      {
+        Compr.grup=list(
+          c("Base case",MatCh(c("Biomass dynamics","Age-structured"),List.sp[[l]]$Tabla.scen$Model_type),
+            MatCh("Three zones",List.sp[[l]]$Tabla.scen$Spatial_structure)),
+          c("Base case","S3","S4"),
+          c("Base case","S5"),
+          c("Base case","S6"),
+          c("Base case",MatCh(c(M_val.low,M_val.high),Tabla.scen$M.value)),
+          c("Base case",MatCh(c(Fo_Simp,Fo_M),Tabla.scen$Fo)),
+          c("Base case",MatCh(c(h.M.constant.low,h.M.constant.up),Tabla.scen$SteepnesS))
+        )
+        names(Compr.grup)=c("Model_type","CPUE_years_dropped","CPUE","Ktch.sx.r","M.value","Fo","SteepnesS")
+        Title.Compr.grup=c("Model structure","CPUE years not used in likelihood","Effective vs standardised CPUE",
+                           "Proportion of males in catch","M","Fo","Steepness")
+      }else
+      {
+        
+        Compr.grup=list(c("Base case","S1","S2","S4"),
+                        c("Base case","S3","S5"))
+        names(Compr.grup)=c("Model_type","CPUE")
+        Title.Compr.grup=c("Model structure","CPUE")
+      }
+      list.append(List.sp[[l]],Compr.grup=Compr.grup,Title.Compr.grup=Title.Compr.grup)
+    }
+  }
 }
 
 
 
-# 3. Export pin file and determine estimation phases-------------------------------
+# 3. Export pin file and assign phases for all scenarios-------------------------------
 
 #note: S1 and S2 calculates pars in normal space but same order magnitude
 #       Other scenarios all pars in log.
@@ -436,180 +875,158 @@ if(First.run=="YES" )
 #       numbers, catch in tonnes and length-weight in kg as all cancels out and predicted biomasses
 #       end up being in tonnes
 
-Fz.off=-22
 fn.mtch=function(WHAT,NMS) match(WHAT,names(NMS))
 Q_phz=c("lnq","lnq2","log_Qdaily")                           
 Zns.par.phz=c("lnR_prop_west","lnR_prop_zn1")
 MOv.par.phz=c("log_p11","log_p22","log_p21","log_p33")
 for(l in 1:length(List.sp))
 {
-  attach(List.sp[[l]])
-  
-  #Population pin values
-  Pin.pars=vector('list',nrow(Tabla.scen))
-  names(Pin.pars)=Tabla.scen$Model
-  
+  if(!is.null(List.sp[[l]]))
+  {
+    attach(List.sp[[l]])
+    
+    #Population pin values
+    Pin.pars=vector('list',nrow(Tabla.scen))
+    names(Pin.pars)=Tabla.scen$Model
+    
     #Biomass dynamics
-  Pin.pars$S1=c(Dummy=Dummy,r=r_BD,log_k=log(k_BD),Q1=Q1_BD,Q2=Q2_BD,Qdaily=daily_BD,log_tau2=log(tau2_BD))
-  
+    Pin.pars$S1=c(Dummy=Dummy,r=r_BD,log_k=log(k_BD),Q1=Q1_BD,Q2=Q2_BD,Qdaily=daily_BD,log_tau2=log(tau2_BD))
+    
     #Age-structured
-  Pin.pars$S2=c(Dummy=Dummy,RSTAR=RSTAR_AS,Z=z_AS,Q1=Q1_AS,Q2=Q2_AS,Qdaily=q_daily_AS,Fo=Fo_AS) 
-  
+    Pin.pars$S2=c(Dummy=Dummy,RSTAR=RSTAR_AS,Z=z_AS,Q1=Q1_AS,Q2=Q2_AS,Qdaily=q_daily_AS,Fo=Fo_AS) 
+    
     #Length-based
-  Pin.pars$'Base case'=c(Dummy=Dummy,lnR_zero=log(RZERO_in_1000_individuals_SB),
-                         R_prop_west=Prop.west,R_prop_zn1=Prop.zn1,
-                         lnq=log(Q1_SB),lnq2=log(Q2_SB),lnq_daily=log(Q_daily_SB),
-                          ln_Init_F=log(Fo_SB),ln_tau=log(tau_SB),
-                         k=K.F,lnLinf=log(Linf.F),k_M=K.M,lnLinf_M=log(Linf.M),
-                         sd_growth=SD.growth_SB)
-  
+    Pin.pars$'Base case'=c(Dummy=Dummy,lnR_zero=log(RZERO_in_1000_individuals_SB),
+                           R_prop_west=Prop.west,R_prop_zn1=Prop.zn1,
+                           lnq=log(Q1_SB),lnq2=log(Q2_SB),lnq_daily=log(Q_daily_SB),
+                           ln_Init_F=log(Fo_SB),ln_tau=log(tau_SB),
+                           k=K.F,lnLinf=log(Linf.F),k_M=K.M,lnLinf_M=log(Linf.M),
+                           sd_growth=SD.growth_SB)
+    
     #Add tagging pars       
-  if(conv.tag.all=="YES") 
-  {
-    if(Move.mode=="Individual-based") 
+    if(conv.tag.all=="YES") 
     {
-      Mov.pars=c(p11=p11,p22=p22,p21=p21,p33=p33)
+      if(Move.mode=="Individual-based") 
+      {
+        Mov.pars=c(p11=p11,p22=p22,p21=p21,p33=p33)
+      }
+      
+      if(Move.mode=="Population-based")
+      {
+        Mov.pars=c(mov.WC_WC=mov.WC_WC,mov.WC_ZN1=mov.WC_ZN1,
+                   mov.ZN1_WC=mov.ZN1_WC,mov.ZN1_ZN1=mov.ZN1_ZN1,
+                   mov.ZN2_ZN1=mov.ZN2_ZN1,mov.ZN2_ZN2=mov.ZN2_ZN2,
+                   log.Q.tag.WC=log.Q.tag.WC,log.Q.tag.ZN1=log.Q.tag.ZN1,
+                   log.Q.tag.ZN2=log.Q.tag.ZN2,log.tau=log.tau)
+      }
+      Pin.pars$'Base case'=c(Pin.pars$'Base case',Mov.pars)
     }
     
-    if(Move.mode=="Population-based")
+    #Set the pins from other size-based scenarios
+    IDs=which(Tabla.scen$Model_type=="Length-based")
+    IDs=IDs[-match("Base case",Tabla.scen$Model[IDs])]
+    for(i in IDs) Pin.pars[[i]]=Pin.pars$'Base case'
+    
+    for(i in 1:N.Scens)     
     {
-      Mov.pars=c(mov.WC_WC=mov.WC_WC,mov.WC_ZN1=mov.WC_ZN1,
-                 mov.ZN1_WC=mov.ZN1_WC,mov.ZN1_ZN1=mov.ZN1_ZN1,
-                 mov.ZN2_ZN1=mov.ZN2_ZN1,mov.ZN2_ZN2=mov.ZN2_ZN2,
-                 log.Q.tag.WC=log.Q.tag.WC,log.Q.tag.ZN1=log.Q.tag.ZN1,
-                 log.Q.tag.ZN2=log.Q.tag.ZN2,log.tau=log.tau)
-    }
-    Pin.pars$'Base case'=c(Pin.pars$'Base case',Mov.pars)
-  }
-  
-    #set the pins from other size-based scenarios
-  IDs=which(Tabla.scen$Model_type=="Length-based")
-  IDs=IDs[-match("Base case",Tabla.scen$Model[IDs])]
-  for(i in IDs) Pin.pars[[i]]=Pin.pars$'Base case'
-  
-  for(i in 1:N.Scens)     
-  {
-    if(Tabla.scen$Model_type[i]=="Length-based")
-    {
-      #higher M or Fo needs larger initial population
-      if(Tabla.scen$M.value[i]==M_val.high | Tabla.scen$Fo[i]==Fo_M)    
+      if(Tabla.scen$Model_type[i]=="Length-based")
       {
-        ss=match("lnR_zero",names(Pin.pars[[i]]))
-        Pin.pars[[i]][ss]=Pin.pars[[i]][ss]*1.15
-      }
-      
-      #no movement outside zone
-      if(Tabla.scen$Movement[i]%in%c("No","N/A"))
-      {
-        Pin.pars[[i]][match(c("p11","p22","p21","p33"),names(Pin.pars[[i]]))]=c(1,1,0,1)      
-      }
-      
-      #Change Fo if required
-      if(!as.numeric(as.character(Tabla.scen$Fo[i]))==Fo) 
-      {
-        Pin.pars[[i]][match("ln_Init_F",names(Pin.pars[[i]]))]=log(as.numeric(as.character(Tabla.scen$Fo[i])))
-        ss=match("lnR_zero",names(Pin.pars[[i]]))
-        #higher Fo needs larger initial population
-        if(!as.numeric(as.character(Tabla.scen$Fo[i]))>Fo)Pin.pars[[i]][ss]=Pin.pars[[i]][ss]*1.15
-      }
-      
-    }
-  }
-  
-  
-  #Export as pin file
-  setPath=function(Scen)setwd(paste(List.sp[[l]]$hndl,List.sp[[l]]$AssessYr,"/",Scen,sep=""))
-  for(i in 1:nrow(Tabla.scen))
-  {
-    These.pars=Pin.pars[[i]]
-    par.nms=names(These.pars)
-    setPath(Tabla.scen[i,]$Model)
-    FILE=paste(List.sp[[l]]$Spec,".pin",sep="")
-    write("# Input parameters",file = FILE)
-    for(k in 1:length(These.pars))
-    {
-      Hdr=paste("#",par.nms[k])
-      write(Hdr,file = FILE,append=T)
-      write(These.pars[k],file = FILE,sep = "\t",append=T)
-    }
-  }
-  List.sp[[l]]$Pin.pars=Pin.pars
-  
-  
-  #Determine estimation phases
-  Par.phases=Pin.pars
-  Par.phases$S1=c(dummy=Fz.off,r=2,ln_k=2,ln_q1=1,ln_q2=1,ln_qdaily=-1,ln_tau=3)
-  Par.phases$S2=c(dummy=Fz.off,Rstar=2,z=3,q1=1,q2=1,qdaily=Fz.off,Fo=4)
-  Par.phases$'Base case'=c(dummy=-1,
-                           lnR_zero=1,
-                           lnR_prop_west=1,
-                           lnR_prop_zn1=1,
-                           lnq=2,                           
-                           lnq2=2,
-                           log_Qdaily=2,
-                           ln_Init_F=Fz.off,      #cannot estimate Fo
-                           log_tau=5,
-                           k=3,
-                           lnLinf=3,
-                           k_M=3,
-                           lnLinf_M=3,
-                           sd_growth=4,
-                           log_p11=1,
-                           log_p22=1,
-                           log_p21=1,
-                           log_p33=1)
-  
-  IDs=(1:length(Par.phases))[-match(c("Base case","S1","S2"),names(Par.phases))]
-  for(i in IDs) Par.phases[[i]]=Par.phases$'Base case'
-  
-  
-  #Turn off irrelevant pars according to scenarios
-  for(i in 1:N.Scens)     
-  {
-    if(Tabla.scen$Model_type[i]=="Length-based")
-    {
-      #single zone
-      if(Tabla.scen$Spatial_structure[i]=="Single zone")
-      {
-        Par.phases[[i]][fn.mtch(Zns.par.phz,Par.phases[[i]])]=rep(Fz.off,length(Zns.par.phz))
-        Par.phases[[i]][fn.mtch(Q_phz,Par.phases[[i]])]=c(1,1,1)
-      }
-      #effective cpue
-      if(Tabla.scen$CPUE[i]=="Effective")
-      {
-        Par.phases[[i]][fn.mtch(Q_phz,Par.phases[[i]])]=c(1,1,Fz.off)
-        Par.phases[[i]][fn.mtch("log_tau",Par.phases[[i]])]=Fz.off
-      }
-      #no Qs if no cpue used
-      if(Tabla.scen$CPUE[i]%in%c("N/A","No"))
-      {
-        Par.phases[[i]][fn.mtch(c(Q_phz),Par.phases[[i]])]=rep(Fz.off,length(c(Q_phz)))
-        Par.phases[[i]][fn.mtch("lnR_zero",Par.phases[[i]])]=1
-      }
-      #no movement
-      if(Tabla.scen$Movement[i]%in%c("No","N/A"))
-      {
-        Par.phases[[i]][fn.mtch(MOv.par.phz,Par.phases[[i]])]=rep(Fz.off,length(MOv.par.phz))  
-      }
-      
-      #one less q
-      if(Tabla.scen$Q[i]=="two" & Tabla.scen$CPUE[i]=="Stand.")
-      {
-        Par.phases[[i]][fn.mtch("lnq2",Par.phases[[i]])]=-Par.phases[[i]][fn.mtch("lnq2",Par.phases[[i]])]
+        #higher M or Fo needs larger initial population
+        if(Tabla.scen$M.value[i]==M_val.high | Tabla.scen$Fo[i]==Fo_M)    
+        {
+          ss=match("lnR_zero",names(Pin.pars[[i]]))
+          Pin.pars[[i]][ss]=Pin.pars[[i]][ss]*1.15
+        }
+        
+        #no movement outside zone
+        if(Tabla.scen$Movement[i]%in%c("No","N/A"))
+        {
+          Pin.pars[[i]][match(c("p11","p22","p21","p33"),names(Pin.pars[[i]]))]=c(1,1,0,1)      
+        }
+        
+        #Change Fo if required
+        if(!as.numeric(as.character(Tabla.scen$Fo[i]))==Fo) 
+        {
+          Pin.pars[[i]][match("ln_Init_F",names(Pin.pars[[i]]))]=log(as.numeric(as.character(Tabla.scen$Fo[i])))
+          ss=match("lnR_zero",names(Pin.pars[[i]]))
+          #higher Fo needs larger initial population
+          if(!as.numeric(as.character(Tabla.scen$Fo[i]))>Fo)Pin.pars[[i]][ss]=Pin.pars[[i]][ss]*1.15
+        }
+        
       }
     }
-  }
-  
-  
-  List.sp[[l]]$Par.phases=Par.phases
+    
+    #Export as pin file
+    setPath=function(Scen)setwd(paste(List.sp[[l]]$hndl,List.sp[[l]]$AssessYr,"/",Scen,sep=""))
+    for(i in 1:nrow(Tabla.scen))
+    {
+      These.pars=Pin.pars[[i]]
+      par.nms=names(These.pars)
+      setPath(Tabla.scen[i,]$Model)
+      FILE=paste(List.sp[[l]]$Spec,".pin",sep="")
+      write("# Input parameters",file = FILE)
+      for(k in 1:length(These.pars))
+      {
+        Hdr=paste("#",par.nms[k])
+        write(Hdr,file = FILE,append=T)
+        write(These.pars[k],file = FILE,sep = "\t",append=T)
+      }
+    }
+    List.sp[[l]]$Pin.pars=Pin.pars
     
     
-  detach(List.sp[[l]])
-  
-}
+    #Set estimation phases for scenarios not already assigned
+    IDs=names(Pin.pars)[-match(c("Base case","S1","S2"),names(Pin.pars))]
+    dummy=vector('list',length(IDs))
+    names(dummy)=IDs
+    for(i in 1:length(dummy)) dummy[[i]]=Par.phases$'Base case'
+    Par.phases=c(Par.phases,dummy)
+    
+    #Turn off irrelevant pars according to scenarios
+    for(i in 1:N.Scens)     
+    {
+      if(Tabla.scen$Model_type[i]=="Length-based")
+      {
+        #single zone
+        if(Tabla.scen$Spatial_structure[i]=="Single zone")
+        {
+          Par.phases[[i]][fn.mtch(Zns.par.phz,Par.phases[[i]])]=rep(Fz.off,length(Zns.par.phz))
+          Par.phases[[i]][fn.mtch(Q_phz,Par.phases[[i]])]=c(1,1,1)
+        }
+        #effective cpue
+        if(Tabla.scen$CPUE[i]=="Effective")
+        {
+          Par.phases[[i]][fn.mtch(Q_phz,Par.phases[[i]])]=c(1,1,Fz.off)
+          Par.phases[[i]][fn.mtch("log_tau",Par.phases[[i]])]=Fz.off
+        }
+        #no Qs if no cpue used
+        if(Tabla.scen$CPUE[i]%in%c("N/A","No"))
+        {
+          Par.phases[[i]][fn.mtch(c(Q_phz),Par.phases[[i]])]=rep(Fz.off,length(c(Q_phz)))
+          Par.phases[[i]][fn.mtch("lnR_zero",Par.phases[[i]])]=1
+        }
+        #no movement
+        if(Tabla.scen$Movement[i]%in%c("No","N/A"))
+        {
+          Par.phases[[i]][fn.mtch(MOv.par.phz,Par.phases[[i]])]=rep(Fz.off,length(MOv.par.phz))  
+        }
+        
+        #one less q
+        if(Tabla.scen$Q[i]=="two" & Tabla.scen$CPUE[i]=="Stand.")
+        {
+          Par.phases[[i]][fn.mtch("lnq2",Par.phases[[i]])]=-Par.phases[[i]][fn.mtch("lnq2",Par.phases[[i]])]
+        }
+      }
+    }
+    List.sp[[l]]$Par.phases=Par.phases
+    detach(List.sp[[l]])
+    
+  }
+ }
 
-Pin.pars=1
+Pin.pars=1  #dummy to clear log
 Par.phases=1
+
 
 # 4. Define modelling arguments -------------------------------
 
@@ -645,18 +1062,21 @@ MaxF=3.0
   #Weight of likelihood components
 for(l in 1:length(List.sp))
 {
-  #weight of size comp 
-  List.sp[[l]]$Rho=1
-  
-  #weight of age-length 
-  List.sp[[l]]$Rho2=1
-  
-  #cpue likelihood
-  x=rep(1,length(List.sp[[l]]$Models))
-  names(x)=as.character(List.sp[[l]]$Models)
-  dd=which(List.sp[[l]]$Tabla.scen$CPUE%in%c("N/A","No")) #adjust weight of cpue if cpue like not used in model
-  if(length(dd)>0)x[dd]=0
-  List.sp[[l]]$Rho3=x
+  if(!is.null(List.sp[[l]]))
+  {
+    #weight of size comp 
+    List.sp[[l]]$Rho=1
+    
+    #weight of age-length 
+    List.sp[[l]]$Rho2=1
+    
+    #cpue likelihood
+    x=rep(1,length(List.sp[[l]]$Models))
+    names(x)=as.character(List.sp[[l]]$Models)
+    dd=which(List.sp[[l]]$Tabla.scen$CPUE%in%c("N/A","No")) #adjust weight of cpue if cpue like not used in model
+    if(length(dd)>0)x[dd]=0
+    List.sp[[l]]$Rho3=x
+  }
 }
 
   #Prior for initial fishing mortality
@@ -687,7 +1107,7 @@ if(Do.sim.test=="YES")
   Sim.Test.this="Base case"
 }
 
-  #Control if doing MSY   
+  #Control if doing MSY calculation using Base Case model   
 Do.MSY="NO"
 MSY.yrs=100  
 MSY.sd.rec=0    #no recruitment deviations (in log space)
@@ -705,6 +1125,8 @@ burning=1:(5*length(seq(1,nSims,by=Thin))/100)   #5%  burning
 if(First.run=="NO") Run.future.proj="YES"
 Future.ktch.scen=list(mean=1,percent_50=.5,percent_150=1.5)
 
+  #Catch MSY
+DO.CatchMSY="NO"
 
 
 
@@ -725,7 +1147,7 @@ Present.in.log="NO"
 for(l in 1:length(List.sp))
 {
   attach(List.sp[[l]])
-  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Population dynamics/Run.models.R")
+  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Run.models.R")
   detach(List.sp[[l]])
 }
 
