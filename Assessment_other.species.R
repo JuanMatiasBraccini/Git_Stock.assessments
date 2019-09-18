@@ -28,8 +28,8 @@
 
 
 rm(list=ls(all=TRUE))
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/MS.Office.outputs.R")
-source.hnld="C:/Matias/Analyses/SOURCE_SCRIPTS/Population dynamics/"
+source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
+source.hnld="C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/"
 fn.source=function(script)source(paste(source.hnld,script,sep=""))
 fn.source("fn.fig.R")
 fn.source("Leslie.matrix.R") 
@@ -42,8 +42,12 @@ library(MASS)
 library(plotrix)
 library(PBSmapping)
 library(MASS)
-
+library(tidyverse)
 set.seed(999) 
+
+
+Asses.year=2017
+hNdl=paste("C:/Matias/Analyses/Population dynamics/1.Other species/",Asses.year,sep="")
 
 #---DATA SECTION-----
 
@@ -55,6 +59,40 @@ Data.monthly=read.csv("Data.monthly.csv",stringsAsFactors=F)
 Data.monthly.north=read.csv("Data.monthly.NSF.csv",stringsAsFactors=F)
 Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT  
 
+#Shark catch reported in other fisheries
+Data.request.1=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1975_1987.csv",stringsAsFactors=F)
+Data.request.2=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1988_2002.csv",stringsAsFactors=F)
+Data.request.3=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/2003_2016.csv",stringsAsFactors=F)
+Data.request=rbind(Data.request.1,Data.request.2,Data.request.3)
+Data.request=subset(Data.request,!METHOD%in%c("GN","LL"))
+names(Data.request)[match("LIVEWT",names(Data.request))]="LIVEWT.c"
+
+  #remove data for other gears that is already recorded in Data.monthly
+TDGDLF.other.gears=Data.monthly%>%
+                        filter(!METHOD%in%c("GN","LL"))%>%
+                        mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
+NSF.other.gears=Data.monthly.north%>%
+                        filter(!METHOD%in%c("GN","LL"))%>%
+                        mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
+fn.subs=function(YEAR) substr(YEAR,start=3,stop=4)
+Data.request=Data.request%>%
+                  mutate(FINYEAR=ifelse(MONTH%in%1:6,paste(YEAR-1,"-",fn.subs(YEAR),sep=""),
+                                        ifelse(MONTH%in%7:12,paste(YEAR,"-",fn.subs(YEAR+1),sep=""),NA)),
+                         LAT=-as.numeric(substr(BLOCKX,1,2)),
+                         LONG=100+as.numeric(substr(BLOCKX,3,4)),
+                         zone=as.character(ifelse(LONG>=116.5 & LAT<=(-26),"Zone2",
+                                           ifelse(LONG<116.5 & LAT<=(-33),"Zone1",
+                                           ifelse(LAT>(-33) & LAT<=(-26) & LONG<116.5,"West",
+                                           ifelse(LAT>(-26) & LONG<114,"Closed",
+                                           ifelse(LAT>(-26) & LONG>=114 & LONG<123.75,"North",
+                                           ifelse(LAT>(-26) & LONG>=123.75,"Joint",NA))))))),
+                         dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))%>%
+                  filter(!dummy%in%c(TDGDLF.other.gears$dummy,NSF.other.gears$dummy))
+Data.request.south=Data.request%>%filter(LAT<=max(Data.monthly$LAT))
+Data.request.north=Data.request%>%filter(LAT>max(Data.monthly$LAT))
+rm(Data.request,Data.request.1,Data.request.2,Data.request.3)
+
+
 Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
 Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
 
@@ -63,14 +101,14 @@ User="Matias"
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
 
 #species codes
-All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/Other species/Outputs/Species_names.csv")
+All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/1.Other species/Species_names.csv")
 b=read.csv("C:\\Matias\\Data\\Species.code.csv")
 
 #list of life history param for demography
 LH.par=read.csv("C:/Matias/Data/Life history parameters/Life_History_other_sharks.csv",stringsAsFactors=F)
 
 #Temperature
-TEMP=read.csv("C:/Matias/Data/SST.nice.format.csv")
+TEMP=read.csv("C:/Matias/Data/Oceanography/SST.csv")
 
 #Species scientific names for assessed species
 Shark.species=5001:24900
@@ -215,9 +253,8 @@ fn.expl.sp.ktch=function(d1)
   {
     plot(1,axes=F,ann=F,col="white")
   }
-
 }
-pdf("C:/Matias/Analyses/Population dynamics/Other species/Outputs/reported.spatial.catch.pdf")
+pdf(paste(hNdl,"/Outputs/reported.spatial.catch.pdf",sep=""))
 for(l in 1:length(SP.list))
 {
   par(mfcol=c(2,1),mar=c(1.5,2.5,1,.5),las=1,mgp=c(1,.7,0))
@@ -227,7 +264,30 @@ for(l in 1:length(SP.list))
 }
 dev.off()
 
+#Add 'other methods'
+Data.monthly=Data.monthly%>%
+                select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,RSCommonName,
+                       BLOCKX,LAT,LONG,zone)
+Data.monthly.north=Data.monthly.north%>%
+                select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,RSCommonName,
+                       BLOCKX,LAT,LONG,zone)
+RSCommonName=rbind(Data.monthly%>%distinct(SPECIES,.keep_all = T),
+                   Data.monthly.north%>%distinct(SPECIES,.keep_all = T))%>%
+                  select(SPECIES,RSCommonName)%>%
+                  distinct(SPECIES,.keep_all = T)
+Data.request.south=Data.request.south%>%
+                    mutate(Same.return=paste(FINYEAR,MONTH,VESSEL,METHOD,BLOCKX))%>%
+                    select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,
+                           BLOCKX,LAT,LONG,zone)%>%
+                    left_join(RSCommonName,by="SPECIES")
+Data.request.north=Data.request.north%>%
+                    mutate(Same.return=paste(FINYEAR,MONTH,VESSEL,METHOD,BLOCKX))%>%
+                    select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,
+                           BLOCKX,LAT,LONG,zone)%>%
+                    left_join(RSCommonName,by="SPECIES")
 
+Data.monthly=rbind(Data.monthly,Data.request.south)
+Data.request.north=rbind(Data.request.north,Data.request.north)
 
 #1. Plot catch data as reported in logbooks
 ThIs=subset(Shark.species,!Shark.species%in%c(Indicator.species))
@@ -249,7 +309,8 @@ COL=rep(1,nrow(Agg.r))
 Agg.r=Agg.r[order(Agg.r$Name),]
 Sp.fig.1=unique(Agg.r$Name)
 
-fn.fig("C:/Matias/Analyses/Population dynamics/Other species/Outputs/Figure1_catch_all_species",2400,2400) 
+
+fn.fig(paste(hNdl,'/Outputs/Figure1_catch_all_species',sep=''),2400,2400) 
 smart.par(n.plots=length(Sp.fig.1),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(i in 1:length(Sp.fig.1))
 {
@@ -287,14 +348,13 @@ if(Split.HH=="YES")
   #2.2 blacktip sharks
 #note: reported all the way to Esperance, this doesn't conform to the species distribution
 #      nor with observer data. Hence set to spinner shark any blacktip record east of Cape Leuwin (Last and Stevens) 
-Data.monthly$SNAME=with(Data.monthly,ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
-                            "SHARK, SPINNER (LONG-NOSE GREY)",SNAME))
-Data.monthly$SPECIES=with(Data.monthly,ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
-                              18023,SPECIES))
-Data.monthly$RSCommonName=with(Data.monthly,ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
-                            "Spinner Shark",RSCommonName))
-
-
+Data.monthly=Data.monthly%>%
+                  mutate(SNAME=ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
+                                      "SHARK, SPINNER (LONG-NOSE GREY)",SNAME),
+                         SPECIES=ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
+                                        18023,SPECIES),
+                         RSCommonName=ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
+                                        "Spinner Shark",RSCommonName))
 
 
   #2.3. Split 'shark, other' based on observers data of catch composition north and south
@@ -524,9 +584,9 @@ test=Tot.ktch[!duplicated(Tot.ktch$SPECIES),]
 Uni.sp=test$SPECIES
 names(Uni.sp)=test$Name
 
-HnDl="C:/Matias/Analyses/Population dynamics/Other species/Outputs/Catch_all_sp/"
 
-  #Species separated    
+  #Display Catch for each Species    
+HnDl=paste(hNdl,"/Outputs/Catch_all_sp/",sep="")
 for(i in 1:length(Uni.sp))
 {
   fn.fig(paste(HnDl,names(Uni.sp)[i],sep=""),2400,2400) 
@@ -622,8 +682,8 @@ for(i in 1:N.sp)
   Repro_cycle[[i]]=LH.par$Cycle[i]
 }
 
-setwd("C:/Matias/Analyses/Population dynamics/Other species/Outputs")
 
+setwd(paste(hNdl,'/Outputs',sep=''))
 
 #export proportion of unreapportioned catch
 write.csv(Percent.ktc.not.reapp,"Percent.ktc.not.reapp.csv",row.names=F)
@@ -659,6 +719,15 @@ RESILIENCE$`Scalloped hammerhead`="Low"
 RESILIENCE$`Smooth hammerhead`="Low"
 RESILIENCE$`Spurdogs`="Very low"
 
+
+#Export total catch of each species
+for(s in 1: N.sp)
+{
+  ddd=subset(Tot.ktch,SP.group==Specs$SP.group[s])
+  ddd=aggregate(LIVEWT.c~finyear,ddd,sum)  
+  write.csv(ddd,paste('C:/Matias/Analyses/Data_outs/',Specs$SP.group[s],
+                      '_Total.annual.catch.csv',sep=""),row.names = F)
+}
 
 
 
@@ -764,7 +833,7 @@ density.fun2=function(what,MAIN)
 store.species=vector('list',N.sp)
 names(store.species)=Specs$SP.group
 
-PATH=paste("C:/Matias/Analyses/Population dynamics/Other species/Outputs","each_species",sep='/')
+PATH=paste(getwd(),"each_species",sep='/')
 if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))   
 setwd(file.path(PATH))
 PHat=file.path(PATH)
@@ -914,7 +983,7 @@ dev.off()
 
 
 #---RESULTS SECTION------
-setwd("C:/Matias/Analyses/Population dynamics/Other species/Outputs")
+setwd(paste(hNdl,'/Outputs',sep=''))
 
 #Export catch for Haddon's workshop
 #for(s in 1: N.sp) write.csv(store.species[[s]]$Catch,paste("C:/Matias/Analyses/Population dynamics/Catch_MSY/Malcolm_Haddon_workshop/My_species/",names(store.species)[s],".catch.csv",sep=''),row.names=F)
