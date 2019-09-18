@@ -250,10 +250,7 @@ List.sp$Gummy=list(
   Yr_q_change=0,   #last year before targeting practices changed (Simpfendorfer 2000)
   Yr_q_daily=2006,
   Do_var=0,        #How to calculate cpue variance in Simpfendorfer's age-structured
-  Var1=0.029,
-  Var2=Var1,
 
-  
   #Scenarios
   N.Scens=N.Scens,       
   Zens=paste("S",1:(N.Scens-1),sep=""),
@@ -1024,9 +1021,6 @@ for(l in 1:length(List.sp))
   }
  }
 
-Pin.pars=1  #dummy to clear log
-Par.phases=1
-
 
 # 4. Define modelling arguments -------------------------------
 
@@ -1138,6 +1132,10 @@ Show.yrs="DATA"
   #present cpue in log space or normal space
 Present.in.log="NO"   
 
+  #reset dummies
+rm(Spec)
+Pin.pars=1  #dummy to clear log
+Par.phases=1
 
 
 # 6. Execute population models -------------------------------
