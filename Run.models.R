@@ -200,6 +200,17 @@ if(First.run=="YES")
   avg.wt.zn2=subset(avg.wt.zn,zone=="Zone2")
   rm(avg.wt.zn)
   
+  avg.wt=avg.wt%>%rename(finyear=Finyear)%>%
+                  arrange(finyear)
+  
+  if(nrow(avg.wt.wst)>0) avg.wt.wst=avg.wt.wst%>%rename(finyear=Finyear)%>%
+                                                 arrange(finyear)
+  if(nrow(avg.wt.zn1)>0) avg.wt.zn1=avg.wt.zn1%>%rename(finyear=Finyear)%>%
+                                                 arrange(finyear)
+  if(nrow(avg.wt.zn2)>0) avg.wt.zn2=avg.wt.zn2%>%rename(finyear=Finyear)%>%
+                                                 arrange(finyear)
+  
+  
     #A.6. Conventional tagging  
   
   #individual based model inputs      
@@ -1289,16 +1300,7 @@ if(First.run=="YES")
   size.zn1_7=size.zn1_7[order(size.zn1_7$FINYEAR),]
   size.zn2_7=size.zn2_7[order(size.zn2_7$FINYEAR),]
   
-  avg.wt=avg.wt%>%rename(finyear=Finyear)%>%
-                  arrange(finyear)
-  
-  if(nrow(avg.wt.wst)>0) avg.wt.wst=avg.wt.wst%>%rename(finyear=Finyear)%>%
-                                                   arrange(finyear)
-  if(nrow(avg.wt.zn1)>0) avg.wt.zn1=avg.wt.zn1%>%rename(finyear=Finyear)%>%
-                                                   arrange(finyear)
-  if(nrow(avg.wt.zn2)>0) avg.wt.zn2=avg.wt.zn2%>%rename(finyear=Finyear)%>%
-                                                   arrange(finyear)
-
+ 
 
   if(Acoust.format=="SS3")
   {
@@ -1402,7 +1404,7 @@ if(First.run=="YES")
   mtext("Relative cpue",2,outer=T,line=-2.0,las=3,cex=2) 
   dev.off()
   
-  #convert character zone to number #ACA
+  #convert character zone to number 
   if(Move.mode=="Individual-based")
   {
     Conv.tg.rec.exp$Rel.zn=with(Conv.tg.rec.exp,
@@ -1514,9 +1516,9 @@ if(First.run=="YES")
     All.yrs=Ktch.All.1975$FINYEAR
     misin.yr=sort(All.yrs[which(!All.yrs%in%Yrs.dat)])
     dummyCV=dummy$CV
-    dummy=dummy$Mean.wgt
+    dummy=dummy$mean
     names(dummy)=names(dummyCV)=Yrs.dat
-    Msin.yrs=rep(0,length(misin.yr))
+    Msin.yrs=rep(-100,length(misin.yr))
     names(Msin.yrs)=misin.yr
     dummy=c(dummy,Msin.yrs)
     dummy=dummy[order(names(dummy))]
@@ -1560,7 +1562,7 @@ if(First.run=="YES")
     return(dummy)
   }
   Cpue.all=fn.add.missing.cpue.year(Cpue.all)
-  Cpue.all.hours=fn.add.missing.cpue.year(Cpue.all.hours)
+  if(!is.null(Cpue.all.hours))Cpue.all.hours=fn.add.missing.cpue.year(Cpue.all.hours)
   if(nrow(Cpue.West)>0)Cpue.West=fn.add.missing.cpue.year(Cpue.West)
   if(nrow(Cpue.zn1)>0)Cpue.zn1=fn.add.missing.cpue.year(Cpue.zn1)
   if(nrow(Cpue.zn2)>0)Cpue.zn2=fn.add.missing.cpue.year(Cpue.zn2)  
@@ -1584,7 +1586,8 @@ if(First.run=="YES")
   
    
   
-    #Loop over all scenarios  
+    #Loop over all scenarios 
+  na.omit.list <- function(y) { return(y[!sapply(y, function(x) all(is.na(x)))]) }
   for(i in 1:nrow(Scenarios))
   {
     d=Scenarios[i,]
@@ -1615,9 +1618,10 @@ if(First.run=="YES")
                   size.wst.f_7=NA,size.zn1.f_7=NA,size.zn2.f_7=NA,
                   size.wst.m_7=NA,size.zn1.m_7=NA,size.zn2.m_7=NA,
                   rho=NA,Type_of_Size_like=NA,
-                  n.KTCH.wght.yrs=NA,KTCH.wght.yrs=NA,KTCH.wght=NA,KTCH.wght.CV=NA,
-                  n.KTCH.wght.yrs.WC=NA,n.KTCH.wght.yrs.zn1=NA,n.KTCH.wght.yrs.zn2=NA,
-                  KTCH.wght.yrs.WC=NA,KTCH.wght.yrs.zn1=NA,KTCH.wght.yrs.zn2=NA,
+                  
+                  KTCH.wght_syr=NA,KTCH.wght_eyr=NA,KTCH.wght=NA,KTCH.wght.CV=NA,
+                  KTCH.wght.WC_syr=NA,KTCH.wght.zn1_syr=NA,KTCH.wght.zn2_syr=NA,
+                  KTCH.wght.WC_eyr=NA,KTCH.wght.zn1_eyr=NA,KTCH.wght.zn2_eyr=NA,
                   KTCH.wght.WC=NA,KTCH.wght.zn1=NA,KTCH.wght.zn2=NA,
                   KTCH.wght.CV.WC=NA,KTCH.wght.CV.zn1=NA,KTCH.wght.CV.zn2=NA,
                   EFFORT=NA,
@@ -1901,17 +1905,8 @@ if(First.run=="YES")
         #La.lista$size.zn2.yrs=get.yr(size.zn2[,match('FINYEAR',names(size.zn2))])
       
       # La.lista$SIZE.comp.yrs=get.yr(size.all[,match('FINYEAR',names(size.all))])
-      # if(d$Catch_ave._weight=="Yes")
-      #  {
-      #   aaa=fn.add.missing.year(avg.wt)
-      #   La.lista$KTCH.wght=aaa$Mean  
-      #   La.lista$KTCH.wght.CV=aaa$CV
-      #   #La.lista$KTCH.wght.yrs=get.yr(avg.wt[,match('finyear',names(avg.wt))])
-      #   #La.lista$n.KTCH.wght.yrs=length(La.lista$KTCH.wght.yrs)
-      #  }
       #if(d$Tagging=="Yes") La.lista$EFFORT=Ef.zn[,-match('FINYEAR',names(Ef.zn))]
     }
-    
     
     #1.7 Steepness
     if(!d$SteepnesS=="N/A") La.lista$STEEPns=as.numeric(d$SteepnesS)
@@ -2261,10 +2256,50 @@ if(First.run=="YES")
       # Recruitment error for future projections
       La.lista$Rec.error=rlnorm(La.lista$yrs_ktch, meanlog = log(1), sdlog = MSY.sd.rec)
       
+      #Catch average weight   
+      if(d$Spatial_structure=="Single zone")
+      {
+        aaa=fn.add.missing.year(avg.wt)
+        La.lista$KTCH.wght=aaa$Mean  
+        La.lista$KTCH.wght.CV=aaa$CV
+        xx=match(get.yr(avg.wt[,match('finyear',names(avg.wt))]),La.lista$iyr)
+        La.lista$KTCH.wght_syr=xx[1]
+        La.lista$KTCH.wght_eyr=xx[length(xx)]
+      }
+      if(d$Spatial_structure=="Three zones")
+      {
+        if(nrow(avg.wt.wst)>0)
+        {
+          aaa=fn.add.missing.year(avg.wt.wst)
+          La.lista$KTCH.wght.WC=aaa$Mean
+          La.lista$KTCH.wght.CV.WC=aaa$CV
+          xx=match(get.yr(avg.wt.wst[,match('finyear',names(avg.wt.wst))]),La.lista$iyr)
+          La.lista$KTCH.wght.WC_syr=xx[1]
+          La.lista$KTCH.wght.WC_eyr=xx[length(xx)]
+        }
+        if(nrow(avg.wt.zn1)>0)
+        {
+          aaa=fn.add.missing.year(avg.wt.zn1)
+          La.lista$KTCH.wght.zn1=aaa$Mean
+          La.lista$KTCH.wght.CV.zn1=aaa$CV
+          xx=match(get.yr(avg.wt.zn1[,match('finyear',names(avg.wt.zn1))]),La.lista$iyr)
+          La.lista$KTCH.wght.zn1_syr=xx[1]
+          La.lista$KTCH.wght.zn1_eyr=xx[length(xx)]
+         }
+        if(nrow(avg.wt.zn2)>0)
+        {
+          aaa=fn.add.missing.year(avg.wt.zn2)
+          La.lista$KTCH.wght.zn2=aaa$Mean
+          La.lista$KTCH.wght.CV.zn2=aaa$CV
+          xx=match(get.yr(avg.wt.zn2[,match('finyear',names(avg.wt.zn2))]),La.lista$iyr)
+          La.lista$KTCH.wght.zn2_syr=xx[1]
+          La.lista$KTCH.wght.zn2_eyr=xx[length(xx)]
+        }
+      }
+      
     }
     
     #Remove cpue years if applicable   
-    match("CPUE_years_dropped",names(d))
     if(!is.na(match("CPUE_years_dropped",names(d)))) if(!d$CPUE_years_dropped=="None")
     {
       ID.dropped.yr=c(substr(d$CPUE_years_dropped,1,4),paste("19",substr(d$CPUE_years_dropped,6,7),sep=""))
@@ -2279,38 +2314,12 @@ if(First.run=="YES")
         La.lista$CPUE[DRop[1]:DRop[2],]=-100
         if(d$CPUE=="Stand.")La.lista$CPUE.CV[DRop[1]:DRop[2],]=-100
       }
-
-      
     }
     
     
-    #Catch average weight   ACA use if(nrow(avg.wt.wst)>0)
-    #     if(d$Catch_ave._weight=="Yes") 
-    #     {
-    #       aaa=fn.add.missing.year(avg.wt.wst)
-    #       La.lista$KTCH.wght.WC=aaa$Mean    
-    #       La.lista$KTCH.wght.CV.WC=aaa$CV    
-    #       
-    #       aaa=fn.add.missing.year(avg.wt.zn1)
-    #       La.lista$KTCH.wght.zn1=aaa$Mean    
-    #       La.lista$KTCH.wght.CV.zn1=aaa$CV   
-    #       
-    #       aaa=fn.add.missing.year(avg.wt.zn2)
-    #       La.lista$KTCH.wght.zn2=aaa$Mean    
-    #       La.lista$KTCH.wght.CV.zn2=aaa$CV  
-    #       
-    # #       La.lista$KTCH.wght.yrs.WC=get.yr(avg.wt.wst[,match('finyear',names(avg.wt.wst))])
-    # #       La.lista$KTCH.wght.yrs.zn1=get.yr(avg.wt.zn1[,match('finyear',names(avg.wt.zn1))])
-    # #       La.lista$KTCH.wght.yrs.zn2=get.yr(avg.wt.zn2[,match('finyear',names(avg.wt.zn2))])
-    #       
-    # #       La.lista$n.KTCH.wght.yrs.WC=length(La.lista$KTCH.wght.yrs.WC)
-    # #       La.lista$n.KTCH.wght.yrs.zn1=length(La.lista$KTCH.wght.yrs.zn1)
-    # #       La.lista$n.KTCH.wght.yrs.zn2=length(La.lista$KTCH.wght.yrs.zn2)
-    #       
-    #     }
-    
     #2. Remove NA data
-    La.lista=subset(La.lista,!is.na(La.lista))
+    La.lista=na.omit.list(La.lista)
+    
     
     #3. Store inputs
     Inputs[[i]]=La.lista
@@ -2407,7 +2416,7 @@ if(First.run=="YES")
   
   
   # Show catch Vs cpue 
-  fn.fig(paste(hndl,AssessYr,"/1_Inputs","/Catch_Vs_cpue",sep=""),2400,2400)  
+  fn.fig(paste(hndl,AssessYr,"/1_Inputs","/Visualise data/Catch_Vs_cpue",sep=""),2400,2400)  
   par(xpd=T,las=1,mgp=c(2.5,1,0),mai=c(1,1,.1,1.25))
   yrs.ktch.cpue=1:length(Ktch.All.1975$FINYEAR)
   XX=Ktch.All.1975$LIVEWT.c
@@ -2475,7 +2484,7 @@ library(R2admb)
 library(beepr)
 fn.source("reptoRlist.R")
 fn.source("ADMB_read.fit.R")
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/send.emails.R")
+#source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/send.emails.R")
 
 #1. Run model scenarios
 if(!First.run=="YES") Scenarios=Tabla.scen[match(ID.base.Model,Tabla.scen$Model),]   
@@ -2541,13 +2550,13 @@ if(Run.all.Scenarios=="YES")   #Size structured with movement takes 29 mins
 
 End.time=Sys.time()
 Tot.time=round(difftime(End.time,Start.time,units="mins"),2)
-  #email running time
-function.send.email(
-  to ="Matias.Braccini@fish.wa.gov.au",
-  subject ="Model run",
-    body =paste("Model run finished. All these models: ",paste(Scenarios$Model, collapse=", "),
-              ", took",Tot.time,"minutes to run"),                     
-  Attachment=NULL)
+#   #email running time
+# function.send.email(
+#   to ="Matias.Braccini@fish.wa.gov.au",
+#   subject ="Model run",
+#     body =paste("Model run finished. All these models: ",paste(Scenarios$Model, collapse=", "),
+#               ", took",Tot.time,"minutes to run"),                     
+#   Attachment=NULL)
 
 #2. Project population into the future with no catch
   #note: is the population rebuilding to equilibrium unfished conditions?
@@ -2952,7 +2961,7 @@ if(Do.MSY=="YES")
     }
     return(ouT)
   }
-    Store.MSY=fn.MSY(MODEL="Base case",F.mort=F.vec,yrs.projections=MSY.yrs,
+  Store.MSY=fn.MSY(MODEL="Base case",F.mort=F.vec,yrs.projections=MSY.yrs,
                      sdlog.rec=MSY.sd.rec,n.SIM=MSY.sims)
 
   
@@ -5362,13 +5371,13 @@ if(DO.MCMC=="YES")
   system.time(fn.run.MCMC(MODEL=Spec,DATA=paste(Spec,".dat",sep=""),nSims,Thin))  
   End.time=Sys.time()
   
-  #email running time
-  Tot.time=round(difftime(End.time,Start.time,units="mins"),2)
-  function.send.email(
-    to ="Matias.Braccini@fish.wa.gov.au",
-    subject ="Model run_MCMC",
-    body =paste("MCMC finished. Base Case model with",nSims,"simulations took",Tot.time,"minutes to run"),                     
-    Attachment=NULL)
+  # #email running time
+  # Tot.time=round(difftime(End.time,Start.time,units="mins"),2)
+  # function.send.email(
+  #   to ="Matias.Braccini@fish.wa.gov.au",
+  #   subject ="Model run_MCMC",
+  #   body =paste("MCMC finished. Base Case model with",nSims,"simulations took",Tot.time,"minutes to run"),                     
+  #   Attachment=NULL)
   
   
   #2. Analyse chain and show posteriors

@@ -90,7 +90,7 @@ names(List.sp)=Spec
 
 
   #Fill in Whiskery
-N.Scens=14   #Scenarios tested
+N.Scens=13   #Scenarios tested
 List.sp$Whiskery=list(
   
   #Biology
@@ -140,7 +140,7 @@ List.sp$Whiskery=list(
   N.Scens=N.Scens,       
   Zens=paste("S",1:(N.Scens-1),sep=""),
   Models=c("Base case",paste("S",1:(N.Scens-1),sep="")),
-  Q.scen=c(rep("three",2),"two","three",rep("two",2),rep("three",8)),
+  Q.scen=c(rep("three",2),"two","three",rep("two",1),rep("three",8)),
   
   #Initial value of estimable parameters
     #Dummy for switching on/off phase estimation in simulation testing
@@ -601,22 +601,22 @@ List.sp$Whiskery=with(List.sp$Whiskery,
       list.append(List.sp$Whiskery,
               Tabla.scen=data.frame(
                  Model=Models,
-                 Size_comp.=c('Yes',"N/A",'No',rep('Yes',11)),
-                 CPUE=c(rep("Stand.",2),"Effective",rep('Stand.',2),"Effective",rep('Stand.',8)),
-                 CPUE_years_dropped=c(rep(Drop_yr_cpue.tabl,2),rep("None",2),Drop_yr_cpue_sens.tabl,"None",rep(Drop_yr_cpue.tabl,8)),
-                 Age.Growth=c('Yes',"N/A",'No',rep('Yes',11)),
-                 Ktch.sx.r=c('Observed','N/A','Equal',rep('Observed',3),'Equal',rep('Observed',7)),                      
-                 Tagging=c('No','N/A',rep('No',11),'Yes'),                     
-                 Fec.=c(rep('N/A',2),rep('constant',1),rep('N/A',11)),
-                 Maturity=c('at length','N/A',rep('knife edge',1),rep("at length",11)),
-                 M=c("constant","N/A",rep("constant",12)),
-                 M.value=c(M_val,NA,rep(M_val,5),M_val.low,M_val.high,rep(M_val,5)),                      
-                 SteepnesS=c(h.M.constant,rep("N/A",2),rep(h.M.constant,8),h.M.constant.low,h.M.constant.up,h.M.constant),
+                 Size_comp.=c('Yes',"N/A",'No',rep('Yes',10)),
+                 CPUE=rep("Stand.",13),
+                 CPUE_years_dropped=c(rep(Drop_yr_cpue.tabl,2),rep("None",2),Drop_yr_cpue_sens.tabl,rep(Drop_yr_cpue.tabl,8)),
+                 Age.Growth=c('Yes',"N/A",'No',rep('Yes',10)),
+                 Ktch.sx.r=c('Observed','N/A','Equal',rep('Observed',2),'Equal',rep('Observed',7)),                      
+                 Tagging=c('No','N/A',rep('No',10),'Yes'),                     
+                 Fec.=c(rep('N/A',2),rep('constant',1),rep('N/A',10)),
+                 Maturity=c('at length','N/A',rep('knife edge',1),rep("at length",10)),
+                 M=c("constant","N/A",rep("constant",11)),
+                 M.value=c(M_val,NA,rep(M_val,4),M_val.low,M_val.high,rep(M_val,5)),                      
+                 SteepnesS=c(h.M.constant,rep("N/A",2),rep(h.M.constant,7),h.M.constant.low,h.M.constant.up,h.M.constant),
                  Q=Q.scen,   
-                 Spatial_structure=c(rep('Single zone',13),'Three zones'),
-                 Movement=c("No",rep("N/A",2),rep("No",10),"Yes"),
-                 Fo=c(Fo,"N/A","estimated",rep(Fo,6),Fo_Simp,Fo_M,rep(Fo,3)),
-                 Model_type=c('Length-based','Biomass dynamics',"Age-structured",rep("Length-based",11))
+                 Spatial_structure=c(rep('Single zone',12),'Three zones'),
+                 Movement=c("No",rep("N/A",2),rep("No",9),"Yes"),
+                 Fo=c(Fo,"N/A","estimated",rep(Fo,5),Fo_Simp,Fo_M,rep(Fo,3)),
+                 Model_type=c('Length-based','Biomass dynamics',"Age-structured",rep("Length-based",10))
              )
         )
     })
@@ -637,7 +637,7 @@ List.sp$Gummy=with(List.sp$Gummy,
                   Tabla.scen=data.frame(
                     Model=Models,
                     Size_comp.=c('Yes',"N/A",'No','Yes','No','Yes'),
-                    CPUE=c(rep("Stand.",2),"Effective","No","Stand.","Stand.hours"),
+                    CPUE=c(rep("Stand.",3),"No","Stand.","Stand.hours"),
                     Age.Growth=c('Yes',"N/A",'No','Yes','No','Yes'),
                     Ktch.sx.r=c('Observed','N/A','Equal','Observed','Equal','Observed'),
                     Tagging=c('No','N/A',rep('No',4)),
