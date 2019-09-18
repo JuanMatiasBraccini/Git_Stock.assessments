@@ -2,6 +2,7 @@
 
 #note:  This script firstdefine arguments used in each of the shark species/species complex assessed.
 #       It then run the relevant population models according to data availability
+#       Update 'WA.population' with each assessment (Google "What is the population of Western Australia 20xx?")
 
 rm(list=ls(all=TRUE))
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
@@ -50,6 +51,9 @@ r_max=0.5     #max reported value of r for sharks (blue shark)
 Add.r.prior=0   #no r prior 
 #Add.r.prior=1   # r prior
 
+  #Show simulated size transition matrix
+Sim.trans.Mat="NO"
+
 #Define if using conventional tagging and effort in model
 add.conv.tag="YES"
 add.effort="NO"
@@ -79,7 +83,7 @@ conv.tag.all="YES"
 Fz.off=-22
 
   #Define species and year of assessment
-Spec=c("Whiskery","Gummy","Dusky","Sandbar","Other")
+Spec=c("Whiskery","Gummy","Dusky","Sandbar")
 
 List.sp=vector('list',length(Spec))
 names(List.sp)=Spec
@@ -570,8 +574,6 @@ List.sp$Sandbar=list(
   years.futures=5
 )
   
-  #fill in Other shark species
-#MISSING
 
 
 # 2. Define Scenarios for sensitivity tests -------------------------------
@@ -685,10 +687,6 @@ ktch_msy_scen$S2=list(r.prior=NA,user="No",k.max=50,startbio=c(0.85,.95),
                       finalbio=c(0.2, 0.6),res="Very low",niter=SIMS,sigR=Proc.err)
 List.sp$Sandbar=list.append(List.sp$Sandbar,ktch_msy_scen=ktch_msy_scen)
 
-
-     
-      #fill in Other shark species
-#MISSING
 
 rm(ktch_msy_scen)
 
@@ -1133,10 +1131,12 @@ Show.yrs="DATA"
 Present.in.log="NO"   
 
   #reset dummies
-rm(Spec)
+Spec=1
 Pin.pars=1  #dummy to clear log
 Par.phases=1
-
+all.objects=objects()
+List.objs=unique(unlist(lapply(List.sp,names)))
+suppressWarnings(rm(list=all.objects[which(all.objects%in%List.objs)]))
 
 # 6. Execute population models -------------------------------
 #note: 'Run.models.R' outputs data and parameter inputs for models,

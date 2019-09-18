@@ -363,7 +363,7 @@ if(First.run=="YES")
   
 
 # Section B: BRING IN PARAMETERS ------------------------------------------
-  hndl=paste("C:/Matias/Analyses/Population dynamics/",Spec," shark/",sep='')
+  hndl=paste("C:/Matias/Analyses/Population dynamics/1.",Spec," shark/",sep='')
   
     #B.1 Source all input parameters
   fn.source("Organise input parameters.R")
@@ -638,7 +638,7 @@ if(First.run=="YES")
 
   
   #Age and growth
-  if(Spec=="Whiskery") Age.growth$TL=TL.FL$a*Age.growth$FL+TL.FL$b
+  if(Spec=="Whiskery") Age.growth$TL=TL.FL$a*Age.growth$FL+TL.FL$b #calculate TL for whiskery
   Age.growth.F=subset(Age.growth,Sex=="Female",select=c(Counts,TL))
   Age.growth.M=subset(Age.growth,Sex=="Male",select=c(Counts,TL))
   
@@ -653,65 +653,13 @@ if(First.run=="YES")
   
   #Test size transition matrix
   CLS=rainbow(ncol(STM.F))
-  fn.fig(paste(getwd(),"/Visualise data/Input.STM.F",sep=""),2400,2400)  
-   
+  fn.fig(paste(getwd(),"/Visualise data/Input.STM.F",sep=""),2400,2400) 
   plot(TL.bin.low,STM.F[,1],ylim=c(0,.75),type='l')
   for(i in 2:ncol(STM.F)) lines(TL.bin.low,STM.F[,i],col=CLS[i])
   dev.off()
-  
-  fn.simul.test.STM=function(MAT,n.sim,MinAge,MaxAge,bin.low,bin.up,GROWTH.pars,Lo,plt.what,Dist.Birth)
-  {
-    #1. get culumative distribution for each size class
-    MAT.cum=apply(MAT, 2, cumsum)
-    colnames(MAT.cum)=bin.low
-    
-    #2. generate random ages
-    Age=round(runif(n.sim,MinAge+1,MaxAge))
-    
-    #3. generate random size at birth
-    if(Dist.Birth=='unif') Birth.s=round(runif(n.sim,bin.low[1],bin.up[3]))    
-    if(Dist.Birth=='norm')
-    {
-      Birth.s=round(rnorm(n.sim,Lo*1.25,Lo*0.35))
-      #Birth.s=ifelse(Birth.s<Lo,Lo,Birth.s)
-    }
-    
-    
-    #4. find initial size bin
-    Init.s=cbind(Birth.s,findInterval(Birth.s, c(bin.low, bin.up[length(bin.up)])))
-    Init.s=Init.s[Init.s[,1]>0,]
-    n.sim=nrow(Init.s)
-    #5. define function for finding size class
-    find.size=function(SIZE)
-    {
-      r=runif(1,0.1,1)
-      get.cum.trans=MAT.cum[,match(paste(SIZE),colnames(MAT.cum))]  
-      names(get.cum.trans)=colnames(MAT.cum)
-      new.Size=as.numeric(names(get.cum.trans[findInterval(r, get.cum.trans)]))
-      return(new.Size)
-    }
-    
-    #6. loop thru timesteps (ages as per vonB)
-    Store=vector('list',n.sim)
-    for(i in 1:n.sim)
-    {
-      n=Age[i]+1
-      Size.dummy=rep(NA,n)
-      Size.dummy[1]=bin.low[Init.s[i,2]]
-      if(Age[i]>1)for(a in 2:n) Size.dummy[a]=find.size(Size.dummy[a-1])
-      Store[[i]]=data.frame(Age=0:Age[i],Len=Size.dummy)
-    }
-    AGE=0:MaxAge
-    von.B=Lo+(GROWTH.pars$TL_inf-Lo)*(1-exp(-(GROWTH.pars$k*AGE)))
-    CLS=rainbow(n.sim)
-    plot(AGE,von.B,lwd=2,xlab="",ylab="",type='l',ylim=c(0,max(von.B)*1.5)) 
-    if (plt.what=="all")for(i in 1:n.sim) points(Store[[i]]$Age,Store[[i]]$Len,pch=19,col=2,cex=1.25)
-    if (plt.what=="last")for(i in 1:n.sim) points(Store[[i]]$Age[Age[i]],Store[[i]]$Len[Age[i]],pch=19,col=2,cex=1.25)
-  }
-  
-  
+
   #show growth data       
-  fn.fig(paste(getwd(),"/Growth_data",sep=""),2400,2400)  
+  fn.fig(paste(getwd(),"/Visualise data/Growth_data",sep=""),2400,2400)  
   par(xpd=T,las=1,mgp=c(2.5,.7,0))
   with(subset(Age.growth,Sex=="Male"),plot(Counts, TL,ylab="TL (cm)",xlab="Age",pch=19,col="blue",
         cex=1.5,xlim=c(0,max(Age.growth$Counts)*1.05),ylim=c(0,max(Age.growth$TL)*1.05),
@@ -769,7 +717,8 @@ if(First.run=="YES")
   if(species=="WH")Litter.size.age=fn.litter(Whis.FL.fec,Fecundity.at.size[1],Fecundity.at.size[2],Fecundity.max)
   if(species=="GM")Litter.size.age=fn.litter(mid.TL.F,Fecundity.at.size[1],Fecundity.at.size[2],Fecundity.max)
   FecU_age=Litter.size.age
-  #from at length to at age
+  
+    #from at length to at age
   if(Do.from.at.len.to.at.age=="YES")
   {
     fn.from.at.length.to.at.age=function(VAR,Age.grow.F,Age.grow.M)
@@ -834,10 +783,9 @@ if(First.run=="YES")
   
   #D2. Display relationships  
   fn.mtxt=function(TxT) mtext(TxT,2,2,las=3,cex=0.85)
-  setwd(paste(hndl,AssessYr,"/1_Inputs",sep=""))
   if(BaseCase=="Size-based")
   {
-    fn.fig("Input relations",2000, 2600)  
+    fn.fig("Visualise data/Input relations",2000, 2600)  
     
     par(mfcol=c(6,2),mai=c(.15,.125,.1,.195),oma=c(3,2.5,.25,.1),las=1,mgp=c(2,.6,0))
     
@@ -960,7 +908,7 @@ if(First.run=="YES")
   
   if(BaseCase=="Age-based")
   {
-    fn.fig("Input relations",1000, 2400)  
+    fn.fig("Visualise data/Input relations",1000, 2400)  
     par(mfcol=c(6,1),mai=c(.15,.125,.1,.15),oma=c(3,2.5,.25,.1),las=1,mgp=c(2,.6,0))  
     
     #2.Relationships at age
@@ -1016,7 +964,7 @@ if(First.run=="YES")
     MaxLeN=round(max(Age.growth$TL))
     ID.MaxLeN=1:which.min(abs(TL.bin.mid-MaxLeN))
     
-    fn.fig("Input relations_at_length",1800, 2400)  
+    fn.fig("Visualise data/Input relations_at_length",1800, 2400)  
     par(mfcol=c(3,1),mai=c(.3,.4,.1,.4),oma=c(3,2.5,.25,.1),las=1,mgp=c(2,.6,0))
     #par(mfcol=c(2,2),mai=c(.3,.4,.1,.4),oma=c(3,2.5,.25,.1),las=1,mgp=c(2,.6,0))
     
@@ -1056,7 +1004,7 @@ if(First.run=="YES")
     ClS=colfunc(ncol(Total.sel.all[,Id.Sel])) 
     
     #All
-    fn.fig("Input relations_at_length_varying_selectivity_all",2400, 2400) 
+    fn.fig("Visualise data/Input relations_at_length_varying_selectivity_all",2400, 2400) 
     par(mai=c(.8,.8,.1,.01),las=1,xpd=T,mgp=c(.65,.8,0))
     plot(TL.bin.mid,Total.sel.all[,1],col=1,pch=19,ylab="",xlab="",cex.axis=1.25)
     for(i in 2:ncol(Total.sel.all[,Id.Sel])) lines(TL.bin.mid, Total.sel.all[,i],col=ClS[i],lwd=2)
@@ -1069,7 +1017,7 @@ if(First.run=="YES")
     rnd=round(length(ClS)/3)
     SPlt=list(1:rnd,(rnd+1):(rnd+rnd),(rnd+rnd+1):length(ClS))
     
-    fn.fig("Input relations_at_length_varying_selectivity_zones",2000, 2400)
+    fn.fig("Visualise data/Input relations_at_length_varying_selectivity_zones",2000, 2400)
     par(mfcol=c(3,1),mai=c(.1,.5,.15,.01),oma=c(4,2,1.5,.1),las=1,xpd=T,mgp=c(.65,0.8,0))
     plot(TL.bin.mid,Total.sel.West[,1],col=1,pch=19,ylab="",xlab="",cex.axis=1.25)
     for(i in 2:ncol(Total.sel.all[,Id.Sel])) lines(TL.bin.mid, Total.sel.West[,i],col=ClS[i],lwd=2)
@@ -1094,7 +1042,7 @@ if(First.run=="YES")
     
     
     #2.Relationships at age
-    fn.fig("Input relations_at_age",2400, 2400)  
+    fn.fig("Visualise data/Input relations_at_age",2400, 2400)  
     par(mfcol=c(3,2),mai=c(.3,.4,.1,.4),oma=c(3,2.5,.25,.1),las=1,mgp=c(2.2,.6,0))
     
     #Age-TL
@@ -1132,14 +1080,19 @@ if(First.run=="YES")
     dev.off()
   }
   
+  Zns=c("Joint","North","Closed","West","Closed.metro","Zone1","Zone2")
+  Zns.leg=c("JANSF","WANCSF","Ningaloo","WCDGDLF","Metro closure","Zone1","Zone2")
+  COL.prop=c("aquamarine2","lightseagreen","seagreen4","lightgreen","olivedrab4","olivedrab3","mediumseagreen")
+  names(COL.prop)=Zns
   
   #Conventional tagging data 
   if(Move.mode=="Population-based")      
   {
     n.zns=unique(Conv.tg.rel_plot$Rel.zone)
-    col.zn=1:3
     
-    fn.fig("Conventional tagging",2400, 2400)  
+    col.zn=COL.prop[match(Zns,names(COL.prop))]
+    
+    fn.fig("Visualise data/Conventional tagging",2400, 2400)  
     par(mfcol=c(3,1),mai=c(.4,.5,.05,.1),oma=c(2,2,.01,.1),las=1)  
     #releases
     plot(1:10,ylim=c(0,max(Conv.tg.rel_plot$Number)+1),xlim=c(Conv.tg.StartYear,Conv.tg.EndYear),ylab="",xlab="",cex.axis=1.5)
@@ -1187,12 +1140,13 @@ if(First.run=="YES")
   if(Move.mode=="Individual-based")
   {
     Zns=unique(Conv.tg.rec.exp$Rec.zn)
-    col.zn=1:3
+    col.zn=COL.prop[match(sort(Zns),names(COL.prop))]
+    
     names(col.zn)=AREAS
     jit.zn=c(.9,1,1.1)
     names(jit.zn)=names(col.zn)
     
-    fn.fig("Conventional tagging_recaptures only",2000, 2400)  
+    fn.fig("Visualise data/Conventional tagging_recaptures only",2000, 2400)  
      par(mfcol=c(3,1),mai=c(.4,.5,.3,.2),oma=c(2,2,.01,.1),mgp=c(2,.65,0),las=1)  
     
     #recaptures
@@ -1227,13 +1181,14 @@ if(First.run=="YES")
   if(Move.mode=="Individual-based")
   {
     Zns=unique(Acous.tg.rec$Rec.zn)
-    col.zn=1:3
+    col.zn=COL.prop[match(sort(Zns),names(COL.prop))]
+    
     names(col.zn)=AREAS
     jit.zn=c(.9,1,1.1)
     names(jit.zn)=names(col.zn)
     
     
-    fn.fig("Acoustic tagging_recaptures only",2000, 2400)  
+    fn.fig("Visualise data/Acoustic tagging_recaptures only",2000, 2400)  
      par(mfcol=c(3,1),mai=c(.4,.5,.3,.2),oma=c(2,2,.01,.1),mgp=c(2,.65,0),las=1)  
     
     #recaptures
@@ -1255,6 +1210,7 @@ if(First.run=="YES")
         dat=aggregate(N~Rec.zn+DaysAtLarge,dat,sum)
         dummy=data.frame(CL=col.zn,Rec.zn=names(col.zn),jitr=jit.zn)
         dat=merge(dat,dummy,by="Rec.zn")
+        dat$CL=as.character(dat$CL)
         with(dat,plot(DaysAtLarge,N*jitr,ylim=c(0,Ymax),xlim=c(0,max(Acous.tg.rec$DaysAtLarge)),
                 ylab="",xlab="",cex=2,cex.axis=2,bg=CL,pch=21))
        }
@@ -1333,12 +1289,17 @@ if(First.run=="YES")
   size.zn1_7=size.zn1_7[order(size.zn1_7$FINYEAR),]
   size.zn2_7=size.zn2_7[order(size.zn2_7$FINYEAR),]
   
+  avg.wt=avg.wt%>%rename(finyear=Finyear)%>%
+                  arrange(finyear)
   
-  avg.wt=avg.wt[order(avg.wt$finyear),]
-  avg.wt.wst=avg.wt.wst[order(avg.wt.wst$finyear),]
-  avg.wt.zn1 =avg.wt.zn1[order(avg.wt.zn1$finyear),]
-  avg.wt.zn2=avg.wt.zn2[order(avg.wt.zn2$finyear),]
-  
+  if(nrow(avg.wt.wst)>0) avg.wt.wst=avg.wt.wst%>%rename(finyear=Finyear)%>%
+                                                   arrange(finyear)
+  if(nrow(avg.wt.zn1)>0) avg.wt.zn1=avg.wt.zn1%>%rename(finyear=Finyear)%>%
+                                                   arrange(finyear)
+  if(nrow(avg.wt.zn2)>0) avg.wt.zn2=avg.wt.zn2%>%rename(finyear=Finyear)%>%
+                                                   arrange(finyear)
+
+
   if(Acoust.format=="SS3")
   {
     Acous.tg.rel=Acous.tg.rel[order(Acous.tg.rel$FinYear.rel),]
@@ -1350,7 +1311,7 @@ if(First.run=="YES")
   Ktch.future=function(KTCH) rep(mean(KTCH[(length(KTCH)-4):length(KTCH)]),Yrs.future)
   
   #Prior for F 
-  fn.fig("Prior_F.init",2000, 2000)    
+  fn.fig("Visualise data/Prior_F.init",2000, 2000)    
   par(las=1,mai=c(1,1.15,.1,.15),mgp=c(3.5,.75,0))
   plot(density(rlnorm(10000, meanlog = log(Prior.mean.Fo), sdlog = Prior.SD.Log.Fo)), lwd=3,
        main="",xlab=expression('F'['init']),cex.lab=2,cex.axis=1.25,col=1)
@@ -1371,7 +1332,7 @@ if(First.run=="YES")
   
   write.csv(data.frame(log_mean.r=log_mean.r,log_sd.r=log_sd.r),"log_r_priors.csv",row.names=F)
   
-  fn.fig("Prior_r", 2000, 2000)
+  fn.fig("Visualise data/Prior_r", 2000, 2000)
    par(las=1,mai=c(1,1.15,.1,.15),mgp=c(3.5,.75,0))
    plot(density(rlnorm(10000, meanlog = log_mean.r, sdlog = log_sd.r)),
        lwd=3,main="",xlab='Intrinsic rate of increase',cex.lab=2,cex.axis=1.25,col=1)
@@ -1379,14 +1340,17 @@ if(First.run=="YES")
   
   
   #Movement transition matrix from acoustic tagging data
-  if(species=="WH")MOV.TRANS.MAT=matrix(c(0.95,0.05,0,0.01,.95,0.04,0,0.28,0.72),nrow=3,byrow=T)
-  if(species=="GM")MOV.TRANS.MAT=matrix(c(0.44,0.56,0,0.17,0.6,0.23,0,0.04,0.96),nrow=3,byrow=T)  
-  rownames(MOV.TRANS.MAT)=paste("from",c("WC","ZN1","ZN2"))
-  colnames(MOV.TRANS.MAT)=paste("to",c("WC","ZN1","ZN2"))  
-  write.csv(MOV.TRANS.MAT,"MOV.TRANS.MAT.csv",row.names=T)  
-  MOV.TRANS.MAT.no.movement=matrix(c(1,0,0,0,1,0,0,0,1),nrow=3,byrow=T)
+  if(Sim.trans.Mat=="NO")
+  {
+    if(species=="WH")MOV.TRANS.MAT=matrix(c(0.95,0.05,0,0.01,.95,0.04,0,0.28,0.72),nrow=3,byrow=T)
+    if(species=="GM")MOV.TRANS.MAT=matrix(c(0.44,0.56,0,0.17,0.6,0.23,0,0.04,0.96),nrow=3,byrow=T)  
+    rownames(MOV.TRANS.MAT)=paste("from",c("WC","ZN1","ZN2"))
+    colnames(MOV.TRANS.MAT)=paste("to",c("WC","ZN1","ZN2"))  
+    write.csv(MOV.TRANS.MAT,"MOV.TRANS.MAT.csv",row.names=T)  
+    MOV.TRANS.MAT.no.movement=matrix(c(1,0,0,0,1,0,0,0,1),nrow=3,byrow=T)
+  }
   
-
+  
   #Combine monthly and daily cpue into single file
   Cpue.all.monthly=Cpue.all
   Cpue.all.monthly.hours=Cpue.all.hours
@@ -1403,7 +1367,7 @@ if(First.run=="YES")
   
   #Show cpues used 
   id.Yrs=which(Yr%in%as.numeric(substr(Cpue.all$Finyear,1,4)))
-  fn.fig("Input_CPUE",2000, 2000)   
+  fn.fig("Visualise data/Input_CPUE",2000, 2000)   
   par(mfcol=c(2,1),mai=c(.75,.75,.05,.175),las=1,mgp=c(2,.6,0),cex.axis=1.25,cex.lab=1.75)
   
   plot(Yr[id.Yrs],Cpue.all[,match('Mean',names(Cpue.all))],ylab="",xlab="")
@@ -1413,32 +1377,32 @@ if(First.run=="YES")
   plot(Yr[id.Yrs],Cpue.all[,match('Mean',names(Cpue.all))],ylab="",xlab="",col="transparent",ylim=c(0,max(c(Cpue.zn1$Mean,Cpue.zn2$Mean,Cpue.West$Mean))))
   if(nrow(Cpue.West)>0)   
   {
+    clrS=COL.prop[match("West",names(COL.prop))]
     IIDi=which(Yr%in%as.numeric(substr(Cpue.West$Finyear,1,4)))
-    if(nrow(Cpue.West)>0)points(Yr[IIDi],Cpue.West[,match('Mean',names(Cpue.West))],ylab="",xlab="",xlim=c(min(Yr),max(Yr)))
-    if(nrow(Cpue.West.monthly)>0)points(Yr[IIDi][1:nrow(Cpue.West.monthly)],Cpue.West.monthly$Mean,pch=19)    
+    if(nrow(Cpue.West)>0)points(Yr[IIDi],Cpue.West[,match('Mean',names(Cpue.West))],ylab="",xlab="",xlim=c(min(Yr),max(Yr)),pch=21,bg=clrS)
+    if(nrow(Cpue.West.monthly)>0)points(Yr[IIDi][1:nrow(Cpue.West.monthly)],Cpue.West.monthly$Mean,pch=21,bg=clrS)    
   }
-  
   if(nrow(Cpue.zn1)>0)
   {
+    clrS=COL.prop[match("Zone1",names(COL.prop))]
     IIDi=which(Yr%in%as.numeric(substr(Cpue.zn1$Finyear,1,4)))
-    if(nrow(Cpue.zn1)>0)points(Yr[IIDi],Cpue.zn1[,match('Mean',names(Cpue.zn1))],ylab="",xlab="",col=2)
-    if(nrow(Cpue.West.monthly)>0)points(Yr[IIDi][1:nrow(Cpue.zn1.monthly)],Cpue.zn1.monthly$Mean,pch=19,col=2)    
+    if(nrow(Cpue.zn1)>0)points(Yr[IIDi],Cpue.zn1[,match('Mean',names(Cpue.zn1))],ylab="",xlab="",pch=21,bg=clrS)
+    if(nrow(Cpue.West.monthly)>0)points(Yr[IIDi][1:nrow(Cpue.zn1.monthly)],Cpue.zn1.monthly$Mean,pch=21,bg=clrS)    
   }
-  
   if(nrow(Cpue.zn2)>0)
   {
+    clrS=COL.prop[match("Zone2",names(COL.prop))]
     IIDi=which(Yr%in%as.numeric(substr(Cpue.zn2$Finyear,1,4)))
-    if(nrow(Cpue.zn2)>0)points(Yr[IIDi],Cpue.zn2[,match('Mean',names(Cpue.zn2))],ylab="",xlab="",col=3)
-    if(nrow(Cpue.West.monthly)>0)points(Yr[IIDi][1:nrow(Cpue.zn2.monthly)],Cpue.zn2.monthly$Mean,pch=19,col=3)    
+    if(nrow(Cpue.zn2)>0)points(Yr[IIDi],Cpue.zn2[,match('Mean',names(Cpue.zn2))],ylab="",xlab="",pch=21,bg=clrS)
+    if(nrow(Cpue.West.monthly)>0)points(Yr[IIDi][1:nrow(Cpue.zn2.monthly)],Cpue.zn2.monthly$Mean,pch=21,bg=clrS)    
   }
-
-  legend("topright",c("Standard. WC","Standard. ZN1","Standard. ZN2"),text.col=1:3,cex=1.5,bty='n')
+  legend("topright",c("Standard. WC","Standard. ZN1","Standard. ZN2"),cex=1.5,bty='n',
+         text.col=COL.prop[match(c("West","Zone1","Zone2"),names(COL.prop))])
   mtext("Financial year",1,outer=T,line=-1.5,cex=2)
   mtext("Relative cpue",2,outer=T,line=-2.0,las=3,cex=2) 
-  
   dev.off()
   
-  #convert character zone to number
+  #convert character zone to number #ACA
   if(Move.mode=="Individual-based")
   {
     Conv.tg.rec.exp$Rel.zn=with(Conv.tg.rec.exp,
@@ -1454,7 +1418,6 @@ if(First.run=="YES")
     Acous.tg.rec$Rec.zn=with(Acous.tg.rec,
             ifelse(Rec.zn=="West",1,ifelse(Rec.zn=="Zone1",2,
             ifelse(Rec.zn=="Zone2",3,NA))))
-    
   }
   
   
@@ -2321,7 +2284,7 @@ if(First.run=="YES")
     }
     
     
-    #Catch average weight
+    #Catch average weight   ACA use if(nrow(avg.wt.wst)>0)
     #     if(d$Catch_ave._weight=="Yes") 
     #     {
     #       aaa=fn.add.missing.year(avg.wt.wst)
@@ -5219,8 +5182,58 @@ if(Run.all.Scenarios=="YES")
 Yrs=Rest.Yrs() 
 
 #6. Simulate data from size transition matrix
-if(First.run=="YES")
+if(Sim.trans.Mat=="YES")
 {
+  fn.simul.test.STM=function(MAT,n.sim,MinAge,MaxAge,bin.low,bin.up,GROWTH.pars,Lo,plt.what,Dist.Birth)
+  {
+    #1. get culumative distribution for each size class
+    MAT.cum=apply(MAT, 2, cumsum)
+    colnames(MAT.cum)=bin.low
+    
+    #2. generate random ages
+    Age=round(runif(n.sim,MinAge+1,MaxAge))
+    
+    #3. generate random size at birth
+    if(Dist.Birth=='unif') Birth.s=round(runif(n.sim,bin.low[1],bin.up[3]))    
+    if(Dist.Birth=='norm')
+    {
+      Birth.s=round(rnorm(n.sim,Lo*1.25,Lo*0.35))
+      #Birth.s=ifelse(Birth.s<Lo,Lo,Birth.s)
+    }
+    
+    
+    #4. find initial size bin
+    Init.s=cbind(Birth.s,findInterval(Birth.s, c(bin.low, bin.up[length(bin.up)])))
+    Init.s=Init.s[Init.s[,1]>0,]
+    n.sim=nrow(Init.s)
+    #5. define function for finding size class
+    find.size=function(SIZE)
+    {
+      r=runif(1,0.1,1)
+      get.cum.trans=MAT.cum[,match(paste(SIZE),colnames(MAT.cum))]  
+      names(get.cum.trans)=colnames(MAT.cum)
+      new.Size=as.numeric(names(get.cum.trans[findInterval(r, get.cum.trans)]))
+      return(new.Size)
+    }
+    
+    #6. loop thru timesteps (ages as per vonB)
+    Store=vector('list',n.sim)
+    for(i in 1:n.sim)
+    {
+      n=Age[i]+1
+      Size.dummy=rep(NA,n)
+      Size.dummy[1]=bin.low[Init.s[i,2]]
+      if(Age[i]>1)for(a in 2:n) Size.dummy[a]=find.size(Size.dummy[a-1])
+      Store[[i]]=data.frame(Age=0:Age[i],Len=Size.dummy)
+    }
+    AGE=0:MaxAge
+    von.B=Lo+(GROWTH.pars$TL_inf-Lo)*(1-exp(-(GROWTH.pars$k*AGE)))
+    CLS=rainbow(n.sim)
+    plot(AGE,von.B,lwd=2,xlab="",ylab="",type='l',ylim=c(0,max(von.B)*1.5)) 
+    if (plt.what=="all")for(i in 1:n.sim) points(Store[[i]]$Age,Store[[i]]$Len,pch=19,col=2,cex=1.25)
+    if (plt.what=="last")for(i in 1:n.sim) points(Store[[i]]$Age[Age[i]],Store[[i]]$Len[Age[i]],pch=19,col=2,cex=1.25)
+  }
+  
   i=match(ID.base.Model,Scenarios$Model)
   MOD=Store.Reports[[i]]
   STD=Store.std[[i]]
