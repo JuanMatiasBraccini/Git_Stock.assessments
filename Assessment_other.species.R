@@ -42,7 +42,7 @@ library(MASS)
 library(plotrix)
 library(PBSmapping)
 library(MASS)
-library(tidyverse)
+library(dplyr)
 set.seed(999) 
 
 
@@ -54,12 +54,16 @@ hNdl=paste("C:/Matias/Analyses/Population dynamics/1.Other species/",Asses.year,
 #Total catch
 setwd("C:/Matias/Analyses/Data_outs")
 
-#Total catch data
+  #Total catch shark fisheries
 Data.monthly=read.csv("Data.monthly.csv",stringsAsFactors=F)
 Data.monthly.north=read.csv("Data.monthly.NSF.csv",stringsAsFactors=F)
 Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT  
 
-#Shark catch reported in other fisheries
+  #Recreational catch
+source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Recreational.catch.recons.R")
+
+
+  #Shark catch reported in other fisheries
 Data.request.1=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1975_1987.csv",stringsAsFactors=F)
 Data.request.2=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1988_2002.csv",stringsAsFactors=F)
 Data.request.3=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/2003_2016.csv",stringsAsFactors=F)
@@ -329,8 +333,39 @@ mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
+#Plot recreational catch
+Rec.ktch=Rec.ktch%>%mutate(Region=ifelse(zone%in%c('Gascoyne','North Coast'),'North','South'),
+                           year=as.numeric(substr(FINYEAR,1,4)))%>%
+                    filter(year>=min(Agg$finyear))
+Rec.sp=unique(Rec.ktch$Common.Name)
+fn.fig(paste(hNdl,'/Outputs/Figure1_catch_all_species_recreational',sep=''),2400,2400) 
+smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+for(i in 1:length(Rec.sp))
+{
+  d=subset(Rec.ktch,Common.Name==Rec.sp[i])
+  d.N=d%>%
+    filter(Region=="North")%>%
+    group_by(year)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+  d.S=d%>%
+    filter(Region=="South")%>%
+    group_by(year)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+  
+  plot(sort(unique(d$year)),sort(unique(d$year)),col='transparent',cex=.8,ann=F,ylim=c(0,max(c(d.N$LIVEWT.c,d.S$LIVEWT.c,na.rm=T))))
+  if(nrow(d.N)>0) points(d.N$year,d.N$LIVEWT.c,pch=PCH[i],type='o',col="grey60",cex=.8)
+  if(nrow(d.S)>0) points(d.S$year,d.S$LIVEWT.c,pch=PCH[i],type='o',col="grey25",cex=.8)
+  mtext(paste(Rec.sp[i]),3,line=0.2,cex=0.8)  
+}
+plot(1:10,ann=F,axes=F,col='transparent')
+legend('center',c("North","South"),lty=c(1,1),col=c("grey60","grey25"),lwd=2,bty='n',pch=19,cex=1.5)
+mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
+mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
+dev.off()
 
-#2. Reapportion catch of hammerhead blacktip and "shark,other'
+
+
+#2. Reapportion catch of hammerhead, blacktip and "shark,other'
 
   #2.1. Split of hammerhead catch by species
 Split.HH="YES"
@@ -416,10 +451,10 @@ Shark.species=subset(Shark.species,!Shark.species%in%c(blacktips,School.shark))
 
 
   #3.3 keep mapping data separate
-Map=subset(Data.monthly,SPECIES%in%Shark.species,select=c(Same.return,METHOD,
-        BLOCKX,LAT,LONG,Estuary,SPECIES,SNAME,FINYEAR,LIVEWT.c))
-Map.north=subset(Data.monthly.north,SPECIES%in%Shark.species,select=c(Same.return,METHOD,
-        BLOCKX,LAT,LONG,Estuary,SPECIES,SNAME,FINYEAR,LIVEWT.c))
+# Map=subset(Data.monthly,SPECIES%in%Shark.species,select=c(Same.return,METHOD,
+#         BLOCKX,LAT,LONG,Estuary,SPECIES,SNAME,FINYEAR,LIVEWT.c))
+# Map.north=subset(Data.monthly.north,SPECIES%in%Shark.species,select=c(Same.return,METHOD,
+#         BLOCKX,LAT,LONG,Estuary,SPECIES,SNAME,FINYEAR,LIVEWT.c))
 
   #3.4 keep 'shark, other' separately
 Data.monthly.other=subset(Data.monthly,SPECIES%in%Shar_other,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX))
@@ -511,7 +546,7 @@ Remaining_shark_other=subset(Tot.ktch,SPECIES==Shar_other)
 Tot.ktch=subset(Tot.ktch,!SPECIES==Shar_other)
 Percent.ktc.not.reapp=100*sum(Remaining_shark_other$LIVEWT.c)/sum(Tot.ktch$LIVEWT.c)
 Tot.ktch$finyear=as.numeric(substr(Tot.ktch$FINYEAR,1,4))
-Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000   #in tonnes
+Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c
 
 
 Tot.ktch$Name=as.character(Tot.ktch$Name)
@@ -543,7 +578,7 @@ Pt.ktch.sp=function(sp,SP,LWD)
 {
   d=subset(Tot.ktch,SPECIES%in%sp)
   
-  b.Tot=aggregate(LIVEWT.c~finyear,d,sum)
+  b.Tot=aggregate(LIVEWT.c/1000~finyear,d,sum)
   uno=nrow(b.Tot)
   b.Tot=fn.add(D=b.Tot)
   if(uno>2)plot(1:length(b.Tot$finyear),b.Tot$"LIVEWT.c",type='l',lwd=LWD,ylab="",xlab="",xaxt='n',
@@ -554,7 +589,7 @@ Pt.ktch.sp=function(sp,SP,LWD)
   d1=subset(d,Region=="North")
   if(nrow(d1)>0)
   {
-    b.N=aggregate(LIVEWT.c~finyear,d1,sum)
+    b.N=aggregate(LIVEWT.c/1000~finyear,d1,sum)
     uno=nrow(b.N)
     b.N=fn.add(D=b.N)
     if(uno>2)lines(1:length(b.N$finyear),b.N$"LIVEWT.c",col="grey50",lwd=LWD)
@@ -564,7 +599,7 @@ Pt.ktch.sp=function(sp,SP,LWD)
   d1=subset(d,Region=="South")
   if(nrow(d1)>0)
   {
-    b.S=aggregate(LIVEWT.c~finyear,d1,sum)
+    b.S=aggregate(LIVEWT.c/1000~finyear,d1,sum)
     uno=nrow(b.S)
     b.S=fn.add(D=b.S)
     if(uno>2)lines(1:length(b.S$finyear),b.S$"LIVEWT.c",col="Grey75",lty=4,lwd=LWD)
@@ -584,6 +619,24 @@ test=Tot.ktch[!duplicated(Tot.ktch$SPECIES),]
 Uni.sp=test$SPECIES
 names(Uni.sp)=test$Name
 
+
+#Add recreational catch
+dumi=Tot.ktch%>%distinct(SPECIES,.keep_all = T)%>%
+                select(SPECIES,Name,SNAME)%>%
+                filter(Name%in%c("Scalloped hammerhead","Smooth hammerhead","Tiger shark",
+                                 "Wobbegongs","Blacktip reef shark","Spinner shark"))%>%
+                mutate(Common.Name=ifelse(Name=="Wobbegongs","Wobbegong",
+                                   ifelse(Name=="Tiger shark","Tiger Shark",
+                                   ifelse(Name=="Blacktip reef shark","Blacktip Reef Shark",
+                                   ifelse(Name=="Spinner shark","Spinner Shark",
+                                   Name)))))
+Rec.ktch=Rec.ktch%>%rename(finyear=year)%>%
+                    mutate(BLOCKX=NA)%>%
+                    filter(Common.Name%in%dumi$Common.Name)%>%
+                    left_join(dumi,by='Common.Name')%>%
+                    select(names(Tot.ktch))
+
+Tot.ktch=rbind(Tot.ktch,Rec.ktch)
 
   #Display Catch for each Species    
 HnDl=paste(hNdl,"/Outputs/Catch_all_sp/",sep="")
@@ -616,7 +669,7 @@ Agg.r=Agg.r[match(names(id),Agg.r$Name),]
 #6. Select species with enough data  
 
   #6.1 at least 50 tonnes max catch
-MAX.ktch=apply(Agg.r[,2:ncol(Agg.r)],1,max,na.rm=T)
+MAX.ktch=apply(Agg.r[,2:ncol(Agg.r)],1,max,na.rm=T)/1000
 names(MAX.ktch)=as.character(Agg.r$Name)
 Keep.species=names(MAX.ktch[which(MAX.ktch>=Min.max.ktch)])
 MAX.ktch=rev(sort(MAX.ktch))
@@ -634,13 +687,10 @@ Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)
 #7. Species grouping   
 Tot.ktch$SP.group=Tot.ktch$Name
 
-
 Specs=Tot.ktch[!duplicated(Tot.ktch$SP.group),match(c("SPECIES","SNAME","Name","SP.group"),names(Tot.ktch))]
 Dis.sp=unique(Specs$SP.group)
 Specs=Specs[order(Specs$SP.group),]
 N.sp=nrow(Specs)
-
-
 
 
 #8. Life history parameters of selected species   
@@ -658,8 +708,6 @@ LH.par.hammerhead$SNAME="shark, hammerhead"
 LH.par.hammerhead$Scien.nm="Sphyrna spp"
 LH.par.hammerhead=LH.par.hammerhead[1,]
 LH.par=rbind(LH.par,LH.par.hammerhead)
-
-
 
 LH.par=subset(LH.par,SPECIES%in%Specs$SPECIES)   
 LH.par=merge(subset(Specs,select=c(SPECIES,Name)),LH.par,by="SPECIES")
@@ -719,21 +767,22 @@ RESILIENCE$`Scalloped hammerhead`="Low"
 RESILIENCE$`Smooth hammerhead`="Low"
 RESILIENCE$`Spurdogs`="Very low"
 
+#Convert catch from kg to tonnes
+Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
 
 #Export total catch of each species
 for(s in 1: N.sp)
 {
   ddd=subset(Tot.ktch,SP.group==Specs$SP.group[s])
   ddd=aggregate(LIVEWT.c~finyear,ddd,sum)  
-  write.csv(ddd,paste('C:/Matias/Analyses/Data_outs/',Specs$SP.group[s],
-                      '_Total.annual.catch.csv',sep=""),row.names = F)
+  write.csv(ddd,paste('Catch_all_sp/Total.annual.catch_',Specs$SP.group[s],
+                      '.csv',sep=""),row.names = F)
 }
 
 
 
-# 10. Catch-MSY   
-
-#Functions
+# Build r prior -----------------------------------------------------------------------
+NsimSS=1000
 fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle)
 {
   Fecu=unlist(FecunditY)
@@ -742,10 +791,11 @@ fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle)
                     sexratio=0.5,Reprod_cycle=Breed.cycle,Hoenig.only="NO")  
   
   #get mean and sd from lognormal distribution
+  normal.pars=suppressWarnings(fitdistr(Rprior, "normal"))
   gamma.pars=suppressWarnings(fitdistr(Rprior, "gamma"))  
   shape=gamma.pars$estimate[1]        
   rate=gamma.pars$estimate[2]      
-  return(list(shape=shape,rate=rate))
+  return(list(shape=shape,rate=rate,mean=normal.pars$estimate[1],sd=normal.pars$estimate[2]))
   
   #get mean and sd from lognormal distribution
   #LogN.pars=fitdistr(Rprior, "lognormal")  
@@ -829,18 +879,13 @@ density.fun2=function(what,MAIN)
   #               box.col="transparent",bg=rgb(.4,.4,.4,alpha=.75))
   
 }
-
 store.species=vector('list',N.sp)
 names(store.species)=Specs$SP.group
-
 PATH=paste(getwd(),"each_species",sep='/')
 if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))   
 setwd(file.path(PATH))
 PHat=file.path(PATH)
-
-
-    #get r prior    #takes 0.013 sec per iteration   
-system.time(for(s in 1: N.sp)
+system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration 
 {
   #life history
   Growth.F=GROWTH.F[[s]]
@@ -851,65 +896,71 @@ system.time(for(s in 1: N.sp)
   Fecundity=FECU[[s]]
   Breed.cycle=Repro_cycle[[s]]  #years
   #Get r prior
-  r.prior.dist=fun.rprior.dist(Nsims=10000,K=Growth.F$k,LINF=Growth.F$FL_inf,Temp=TEMP,Amax=Max.age.F,
+  r.prior.dist=fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf,Temp=TEMP,Amax=Max.age.F,
                                MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle)
-  store.species[[s]]$r.prior=r.prior.dist
+  store.species[[s]]$r.prior=list(shape=r.prior.dist$shape,rate=r.prior.dist$rate)
+  store.species[[s]]$r.prior.normal=list(mean=r.prior.dist$mean,sd=r.prior.dist$sd)
 })
 
 
-    #run catch-MSY   #takes 0.002 sec per iteration  
-system.time(for(s in 1: N.sp)
+
+# Catch-MSY ---------------------------------------------------------------
+#takes 0.002 sec per iteration  
+Do.Ktch.MSY=F
+if(Do.Ktch.MSY)
 {
-  #total catch
-  ct=subset(Tot.ktch,SP.group==Specs$SP.group[s])
-  ct=aggregate(LIVEWT.c~finyear,ct,sum)  
-  names(ct)[match("LIVEWT.c",names(ct))]="Total.ktch"
-  dummy.yrs=sort(unique(ct$finyear))
-  id=YEARS[which(!YEARS%in%dummy.yrs)]
-  if(length(id)>0)
+  system.time(for(s in 1: N.sp)
   {
-    dumb=ct[1:length(id),]
-    dumb$Total.ktch=0
-    dumb$finyear=id
-    ct=rbind(ct,dumb)
-    ct=ct[order(ct$finyear),]
-  }
-  
-  #Tested scenarios
-  ktch_msy_scen=vector('list',length(SCENARIOS))
-  names(ktch_msy_scen)=names(SCENARIOS)
-  for(sc in 1:length(ktch_msy_scen))
-  {
-    if(is.na(SCENARIOS[[sc]]$R.prior)) USR="No" else
-    if(SCENARIOS[[sc]]$R.prior=="USER")USR= "Yes"
-    Scen.start.bio=SCENARIOS[[sc]]$Initial.dep       
-    if(Specs$SP.group[s]%in%c('Blacktips','Scalloped hammerhead')) Scen.start.bio=STARTBIO2
-    ktch_msy_scen[[sc]]=list(r.prior=SCENARIOS[[sc]]$R.prior,user=USR,k.max=KMAX,
-                  startbio=Scen.start.bio,finalbio=FINALBIO,res=RESILIENCE[[s]],
-                  niter=SIMS,sigR=SCENARIOS[[sc]]$Error)
-    if(!is.na(ktch_msy_scen[[sc]]$r.prior)) ktch_msy_scen[[sc]]$r.prior=unlist(store.species[[s]]$r.prior)
-  }
-  
-
-  #Execute Catch-MSY  
-  PATH=paste(PHat,Specs$SP.group[s],sep='/')
-  if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
-  setwd(file.path(PATH))
-  Path.ktch_msy=getwd()
-  Ktch_MSY=ktch_msy_scen
-
-  Yrs=ct$finyear
-  Tot.Ktch=ct$Total.ktch
-  yr.future=Current+(1:years.futures)
-  ct.future=rep(mean(Tot.Ktch[(length(Tot.Ktch)-4):length(Tot.Ktch)]),years.futures)
-
-  for(sc in 1:length(ktch_msy_scen))
-  {
-    Folder=names(ktch_msy_scen)[sc]
-    if(!file.exists(paste(PATH,Folder,sep="/"))) dir.create(paste(PATH,Folder,sep="/"))
-    setwd(paste(PATH,Folder,sep="/"))
-
-    Ktch_MSY[[sc]]=Catch_MSY(ct=Tot.Ktch,
+    #total catch
+    ct=subset(Tot.ktch,SP.group==Specs$SP.group[s])
+    ct=aggregate(LIVEWT.c~finyear,ct,sum)  
+    names(ct)[match("LIVEWT.c",names(ct))]="Total.ktch"
+    dummy.yrs=sort(unique(ct$finyear))
+    id=YEARS[which(!YEARS%in%dummy.yrs)]
+    if(length(id)>0)
+    {
+      dumb=ct[1:length(id),]
+      dumb$Total.ktch=0
+      dumb$finyear=id
+      ct=rbind(ct,dumb)
+      ct=ct[order(ct$finyear),]
+    }
+    
+    #Tested scenarios
+    ktch_msy_scen=vector('list',length(SCENARIOS))
+    names(ktch_msy_scen)=names(SCENARIOS)
+    for(sc in 1:length(ktch_msy_scen))
+    {
+      if(is.na(SCENARIOS[[sc]]$R.prior)) USR="No" else
+        if(SCENARIOS[[sc]]$R.prior=="USER")USR= "Yes"
+        Scen.start.bio=SCENARIOS[[sc]]$Initial.dep       
+        if(Specs$SP.group[s]%in%c('Blacktips','Scalloped hammerhead')) Scen.start.bio=STARTBIO2
+        ktch_msy_scen[[sc]]=list(r.prior=SCENARIOS[[sc]]$R.prior,user=USR,k.max=KMAX,
+                                 startbio=Scen.start.bio,finalbio=FINALBIO,res=RESILIENCE[[s]],
+                                 niter=SIMS,sigR=SCENARIOS[[sc]]$Error)
+        if(!is.na(ktch_msy_scen[[sc]]$r.prior)) ktch_msy_scen[[sc]]$r.prior=unlist(store.species[[s]]$r.prior)
+    }
+    
+    
+    #Execute Catch-MSY  
+    PATH=paste(PHat,Specs$SP.group[s],sep='/')
+    if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
+    setwd(file.path(PATH))
+    Path.ktch_msy=getwd()
+    Ktch_MSY=ktch_msy_scen
+    
+    Yrs=ct$finyear
+    Tot.Ktch=ct$Total.ktch
+    yr.future=Current+(1:years.futures)
+    ct.future=rep(mean(Tot.Ktch[(length(Tot.Ktch)-4):length(Tot.Ktch)]),years.futures)
+    
+    for(sc in 1:length(ktch_msy_scen))
+    {
+      Folder=names(ktch_msy_scen)[sc]
+      if(!file.exists(paste(PATH,Folder,sep="/"))) dir.create(paste(PATH,Folder,sep="/"))
+      setwd(paste(PATH,Folder,sep="/"))
+      
+      Ktch_MSY[[sc]]=Catch_MSY(ct=Tot.Ktch,
                                yr=Yrs,
                                r.prior=ktch_msy_scen[[sc]]$r.prior,
                                user=ktch_msy_scen[[sc]]$user,
@@ -921,64 +972,69 @@ system.time(for(s in 1: N.sp)
                                sigR=ktch_msy_scen[[sc]]$sigR,
                                ct.future=ct.future,           
                                yr.future=yr.future)
-
+      
       #Export outputs
       Table1_ktch_MSY=with(Ktch_MSY[[sc]],data.frame(`geom. mean r`,`r +/- 1.96 SD`,`geom. mean k (tons)`,`k +/- 1.96 SD (tons)`,
                                                      `geom. mean MSY (tons)`,`MSY +/- 1.96 SD (tons)`))
       write.csv(Table1_ktch_MSY,"Table1_ktch_MSY.csv",row.names=F)
-
+      
     }
-  store.species[[s]]$KTCH.MSY=Ktch_MSY
-  store.species[[s]]$Catch=ct
-  store.species[[s]]$K=Ktch_MSY[[sc]]$k
-  
-  Tabl.scen.Ktch.MSY=vector('list',length(ktch_msy_scen))
-  for(i in 1:length(ktch_msy_scen))
-  {
-    dummy=ktch_msy_scen[[i]]
-    for(a in 1:length(ktch_msy_scen[[i]])) if(length(dummy[[a]])>1) dummy[[a]]=paste(dummy[[a]],collapse=";")
-    Tabl.scen.Ktch.MSY[[i]]=unlist(dummy)
-  }
-  Tabl.scen.Ktch.MSY=do.call(rbind,Tabl.scen.Ktch.MSY)
-  row.names(Tabl.scen.Ktch.MSY)=names(ktch_msy_scen)
-  write.csv(Tabl.scen.Ktch.MSY,"Scenarios.csv")
-  
-})
-
-
-
-# 11. Multi-species BDM 
-Agg.tot.ktch=aggregate(LIVEWT.c~FINYEAR,subset(Tot.ktch,Region=="South"),sum)
-Agg.tot.ktch.north=aggregate(LIVEWT.c~FINYEAR,subset(Tot.ktch,Region=="North"),sum)
-Zero.effort.yrs=Effort.monthly.north$FINYEAR[which(Effort.monthly.north$Hook.days==0)]
-Zero.effort.yrs=subset(Zero.effort.yrs,Zero.effort.yrs%in%Agg.tot.ktch$FINYEAR)
-Agg.tot.ktch.north$LIVEWT.c[match(Zero.effort.yrs,Agg.tot.ktch.north$FINYEAR)]=0
-CPUE=merge(Agg.tot.ktch,Effort.monthly,by="FINYEAR",all.x=T)
-CPUE.north=merge(Agg.tot.ktch.north,Effort.monthly.north,by="FINYEAR",all.x=T)
-CPUE$Effort=CPUE$Total
-CPUE.north$Effort=CPUE.north$Hook.days
-CPUE$cpue=CPUE$LIVEWT.c/CPUE$Effort
-CPUE.north$cpue=CPUE.north$LIVEWT.c/CPUE.north$Effort
-fn.plt=function(x)
-{
-  plot(as.numeric(substr(x$FINYEAR,1,4)),x$LIVEWT.c,type='b',ylab="Total catch (tonnes)",xlab="Financial year")
-  par(new = TRUE)
-  plot(as.numeric(substr(x$FINYEAR,1,4)),x$cpue,axes = FALSE,col=2,type='b',xlab='',ylab='')
-  axis(side=4, at = pretty(range(x$cpue,na.rm=T)))
-  par(new = TRUE)
-  plot(as.numeric(substr(x$FINYEAR,1,4)),x$Effort,axes = FALSE,col=3,type='l',xlab='',ylab='')
-  
+    store.species[[s]]$KTCH.MSY=Ktch_MSY
+    store.species[[s]]$Catch=ct
+    store.species[[s]]$K=Ktch_MSY[[sc]]$k
+    
+    Tabl.scen.Ktch.MSY=vector('list',length(ktch_msy_scen))
+    for(i in 1:length(ktch_msy_scen))
+    {
+      dummy=ktch_msy_scen[[i]]
+      for(a in 1:length(ktch_msy_scen[[i]])) if(length(dummy[[a]])>1) dummy[[a]]=paste(dummy[[a]],collapse=";")
+      Tabl.scen.Ktch.MSY[[i]]=unlist(dummy)
+    }
+    Tabl.scen.Ktch.MSY=do.call(rbind,Tabl.scen.Ktch.MSY)
+    row.names(Tabl.scen.Ktch.MSY)=names(ktch_msy_scen)
+    write.csv(Tabl.scen.Ktch.MSY,"Scenarios.csv")
+    
+  })
 }
 
+#ACA
 
-fn.fig("Catch_cpue_multi",2000,2400) 
-par(mfcol=c(2,1),mar=c(3.5,3,2,2),las=1,cex.axis=.9,mgp=c(2,.6,0))
-fn.plt(x=CPUE)
-legend('topleft',c("catch","cpue","effort"),text.col=1:3,bty='n')
-legend('bottomright',c("South"),bty='n')
-fn.plt(x=CPUE.north)
-legend('bottomright',c("North"),bty='n')
-dev.off()
+# Single-species BDM -----------------------------------------------------------------------
+
+
+
+# Multi-species BDM -----------------------------------------------------------------------
+# Agg.tot.ktch=aggregate(LIVEWT.c~FINYEAR,subset(Tot.ktch,Region=="South"),sum)
+# Agg.tot.ktch.north=aggregate(LIVEWT.c~FINYEAR,subset(Tot.ktch,Region=="North"),sum)
+# Zero.effort.yrs=Effort.monthly.north$FINYEAR[which(Effort.monthly.north$Hook.days==0)]
+# Zero.effort.yrs=subset(Zero.effort.yrs,Zero.effort.yrs%in%Agg.tot.ktch$FINYEAR)
+# Agg.tot.ktch.north$LIVEWT.c[match(Zero.effort.yrs,Agg.tot.ktch.north$FINYEAR)]=0
+# CPUE=merge(Agg.tot.ktch,Effort.monthly,by="FINYEAR",all.x=T)
+# CPUE.north=merge(Agg.tot.ktch.north,Effort.monthly.north,by="FINYEAR",all.x=T)
+# CPUE$Effort=CPUE$Total
+# CPUE.north$Effort=CPUE.north$Hook.days
+# CPUE$cpue=CPUE$LIVEWT.c/CPUE$Effort
+# CPUE.north$cpue=CPUE.north$LIVEWT.c/CPUE.north$Effort
+# fn.plt=function(x)
+# {
+#   plot(as.numeric(substr(x$FINYEAR,1,4)),x$LIVEWT.c,type='b',ylab="Total catch (tonnes)",xlab="Financial year")
+#   par(new = TRUE)
+#   plot(as.numeric(substr(x$FINYEAR,1,4)),x$cpue,axes = FALSE,col=2,type='b',xlab='',ylab='')
+#   axis(side=4, at = pretty(range(x$cpue,na.rm=T)))
+#   par(new = TRUE)
+#   plot(as.numeric(substr(x$FINYEAR,1,4)),x$Effort,axes = FALSE,col=3,type='l',xlab='',ylab='')
+#   
+# }
+# 
+# 
+# fn.fig("Catch_cpue_multi",2000,2400) 
+# par(mfcol=c(2,1),mar=c(3.5,3,2,2),las=1,cex.axis=.9,mgp=c(2,.6,0))
+# fn.plt(x=CPUE)
+# legend('topleft',c("catch","cpue","effort"),text.col=1:3,bty='n')
+# legend('bottomright',c("South"),bty='n')
+# fn.plt(x=CPUE.north)
+# legend('bottomright',c("North"),bty='n')
+# dev.off()
 
 
 
@@ -990,68 +1046,6 @@ setwd(paste(hNdl,'/Outputs',sep=''))
 
 
 #Plot spatial catch
-# Map$LIVEWT.c=Map$LIVEWT.c/1000   #in tonnes
-# Map.north$LIVEWT.c=Map.north$LIVEWT.c/1000
-# 
-# Map=merge(Map,All.species.names,by="SPECIES",all.x=T)
-# Map.north=merge(Map.north,All.species.names,by="SPECIES",all.x=T)
-# 
-# Map$Name=as.character(Map$Name)
-# Map$SNAME=as.character(Map$SNAME)
-# 
-# Map.north$Name=as.character(Map.north$Name)
-# Map.north$SNAME=as.character(Map.north$SNAME)
-# 
-# 
-# Map$SPECIES=ifelse(Map$SPECIES%in%c(23002,23001,23900),23900,Map$SPECIES)    #pool sawsharks are reported by speces and by family
-# Map$Name=ifelse(Map$Name%in%c("Southern sawshark","Common sawshark","Sawsharks"),"Sawsharks",Map$Name)
-# Map$SNAME=ifelse(Map$SNAME%in%c("SHARK, COMMON SAW","shark, common saw","shark, southern saw","SHARK, SOUTHERN SAW",
-#                                 "SHARK, SAW","shark, saw"),"SHARK, SAW",Map$SNAME)
-# 
-# Map.north$SPECIES=ifelse(Map.north$SPECIES%in%c(23002,23001,23900),23900,Map.north$SPECIES)    #pool sawsharks are reported by speces and by family
-# Map.north$Name=ifelse(Map.north$Name%in%c("Southern sawshark","Common sawshark","Sawsharks"),"Sawsharks",Map.north$Name)
-# Map.north$SNAME=ifelse(Map.north$SNAME%in%c("SHARK, COMMON SAW","shark, common saw","shark, southern saw","SHARK, SOUTHERN SAW",
-#                                             "SHARK, SAW","shark, saw"),"SHARK, SAW",Map.north$SNAME)
-
-
-#Species grouping
-# Map=subset(Map,Name%in%Keep.species)
-# Map$SP.group=Map$Name
-# Map$SP.group=with(Map,
-#               ifelse(Name=="Hammerheads","Hammerheads",
-#               ifelse(Name%in%c("Spot tail shark","Blacktips"),"Blacktips",
-#               ifelse(Name=="Tiger shark","Tiger shark",
-#               ifelse(Name=="School shark","School shark",
-#               ifelse(Name=="Wobbegongs","Wobbegongs",
-#               ifelse(Name%in%c("Spinner shark","Pencil shark",
-#                 "Graceful shark","Nervous shark","Creek whaler shark","Milk shark"),"Low",
-#               ifelse(Name%in%c("Grey nurse shark","Shortfin mako","Bull shark","Pigeye shark",
-#                 "Lemon shark","Spurdogs","Sawsharks","Grey reef shark","Silky shark","Silvertip shark",
-#                 "Angel sharks","Sevengill shark","Bignose shark","Oceanic whitetip shark",
-#                 "Blacktip reef shark","Tawny nurse shark","Blue shark","White shark",
-#                 "Thresher sharks","Sixgill shark"),"Very.low",
-#               NA))))))))
-
-# Map.north=subset(Map.north,Name%in%Keep.species)
-# Map.north$SP.group=Map.north$Name
-# Map.north$SP.group=with(Map.north,
-#              ifelse(Name=="Hammerheads","Hammerheads",
-#              ifelse(Name%in%c("Spot tail shark","Blacktips"),"Blacktips",
-#              ifelse(Name=="Tiger shark","Tiger shark",
-#              ifelse(Name=="School shark","School shark",
-#              ifelse(Name=="Wobbegongs","Wobbegongs",
-#              ifelse(Name%in%c("Spinner shark","Pencil shark",
-#                    "Graceful shark","Nervous shark","Creek whaler shark","Milk shark"),"Low",
-#              ifelse(Name%in%c("Grey nurse shark","Shortfin mako","Bull shark","Pigeye shark",
-#                    "Lemon shark","Spurdogs","Sawsharks","Grey reef shark","Silky shark","Silvertip shark",
-#                    "Angel sharks","Sevengill shark","Bignose shark","Oceanic whitetip shark",
-#                    "Blacktip reef shark","Tawny nurse shark","Blue shark","White shark",
-#                    "Thresher sharks","Sixgill shark"),"Very.low",
-#              NA))))))))
-
-# Map=subset(Map,!SP.group=="Blacktips")
-# Map.north=subset(Map.north,!SP.group=="Blacktips")
-
 data(worldLLhigh)
 xlm=c(112,130)
 ylm=c(-36,-10)
