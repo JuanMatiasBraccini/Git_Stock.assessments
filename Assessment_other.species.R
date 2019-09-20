@@ -41,8 +41,9 @@ Do.tiff="NO"
 library(MASS)
 library(plotrix)
 library(PBSmapping)
-library(MASS)
+#library(MASS)
 library(dplyr)
+library(tidyr)
 set.seed(999) 
 
 
@@ -54,16 +55,15 @@ hNdl=paste("C:/Matias/Analyses/Population dynamics/1.Other species/",Asses.year,
 #Total catch
 setwd("C:/Matias/Analyses/Data_outs")
 
-  #Total catch shark fisheries
+  #WA Recreational catch
+source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Recreational.catch.recons.R")
+
+  #Commercial catch shark fisheries TDGDLF and NSF
 Data.monthly=read.csv("Data.monthly.csv",stringsAsFactors=F)
 Data.monthly.north=read.csv("Data.monthly.NSF.csv",stringsAsFactors=F)
 Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT  
 
-  #Recreational catch
-source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Recreational.catch.recons.R")
-
-
-  #Shark catch reported in other fisheries
+  #Commercial shark catch reported in other WA fisheries
 Data.request.1=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1975_1987.csv",stringsAsFactors=F)
 Data.request.2=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1988_2002.csv",stringsAsFactors=F)
 Data.request.3=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/2003_2016.csv",stringsAsFactors=F)
@@ -100,6 +100,43 @@ rm(Data.request,Data.request.1,Data.request.2,Data.request.3)
 Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
 Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
 
+#Taiwanese gillnet fishery (source Stevens 1999 and Stevens & Davenport 1991, catch in tonnes)
+Taiwan.gillnet.ktch=data.frame(Year=1974:1986,
+                               Total.Ktch=c(321.4,8997.6,6455.3,9970.7,5528.2,3282.1,5831.1,6694.7,
+                                            5624.1,7589.9,6544.2,2929.5,2111.1),
+                               Shark.Ktch=c(rep(NA,5),557.9,4234.5,4486.2,3639.4,4418.6,2731.4,2327.4,2393.9),
+                               WA.Ktch=c(rep(NA,5),50,1250,720,800,790,400,10,70))  #From Figure 7 Stevens & Davenport
+Mn.ktch=mean(Taiwan.gillnet.ktch$WA.Ktch/Taiwan.gillnet.ktch$Shark.Ktch,na.rm=T)
+Taiwan.gillnet.ktch=Taiwan.gillnet.ktch%>%
+                      mutate(Shark.Ktch=ifelse(is.na(Shark.Ktch),Total.Ktch*mean(Shark.Ktch/Total.Ktch,na.rm=T),
+                                               Shark.Ktch),
+                             WA.Ktch=ifelse(is.na(WA.Ktch),Shark.Ktch*mean(WA.Ktch/Shark.Ktch,na.rm=T),WA.Ktch))
+
+Taiwan.gillnet.sp.comp=as.data.frame(matrix(c(.357,.166,.059),ncol=3))
+colnames(Taiwan.gillnet.sp.comp)=c("Australian.blacktip.Shark.West.prop",
+                                   "Spot.tail.Shark.West.prop","Hammerheads.West.prop")
+Taiwan.gillnet.ktch=cbind(Taiwan.gillnet.ktch,Taiwan.gillnet.sp.comp) %>%
+                      mutate('Australian blacktip shark'=Australian.blacktip.Shark.West.prop*WA.Ktch,
+                             'Spot-tail shark'=Spot.tail.Shark.West.prop*WA.Ktch,
+                             Hammerheads=Hammerheads.West.prop*WA.Ktch)%>%
+                      dplyr::select(Year,'Australian blacktip shark','Spot-tail shark',Hammerheads)%>%
+                      gather(Species,Ktch,-Year)
+
+
+Taiwan.longline.ktch=data.frame(Year=1990:1991,Shark.Ktch=c(1700*11/(11+9),1700*9/(11+9)))%>%
+                        mutate(WA.ktch=Shark.Ktch*Mn.ktch)
+
+Taiwan.longline.sp.comp=data.frame(Species=rep(c("Spot-tail shark","Australian blacktip shark","Tiger shark",
+                                              "Milk shark","Spinner shark",
+                                            "Pigeye shark","Graceful shark","Hammerheads","Other"),2),
+                                   Year=c(rep(1990,9),rep(1991,9)), 
+                                   Percent=c(18.3,25.6,8.1,.4,6.9,17.9,1.2,2,19.5,5.6,79.7,0.7,2,4.5,1,0,0.1,6.4))
+Taiwan.longline.ktch=Taiwan.longline.sp.comp%>%
+                          left_join(Taiwan.longline.ktch,by="Year")%>%
+                          mutate(Ktch=WA.ktch*Percent/100)%>%
+                          dplyr::select(names(Taiwan.gillnet.ktch))
+#detach("package:MASS", unload=TRUE)
+  
 #source shark bio
 User="Matias"
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
@@ -194,11 +231,8 @@ ERROR2=0.02
 KMAX=100
 
   #depletion levels
-STARTBIO=c(.7,.95)  
-#STARTBIO2=c(.6,.85)  #apply to blacktips and scallop hammerheads only given catch composition from Taiwanese fleet
-STARTBIO2=STARTBIO   #STARTBIO2 not applicable
-
-FINALBIO=c(.2,.8)   
+STARTBIO=c(.8,.99)   #starting time series prior to any fishing
+FINALBIO=c(.2,.8)   #very uncertain
 
   #r priors
 r.prior="USER"  #demography
@@ -270,23 +304,23 @@ dev.off()
 
 #Add 'other methods'
 Data.monthly=Data.monthly%>%
-                select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,RSCommonName,
+                dplyr::select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,RSCommonName,
                        BLOCKX,LAT,LONG,zone)
 Data.monthly.north=Data.monthly.north%>%
-                select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,RSCommonName,
+                dplyr::select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,RSCommonName,
                        BLOCKX,LAT,LONG,zone)
 RSCommonName=rbind(Data.monthly%>%distinct(SPECIES,.keep_all = T),
                    Data.monthly.north%>%distinct(SPECIES,.keep_all = T))%>%
-                  select(SPECIES,RSCommonName)%>%
+                dplyr::select(SPECIES,RSCommonName)%>%
                   distinct(SPECIES,.keep_all = T)
 Data.request.south=Data.request.south%>%
                     mutate(Same.return=paste(FINYEAR,MONTH,VESSEL,METHOD,BLOCKX))%>%
-                    select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,
+                dplyr::select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,
                            BLOCKX,LAT,LONG,zone)%>%
                     left_join(RSCommonName,by="SPECIES")
 Data.request.north=Data.request.north%>%
                     mutate(Same.return=paste(FINYEAR,MONTH,VESSEL,METHOD,BLOCKX))%>%
-                    select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,
+                dplyr::select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,
                            BLOCKX,LAT,LONG,zone)%>%
                     left_join(RSCommonName,by="SPECIES")
 
@@ -313,8 +347,8 @@ COL=rep(1,nrow(Agg.r))
 Agg.r=Agg.r[order(Agg.r$Name),]
 Sp.fig.1=unique(Agg.r$Name)
 
-
-fn.fig(paste(hNdl,'/Outputs/Figure1_catch_all_species',sep=''),2400,2400) 
+#Commercial
+fn.fig(paste(hNdl,'/Outputs/Figure1_catch_all_species_commercial',sep=''),2400,2400) 
 smart.par(n.plots=length(Sp.fig.1),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(i in 1:length(Sp.fig.1))
 {
@@ -360,6 +394,40 @@ for(i in 1:length(Rec.sp))
 plot(1:10,ann=F,axes=F,col='transparent')
 legend('center',c("North","South"),lty=c(1,1),col=c("grey60","grey25"),lwd=2,bty='n',pch=19,cex=1.5)
 mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
+mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
+dev.off()
+
+#plot Taiwanese catch
+Taiwan.gillnet.ktch$Method="Pelagic.gillnet"
+Taiwan.longline.ktch$Method="Longline"
+Taiwan=rbind(Taiwan.longline.ktch,Taiwan.gillnet.ktch)%>%
+              mutate(Region="North",
+                     LIVEWT.c=1000*Ktch)%>%
+              rename(year=Year)%>%
+              arrange(Species,year)
+sp.taiwan=unique(Taiwan$Species)
+fn.fig(paste(hNdl,'/Outputs/Figure1_catch_all_species_Taiwan',sep=''),2400,2400) 
+smart.par(n.plots=length(sp.taiwan),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+for(i in 1:length(sp.taiwan))
+{
+  d=subset(Taiwan,Species==sp.taiwan[i])
+  d.N=d%>%
+    filter(Region=="North")%>%
+    group_by(year)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+  d.S=d%>%
+    filter(Region=="South")%>%
+    group_by(year)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+  
+  plot(sort(unique(Taiwan$year)),sort(unique(Taiwan$year)),col='transparent',cex=.8,ann=F,ylim=c(0,max(c(d.N$LIVEWT.c,d.S$LIVEWT.c,na.rm=T))))
+  if(nrow(d.N)>0) points(d.N$year,d.N$LIVEWT.c,pch=PCH[i],type='o',col="grey60",cex=.8)
+  if(nrow(d.S)>0) points(d.S$year,d.S$LIVEWT.c,pch=PCH[i],type='o',col="grey25",cex=.8)
+  mtext(paste(sp.taiwan[i]),3,line=0.2,cex=0.8)  
+  
+}
+legend('center',c("North","South"),lty=c(1,1),col=c("grey60","grey25"),lwd=2,bty='n',pch=19,cex=1.5)
+mtext("Calendar year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
@@ -536,6 +604,18 @@ if(Split.HH=="YES")
   
   Tot.ktch=rbind(Tot.ktch,Dat.hh,Dat.hh.north)
   
+  #Reapportion Taiwanese catch
+  Taiwan$Species=as.character(Taiwan$Species)
+  drop.HH=subset(Taiwan,Species=="Hammerheads")
+  nhh=nrow(drop.HH)
+  drop.HH=rbind(drop.HH,drop.HH)%>%
+    mutate(Prop=c(rep(Scalloped.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh),
+                  rep(Great.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh)),
+           LIVEWT.c=LIVEWT.c*Prop,
+           Species=c(rep('Scalloped hammerhead',nhh),rep('Great hammerhead',nhh)))%>%
+    dplyr::select(names(Taiwan))
+  
+  Taiwan=rbind(subset(Taiwan,!Species=="Hammerheads"),drop.HH)
 }
 
 
@@ -607,7 +687,8 @@ Pt.ktch.sp=function(sp,SP,LWD)
   }
   
   mtext(SP,3,0,cex=1.5)
-  legend("topleft",c("Total","North of 26?S","South of 26?S"),bty='n',lty=c(1,1,4),
+  legend("topleft",c("Total",expression(paste("North of 26 ",degree,"S")),
+                     expression(paste("South of 26 ",degree,"S"))),bty='n',lty=c(1,1,4),
          lwd=LWD,col=c("black","grey50","Grey75"),cex=1.5,pt.lwd=4)
   mtext("Catch (tonnes)",2,3,cex=2,las=3)
   mtext("Financial year",1,2.5,cex=2)
@@ -622,7 +703,7 @@ names(Uni.sp)=test$Name
 
 #Add recreational catch
 dumi=Tot.ktch%>%distinct(SPECIES,.keep_all = T)%>%
-                select(SPECIES,Name,SNAME)%>%
+            dplyr::select(SPECIES,Name,SNAME)%>%
                 filter(Name%in%c("Scalloped hammerhead","Smooth hammerhead","Tiger shark",
                                  "Wobbegongs","Blacktip reef shark","Spinner shark"))%>%
                 mutate(Common.Name=ifelse(Name=="Wobbegongs","Wobbegong",
@@ -630,19 +711,41 @@ dumi=Tot.ktch%>%distinct(SPECIES,.keep_all = T)%>%
                                    ifelse(Name=="Blacktip reef shark","Blacktip Reef Shark",
                                    ifelse(Name=="Spinner shark","Spinner Shark",
                                    Name)))))
-Rec.ktch=Rec.ktch%>%rename(finyear=year)%>%
-                    mutate(BLOCKX=NA)%>%
-                    filter(Common.Name%in%dumi$Common.Name)%>%
-                    left_join(dumi,by='Common.Name')%>%
-                    select(names(Tot.ktch))
+Rec.ktch=Rec.ktch%>%
+              rename(finyear=year)%>%
+              mutate(BLOCKX=NA)%>%
+              filter(Common.Name%in%dumi$Common.Name)%>%
+              left_join(dumi,by='Common.Name')%>%
+              dplyr::select(names(Tot.ktch))
 
+Rec.ktch$Type="Recreational"
+Tot.ktch$Type="Commercial"
 Tot.ktch=rbind(Tot.ktch,Rec.ktch)
+
+
+#Add Taiwanese catch
+dumi2=Tot.ktch%>%distinct(SPECIES,.keep_all = T)%>%
+             dplyr::select(SPECIES,Name,SNAME)%>%
+             rename(Common.Name=Name)
+
+Taiwan=Taiwan%>%
+          rename(finyear=year,
+                 Common.Name=Species)%>%
+          mutate(BLOCKX=NA,
+                 Type="Taiwan",
+                 FINYEAR=paste(finyear,substr(finyear+1,3,4),sep="-"))%>%
+          left_join(dumi2,by='Common.Name')%>%
+          rename(Name=Common.Name)%>%
+          dplyr::select(names(Tot.ktch))%>%
+          filter(Name%in%unique(Tot.ktch$Name))
+  
+Tot.ktch=rbind(Tot.ktch,Taiwan)
 
   #Display Catch for each Species    
 HnDl=paste(hNdl,"/Outputs/Catch_all_sp/",sep="")
 for(i in 1:length(Uni.sp))
 {
-  fn.fig(paste(HnDl,names(Uni.sp)[i],sep=""),2400,2400) 
+  fn.fig(paste(HnDl,"Used.total.ktch",names(Uni.sp)[i],sep=""),2400,2400) 
   par(las=1,mgp=c(1,.8,0),mai=c(.8,1,.3,.1))
   Pt.ktch.sp(sp=Uni.sp[i],SP=names(Uni.sp)[i],LWD=3)
   dev.off()
@@ -719,7 +822,7 @@ LH.par=LH.par[order(LH.par$SP.group),]
 SPLF=LH.par$SP.group
 GROWTH.F=vector('list',N.sp)
 names(GROWTH.F)=SPLF
-MAX.age.F=AGE.50.mat=FECU=Repro_cycle=Aver.Lat=GROWTH.F
+MAX.age.F=AGE.50.mat=FECU=Repro_cycle=Aver.Lat=AVER.T=GROWTH.F
 for(i in 1:N.sp)
 {
   dd=subset(LH.par,SP.group==SPLF[i])
@@ -728,6 +831,7 @@ for(i in 1:N.sp)
   AGE.50.mat[[i]]=c(dd$Age_50_Mat_min,dd$Age_50_Mat_max)
   FECU[[i]]=c(dd$Fecu_min,dd$Fecu_max)
   Repro_cycle[[i]]=LH.par$Cycle[i]
+  AVER.T[[i]]=LH.par$Temperature[i]
 }
 
 
@@ -778,6 +882,50 @@ for(s in 1: N.sp)
   write.csv(ddd,paste('Catch_all_sp/Total.annual.catch_',Specs$SP.group[s],
                       '.csv',sep=""),row.names = F)
 }
+
+#ACA
+#Displayed catches for analysed species
+all.yrs=min(Tot.ktch$finyear):max(Tot.ktch$finyear)
+COLs.type=c("black","grey60","white")
+names(COLs.type)=c("Commercial","Recreational","Taiwan")
+#Lins.type=c(1,3)
+#names(Lins.type)=c("North","South")
+
+fn.fig(paste(hNdl,'/Outputs/Figure1_catch_analysed_species',sep=''),2400,2400) 
+smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+for(s in 1: N.sp)
+{
+  ddd=subset(Tot.ktch,SP.group==Specs$SP.group[s])%>%
+            group_by(Type,finyear)%>%
+            summarise(Tot=sum(LIVEWT.c,na.rm=T))%>%
+            filter(!is.na(Tot))
+  plot(all.yrs,all.yrs,col="transparent",ylab="",xlab="",main=Specs$SP.group[s],
+       ylim=c(0,max(ddd$Tot)),xaxt='n')
+  unik.T=unique(ddd$Type)
+  #unik.R=unique(ddd$Region)
+  for(u in 1:length(unik.T))
+  {
+   # for(r in 1:length(unik.R))
+  #  {
+      cl=COLs.type[match(unik.T[u],names(COLs.type))]
+   #   lt=Lins.type[match(unik.R[r],names(Lins.type))]
+      with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=1.5,pch=21,bg=cl))
+#      with(subset(ddd,Type==unik.T[u] &Region==unik.R[r]),points(finyear,Tot,type='o',cex=1.5,pch=21,lty=lt,bg=cl))
+   # }
+  }
+  if(s==1)legend('topleft',names(COLs.type),pt.bg=COLs.type,
+                 bty='n',pch=21,cex=1.5,pt.cex=2)
+  # if(s==1)legend('topleft',c(names(Lins.type),names(COLs.type)),
+  #                lty=c(Lins.type,rep(NA,3)),pt.bg=c(1,1,COLs.type),
+  #                lwd=2,bty='n',pch=21,cex=1,pt.cex=2)
+  axis(1,all.yrs,F,tck=-.015)
+  axis(1,seq(all.yrs[1],all.yrs[length(all.yrs)],10),
+       seq(all.yrs[1],all.yrs[length(all.yrs)],10),tck=-.03)
+
+}
+mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
+mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
+dev.off()
 
 
 
@@ -889,8 +1037,8 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
 {
   #life history
   Growth.F=GROWTH.F[[s]]
-  #TEMP=AVER.T[[s]]
-  TEMP=19
+  TEMP=AVER.T[[s]]
+  #TEMP=19
   Max.age.F=MAX.age.F[[s]]
   Age.50.mat=AGE.50.mat[[s]]
   Fecundity=FECU[[s]]
@@ -934,7 +1082,6 @@ if(Do.Ktch.MSY)
       if(is.na(SCENARIOS[[sc]]$R.prior)) USR="No" else
         if(SCENARIOS[[sc]]$R.prior=="USER")USR= "Yes"
         Scen.start.bio=SCENARIOS[[sc]]$Initial.dep       
-        if(Specs$SP.group[s]%in%c('Blacktips','Scalloped hammerhead')) Scen.start.bio=STARTBIO2
         ktch_msy_scen[[sc]]=list(r.prior=SCENARIOS[[sc]]$R.prior,user=USR,k.max=KMAX,
                                  startbio=Scen.start.bio,finalbio=FINALBIO,res=RESILIENCE[[s]],
                                  niter=SIMS,sigR=SCENARIOS[[sc]]$Error)
@@ -998,9 +1145,140 @@ if(Do.Ktch.MSY)
 }
 
 #ACA
-
 # Single-species BDM -----------------------------------------------------------------------
 
+  #population dynamics function
+SPM=function(Init.propK,cpue,Ktch,theta,HR_init,HR_init.sd,r.mean,r.sd)
+{
+  K=exp(theta[1])
+  r=exp(theta[2])
+  q=exp(theta[3])
+  Bt=rep(NA,length(Ktch)+1)
+  Bt[1]=K*Init.propK
+  for(t in 2:length(Bt)) Bt[t]=Bt[t-1]+r*Bt[t-1]*(1-Bt[t-1]/K)-Ktch[t-1]
+  H=Ktch/Bt[-length(Bt)]
+  cpue.hat=q*Bt[-length(Bt)]
+  ln.cpue.hat=log(cpue.hat)
+  ln.cpue=log(cpue)
+  sqres=(ln.cpue-ln.cpue.hat)^2
+  
+  #Calculate likelihoods
+  #strong penalty to keep initial depletion at assumed HR_init level
+  HR.init.negLL=-log(dnorm(H[1],HR_init,HR_init.sd))
+  
+  #strong penalty to keep r  at assumed r prior
+  r.negLL=-log(dnorm(r,r.mean,r.sd))
+  
+  #cpue likelihood
+  n.cpue=length(cpue[!is.na(cpue)])
+  cpue.negLL=(n.cpue/2)*(log(2*pi)+2*log(sqrt(sum(sqres,na.rm=T)/n.cpue))+1)
+  
+  negLL=HR.init.negLL+r.negLL+cpue.negLL
+  
+  #Calculate MSY quantities
+  Bmys=K/2
+  MSY=K*r/4
+  Fmsy=r/2
+  
+  return(list(Bmys=Bmys,MSY=MSY,Fmsy=Fmsy,Bt=Bt,negLL=negLL,
+              ln.cpue.hat=ln.cpue.hat,ln.cpue=ln.cpue))
+}
+  #plotting functions
+fn.plt.cpue=function(ob,pred,Yr)
+{
+  plot(Yr,pred,pch=19,cex=1.5,type='b',ylab="lncpue",xlab="year")
+  points(Yr,ob,col="orange",pch=19,cex=1.5)
+  legend("bottomleft",c("observed","predicted"),pch=19,cex=2,col=c("orange","black"),bty='n')
+}
+fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch)
+{
+  plot(Yr,Bt[1:length(Yr)],type='o',pch=19,ylim=c(0,max(Bt)),
+       ylab="Total biomass (tonnes)",xlab="Year")
+  abline(h=Bmys,col="orange",lwd=2)
+  abline(h=0.8*Bmys,col="red",lwd=2)
+  abline(h=1.2*Bmys,col="green",lwd=2)
+  
+  par(new=T)
+  plot(Yr,Ktch,type='l',col="steelblue",xlab="",ylab="",axes=F,lwd=2)
+  axis(side = 4)
+  mtext(side = 4, line = 2, 'Total catch (tonnes')
+}
+
+HR.o.scens=c(0.01,0.02,0.05)
+
+Store.SPM=vector('list',N.sp)
+names(Store.SPM)=Specs$SP.group
+
+#Initial values
+Estim.o=list(
+  "Bull shark"=c(K.init=420,r.init=0.1,q1.init=0.005),
+  "Lemon shark"=c(K.init=420,r.init=0.1,q1.init=0.005),
+  "Pigeye shark"=c(K.init=420,r.init=0.1,q1.init=0.005),
+  "Scalloped hammerhead"=c(K.init=420,r.init=0.1,q1.init=0.005),
+  "Smooth hammerhead"=c(K.init=420,r.init=0.1,q1.init=0.005),
+  "Spinner shark"=c(K.init=420,r.init=0.1,q1.init=0.005),
+  "Spurdogs"=c(K.init=420,r.init=0.1,q1.init=0.005),
+  "Tiger shark"=c(K.init=420,r.init=0.1,q1.init=0.005),
+  "Wobbegongs"=c(K.init=420,r.init=0.1,q1.init=0.005)
+)
+
+
+for(s in 1: N.sp)
+{
+  #catch
+  ct=Tot.ktch%>%filter(SP.group==Specs$SP.group[s])%>%
+                group_by(finyear)%>%
+                summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
+  #cpue
+  CPUE=   #aca bring in cpue (have full series, add NA for missing years....)   MISSING
+  #input pars
+    #r prior
+  r.prior=store.species[[s]]$r.prior.normal$mean
+  r.prior.sd=store.species[[s]]$r.prior.normal$sd
+
+    #Proportional biomass (as proportion of K) at start of catch time series
+  B.init=0.95 
+  
+    #estimable pars
+  K.init=Estim.o[[s]][1]
+  r.init=Estim.o[[s]][2]
+  q1.init=Estim.o[[s]][3]
+
+  dummy=vector('list',length(HR.o.scens))
+  names(dummy)=HR.o.scens
+  for(h in 1:length(HR.o.scens))
+  {
+    #Initial harvest rate prior
+    HR_o=HR.o.scens[h]
+    HR_o.sd=0.005
+    
+    #objfun to minimize 
+    fn_ob=function(theta)SPM(Init.propK=B.init,cpue=CPUE,Ktch=ct$LIVEWT.c,theta,
+                             HR_init=HR_o,HR_init.sd=HR_o.sd,
+                             r.mean=r.prior,r.sd=r.prior.sd)$negLL	
+    #fit model
+    dummy[[h]]=fit_ob=optim(c(log(K.init),log(r.init),log(q1.init)),fn_ob,method="BFGS",hessian=T)
+    
+  }
+  Store.SPM[[s]]=dummy
+}
+
+
+#Evaluate at initial par values
+Preds.init=SPM(Init.propK=B.init,cpue=CPUE,Ktch=KK,theta=c(log(400.2014404),log(0.145838589),log(0.004863739)),
+               HR_init=HR_o,HR_init.sd=HR_o.sd,r.mean=r.prior,r.sd=r.prior.sd)
+
+#Evaluate at MLE 
+Preds=SPM(Init.propK=B.init,cpue=CPUE,Ktch=KK,theta=fit_ob$par,
+          HR_init=HR_o,HR_init.sd=HR_o.sd,r.mean=r.prior,r.sd=r.prior.sd)
+
+
+fn.plt.cpue(Preds.init$ln.cpue,Preds.init$ln.cpue.hat,Yr=1975:2017)
+fn.plt.cpue(Preds$ln.cpue,Preds$ln.cpue.hat,Yr=1975:2017)
+
+
+fn.plt.bio.ktch(Yr=1975:2017,Bt=Preds$Bt,Bmsy=Preds$Bmys,KK)
+fn.plt.bio.ktch(Yr=1975:2017,Bt=Preds.init$Bt,Bmsy=Preds.init$Bmys,KK)
 
 
 # Multi-species BDM -----------------------------------------------------------------------
