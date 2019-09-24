@@ -263,11 +263,20 @@ years.futures=5
 
 
 #.. Surplus production arguments
-#note: Smuz.hh.tdgdlf_mon removed because increasing cpue and catch
+#note: Only fitting species with species-specific abundance time series 
+#     (e.g. wobbegongs comprise several species so not fitted)
+#     Assumption, negligible exploitation at start of time series
+#     Assumed some efficiency increase to account for fact that spinner
+#     and hammerhead cpue increased with increase catch. Only up to 2% per
+#     year assumed because standardisation partly account for this (e.g. change
+#     in spatial distribution of fleet by considering block effect)
 
   #Initial harvest rate scenarios
 HR.o.scens=c(0.01,0.02,0.05) 
 HR_o.sd=0.005  #SD of HR likelihood (fixed)
+
+  #Efficiency increase scenarios from 1995 on (done up to 1994 in cpue stand.)
+Efficien.scens=c(0,.01,.02)
 
   #Proportional biomass (as proportion of K) at start of catch time series
 B.init=0.99 #(fixed)
@@ -1174,15 +1183,59 @@ if(Do.Ktch.MSY)
   })
 }
 
-#ACA
+
 # Single-species BDM -----------------------------------------------------------------------
 
-  #population dynamics function
-SPM=function(Init.propK,cpue,Ktch,theta,HR_init,HR_init.sd,r.mean,r.sd)
+  #get abundance data    
+cpue.list=list(
+  "Bull shark"=NULL,
+  "Lemon shark"=NULL,
+  "Pigeye shark"=NULL,
+  "Scalloped hammerhead"=list(Nat=Scal.hh.nat,
+                              TDGDLF.mon=NULL,
+                              TDGDLF.day=NULL),
+  "Smooth hammerhead"=list(Nat=NULL,
+                           TDGDLF.mon=Smuz.hh.tdgdlf_mon,
+                           TDGDLF.day=Smuz.hh.tdgdlf_daily), 
+  "Spinner shark"=list(Nat=NULL,
+                       TDGDLF.mon=Spinr.tdgdlf_mon,
+                       TDGDLF.day=Spinr.tdgdlf_daily),
+  "Spurdogs"=NULL,
+  "Tiger shark"=list(Nat=Tiger.nat,
+                     TDGDLF.mon=Tiger.tdgdlf_mon,
+                     TDGDLF.day=Tiger.tdgdlf_daily),         
+  "Wobbegongs"=NULL) 
+
+Estimable.qs=list(
+  "Bull shark"=NULL,
+  "Lemon shark"=NULL,
+  "Pigeye shark"=NULL,
+  "Scalloped hammerhead"=c(q1=.005,NA,NA),
+  "Smooth hammerhead"=c(NA,q2=.005,q3=.001), 
+  "Spinner shark"=c(NA,q2=.005,q3=.001),
+  "Spurdogs"=NULL,
+  "Tiger shark"=c(q1=.005,q2=.005,q3=.001),         
+  "Wobbegongs"=NULL) 
+
+
+
+#ACA Efficien.scens
+  #penalty for keeping biomass positive
+posfun=function(x,eps,pen)
 {
+  if (x>=eps) return(x) else
+  {
+    pen=pen+.01*(x-eps)^2
+    return (list(eps/(2-x/eps),pen))
+  }
+}
+  #population dynamics function
+SPM=function(Init.propK,cpue,Qs,Ktch,theta,HR_init,HR_init.sd,r.mean,r.sd)
+{
+  #Population dynamics
   K=exp(theta[1])
   r=exp(theta[2])
-  if(estim.q=="YES")q=exp(theta[3])
+  if(estim.q=="YES")q=exp(theta[3:length(theta)])
   Bt=rep(NA,length(Ktch)+1)
   Bpen=Bt
   Bt[1]=K*Init.propK
@@ -1197,29 +1250,41 @@ SPM=function(Init.propK,cpue,Ktch,theta,HR_init,HR_init.sd,r.mean,r.sd)
     if(Bt[t]<0) Bpen[t]=pen[[2]]
   }
   H=Ktch/Bt[-length(Bt)]
-  no.cpue=which(!is.na(cpue))
   
-  n.cpue=length(no.cpue)
-  if(estim.q=="NO")q=exp(sum(log(cpue[no.cpue]/Bt[no.cpue]))/n.cpue) #Haddon 2001 page 321
-  cpue.hat=q*Bt[-length(Bt)]
-  ln.cpue.hat=log(cpue.hat)
-  ln.cpue=log(cpue)
-  
-  ln.cpue.hat=ln.cpue.hat[no.cpue]
-  ln.cpue=ln.cpue[no.cpue]
-  sqres=(ln.cpue-ln.cpue.hat)^2
-  
-  #Calculate likelihoods
-  #strong penalty to keep initial depletion at assumed HR_init level
+  #Loglikelihoods
+    #Initial harvest rate
   HR.init.negLL=-log(dnorm(H[1],HR_init,HR_init.sd))
   
-  #strong penalty to keep r  at assumed r prior
+    #r
   r.negLL=-log(dnorm(r,r.mean,r.sd))
   names(r.negLL)=NULL
   
-  #cpue likelihood
-  cpue.negLL=(n.cpue/2)*(log(2*pi)+2*log(sqrt(sum(sqres,na.rm=T)/n.cpue))+1)
+    #cpue likelihood
+  ln.cpue.hat=vector('list',length(cpue))
+  ln.cpue=ln.cpue.hat
+  cpue.negLL=rep(NA,length(cpue))
+  for(ku in 1:length(Qs))
+  {
+    if(!is.na(Qs[ku]))
+    {
+      no.cpue=which(!is.na(cpue[[ku]]))
+      n.cpue=length(no.cpue)
+      if(estim.q=="NO")q[match(names(Qs[ku]),names(q))]=exp(sum(log(cpue[no.cpue]/Bt[no.cpue]))/n.cpue) #Haddon 2001 page 321
+      cpue.hat=q[match(names(Qs[ku]),names(q))]*Bt[-length(Bt)]
+      
+      ln.cpue.hat[[ku]]=log(cpue.hat)
+      ln.cpue[[ku]]=log(cpue[[ku]])
+      ln.cpue.hat[[ku]]=ln.cpue.hat[[ku]][no.cpue]
+      ln.cpue[[ku]]=ln.cpue[[ku]][no.cpue]
+      
+      sqres=(ln.cpue[[ku]]-ln.cpue.hat[[ku]])^2
+      cpue.negLL[ku]=(n.cpue/2)*(log(2*pi)+2*log(sqrt(sum(sqres,na.rm=T)/n.cpue))+1)
+      
+    }
+  }
+  cpue.negLL=sum(cpue.negLL,na.rm=T)
   
+  #Total negloglike
   negLL=HR.init.negLL+r.negLL+cpue.negLL+sum(Bpen,na.rm=T)
   
   #Calculate MSY quantities
@@ -1250,24 +1315,20 @@ fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch)
   axis(side = 4)
   mtext(side = 4, line = 2, 'Total catch (tonnes')
 }
-
-cpue.list=list(
-  "Bull shark"=NULL,
-  "Lemon shark"=NULL,
-  "Pigeye shark"=NULL,
-  "Scalloped hammerhead"=list(ab=Scal.hh.nat,q=1),
-  "Smooth hammerhead"=list(ab=Smuz.hh.tdgdlf_daily,q=1), 
-  "Spinner shark"=list(ab=Spinr.tdgdlf_daily,q=1),
-  "Spurdogs"=NULL,
-  "Tiger shark"=list(ab=Tiger.nat,q=1),         #tdglf=Tiger.tdgdlf_daily
-  "Wobbegongs"=list(ab=Wobi.tdgdlf_daily,q=1)) 
-
-all.iers=seq(min(Tot.ktch$finyear),max(Tot.ktch$finyear))
-
+fn.fill=function(x)
+{
+  aa=all.iers[which(!all.iers%in%x$yr)]
+  aa1=x[1:length(aa),]
+  aa1[,]=NA
+  aa1$yr=aa
+  x=rbind(x,aa1)%>%arrange(yr)
+  return(x%>%select(MeAn,CV))
+}
 
   #Loop over all species
 Store.SPM=vector('list',N.sp)
 names(Store.SPM)=Specs$SP.group
+Store.stuff=Store.SPM
 for(s in 1: N.sp)
 {
   Id=match(Specs$SP.group[s],names(cpue.list))
@@ -1276,32 +1337,44 @@ for(s in 1: N.sp)
   ct=Tot.ktch%>%filter(SP.group==Specs$SP.group[s])%>%
                 group_by(finyear)%>%
                 summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
+  all.iers=seq(min(ct$finyear),max(ct$finyear))
+  
   if(!is.null(cpue.list[[Id]]))
   {
-    nqs=cpue.list[[Id]]$q
-    CPUE=cpue.list[[Id]]$ab%>%
-      mutate(CV=ifelse(CV>10,CV/100,CV))
-    if(!'yr'%in%names(CPUE)) CPUE$yr=as.numeric(substr(CPUE$Finyear,1,4))
-    if(!'MeAn'%in%names(CPUE)) CPUE$MeAn=CPUE$Mean
-    
+    #Get cpues
+    CPUE.1=cpue.list[[Id]]$Nat
+    if(!is.null(CPUE.1))CPUE.1=CPUE.1%>%mutate(CV=CV/100)
+    CPUE.2=cpue.list[[Id]]$TDGDLF.mon
+    if(!is.null(CPUE.2))CPUE.2=CPUE.2%>%
+                                mutate(yr=as.numeric(substr(Finyear,1,4)),
+                                       MeAn=Mean)
+    CPUE.3=cpue.list[[Id]]$TDGDLF.day
+    if(!is.null(CPUE.3))CPUE.3=CPUE.3%>%
+                                  mutate(yr=as.numeric(substr(Finyear,1,4)),
+                                         MeAn=Mean)
     #fill in missing cpue
-    aa=all.iers[which(!all.iers%in%CPUE$yr)]
-    aa1=CPUE[1:length(aa),]
-    aa1[,]=NA
-    aa1$yr=aa
-    CPUE=rbind(CPUE,aa1)%>%arrange(yr)
-    CPUE=CPUE$MeAn
-    
+    CPUE=list(CPUE.1,CPUE.2,CPUE.3)
+    CPUE.CV=CPUE
+    for(ci in 1:length(CPUE))
+    {
+      if(!is.null(CPUE[[ci]]))
+      {
+        x=fn.fill(CPUE[[ci]])
+        CPUE.CV[[ci]]=x$CV
+        CPUE[[ci]]=x$MeAn
+      }
+    }
+ 
     #input pars
       #r prior
     r.prior=store.species[[Id]]$r.prior.normal$mean
     r.prior.sd=store.species[[Id]]$r.prior.normal$sd
     
       #estimable pars
-    K.init=10*max(ct$LIVEWT.c,na.rm=T)
+    Mx.ktch=max(ct$LIVEWT.c,na.rm=T)
+    K.init=10*Mx.ktch
     r.init=Init.r[[Id]]
-    q1.init=.005
-    if(nqs==2)q2.init=q1.init/2
+    QS=Estimable.qs[[Id]]
     
     #loop over scenarios
     dummy=vector('list',length(HR.o.scens))
@@ -1311,21 +1384,42 @@ for(s in 1: N.sp)
       #Initial harvest rate prior
       HR_o=HR.o.scens[h]
       
-      #objfun to minimize 
-      fn_ob=function(theta)SPM(Init.propK=B.init,cpue=CPUE,Ktch=ct$LIVEWT.c,theta,
-                               HR_init=HR_o,HR_init.sd=HR_o.sd,
-                               r.mean=r.prior,r.sd=r.prior.sd)$negLL	
-      #fit model
-      if(estim.q=="YES")theta= c(log(K.init),log(r.init),log(q1.init))
-      if(estim.q=="NO")theta= c(log(K.init),log(r.init))
-      dummy[[h]]=optim(theta,fn_ob,method="BFGS",hessian=T)
-    }
+      dummy.eff=vector('list',length(Efficien.scens))
+      names(dummy.eff)=Efficien.scens
+      Eff.yrs=ct$finyear
+      id.eff.yrs=which(Eff.yrs>1994)
+      for(e in 1:length(Efficien.scens))
+      {
+        #Apply assumed efficiency to TDGDLF
+        Add.eff=data.frame(yr=Eff.yrs,Efficiency=1)
+        Add.eff$Efficiency[id.eff.yrs]=Add.eff$Efficiency[id.eff.yrs]+
+          cumsum(rep(Efficien.scens[e],length(id.eff.yrs)))
+         CPUE.eff.scen=CPUE
+        for(ss in 2:3)
+        {
+          if(!is.null(CPUE.eff.scen[[ss]])) CPUE.eff.scen[[ss]]= #ACA apply efficency
+        }
+         
+        #objfun to minimize 
+        fn_ob=function(theta)SPM(Init.propK=B.init,cpue=CPUE.eff.scen,Qs=QS,
+                                 Ktch=ct$LIVEWT.c,theta,
+                                 HR_init=HR_o,HR_init.sd=HR_o.sd,
+                                 r.mean=r.prior,r.sd=r.prior.sd)$negLL
+        #fit model
+        if(estim.q=="YES")theta= c(k=log(K.init),r=log(r.init),log(QS[which(!is.na(QS))]))
+        if(estim.q=="NO")theta= c(k=log(K.init),r=log(r.init))
+        Lw.bound=log(c(2*Mx.ktch,0.001,rep(1e-6,length(theta)-2)))
+        Up.bound=log(c(50*Mx.ktch,0.5,rep(1,length(theta)-2)))
+        dummy.eff[[e]]=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,
+                         upper = Up.bound,hessian=T)
+      }
+      dummy[[h]]=dummy.eff
+     }
     Store.SPM[[s]]=dummy
+    Store.stuff[[s]]=list(cpue=CPUE,Qs=QS,Ktch=ct$LIVEWT.c,
+                          r.mean=r.prior,r.sd=r.prior.sd)
   }
-
 }
-
-
 
 
   #Evaluate at MLE
@@ -1339,10 +1433,16 @@ for(s in 1: N.sp)
     names(dumy.pred)=HR.o.scens
     for(h in 1:length(HR.o.scens))
     {
-      dumy.pred[[h]]=SPM(Init.propK=B.init,cpue=CPUE,Ktch=ct$LIVEWT.c,
+
+      dumy.pred[[h]]=SPM(Init.propK=B.init,
+                         cpue=Store.stuff[[s]]$cpue,
+                         Qs=Store.stuff[[s]]$Qs,
+                         Ktch=Store.stuff[[s]]$Ktch,
                          theta=Store.SPM[[s]][[h]]$par,
-                         HR_init=HR.o.scens[h],HR_init.sd=HR_o.sd,
-                         r.mean=r.prior,r.sd=r.prior.sd)
+                         HR_init=HR.o.scens[h],
+                         HR_init.sd=HR_o.sd,
+                         r.mean=Store.stuff[[s]]$r.mean,
+                         r.sd=Store.stuff[[s]]$r.sd)
     }
     SPM.preds[[s]]=dumy.pred
   }
