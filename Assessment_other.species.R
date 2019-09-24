@@ -290,6 +290,7 @@ Init.r=list("Bull shark"=.1,"Lemon shark"=.1,"Pigeye shark"=.1,
             "Spinner shark"=.1,"Spurdogs"=.1,"Tiger shark"=.1,
             "Wobbegongs"=.1)
 
+MAX.CV=1.1
 
 #---PROCEDURE SECTION-----
 
@@ -1219,7 +1220,7 @@ Estimable.qs=list(
 
 
 
-#ACA Efficien.scens
+#ACA 
   #penalty for keeping biomass positive
 posfun=function(x,eps,pen)
 {
@@ -1298,9 +1299,10 @@ SPM=function(Init.propK,cpue,Qs,Ktch,theta,HR_init,HR_init.sd,r.mean,r.sd)
   #plotting functions
 fn.plt.cpue=function(ob,pred,Yr)
 {
-  plot(Yr,pred,pch=19,cex=1.5,type='b',ylab="lncpue",xlab="year")
+  plot(Yr,pred,pch=19,cex=1.5,type='b',ylab="lncpue",xlab="year",
+       ylim=c(min(c(ob,pred)),max(c(ob,pred))))
   points(Yr,ob,col="orange",pch=19,cex=1.5)
-  legend("bottomleft",c("observed","predicted"),pch=19,cex=2,col=c("orange","black"),bty='n')
+  legend("bottomright",c("observed","predicted"),pch=19,cex=2,col=c("orange","black"),bty='n')
 }
 fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch)
 {
@@ -1322,7 +1324,7 @@ fn.fill=function(x)
   aa1[,]=NA
   aa1$yr=aa
   x=rbind(x,aa1)%>%arrange(yr)
-  return(x%>%select(MeAn,CV))
+  return(x)
 }
 
   #Loop over all species
@@ -1343,18 +1345,21 @@ for(s in 1: N.sp)
   {
     #Get cpues
     CPUE.1=cpue.list[[Id]]$Nat
-    if(!is.null(CPUE.1))CPUE.1=CPUE.1%>%mutate(CV=CV/100)
+    if(!is.null(CPUE.1))CPUE.1=CPUE.1%>%mutate(CV=CV/100)%>%
+                                        filter(CV<MAX.CV)
     CPUE.2=cpue.list[[Id]]$TDGDLF.mon
     if(!is.null(CPUE.2))CPUE.2=CPUE.2%>%
                                 mutate(yr=as.numeric(substr(Finyear,1,4)),
-                                       MeAn=Mean)
+                                       MeAn=Mean)%>%
+                                filter(CV<MAX.CV)
     CPUE.3=cpue.list[[Id]]$TDGDLF.day
     if(!is.null(CPUE.3))CPUE.3=CPUE.3%>%
                                   mutate(yr=as.numeric(substr(Finyear,1,4)),
-                                         MeAn=Mean)
+                                         MeAn=Mean)%>%
+                                  filter(CV<MAX.CV)
     #fill in missing cpue
     CPUE=list(CPUE.1,CPUE.2,CPUE.3)
-    CPUE.CV=CPUE
+    CPUE.CV=CPUE.yr=CPUE
     for(ci in 1:length(CPUE))
     {
       if(!is.null(CPUE[[ci]]))
@@ -1362,6 +1367,7 @@ for(s in 1: N.sp)
         x=fn.fill(CPUE[[ci]])
         CPUE.CV[[ci]]=x$CV
         CPUE[[ci]]=x$MeAn
+        CPUE.yr[[ci]]=x%>%filter(!is.na(MeAn))%>%select(yr)
       }
     }
  
@@ -1386,18 +1392,19 @@ for(s in 1: N.sp)
       
       dummy.eff=vector('list',length(Efficien.scens))
       names(dummy.eff)=Efficien.scens
+      Store.CPUE.eff=dummy.eff
       Eff.yrs=ct$finyear
       id.eff.yrs=which(Eff.yrs>1994)
       for(e in 1:length(Efficien.scens))
       {
         #Apply assumed efficiency to TDGDLF
         Add.eff=data.frame(yr=Eff.yrs,Efficiency=1)
-        Add.eff$Efficiency[id.eff.yrs]=Add.eff$Efficiency[id.eff.yrs]+
+        Add.eff$Efficiency[id.eff.yrs]=Add.eff$Efficiency[id.eff.yrs]-
           cumsum(rep(Efficien.scens[e],length(id.eff.yrs)))
          CPUE.eff.scen=CPUE
         for(ss in 2:3)
         {
-          if(!is.null(CPUE.eff.scen[[ss]])) CPUE.eff.scen[[ss]]= #ACA apply efficency
+          if(!is.null(CPUE.eff.scen[[ss]])) CPUE.eff.scen[[ss]]=CPUE.eff.scen[[ss]]*Add.eff$Efficiency
         }
          
         #objfun to minimize 
@@ -1412,12 +1419,14 @@ for(s in 1: N.sp)
         Up.bound=log(c(50*Mx.ktch,0.5,rep(1,length(theta)-2)))
         dummy.eff[[e]]=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,
                          upper = Up.bound,hessian=T)
+        Store.CPUE.eff[[e]]=CPUE.eff.scen
       }
       dummy[[h]]=dummy.eff
      }
     Store.SPM[[s]]=dummy
-    Store.stuff[[s]]=list(cpue=CPUE,Qs=QS,Ktch=ct$LIVEWT.c,
-                          r.mean=r.prior,r.sd=r.prior.sd)
+    Store.stuff[[s]]=list(cpue=Store.CPUE.eff,Qs=QS,Ktch=ct$LIVEWT.c,
+                          r.mean=r.prior,r.sd=r.prior.sd,yrs=all.iers,
+                          cpue.yrs=CPUE.yr,n.cpues=length(CPUE))
   }
 }
 
@@ -1433,29 +1442,52 @@ for(s in 1: N.sp)
     names(dumy.pred)=HR.o.scens
     for(h in 1:length(HR.o.scens))
     {
-
-      dumy.pred[[h]]=SPM(Init.propK=B.init,
-                         cpue=Store.stuff[[s]]$cpue,
-                         Qs=Store.stuff[[s]]$Qs,
-                         Ktch=Store.stuff[[s]]$Ktch,
-                         theta=Store.SPM[[s]][[h]]$par,
-                         HR_init=HR.o.scens[h],
-                         HR_init.sd=HR_o.sd,
-                         r.mean=Store.stuff[[s]]$r.mean,
-                         r.sd=Store.stuff[[s]]$r.sd)
+      dummy.eff=vector('list',length(Efficien.scens))
+      names(dummy.eff)=Efficien.scens
+      for(e in 1:length(Efficien.scens))
+      {
+        dummy.eff[[e]]=SPM(Init.propK=B.init,
+            cpue=Store.stuff[[s]]$cpue[[e]],
+            Qs=Store.stuff[[s]]$Qs,
+            Ktch=Store.stuff[[s]]$Ktch,
+            theta=Store.SPM[[s]][[h]][[e]]$par,
+            HR_init=HR.o.scens[h],
+            HR_init.sd=HR_o.sd,
+            r.mean=Store.stuff[[s]]$r.mean,
+            r.sd=Store.stuff[[s]]$r.sd)
+      }
+      dumy.pred[[h]]=dummy.eff
     }
     SPM.preds[[s]]=dumy.pred
   }
 }
 
 
+#Plot obs VS pred cpues   #ACA show by species, h scenario, e scenario and each cpue   
+for(s in 1: N.sp)
+{
+  if(!is.null(SPM.preds[[s]]))
+  {
+    for(h in 1:length(HR.o.scens))
+    {
+      for(e in 1:length(Efficien.scens))
+      {
+        for(x in 1:Store.stuff[[s]]$n.cpues)
+          if(!is.null(SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]]))
+          {
+            fn.plt.cpue(ob=SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]],
+                        pred=SPM.preds[[s]][[h]][[e]]$ln.cpue.hat[[x]],
+                        Yr=c(Store.stuff[[s]]$cpue.yrs[[x]]$yr))
+          }
+        
+      }
+    }
+      
+  }
+}
 
 
-
-fn.plt.cpue(Preds.init$ln.cpue,Preds.init$ln.cpue.hat,Yr=1975:2017)
-fn.plt.cpue(Preds$ln.cpue,Preds$ln.cpue.hat,Yr=1975:2017)
-
-
+#Plot biomass
 fn.plt.bio.ktch(Yr=1975:2017,Bt=Preds$Bt,Bmsy=Preds$Bmsy,KK)
 fn.plt.bio.ktch(Yr=1975:2017,Bt=Preds.init$Bt,Bmsy=Preds.init$Bmsy,KK)
 
