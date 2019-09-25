@@ -44,6 +44,12 @@ library(PBSmapping)
 #library(MASS)
 library(dplyr)
 library(tidyr)
+library(mvtnorm)
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+#install.packages("BiocManager")
+#BiocManager::install("Biobase")
+library(Biobase)
+library(numDeriv)
 set.seed(999) 
 
 
@@ -223,8 +229,8 @@ Min.yrs=3        #minimum years with catch records for species to be included in
 Min.yr.ktch=10    #minimum tonnage per year for at least Min.yrs
 
 #Reference points
-FAO.tar.prop=1.2  #FAO target and limit proportions of Bmsy
-FAO.lim.prop=0.8
+Tar.prop=1.3  #target and limit proportions of Bmsy based on Haddon et al 2014. Technical Reviews of Formal Harvest Strategies.
+Lim.prop=0.5
 
 #Life history parameters for selected species  
 pup.sx.ratio=.5
@@ -276,7 +282,7 @@ HR.o.scens=c(0.01,0.02,0.05)
 HR_o.sd=0.005  #SD of HR likelihood (fixed)
 
   #Efficiency increase scenarios from 1995 on (done up to 1994 in cpue stand.)
-Efficien.scens=c(0,.01,.02)
+Efficien.scens=c(.01,.02)
 
   #Proportional biomass (as proportion of K) at start of catch time series
 B.init=0.99 #(fixed)
@@ -285,12 +291,17 @@ B.init=0.99 #(fixed)
 estim.q="YES"
 
   #Initial estimated par value
-Init.r=list("Bull shark"=.1,"Lemon shark"=.1,"Pigeye shark"=.1,
-            "Scalloped hammerhead"=.1,"Smooth hammerhead"=.2,
-            "Spinner shark"=.1,"Spurdogs"=.1,"Tiger shark"=.1,
-            "Wobbegongs"=.1)
+Init.r=list("Bull shark"=.15,"Lemon shark"=.15,"Pigeye shark"=.15,
+            "Scalloped hammerhead"=.15,"Smooth hammerhead"=.2,
+            "Spinner shark"=.15,"Spurdogs"=.15,"Tiger shark"=.15,
+            "Wobbegongs"=.15)
+
+N.monte=1000
 
 MAX.CV=1.1
+
+minimizer='nlminb'
+#minimizer='optim'
 
 #---PROCEDURE SECTION-----
 
@@ -1185,7 +1196,7 @@ if(Do.Ktch.MSY)
 }
 
 
-# Single-species BDM -----------------------------------------------------------------------
+# Single-species SPM -----------------------------------------------------------------------
 
   #get abundance data    
 cpue.list=list(
@@ -1220,9 +1231,9 @@ Estimable.qs=list(
 
 
 
-#ACA 
-  #penalty for keeping biomass positive
-posfun=function(x,eps,pen)
+#Loop over all species
+  
+posfun=function(x,eps,pen)  #penalty for keeping biomass positive
 {
   if (x>=eps) return(x) else
   {
@@ -1230,8 +1241,7 @@ posfun=function(x,eps,pen)
     return (list(eps/(2-x/eps),pen))
   }
 }
-  #population dynamics function
-SPM=function(Init.propK,cpue,Qs,Ktch,theta,HR_init,HR_init.sd,r.mean,r.sd)
+SPM=function(Init.propK,cpue,Qs,Ktch,theta,HR_init,HR_init.sd,r.mean,r.sd) #population dynamics
 {
   #Population dynamics
   K=exp(theta[1])
@@ -1296,28 +1306,7 @@ SPM=function(Init.propK,cpue,Qs,Ktch,theta,HR_init,HR_init.sd,r.mean,r.sd)
   return(list(Bmsy=Bmsy,MSY=MSY,Fmsy=Fmsy,Bt=Bt,negLL=negLL,
               ln.cpue.hat=ln.cpue.hat,ln.cpue=ln.cpue))
 }
-  #plotting functions
-fn.plt.cpue=function(ob,pred,Yr)
-{
-  plot(Yr,pred,pch=19,cex=1.5,type='b',ylab="lncpue",xlab="year",
-       ylim=c(min(c(ob,pred)),max(c(ob,pred))))
-  points(Yr,ob,col="orange",pch=19,cex=1.5)
-  legend("bottomright",c("observed","predicted"),pch=19,cex=2,col=c("orange","black"),bty='n')
-}
-fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch)
-{
-  plot(Yr,Bt[1:length(Yr)],type='o',pch=19,ylim=c(0,max(Bt)),
-       ylab="Total biomass (tonnes)",xlab="Year")
-  abline(h=Bmsy,col="orange",lwd=2)              #threshold
-  abline(h=FAO.lim.prop*Bmsy,col="red",lwd=2)    #limit         
-  abline(h=FAO.tar.prop*Bmsy,col="green",lwd=2)  #target
-  
-  par(new=T)
-  plot(Yr,Ktch,type='l',col="steelblue",xlab="",ylab="",axes=F,lwd=2)
-  axis(side = 4)
-  mtext(side = 4, line = 2, 'Total catch (tonnes')
-}
-fn.fill=function(x)
+fn.fill=function(x)   #fill in missing years function
 {
   aa=all.iers[which(!all.iers%in%x$yr)]
   aa1=x[1:length(aa),]
@@ -1326,8 +1315,6 @@ fn.fill=function(x)
   x=rbind(x,aa1)%>%arrange(yr)
   return(x)
 }
-
-  #Loop over all species
 Store.SPM=vector('list',N.sp)
 names(Store.SPM)=Specs$SP.group
 Store.stuff=Store.SPM
@@ -1378,7 +1365,8 @@ for(s in 1: N.sp)
     
       #estimable pars
     Mx.ktch=max(ct$LIVEWT.c,na.rm=T)
-    K.init=10*Mx.ktch
+    AVrg.ktch=mean(ct$LIVEWT.c,na.rm=T)
+    K.init=20*AVrg.ktch
     r.init=Init.r[[Id]]
     QS=Estimable.qs[[Id]]
     
@@ -1415,11 +1403,23 @@ for(s in 1: N.sp)
         #fit model
         if(estim.q=="YES")theta= c(k=log(K.init),r=log(r.init),log(QS[which(!is.na(QS))]))
         if(estim.q=="NO")theta= c(k=log(K.init),r=log(r.init))
-        Lw.bound=log(c(2*Mx.ktch,0.001,rep(1e-6,length(theta)-2)))
+        Lw.bound=log(c(1*Mx.ktch,0.001,rep(1e-6,length(theta)-2)))
         Up.bound=log(c(50*Mx.ktch,0.5,rep(1,length(theta)-2)))
-        dummy.eff[[e]]=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,
-                         upper = Up.bound,hessian=T)
-        Store.CPUE.eff[[e]]=CPUE.eff.scen
+        
+        if(minimizer=='optim')
+        {
+          dummy.eff[[e]]=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,
+                               upper = Up.bound,hessian=T)
+        }
+        if(minimizer=='nlminb')
+        {
+          nlmb <- nlminb(theta, fn_ob, gradient = NULL,
+                                        lower =Lw.bound,upper = Up.bound)
+          nlmb$hessian=hessian(fn_ob,nlmb$par)
+          dummy.eff[[e]]=nlmb
+          
+        }
+         Store.CPUE.eff[[e]]=CPUE.eff.scen
       }
       dummy[[h]]=dummy.eff
      }
@@ -1462,38 +1462,68 @@ for(s in 1: N.sp)
   }
 }
 
-
-#Plot obs VS pred cpues   #ACA show by species, h scenario, e scenario and each cpue   
+  #Get uncertainty  
+fn.un=function(fit,n)
+{
+  SIGMA=solve(fit$hessian)	#getting the variance covariance matrix
+  # std=sqrt(diag(SIGMA))		#Standard deviation of parameters
+  #  R=SIGMA/(std%o%std)			#Parameter correlation, the V divided by the outer product of std
+  return(rmvnorm(n,mean=fit$par,sigma=SIGMA))
+}
+SPM.preds_uncertainty=vector('list',length(Store.SPM))
+names(SPM.preds_uncertainty)=names(Store.SPM)
+Estim.par.samples=SPM.preds_uncertainty
 for(s in 1: N.sp)
 {
   if(!is.null(SPM.preds[[s]]))
   {
+    #Draw random samples of estimable pars
+    dummy=vector('list',length(HR.o.scens))
+    names(dummy)=HR.o.scens
     for(h in 1:length(HR.o.scens))
     {
+      dummy1=vector('list',length(Efficien.scens))
+      names(dummy1)=Efficien.scens
       for(e in 1:length(Efficien.scens))
       {
-        for(x in 1:Store.stuff[[s]]$n.cpues)
-          if(!is.null(SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]]))
-          {
-            fn.plt.cpue(ob=SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]],
-                        pred=SPM.preds[[s]][[h]][[e]]$ln.cpue.hat[[x]],
-                        Yr=c(Store.stuff[[s]]$cpue.yrs[[x]]$yr))
-          }
-        
+        dummy1[[e]]=fn.un(fit=Store.SPM[[s]][[h]][[e]],N.monte)
       }
+      dummy[[h]]=dummy1
     }
-      
+    Estim.par.samples[[s]]=dummy
+    
+    #Use par sample to predict quantities of interest
+    dumy.pred=vector('list',length(HR.o.scens))
+    names(dumy.pred)=HR.o.scens
+    for(h in 1:length(HR.o.scens))
+    {
+      dummy.eff=vector('list',length(Efficien.scens))
+      names(dummy.eff)=Efficien.scens
+      for(e in 1:length(Efficien.scens))
+      {
+        dum=vector('list',N.monte)
+        for(x in 1:N.monte)
+        {
+          dum[[x]]=SPM(Init.propK=B.init,
+                       cpue=Store.stuff[[s]]$cpue[[e]],
+                       Qs=Store.stuff[[s]]$Qs,
+                       Ktch=Store.stuff[[s]]$Ktch,
+                       theta=Estim.par.samples[[s]][[h]][[e]][x,],
+                       HR_init=HR.o.scens[h],
+                       HR_init.sd=HR_o.sd,
+                       r.mean=Store.stuff[[s]]$r.mean,
+                       r.sd=Store.stuff[[s]]$r.sd)
+        }
+        dummy.eff[[e]]=dum
+      }
+      dumy.pred[[h]]=dummy.eff
+    }
+    SPM.preds_uncertainty[[s]]=dumy.pred
   }
 }
 
 
-#Plot biomass
-fn.plt.bio.ktch(Yr=1975:2017,Bt=Preds$Bt,Bmsy=Preds$Bmsy,KK)
-fn.plt.bio.ktch(Yr=1975:2017,Bt=Preds.init$Bt,Bmsy=Preds.init$Bmsy,KK)
-
-
-
-# Multi-species BDM -----------------------------------------------------------------------
+# Multi-species SPM -----------------------------------------------------------------------
 
 
 
@@ -1543,8 +1573,7 @@ dev.off()
 
 
 
-
-#Catch-MSY
+#---Catch-MSY RESULTS------
 if(Do.Ktch.MSY)
 {
   
@@ -1992,8 +2021,135 @@ if(Do.Ktch.MSY)
 }
 
 
+#---SPM RESULTS------
 
+#Plot obs VS pred cpues  
+fn.plt.cpue=function(ob,pred,Yr)
+{
+  plot(Yr,pred,pch=19,cex=1,type='b',ylab="",xlab="",
+       ylim=c(min(c(ob,pred)),max(c(ob,pred))))
+  points(Yr,ob,col="orange",pch=19,cex=1.1)
+  #legend("bottomright",c("observed","predicted"),pch=19,cex=2,col=c("orange","black"),bty='n')
+}
+pdf(paste(hNdl,"/Outputs/Model fit_SPM.pdf",sep=""))
+for(s in 1: N.sp)
+{
+  if(!is.null(SPM.preds[[s]]))
+  {
+    nrw=length(HR.o.scens)*length(Efficien.scens)
+    ncl=SPM.preds[[s]][[1]][[1]]$ln.cpue
+    ncl=length(ncl[!sapply(ncl,is.null)])
+    par(mfrow=c(nrw,ncl),mar=c(1.2,2,.2,.1),oma=c(1.5,1.75,1.5,1),las=1,cex.axis=.8,mgp=c(1,.42,0))
+    for(h in 1:length(HR.o.scens))
+    {
+      for(e in 1:length(Efficien.scens))
+      {
+        for(x in 1:Store.stuff[[s]]$n.cpues)
+          if(!is.null(SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]]))
+          {
+            fn.plt.cpue(ob=SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]],
+                        pred=SPM.preds[[s]][[h]][[e]]$ln.cpue.hat[[x]],
+                        Yr=c(Store.stuff[[s]]$cpue.yrs[[x]]$yr))
+            Crip=Efficien.scens[e]
+            if(x==1) Crip=0
+            par(font=2)
+            legend("bottomleft",paste("HR=",HR.o.scens[h],", Creep=",Crip,
+                                      ", CPUE.",x,sep=""),bty='n',cex=.85)
+          }
+      }
+    }
+    mtext(names(SPM.preds)[s],3,outer=T)
+    mtext("year",1,outer=T)
+    mtext("lncpue",2,outer=T,las=3)
+    
+  }
+}
+dev.off()
 
+#Plot biomass  #ACA
+fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch)
+{
+  Year.Vec <-  fn.cons.po(Yr,Yr)
+  Biom.Vec.60 <- fn.cons.po(Bt[match("20%",row.names(Bt)),][-ncol(Bt)],
+                            Bt[match("80%",row.names(Bt)),][-ncol(Bt)]) 
+  plot(Yr,Bt[match("50%",row.names(Bt)),][-ncol(Bt)],col="black",ylim=c(0,1),
+       type='o',cex=0.3,pch=19,ylab="",xlab="")
+  polygon(Year.Vec, Biom.Vec.60, col = rgb(.1,.1,.1,alpha=.3), border = "grey20")
+  abline(h=Bmsy,col="orange",lwd=1)               #threshold
+  abline(h=Lim.prop*Bmsy,col="red",lwd=1)         #limit         
+  abline(h=Tar.prop*Bmsy,col="green",lwd=1)       #target
+  par(new=T)
+  plot(Yr,Ktch,type='l',col=rgb(0.1,0.1,0.8,alpha=0.6),xlab="",ylab="",axes=F,lwd=1.25)
+  axis(side = 4)
+}
+  #1. Get median and percentiles
+Med.biom=vector('list',length(Store.SPM))
+names(Med.biom)=names(Store.SPM)
+for(s in 1: N.sp)
+{
+  if(!is.null(SPM.preds[[s]]))
+  {
+    dummy1=vector('list',length(HR.o.scens))
+    names(dummy1)=HR.o.scens
+    for(h in 1:length(HR.o.scens))
+    {
+      dummy2=vector('list',length(Efficien.scens))
+      names(dummy2)=Efficien.scens
+      for(e in 1:length(Efficien.scens))
+      {
+        dummy=subListExtract(SPM.preds_uncertainty[[s]][[h]][[e]],"Bt")
+        dummy=do.call(rbind,dummy)/exp(Estim.par.samples[[s]][[h]][[e]][,1])   #realtive to Bo
+        Bt=apply(dummy,2,function(x) quantile(x,probs=c(0.2,0.5,0.8)))   #60% as required for MSC
+        dummy=subListExtract(SPM.preds_uncertainty[[s]][[h]][[e]],"Bmsy")    #Relative to Bo
+        dummy=do.call(rbind,dummy)/exp(Estim.par.samples[[s]][[h]][[e]][,1])
+        Bmsy=apply(dummy,2,function(x) quantile(x,probs=0.5))
+        names(Bmsy)=NULL
+        dummy2[[e]]=list(Bt=Bt,Bmsy=Bmsy)  
+      }
+      dummy1[[h]]=dummy2
+    }
+    Med.biom[[s]]=dummy1
+  }
+}
+  #2. Plot
+pdf(paste(hNdl,"/Outputs/Figure 2_Biomass_SPM.pdf",sep=""))
+nrw=length(HR.o.scens)*length(Efficien.scens)
+ncl=4
+par(mfcol=c(nrw,ncl),mar=c(1.2,2,.2,1),oma=c(1.5,1.75,1.5,2),las=1,cex.axis=.8,mgp=c(1,.42,0))
+for(s in 1: N.sp)
+{
+  if(!is.null(SPM.preds[[s]]))
+  {
+    for(h in 1:length(HR.o.scens))
+    {
+      for(e in 1:length(Efficien.scens))
+      {
+        if(!is.null(SPM.preds[[s]][[h]][[e]]))
+        {
+          fn.plt.bio.ktch(Yr=Store.stuff[[s]]$yrs,
+                          Bt=Med.biom[[s]][[h]][[e]]$Bt,
+                          Bmsy=Med.biom[[s]][[h]][[e]]$Bmsy,
+                          Ktch=Store.stuff[[s]]$Ktch)
+          if(e==1&h==1)mtext(names(SPM.preds)[s],3,cex=.8) 
+          Crip=Efficien.scens[e]
+          if(names(SPM.preds)[s]=="Scalloped hammerhead") Crip=0
+          legend("bottomleft",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
+                 bty='n',cex=.7)
+        }
+      }
+    }
+    
+    mtext("Year",1,outer=T)
+    mtext("Relative biomass",2,outer=T,las=3)
+    mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
+          col=rgb(0.1,0.1,0.8,alpha=0.4))
+    
+  }
+}
+dev.off()
+
+#Plot MSY
+SPM.preds[[s]][[h]][[e]]$MSY
 
 
 
