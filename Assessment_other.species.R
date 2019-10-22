@@ -1585,7 +1585,113 @@ for(s in 1: N.sp)
 # Catch-MSY ---------------------------------------------------------------
 #note: use SPM inputs (alreadyy done r prior, ct, etc)
 
-#takes 0.002 sec per iteration  
+# Simulation testing CMSY
+Do.sim.test="NO"
+if(Do.sim.test=="YES")
+{
+  #1. create true population trajectories under different catch scenarios
+  # operating model
+  OM=function(K,r,Ktch) 
+  {
+    #Population dynamics
+    Bt=rep(NA,N.yrs.sim.tst+1)
+    Bpen=Bt
+    Bt[1]=K
+    for(t in 2:length(Bt)) Bt[t]=Bt[t-1]+r*Bt[t-1]*(1-Bt[t-1]/K)-Ktch[t-1]
+    
+    #Calculate MSY quantities
+    Bmsy=K/2
+    MSY=K*r/4
+    Fmsy=r/2
+    
+    return(list(Bmsy=Bmsy,MSY=MSY,Fmsy=Fmsy,Bt=Bt))
+  }
+  
+  # catch scenarios
+  Yrs.sim.tst=1975:2018
+  N.yrs.sim.tst=length(Yrs.sim.tst)
+  rr=.15
+  KK=1000  #in tonnes
+  
+  Ktchdummy=KK*.01+(1:(N.yrs.sim.tst/2))^1.3
+  Ktch1=c(runif(N.yrs.sim.tst/2,.6,1.4)*Ktchdummy,
+          rev(runif(N.yrs.sim.tst/2,.6,1.4)*Ktchdummy))
+  Ktch1.low=Ktch1*.1
+  
+  Ktch2=runif(N.yrs.sim.tst,.6,1.4)*KK*.01+(1:(N.yrs.sim.tst))^1.135
+  Ktch2.low=Ktch2*.1
+  
+  Ktch.sim=list(S1=Ktch1,S1.low=Ktch1.low,S2=Ktch2,S2.low=Ktch2.low)
+  OM.out=Ktch.sim
+  for(l in 1:length(OM.out)) OM.out[[l]]=OM(K=KK,r=rr,Ktch=Ktch.sim[[l]])
+  Mxylim=ceiling(max(unlist(Ktch.sim)))
+  par(mfcol=c(2,2),mar=c(2,2,1,1),oma=c(1.5,2,1,3),mgp=c(1,.5,0))
+  for(l in 1:length(OM.out))
+  {
+    with(OM.out[[l]],
+         {
+           plot(Yrs.sim.tst,Bt[-length(Bt)],xlab='',main=names(OM.out)[l],
+                ylab='',type='l',lwd=2,ylim=c(0,KK))
+           par(new=T)
+           plot(Yrs.sim.tst,Ktch.sim[[l]],ylab='',xlab='',ylim=c(0,Mxylim),
+                col=2,type='l',lwd=2,yaxt='n') 
+           axis(4,seq(0,Mxylim,10),
+                seq(0,Mxylim,10))
+         })
+  }
+  mtext('Years',1,outer=T,line=0,cex=1.5)
+  mtext('Total biomass (tonnes)',2,outer=T,las=3,cex=1.5)
+  mtext('Catch (tonnes)',4,outer=T,line=1.5,col=2,cex=1.5)
+  
+  
+  
+  #2. apply CMSY to simulated catches
+  # Rprior=rnorm(1000,0.15,0.025)
+  # hist(Rprior)
+  # fitdistr(Rprior, "gamma")
+  # hist(rgamma(1000, shape=36.058, rate = 241.298))
+  
+  Sim.test.out=list(informative=Ktch.sim,default=Ktch.sim)
+  for(s in 1:length(Sim.test.out))
+  {
+    if(names(Sim.test.out)[s]=='informative')
+    {
+      Usr="Yes"
+      StrtbiO=STARTBIO
+      FinbiO=FINALBIO
+    }
+    if(names(Sim.test.out)[s]=='default')
+    {
+      Usr="No"
+      StrtbiO=c(.6,.99)
+      FinbiO=FINALBIO
+    }
+    dummy=Ktch.sim
+    for(l in 1:length(Ktch.sim))
+    {
+      dummy[[l]]=Catch_MSY(ct=Ktch.sim[[l]],
+                           yr=Yrs.sim.tst,
+                           r.prior=unlist(list(shape=36.058,rate=241.298)),
+                           user=Usr,
+                           k.lower=2,
+                           k.upper=50,
+                           startbio=StrtbiO,
+                           finalbio=FinbiO,
+                           res="Low",
+                           n=1000,
+                           sigR=ERROR,
+                           ct.future=0,           
+                           yr.future=1)
+    }
+    Sim.test.out[[s]]=dummy
+  }
+  
+  #aca
+  #Plot relative biomass and MSY the different scenarios 
+  #note: for 1.low, though understimating MSY, relative biomass ok!!
+}
+
+# Rum CMSY for each species    takes 0.002 sec per iteration  
 if(Do.Ktch.MSY)
 {
   system.time(for(s in 1: N.sp)
