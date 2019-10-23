@@ -1908,14 +1908,6 @@ if(length(which(!all.YYrs%in%Effrt.n$finyear))>0)
 
 fn.fig("Figure 4. Total Catch of analysed species and effort time series", 1800, 2400)
 par(mfcol=c(2,1),mar=c(1.5,2.5,1.5,.5),oma=c(2,2,.1,4),las=1,mgp=c(1,.6,0))
-  #South
-plot(all.YYrs,ktch.s$Tot,type='o',pch=19,col=1,cex=.75,ylab="",xlab="",main="South",
-     ylim=c(0,max(c(ktch.s$Tot,ktch.n$Tot))))
-par(new=T)
-plot(Effrt.s$finyear,Effrt.s$Total,type='l',col="grey55",xlab="",ylab="",axes=F,lwd=2.5,lty=3)
-axis(side = 4)
-mtext(side = 4, line = 3, 'Total effort (km gn days)',las=3,cex=1.5)
-
   #North
 plot(all.YYrs,ktch.n$Tot,type='o',pch=19,col=1,cex=.75,ylab="",xlab="",main="North",
      ylim=c(0,max(c(ktch.s$Tot,ktch.n$Tot))))
@@ -1923,7 +1915,16 @@ par(new=T)
 plot(Effrt.n$finyear,Effrt.n$Hook.days,type='l',col="grey55",xlab="",ylab="",axes=F,lwd=2.5,lty=3)
 axis(side = 4)
 mtext(side = 4, line = 3, 'Total effort (hook days)',las=3,cex=1.5)
+
 legend("topleft",c("Catch","Effort"),bty='n',lty=c(1,3),col=c("black","grey55"),lwd=2.5)
+
+#South
+plot(all.YYrs,ktch.s$Tot,type='o',pch=19,col=1,cex=.75,ylab="",xlab="",main="South",
+     ylim=c(0,max(c(ktch.s$Tot,ktch.n$Tot))))
+par(new=T)
+plot(Effrt.s$finyear,Effrt.s$Total,type='l',col="grey55",xlab="",ylab="",axes=F,lwd=2.5,lty=3)
+axis(side = 4)
+mtext(side = 4, line = 3, 'Total effort (km gn days)',las=3,cex=1.5)
 
 mtext("Year",1, line = .5,outer=T,cex=1.5)
 mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.5)
@@ -1979,18 +1980,20 @@ for(s in 1: N.sp)
 }
 dev.off()
 
-#Plot biomass  
-fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch)
+#Plot biomass   
+fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch,CX.AX)
 {
   Year.Vec <-  fn.cons.po(Yr,Yr)
-  Biom.Vec.60 <- fn.cons.po(Bt[match("20%",row.names(Bt)),][-ncol(Bt)],
-                            Bt[match("80%",row.names(Bt)),][-ncol(Bt)]) 
-  plot(Yr,Bt[match("50%",row.names(Bt)),][-ncol(Bt)],col="black",ylim=c(0,1),
-       type='o',cex=0.3,pch=19,ylab="",xlab="")
+  Biom.Vec.60 <- fn.cons.po(Bt[match("20%",row.names(Bt)),],
+                            Bt[match("80%",row.names(Bt)),]) 
+  plot(Yr,Bt[match("50%",row.names(Bt)),],col="black",ylim=c(0,1),
+       type='o',xaxt='n',cex=0.3,pch=19,ylab="",xlab="")
   polygon(Year.Vec, Biom.Vec.60, col = rgb(.1,.1,.1,alpha=.3), border = "grey20")
   abline(h=Bmsy,col="orange",lwd=1)               #threshold
   abline(h=Lim.prop*Bmsy,col="red",lwd=1)         #limit         
   abline(h=Tar.prop*Bmsy,col="green",lwd=1)       #target
+  axis(1,at=Yr,labels=F,tck=-0.015)
+  axis(1,at=seq(Yr[1],Yr[length(Yr)],5),labels=seq(Yr[1],Yr[length(Yr)],5),tck=-0.03,cex.axis=CX.AX)
   par(new=T)
   plot(Yr,Ktch,type='l',col=rgb(0.1,0.1,0.8,alpha=0.6),xlab="",ylab="",axes=F,lwd=1.25)
   axis(side = 4)
@@ -2031,6 +2034,7 @@ fn.fig(paste(hNdl,"/Outputs/Figure 2_Biomass_SPM",sep=""), 2400, 1200)
 HR.o.scens=Mx.init.harv[1]
 nrw=length(HR.o.scens)*length(Efficien.scens)
 ncl=4
+Strt.yr=1975
 par(mfcol=c(nrw,ncl),mar=c(1.2,2,.6,1.25),oma=c(1.5,1.75,1.5,2.1),las=1,cex.axis=.8,mgp=c(1,.62,0))
 for(s in 1: N.sp)
 {
@@ -2046,10 +2050,15 @@ for(s in 1: N.sp)
         {
           if(!is.null(SPM.preds[[s]][[h]][[e]]))
           {
-            fn.plt.bio.ktch(Yr=Store.stuff[[s]]$yrs,
-                            Bt=Med.biom[[s]][[h]][[e]]$Bt,
+            Yrs=Store.stuff[[s]]$yrs
+            idd=match(Strt.yr,Yrs):length(Yrs)
+            Yrs=Yrs[idd]
+            Bt=Med.biom[[s]][[h]][[e]]$Bt[,idd]
+            fn.plt.bio.ktch(Yr=Yrs,
+                            Bt=Bt,
                             Bmsy=Med.biom[[s]][[h]][[e]]$Bmsy,
-                            Ktch=Store.stuff[[s]]$Ktch)
+                            Ktch=Store.stuff[[s]]$Ktch[idd],
+                            CX.AX=1.25)
             if(e==1&h==1)mtext(names(SPM.preds)[s],3,cex=1) 
             Crip=Efficien.scens[e]
             legend("bottomleft",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
@@ -2062,10 +2071,15 @@ for(s in 1: N.sp)
         e=1
         if(!is.null(SPM.preds[[s]][[h]][[e]]))
         {
-          fn.plt.bio.ktch(Yr=Store.stuff[[s]]$yrs,
-                          Bt=Med.biom[[s]][[h]][[e]]$Bt,
+          Yrs=Store.stuff[[s]]$yrs
+          idd=match(Strt.yr,Yrs):length(Yrs)
+          Yrs=Yrs[idd]
+          Bt=Med.biom[[s]][[h]][[e]]$Bt[,idd]
+          fn.plt.bio.ktch(Yr=Yrs,
+                          Bt=Bt,
                           Bmsy=Med.biom[[s]][[h]][[e]]$Bmsy,
-                          Ktch=Store.stuff[[s]]$Ktch)
+                          Ktch=Store.stuff[[s]]$Ktch[idd],
+                          CX.AX=1.25)
           if(e==1&h==1)mtext(names(SPM.preds)[s],3,cex=1) 
           Crip=Efficien.scens[e]
           legend("bottomleft",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
@@ -2272,10 +2286,13 @@ if(Do.Ktch.MSY)
   {
     Yrs=Store.stuff[[s]]$yrs
     Ktch_MSY_Rel.bio=with(store.species[[s]]$KTCH.MSY$BaseCase,bt/k)
+    idd=match(Strt.yr,Yrs):length(Yrs)
+    Yrs=Yrs[idd]
+    Ktch_MSY_Rel.bio=Ktch_MSY_Rel.bio[idd,]
     
     #Percentile   
     fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES",add.RP.txt="NO",CEX=1.2,
-                       CX.AX=1.25,Ktch=Store.stuff[[s]]$Ktch)
+                       CX.AX=1.25,Ktch=Store.stuff[[s]]$Ktch[idd])
     #if(s==1) legend("bottomleft",c("50%","75%","100%"),fill=COLS,bty='n',cex=1,horiz=T)
     NMs=names(store.species)[s]
     if(NMs=="Low") NMs="Low resilience"
