@@ -313,6 +313,10 @@ Min.yr.ktch=10    #minimum tonnage per year for at least Min.yrs
 Tar.prop=1.3  #target and limit proportions of Bmsy based on Haddon et al 2014. Technical Reviews of Formal Harvest Strategies.
 Lim.prop=0.5
 
+#Tar.prop=1.2  #target and limit proportions of Bmsy based on FAO's recommendations
+#Lim.prop=0.8
+
+
   #Used in Catch-MSY
 B.threshold=0.5  #Bmys
 B.limit=Lim.prop*B.threshold
@@ -1021,7 +1025,7 @@ TabL=TabL[order(TabL$Name),-match("SPECIES",names(TabL))]
 TabL$K=as.numeric(as.character(TabL$K))
 TabL$K=round(TabL$K,3)
 TabL$FL_inf=round(TabL$FL_inf)
-
+names(TabL)[match('FL_inf',names(TabL))]='L_inf'
 fn.word.table(WD=getwd(),TBL=TabL,Doc.nm="Life history pars",caption=NA,paragph=NA,
               HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
               Zebra='NO',Zebra.col='grey60',Grid.col='black',
@@ -1585,7 +1589,7 @@ for(s in 1: N.sp)
 # Catch-MSY ---------------------------------------------------------------
 #note: use SPM inputs (alreadyy done r prior, ct, etc)
 
-# Simulation testing CMSY
+# - Simulation testing CMSY
 Do.sim.test="NO"
 if(Do.sim.test=="YES")
 {
@@ -1610,28 +1614,31 @@ if(Do.sim.test=="YES")
   # catch scenarios
   Yrs.sim.tst=1975:2018
   N.yrs.sim.tst=length(Yrs.sim.tst)
-  rr=.15
+  rr=.1
   KK=1000  #in tonnes
   
-  Ktchdummy=KK*.01+(1:(N.yrs.sim.tst/2))^1.3
+  Ktchdummy=KK*.005+(1:(N.yrs.sim.tst/2))^1.2
   Ktch1=c(runif(N.yrs.sim.tst/2,.6,1.4)*Ktchdummy,
           rev(runif(N.yrs.sim.tst/2,.6,1.4)*Ktchdummy))
-  Ktch1.low=Ktch1*.1
+  Ktch1.low=Ktch1*.2
   
-  Ktch2=runif(N.yrs.sim.tst,.6,1.4)*KK*.01+(1:(N.yrs.sim.tst))^1.135
-  Ktch2.low=Ktch2*.1
+  Ktch2=runif(N.yrs.sim.tst,.6,1.4)*KK*.005+(1:(N.yrs.sim.tst))^1.105
+  Ktch2.low=Ktch2*.2
   
   Ktch.sim=list(S1=Ktch1,S1.low=Ktch1.low,S2=Ktch2,S2.low=Ktch2.low)
   OM.out=Ktch.sim
   for(l in 1:length(OM.out)) OM.out[[l]]=OM(K=KK,r=rr,Ktch=Ktch.sim[[l]])
   Mxylim=ceiling(max(unlist(Ktch.sim)))
+  hndl.sim.test='C:\\Matias\\Analyses\\Population dynamics\\1.Other species\\2019\\Outputs\\Simulation_testing_catchMSY\\'
+  
+  fn.fig(paste(hndl.sim.test,"1.OM.outs",sep=''), 2400, 2400)
   par(mfcol=c(2,2),mar=c(2,2,1,1),oma=c(1.5,2,1,3),mgp=c(1,.5,0))
   for(l in 1:length(OM.out))
   {
     with(OM.out[[l]],
          {
-           plot(Yrs.sim.tst,Bt[-length(Bt)],xlab='',main=names(OM.out)[l],
-                ylab='',type='l',lwd=2,ylim=c(0,KK))
+           plot(Yrs.sim.tst,Bt[-length(Bt)]/KK,xlab='',main=names(OM.out)[l],
+                ylab='',type='l',lwd=2,ylim=c(0,1))
            par(new=T)
            plot(Yrs.sim.tst,Ktch.sim[[l]],ylab='',xlab='',ylim=c(0,Mxylim),
                 col=2,type='l',lwd=2,yaxt='n') 
@@ -1640,16 +1647,16 @@ if(Do.sim.test=="YES")
          })
   }
   mtext('Years',1,outer=T,line=0,cex=1.5)
-  mtext('Total biomass (tonnes)',2,outer=T,las=3,cex=1.5)
+  mtext('Relative biomass',2,outer=T,las=3,cex=1.5)
   mtext('Catch (tonnes)',4,outer=T,line=1.5,col=2,cex=1.5)
-  
+  dev.off()
   
   
   #2. apply CMSY to simulated catches
-  # Rprior=rnorm(1000,0.15,0.025)
+  # Rprior=rnorm(1000,0.1,0.025)  #0.1 is mean of species studied
   # hist(Rprior)
   # fitdistr(Rprior, "gamma")
-  # hist(rgamma(1000, shape=36.058, rate = 241.298))
+  # hist(rgamma(1000, shape=13, rate = 138))
   
   Sim.test.out=list(informative=Ktch.sim,default=Ktch.sim)
   for(s in 1:length(Sim.test.out))
@@ -1657,28 +1664,31 @@ if(Do.sim.test=="YES")
     if(names(Sim.test.out)[s]=='informative')
     {
       Usr="Yes"
-      StrtbiO=STARTBIO
-      FinbiO=FINALBIO
+      StrtbiO=c(.98,.99)
+      FinbiO=c(.1,.9)
+      FinbiO.low=c(.5,.99)
     }
     if(names(Sim.test.out)[s]=='default')
     {
       Usr="No"
       StrtbiO=c(.6,.99)
-      FinbiO=FINALBIO
+      FinbiO=c(.1,.9)
+      FinbiO.low=c(.5,.99)
     }
     dummy=Ktch.sim
     for(l in 1:length(Ktch.sim))
     {
+      if(grepl(".low",names(Ktch.sim)[l])) FinbiO=FinbiO.low
       dummy[[l]]=Catch_MSY(ct=Ktch.sim[[l]],
                            yr=Yrs.sim.tst,
-                           r.prior=unlist(list(shape=36.058,rate=241.298)),
+                           r.prior=unlist(list(shape=13,rate=138)),
                            user=Usr,
                            k.lower=2,
-                           k.upper=50,
+                           k.upper=100,
                            startbio=StrtbiO,
                            finalbio=FinbiO,
-                           res="Low",
-                           n=1000,
+                           res="Very low",
+                           n=10000,
                            sigR=ERROR,
                            ct.future=0,           
                            yr.future=1)
@@ -1686,12 +1696,61 @@ if(Do.sim.test=="YES")
     Sim.test.out[[s]]=dummy
   }
   
-  #aca
   #Plot relative biomass and MSY the different scenarios 
-  #note: for 1.low, though understimating MSY, relative biomass ok!!
+  fn.cons.po=function(low,up) c(low, tail(up, 1), rev(up), low[1])  #construct polygon
+  Low.percentile=function(Nper,DAT) apply(DAT, 1, function(x) quantile(x, (0+Nper)/100))   #get percentiles
+  High.percentile=function(Nper,DAT) apply(DAT, 1, function(x) quantile(x, (100-Nper)/100))
+  
+  
+  fn.fig(paste(hndl.sim.test,"2.CatchMSY.performance",sep=''), 2400, 2400)
+  par(mfcol=c(4,2),mar=c(2,2,1,1),oma=c(1.5,2,1,3),mgp=c(1,.5,0),las=1)
+  names(Sim.test.out[[2]])=c("S1","S1 low catch","S2","S2 low catch")
+  
+  for(s in 1:length(Sim.test.out))
+  {
+    for(l in 1:length(Ktch.sim))
+    {
+      Rel.bio=sweep(Sim.test.out[[s]][[l]]$bt, 2, Sim.test.out[[s]][[l]]$k, `/`)
+      MED=apply(Rel.bio, 1, function(x) quantile(x, .5))
+      
+      
+      Nper=(100-50)/2
+      LOW.50=Low.percentile(Nper,Rel.bio)
+      UP.50=High.percentile(Nper,Rel.bio)
+      
+      #100% of data
+      Nper=(100-100)/2
+      LOW.100=Low.percentile(Nper,Rel.bio)
+      UP.100=High.percentile(Nper,Rel.bio)
+      
+      #construct polygons
+      Year.Vec <-  fn.cons.po(Yrs.sim.tst,Yrs.sim.tst)
+      Biom.Vec.50 <- fn.cons.po(LOW.50,UP.50)
+      Biom.Vec.100 <- fn.cons.po(LOW.100,UP.100)
+      
+      plot(Yrs.sim.tst,MED,ylim=c(0,1),
+               ylab="",xlab="",type='l',cex=0.7,pch=19,cex.axis=1)
+      polygon(Year.Vec, Biom.Vec.100, col = rgb(.1,.1,.1,alpha=.15), border = "grey20")
+      polygon(Year.Vec, Biom.Vec.50, col = rgb(.1,.1,.1,alpha=.3), border = "grey20")
+
+      #true biomass
+      lines(Yrs.sim.tst,OM.out[[l]]$Bt[-length(OM.out[[l]]$Bt)]/KK,lwd=2,col=2)
+      
+      if(s==2) mtext(names(Sim.test.out[[s]])[l],4,line=1.5,las=3)
+      if(l==1) mtext(names(Sim.test.out)[s],3)
+
+    }
+    
+  }
+  legend('bottomleft',c('True trajectory','Predicted median'),bty='n',lty=1,
+         col=c('red','black'),cex=1.25,lwd=2)
+  
+  mtext("Year",1,outer=T,cex=1.5)
+  mtext("Relative biomass",2,outer=T,cex=1.5,las=3,line=0)
+  dev.off()
 }
 
-# Rum CMSY for each species    takes 0.002 sec per iteration  
+# - Run CMSY for each species    takes 0.002 sec per iteration  
 if(Do.Ktch.MSY)
 {
   system.time(for(s in 1: N.sp)
@@ -1767,6 +1826,7 @@ if(Do.Ktch.MSY)
     
   })
 }
+
 
 #---RESULTS SECTION------
 
