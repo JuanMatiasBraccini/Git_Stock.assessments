@@ -1,30 +1,16 @@
-# ------ Script for running multispecies BDM and catch-MSY stock assessment on other shark species---- ###################
+# ------ Script for running SPM and catch-MSY stock assessment on other shark species---- ###################
 
-#note: Catch-MSY implementation of Martell & Froese 2012.
+#note: SPM and Catch-MSY implementation of Martell & Froese 2012.
 #       total catches must be used (i.e. all sources of F)
+
+#       Taiwanese pelagic gillnet (1974-1986) and longline (1989-91) catch (Stevens & Davenport 1991; Stevens 1999)
+#       are also considered
 
 #       If catches have never been >1% carrying capacity, then unexploited status so catch series have
 #       no information on productivity.
 
 #       preliminary analysis done to determine species grouping based on catch tonnage and number of
 #       years of reported catch data
-
-#       Taiwanese pelagic gillnet (1974-1986) and longline (1989-91) catch (Stevens & Davenport 1991; Stevens 1999)
-#       are accounted for by setting initial depletion at <1
-
-#Index:
-#       1. Plot catch data as reported in logbooks
-#       2. Reapportion catch of hammerhead and "shark,other'
-#       3. Data manipulations
-#       4. Get total catch
-#       5. Add reapportioned catch
-#       6. Select species with enough data
-#       7. Species grouping
-#       8. Life history parameters of selected species  
-#       9. RESILIENCE list  
-#       10. Catch-MSY
-#       11. Multi-species BDM
-
 
 
 rm(list=ls(all=TRUE))
@@ -41,7 +27,6 @@ Do.tiff="NO"
 library(MASS)
 library(plotrix)
 library(PBSmapping)
-#library(MASS)
 library(dplyr)
 library(tidyr)
 library(mvtnorm)
@@ -50,10 +35,12 @@ library(mvtnorm)
 #BiocManager::install("Biobase")
 library(Biobase)
 library(numDeriv)
+library(spatstat.utils)
 set.seed(999) 
 
 
 Asses.year=2019    #enter year of assessment
+
 
 hNdl=paste("C:/Matias/Analyses/Population dynamics/1.Other species/",Asses.year,sep="")
 fnkr8t=function(x) if(!dir.exists(x))dir.create(x)
@@ -310,8 +297,8 @@ Min.yr.ktch=10    #minimum tonnage per year for at least Min.yrs
 
 #Reference points
   #Used in SPM
-Tar.prop=1.3  #target and limit proportions of Bmsy based on Haddon et al 2014. Technical Reviews of Formal Harvest Strategies.
-Lim.prop=0.5
+Tar.prop=1.3  #target and limit proportions of Bmsy 
+Lim.prop=0.5  # source: Haddon et al 2014. Technical Reviews of Formal Harvest Strategies.
 
 #Tar.prop=1.2  #target and limit proportions of Bmsy based on FAO's recommendations
 #Lim.prop=0.8
@@ -319,37 +306,37 @@ Lim.prop=0.5
 
   #Used in Catch-MSY
 B.threshold=0.5  #Bmys
-B.limit=Lim.prop*B.threshold
 B.target=Tar.prop*B.threshold
-
+B.limit=Lim.prop*B.threshold
 
 #Life history parameters for selected species  
 pup.sx.ratio=.5
 
 
 #.. Surplus production arguments
+
 #note: Only fitting species with species-specific abundance time series 
 #     (e.g. wobbegongs comprise several species so not fitted)
 #     Assumption, negligible exploitation at start of time series
 #     Assumed some efficiency increase to account for fact that spinner
-#     and hammerhead cpue increased with increase catch. Only up to 2% per
+#     and hammerhead cpue increased with increase catch. Only up to 1% per
 #     year assumed because standardisation partly account for this (e.g. change
 #     in spatial distribution of fleet by considering block effect)
 
-  #Initial harvest rate 
+    #Initial harvest rate 
 #HR.o.scens=c(0.01,0.02,0.03)    #set by initial catch over max catch
 HR_o.sd=0.005  #SD of HR likelihood (fixed)
 
-  #Efficiency increase scenarios from 1995 on (done up to 1994 in cpue stand.)
-Efficien.scens=c(.01,.02)
+    #Efficiency increase scenarios from 1995 on (done up to 1994 in cpue stand.)
+Efficien.scens=c(.01)
 
-  #Proportional biomass (as proportion of K) at start of catch time series
+    #Proportional biomass (as proportion of K) at start of catch time series
 B.init=0.99 #(fixed)
 
-  #Estimate q
+    #Estimate q
 estim.q="YES"
 
-  #Initial estimated par value
+    #Initial estimated par value
 Init.r=list("Bull shark"=.15,"Great hammerhead"=.15,
             "Lemon shark"=.15,"Pigeye shark"=.15,
             "Scalloped hammerhead"=.15,"Smooth hammerhead"=.2,
@@ -360,45 +347,46 @@ N.monte=1000
 
 MAX.CV=1.1
 
-  #Define which optimisation method to use
+    #Define which optimisation method to use
 minimizer='nlminb'
 #minimizer='optim'
 
-  #K bounds
+    #K bounds
 Low.bound.K=2  #times the maximum catch
 Up.bound.K=50  
 
+
 #.. Catch-MSY arguments
+
 Do.Ktch.MSY=T
 
-#simulatins
+    #simulatins
 SIMS=5e4  
 
-#Assumed process error
+    #Assumed process error
 ERROR=0.01   #is default. 
-#ERROR2=0.05
 
-#depletion level at start of catch series
+
+    #depletion level at start of catch series
 STARTBIO=c(B.init*.95,B.init)   #low depletion because starting time series prior to any fishing
-FINALBIO=c(.2,.8)       #very uncertain
+FINALBIO=c(.3,.9)       #very uncertain
 
-#r priors
+    #r priors
 NsimSS=1000
 r.prior="USER"  #demography
 r.prior2=NA    #uniform
 
-#Scenarios  
+    #Scenarios  
 Nscen=1
 SCENARIOS=vector('list',Nscen)
 names(SCENARIOS)=c('BaseCase')
-#names(SCENARIOS)=c('BaseCase','S1','S2')
 SCENARIOS$BaseCase=list(Error=ERROR,R.prior=r.prior,Initial.dep=STARTBIO)
-#SCENARIOS$S1=list(Error=ERROR2,R.prior=r.prior,Initial.dep=STARTBIO)
-#SCENARIOS$S2=list(Error=ERROR,R.prior=r.prior2,Initial.dep=STARTBIO)
 
-#Future projections
+    #Future projections
 years.futures=5
 
+    #simulation test Catch-MSY for small and large catches
+Do.sim.test="NO"
 
 
 #---PROCEDURE SECTION-----
@@ -1008,7 +996,7 @@ for(i in 1:N.sp)
 {
   dd=subset(LH.par,SP.group==SPLF[i])
   GROWTH.F[[i]]=data.frame(k=dd$K,FL_inf=dd$FL_inf)
-  MAX.age.F[[i]]=c(dd$Max_Age,round(dd$Max_Age*1.3))
+  MAX.age.F[[i]]=c(dd$Max_Age,round(dd$Max_Age*1.4))
   AGE.50.mat[[i]]=c(dd$Age_50_Mat_min,dd$Age_50_Mat_max)
   FECU[[i]]=c(dd$Fecu_min,dd$Fecu_max)
   Repro_cycle[[i]]=LH.par$Cycle[i]
@@ -1593,7 +1581,6 @@ for(s in 1: N.sp)
 #note: use SPM inputs (alreadyy done r prior, ct, etc)
 
 # - Simulation testing CMSY
-Do.sim.test="NO"
 if(Do.sim.test=="YES")
 {
   #1. create true population trajectories under different catch scenarios
@@ -1764,6 +1751,7 @@ if(Do.sim.test=="YES")
 }
 
 # - Run CMSY for each species    takes 0.002 sec per iteration  
+rm(DATA.bio,DATA,DATA.ecosystems,Boat_bio,TDGDLF.other.gears,Scalefish,Boat_bio_header_sp)
 if(Do.Ktch.MSY)
 {
   system.time(for(s in 1: N.sp)
@@ -1783,8 +1771,9 @@ if(Do.Ktch.MSY)
         if(!is.na(ktch_msy_scen[[sc]]$r.prior[1])) ktch_msy_scen[[sc]]$r.prior=unlist(store.species[[s]]$r.prior)
     }
     
-    
     #Execute Catch-MSY  
+    print(paste("-------------",names(store.species)[s]))
+    
     PATH=paste(PHat,Specs$SP.group[s],sep='/')
     if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
     setwd(file.path(PATH))
@@ -1836,6 +1825,7 @@ if(Do.Ktch.MSY)
     Tabl.scen.Ktch.MSY=do.call(rbind,Tabl.scen.Ktch.MSY)
     row.names(Tabl.scen.Ktch.MSY)=names(ktch_msy_scen)
     write.csv(Tabl.scen.Ktch.MSY,"Scenarios.csv")
+    
     
   })
 }
@@ -2013,14 +2003,17 @@ add.probs=function(id.yr,YR,DAT,UP.100,LOW.100,SRT,CEX)
   }
   if(P.between.thre.tar>0)
   {
-    segments(YR[id.yr],B.target,YR[id.yr],B.threshold,col=CL.ref.pt[2],lwd=8,lend="butt")  
-    text(YR[id.yr],mean(c(B.target,B.threshold))*1.025,paste(round(100*P.between.thre.tar),"%",sep=""),
+    Upseg=min(B.target,UP.100[id.yr])
+    segments(YR[id.yr],Upseg,YR[id.yr],B.threshold,col=CL.ref.pt[2],lwd=8,lend="butt")  
+    text(YR[id.yr],mean(c(Upseg,B.threshold))*1.025,paste(round(100*P.between.thre.tar),"%",sep=""),
          col="black",cex=CEX,srt=SRT,pos=2,font=2)
   }
   if(P.between.lim.thre>0)
   {
-    segments(YR[id.yr],B.threshold,YR[id.yr],B.limit,col=CL.ref.pt[3],lwd=8,lend="butt")
-    text(YR[id.yr],mean(c(B.threshold,B.limit))*1.025,paste(round(100*P.between.lim.thre),"%",sep=""),
+    Upseg=min(B.threshold,UP.100[id.yr])
+    Lowseg=max(B.limit,LOW.100[id.yr])
+    segments(YR[id.yr],Upseg,YR[id.yr],Lowseg,col=CL.ref.pt[3],lwd=8,lend="butt")
+    text(YR[id.yr],mean(c(Upseg,Lowseg))*1.025,paste(round(100*P.between.lim.thre),"%",sep=""),
          col="black",cex=CEX,srt=SRT,font=2,pos=2)
   }
   if(P.below.limit>0)
@@ -2029,36 +2022,46 @@ add.probs=function(id.yr,YR,DAT,UP.100,LOW.100,SRT,CEX)
     text(YR[id.yr],B.limit*0.8,paste(round(100*P.below.limit),"%",sep=""),
          col="black",cex=CEX,srt=SRT,pos=2,font=2)
   }
-  if(P.below.limit==0)
-  {
-    segments(YR[id.yr],B.limit,YR[id.yr],LOW.100[id.yr],col=CL.ref.pt[4],lwd=8,lend="butt")
-    text(YR[id.yr],B.limit*0.8,paste(0,"%",sep=""),
-         col="black",cex=CEX,srt=SRT,pos=2,font=2)
-  }
+  # if(P.below.limit==0)
+  # {
+  #   segments(YR[id.yr],B.limit,YR[id.yr],LOW.100[id.yr],col=CL.ref.pt[4],lwd=8,lend="butt")
+  #   text(YR[id.yr],B.limit*0.8,paste(0,"%",sep=""),
+  #        col="black",cex=CEX,srt=SRT,pos=2,font=2)
+  # }
+  return(list(C1=P.above.target, C2=P.between.thre.tar,
+              C3=P.between.lim.thre, C4=P.below.limit))
 }
 
 #Plot biomass  
 Col.RP=c("red","orange","forestgreen")
-fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch,CX.AX)
+fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch,CX.AX,CX,DAT)
 {
   Year.Vec <-  fn.cons.po(Yr,Yr)
-  Biom.Vec <- fn.cons.po(Bt[match("20%",row.names(Bt)),],
-                            Bt[match("80%",row.names(Bt)),]) 
-  plot(Yr,Bt[match("50%",row.names(Bt)),],col="black",ylim=c(0,1),
+  Biom.Vec <- fn.cons.po(Bt[match("0%",row.names(Bt)),],
+                            Bt[match("100%",row.names(Bt)),]) 
+  plot(Yr,Bt[match("50%",row.names(Bt)),],col="black",ylim=c(0,1.05),
        type='l',lwd=1.5,xaxt='n',cex=0.3,pch=19,ylab="",xlab="",xaxs="i",yaxs="i")
-  #polygon(Year.Vec, Biom.Vec, col = rgb(.1,.1,.1,alpha=.2), border = "grey20")
-  abline(h=Bmsy,col=Col.RP[2],lwd=1.15)               #threshold
-  abline(h=Lim.prop*Bmsy,col=Col.RP[1],lwd=1.15)         #limit         
-  abline(h=Tar.prop*Bmsy,col=Col.RP[3],lwd=1.15)       #target
+  polygon(Year.Vec, Biom.Vec, col = rgb(.1,.1,.1,alpha=.1), border = "grey70")
+  abline(h=B.threshold,col=Col.RP[2],lwd=1.15)               #threshold  
+  abline(h=B.limit,col=Col.RP[1],lwd=1.15)         #limit         
+  abline(h=B.target,col=Col.RP[3],lwd=1.15)       #target
   axis(1,at=Yr,labels=F,tck=-0.015)
   axis(1,at=seq(Yr[1],Yr[length(Yr)],5),labels=seq(Yr[1],Yr[length(Yr)],5),
        tck=-0.03,cex.axis=CX.AX)
+  
+  #add probs
+  Store.probs=add.probs(id.yr=match(Current,Yr),YR=Yr,DAT=DAT,
+                        UP.100=Bt[match("100%",row.names(Bt)),],
+                        LOW.100=Bt[match("0%",row.names(Bt)),],
+                        SRT=0,CEX=CX)
   
   #add catch
   par(new=T)
   plot(Yr,Ktch,type='l',col=rgb(0.1,0.1,0.8,alpha=0.6),xlab="",ylab="",
        axes=F,lwd=1.5,xaxs="i")
   axis(side = 4)
+  
+  return(Store.probs)
 }
 
   #1. Get median and percentiles
@@ -2078,13 +2081,20 @@ for(s in 1: N.sp)
       for(e in 1:length(Efficien.scens))
       {
         dummy=subListExtract(SPM.preds_uncertainty[[s]][[h]][[e]],"Bt")
-        dummy=do.call(rbind,dummy)/exp(Estim.par.samples[[s]][[h]][[e]][,1])   #realtive to Bo
-        Bt=apply(dummy,2,function(x) quantile(x,probs=c(0.2,0.5,0.8)))   #60% as required for MSC
-        dummy=subListExtract(SPM.preds_uncertainty[[s]][[h]][[e]],"Bmsy")    #Relative to Bo
-        dummy=do.call(rbind,dummy)/exp(Estim.par.samples[[s]][[h]][[e]][,1])
-        Bmsy=apply(dummy,2,function(x) quantile(x,probs=0.5))
-        names(Bmsy)=NULL
-        dummy2[[e]]=list(Bt=Bt,Bmsy=Bmsy)  
+        dummy=sweep(do.call(rbind,dummy), 1, exp(Estim.par.samples[[s]][[h]][[e]][,1]), `/`)
+        idd=which(round(dummy[,ncol(dummy)],1)<0.05) #remove cases where final biomass=0 
+        if(length(idd)) dummy=dummy[-idd,]
+        Bt.all=dummy
+        Bt=apply(dummy,2,function(x) quantile(x,probs=c(0,0.5,1)))   #100% 
+        #Bt=apply(dummy,2,function(x) quantile(x,probs=c(0.2,0.5,0.8)))   #60% as required for MSC
+        Bt=Bt[,-ncol(Bt)] #remove future Bt
+        dummy=subListExtract(SPM.preds_uncertainty[[s]][[h]][[e]],"Bmsy")    
+        dummy=do.call(rbind,dummy)
+        if(length(idd)) dummy=as.matrix(dummy[-idd,])
+        Bmsy=apply(dummy,2,function(x) quantile(x,probs=c(.025,.5,.975)))
+        colnames(Bmsy)="Bmsy"
+        
+        dummy2[[e]]=list(Bt=Bt,Bmsy=Bmsy,Bt.all=Bt.all)  
       }
       dummy1[[h]]=dummy2
     }
@@ -2094,11 +2104,23 @@ for(s in 1: N.sp)
 }
 
   #2. Plot
-fn.fig(paste(hNdl,"/Outputs/Figure 2_Biomass_SPM",sep=""), 2400, 1200)
+do.col="NO"
+if(do.col=="NO") colfunc <- colorRampPalette(c("grey95","grey60"))
+if(do.col=="YES") colfunc <- colorRampPalette(c("aliceblue","lightblue3"))
+if(do.col=="NO") CL.ref.pt=c("black","grey35","grey55","grey80")
+if(do.col=="YES") CL.ref.pt=c('forestgreen','yellow','orange','red')
+
+Store.cons.Like.SPM=vector('list',N.sp)
+names(Store.cons.Like.SPM)=Specs$SP.group
+Store.cons.Like.SRM=Store.cons.Like.SPM
+
+fn.fig(paste(hNdl,"/Outputs/Figure 2_Biomass_SPM",sep=""),2400,2400)
 HR.o.scens=Mx.init.harv[1]
-nrw=length(HR.o.scens)*length(Efficien.scens)
-ncl=4
-par(mfcol=c(nrw,ncl),mar=c(1.2,2,.6,1.25),oma=c(1.5,1.75,1.5,2.1),las=1,cex.axis=.8,mgp=c(1,.62,0))
+#nrw=length(HR.o.scens)*length(Efficien.scens)
+#ncl=sum(sapply(SPM.preds,function(x) !is.null(x)))
+nrw=2
+ncl=2
+par(mfcol=c(nrw,ncl),mar=c(1.2,2,1.5,1.25),oma=c(2,1.75,.2,2.1),las=1,cex.axis=.8,mgp=c(1,.62,0))
 for(s in 1: N.sp)
 {
   if(!is.null(SPM.preds[[s]]))
@@ -2113,17 +2135,18 @@ for(s in 1: N.sp)
         {
           if(!is.null(SPM.preds[[s]][[h]][[e]]))
           {
-            Yrs=Store.stuff[[s]]$yrs
-            Bt=Med.biom[[s]][[h]][[e]]$Bt
-            fn.plt.bio.ktch(Yr=Yrs,
-                            Bt=Bt,
-                            Bmsy=Med.biom[[s]][[h]][[e]]$Bmsy,
-                            Ktch=Store.stuff[[s]]$Ktch[idd],
-                            CX.AX=1)
+            DAT=t(Med.biom[[s]][[h]][[e]]$Bt.all)
+            Store.cons.Like.SPM[[s]]=fn.plt.bio.ktch(Yr=Store.stuff[[s]]$yrs,
+                                                      Bt=Med.biom[[s]][[h]][[e]]$Bt,
+                                                      Bmsy=Med.biom[[s]][[h]][[e]]$Bmsy,
+                                                      Ktch=Store.stuff[[s]]$Ktch,
+                                                      CX.AX=1,
+                                                      CX=1,
+                                                      DAT=DAT)
             if(e==1&h==1)mtext(names(SPM.preds)[s],3,cex=1) 
             Crip=Efficien.scens[e]
-            legend("bottomleft",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
-                   bty='n',cex=.9)
+          #  legend("bottomleft",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
+          #         bty='n',cex=.9)
           }
         }
       }
@@ -2132,29 +2155,29 @@ for(s in 1: N.sp)
         e=1
         if(!is.null(SPM.preds[[s]][[h]][[e]]))
         {
-          Yrs=Store.stuff[[s]]$yrs
-          Bt=Med.biom[[s]][[h]][[e]]$Bt
-          fn.plt.bio.ktch(Yr=Yrs,
-                          Bt=Bt,
-                          Bmsy=Med.biom[[s]][[h]][[e]]$Bmsy,
-                          Ktch=Store.stuff[[s]]$Ktch[idd],
-                          CX.AX=1)
+          DAT=t(Med.biom[[s]][[h]][[e]]$Bt.all)
+          Store.cons.Like.SPM[[s]]=fn.plt.bio.ktch(Yr=Store.stuff[[s]]$yrs,
+                                                    Bt=Med.biom[[s]][[h]][[e]]$Bt,
+                                                    Bmsy=Med.biom[[s]][[h]][[e]]$Bmsy,
+                                                    Ktch=Store.stuff[[s]]$Ktch,
+                                                    CX.AX=1,
+                                                    CX=1,
+                                                    DAT=DAT)
           if(e==1&h==1)mtext(names(SPM.preds)[s],3,cex=1) 
           Crip=Efficien.scens[e]
-          legend("bottomleft",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
-                 bty='n',cex=.9)
-          plot.new()
+          #legend("bottomleft",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
+          #       bty='n',cex=.9)
+          #plot.new()
         }
         
       }
     }
-    
-    mtext("Year",1,cex=1.2,outer=T)
-    mtext("Relative biomass",2,cex=1.2,outer=T,las=3)
-    mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
-          col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
   }
 }
+mtext("Year",1,cex=1.2,line=0.75,outer=T)
+mtext("Relative biomass",2,cex=1.2,outer=T,las=3)
+mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
+      col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
 dev.off()
 rm(HR.o.scens)
 
@@ -2162,9 +2185,7 @@ rm(HR.o.scens)
 #Plot MSY  
 fn.fig(paste(hNdl,"/Outputs/Figure 2_MSY_SPM",sep=""), 2400, 1200)
 HR.o.scens=Mx.init.harv[1]
-nrw=length(HR.o.scens)*length(Efficien.scens)
-ncl=4
-par(mfcol=c(nrw,ncl),mar=c(1.2,2,.6,1.25),oma=c(1.5,1.75,1.5,2.1),las=1,cex.axis=.8,mgp=c(1,.62,0))
+par(mfcol=c(nrw,ncl),mar=c(1.2,2,1.5,1.25),oma=c(2,1.75,.2,2.1),las=1,cex.axis=.8,mgp=c(1,.62,0))
 for(s in 1: N.sp)
 {
   if(!is.null(SPM.preds[[s]]))
@@ -2183,8 +2204,8 @@ for(s in 1: N.sp)
             plot(density(dummy,adjust = 2),main="",ylab="")
             if(e==1&h==1)mtext(names(SPM.preds)[s],3,cex=1) 
             Crip=Efficien.scens[e]
-            legend("topright",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
-                   bty='n',cex=.9)
+           # legend("topright",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
+            #       bty='n',cex=.9)
             legend("right",paste("median MSY= ",round(median(dummy))," tonnes ",sep=""),bty='n',cex=.9)
           }
         }
@@ -2198,25 +2219,22 @@ for(s in 1: N.sp)
           plot(density(dummy,adjust = 2),main="",ylab="")
           if(e==1&h==1)mtext(names(SPM.preds)[s],3,cex=1) 
           Crip=Efficien.scens[e]
-          legend("topright",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
-                 bty='n',cex=.9)
+          #legend("topright",paste("HR=",HR.o.scens[h],", Creep=",Crip,sep=""),
+          #       bty='n',cex=.9)
           legend("right",paste("median MSY= ",round(median(dummy))," tonnes ",sep=""),bty='n',cex=.9)
           
-          plot.new()
+          #plot.new()
         }
         
       }
     }
     
-    mtext("Catch (tonnes)",1,outer=T)
+    mtext("Catch (tonnes)",1,line=0.75,outer=T)
     mtext("Density",2,outer=T,las=3)
   }
 }
 dev.off()
 rm(HR.o.scens)
-
-
-
 
 
 
@@ -2247,13 +2265,7 @@ if(Do.Ktch.MSY)
   
   Low.percentile=function(Nper,DAT) apply(DAT, 1, function(x) quantile(x, (0+Nper)/100))   #get percentiles
   High.percentile=function(Nper,DAT) apply(DAT, 1, function(x) quantile(x, (100-Nper)/100))
-  
-  do.col="NO"
-  if(do.col=="NO") colfunc <- colorRampPalette(c("grey95","grey60"))
-  if(do.col=="YES") colfunc <- colorRampPalette(c("aliceblue","lightblue3"))
-  if(do.col=="NO") CL.ref.pt=c("black","grey30","grey75","grey90")
-  if(do.col=="YES") CL.ref.pt=c('forestgreen','yellow','orange','red')
-  
+
   COLS=colfunc(3)
   fn.plot.percentile=function(DAT,YR,ADD.prob,add.RP.txt,CEX,CX.AX,Ktch)
   {
@@ -2272,9 +2284,9 @@ if(Do.Ktch.MSY)
     
     #plot
     MED=apply(DAT, 1, function(x) quantile(x, .5))
-    plot(YR,MED,ylim=c(0,1),ylab="",xlab="",xaxt='n',type='l',cex=0.3,lwd=1.5,
+    plot(YR,MED,ylim=c(0,1.05),ylab="",xlab="",xaxt='n',type='l',cex=0.3,lwd=1.5,
          pch=19,cex.axis=CX.AX,xaxs="i",yaxs="i")
-    polygon(Year.Vec, Biom.Vec, col = rgb(.1,.1,.1,alpha=.2), border = "grey20")
+    polygon(Year.Vec, Biom.Vec, col = rgb(.1,.1,.1,alpha=.1), border = "grey70")
     
     #reference points
     abline(h=B.target,lwd=1.15,col= Col.RP[3])
@@ -2291,7 +2303,7 @@ if(Do.Ktch.MSY)
     #add probs
     if(ADD.prob=="YES")
     {
-      add.probs(id.yr=match(Current,YR),YR,DAT,UP.100,LOW.100,SRT=0,CEX)
+      store.cons.like=add.probs(id.yr=match(Current,YR),YR,DAT,UP.100,LOW.100,SRT=0,CEX)
     }
     
     #add catch
@@ -2302,43 +2314,26 @@ if(Do.Ktch.MSY)
     
     axis(1,at=YR,labels=F,tck=-0.015)
     axis(1,at=seq(YR[1],YR[length(YR)],5),labels=seq(YR[1],YR[length(YR)],5),tck=-0.03,cex.axis=CX.AX)
+    
+    if(ADD.prob=="YES") return(store.cons.like)
   }
   
   
-  fn.fig("Figure 3_Biomass_Catch_MSY", 2200, 2000)
-  smart.par(n.plots=N.sp,MAR=c(2,2,1,1.5),OMA=c(1.75,2,.5,2.3),MGP=c(1,.5,0))
+  fn.fig("Figure 3_Biomass_Catch_MSY", 2000, 2000)
+  par(mfcol=c(5,2),mar=c(1.2,2,1.5,1.75),oma=c(2,1.75,.2,2.1),las=1,cex.axis=1.1,mgp=c(1,.5,0))
+  
   for(s in 1: N.sp)
   {
     Yrs=Store.stuff[[s]]$yrs
     Ktch_MSY_Rel.bio=with(store.species[[s]]$KTCH.MSY$BaseCase,sweep(bt, 2, k, `/`))
 
     #Percentile   
-    fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES",add.RP.txt="NO",
-                       CEX=1,CX.AX=1,Ktch=Store.stuff[[s]]$Ktch)
-    #if(s==1) legend("bottomleft",c("50%","75%","100%"),fill=COLS,bty='n',cex=1,horiz=T)
+    Store.cons.Like.SRM[[s]]=fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES",add.RP.txt="NO",
+                                         CEX=1,CX.AX=1.1,Ktch=Store.stuff[[s]]$Ktch)
     NMs=names(store.species)[s]
     if(NMs=="Low") NMs="Low resilience"
     if(NMs=="Very.low") NMs="Very low resilience"
     mtext(NMs,3,0)
-    #Geometric mean
-    # Ktch_MSY_rel_bt_mean=Ktch_MSY_rel_bt_lowSE=Ktch_MSY_rel_bt_upSE=nrow(Ktch_MSY_Rel.bio)
-    # for(nr in 1:nrow(Ktch_MSY_Rel.bio))
-    # {
-    #   Ktch_MSY_rel_bt_mean[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])))
-    #   Ktch_MSY_rel_bt_upSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) + 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
-    #   Ktch_MSY_rel_bt_lowSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) - 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
-    # }
-    # plot(Yrs,Ktch_MSY_rel_bt_mean,cex=.95,pch=19,col=CL.mean,ylim=c(0,1),xaxt='n',xlab="",ylab="",
-    #      main=names(store.species)[s],cex.axis=1.15,cex.main=1.3)
-    # segments(Yrs,Ktch_MSY_rel_bt_lowSE,Yrs,Ktch_MSY_rel_bt_upSE,col=CL)
-    # abline(h=B.target,lwd=1,col='black',lty=2)
-    # #text(Yrs[3],B.target,"Target",pos=3,cex=1.25)
-    # abline(h=B.threshold,lwd=1,col='grey30',lty=2)
-    # #text(Yrs[3],B.threshold,"Threshold",pos=3,cex=1.25)
-    # abline(h=B.limit,lwd=1,col='grey50',lty=2)
-    # #text(Yrs[3],B.limit,"Limit",pos=3,cex=1.25)
-    # axis(1,Yrs,labels=F,tck=-0.015)
-    # axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
   }
   mtext("Year",1,0.25,cex=1.35,outer=T)
   mtext("Relative biomass",2,0.25,las=3,cex=1.35,outer=T)
@@ -2346,224 +2341,325 @@ if(Do.Ktch.MSY)
         col=rgb(0.1,0.1,0.8,alpha=.8),cex=1.35)
   dev.off()
   
-  
-  
-  #Current depletion of total biomass   
-  # fn.fig("Figure 3_Current.depletion_Catch_MSY", 2000, 2200)
-  # smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-  # for(s in 1: N.sp)
-  # {
-  #   Yrs=Store.stuff[[s]]$yrs
-  #   Current=Yrs[length(Yrs)]
-  #   Ktch_MSY_Rel.bio=with(store.species[[s]]$KTCH.MSY$BaseCase,bt,k)
-  #   Ktch_MSY_current_yr=Ktch_MSY_Rel.bio[length(Yrs),]
-  #   NMs=names(store.species)[s]
-  #   if(NMs=="Very.low") NMs="Very low"
-  #   density.fun2(what=Ktch_MSY_current_yr,MAIN=NMs)
-  # }
-  # mtext(paste(Current,"Relative biomass"),1,line=0.25,cex=1.35,outer=T)
-  # mtext("Probability",2,0.25,las=3,cex=1.35,outer=T)
-  # dev.off()
-  
-  
-  # #Fishing mortality
-  # fn.fig("Fishing_mortality_Base case", 2000, 2000)
-  # smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-  # for(s in 1: N.sp)
-  # {
-  #   YYrs=Store.stuff[[s]]$yrs
-  #   Ktch_MSY_Rel.bio=store.species[[s]]$KTCH.MSY$BaseCase$Fish.mort
-  # 
-  #   #Percentile
-  #   fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="NO",add.RP.txt="NO",CEX=1.2,
-  #                      CX.AX=1.2,Ktch=Store.stuff[[s]]$Ktch)
-  #   #if(s==1) legend("topleft",c("50%","75%","100%"),fill=COLS,bty='n',cex=1.25)
-  #   NMs=names(store.species)[s]
-  #   if(NMs=="Very.low") NMs="Very low"
-  #   mtext(NMs,3,0)
-  # 
-  # 
-  #   #   #Geometric mean
-  #   # Ktch_MSY_rel_bt_mean=Ktch_MSY_rel_bt_lowSE=Ktch_MSY_rel_bt_upSE=nrow(Ktch_MSY_Rel.bio)
-  #   # for(nr in 1:nrow(Ktch_MSY_Rel.bio))
-  #   # {
-  #   #   Ktch_MSY_rel_bt_mean[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])))
-  #   #   Ktch_MSY_rel_bt_upSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) + 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
-  #   #   Ktch_MSY_rel_bt_lowSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) - 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
-  #   # }
-  #   # plot(Yrs,Ktch_MSY_rel_bt_mean,cex=1.1,pch=19,col=CL.mean,ylim=c(0,max(Ktch_MSY_rel_bt_upSE,na.rm=T)),xaxt='n',xlab="",ylab="",
-  #   #      main=names(store.species)[s],cex.axis=1.15)
-  #   # segments(Yrs,Ktch_MSY_rel_bt_lowSE,Yrs,Ktch_MSY_rel_bt_upSE,col=CL)
-  #   # axis(1,Yrs,labels=F,tck=-0.015)
-  #   # axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
-  # }
-  # mtext("Financial year",1,0.5,cex=1.35,outer=T)
-  # mtext(expression(paste(plain("Fishing mortality (year") ^ plain("-1"),")",sep="")),2,0,las=3,cex=1.35,outer=T)
-  # dev.off()
-  
-  
-  #Catch and MSY    
-  # fn.fig("Figure4_CatchMSY_Plots", 2000, 2200)
-  # smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-  # for(s in 1: N.sp)
-  # {
-  #   yr=store.species[[s]]$Catch$finyear
-  #   ct=store.species[[s]]$Catch$Total.ktch
-  #   mean_ln_msy=as.numeric(store.species[[s]]$KTCH.MSY$BaseCase$"geom. mean MSY (tons)")
-  #   msy=store.species[[s]]$KTCH.MSY$BaseCase$msy
-  #   Mean.MSY=exp(mean(log(msy)))
-  #   Mean.MSY_UP=exp(mean(log(msy)) + 1.96 * sd(log(msy)))  
-  #   Mean.MSY_LOW=exp(mean(log(msy)) - 1.96 * sd(log(msy)))
-  #   NMs=names(store.species)[s]
-  #   if(NMs=="Low") NMs="Low resilience complex"
-  #   if(NMs=="Very.low") NMs="Very low resilience complex"
-  #   
-  #   plot(yr, ct, type="l", ylim = c(0, 1.01*max(c(ct,Mean.MSY_UP))), xlab = "", ylab = "", 
-  #        lwd=2,cex.lab=2,cex.axis=1.15)
-  #   mtext(NMs,3,0)
-  #   all.yrs=c(yr[1]-2,yr,yr[length(yr)]+2)
-  #   polygon(c(all.yrs,rev(all.yrs)),  c(rep(Mean.MSY_LOW,length(all.yrs)),rep(Mean.MSY_UP,length(all.yrs))),
-  #           col=rgb(.1,.1,.1,alpha=.15),border="transparent")  
-  #   abline(h=Mean.MSY,col="grey50", lwd=2.5,lty=3)
-  #   if(s==9)legend("topright",c("MSY (?1.96 SE)"),bty='n',col=c("grey50"),lty=3,lwd=2.5,cex=1.25)
-  #   
-  # }
-  # mtext("Financial year",1,0.25,cex=1.35,outer=T)
-  # mtext("Total catch (tonnes)",2,0.35,las=3,cex=1.35,outer=T)
-  # dev.off()
-  
-  
-  #Sensitivity tests
-    # Biomass
-  # fn.plot.percentile.sens=function(DAT,YR,ADD.prob,add.RP.txt,CEX,CX.AX,AdYXs,AdXXs)
-  # {
-  #   #50% of data
-  #   Nper=(100-50)/2
-  #   LOW.50=Low.percentile(Nper,DAT)
-  #   UP.50=High.percentile(Nper,DAT)
-  #   
-  #   #75% of data
-  #   Nper=(100-75)/2
-  #   LOW.75=Low.percentile(Nper,DAT)
-  #   UP.75=High.percentile(Nper,DAT)
-  #   
-  #   #100% of data
-  #   Nper=(100-100)/2
-  #   LOW.100=Low.percentile(Nper,DAT)
-  #   UP.100=High.percentile(Nper,DAT)
-  #   
-  #   #construct polygons
-  #   Year.Vec <-  fn.cons.po(YR,YR)
-  #   Biom.Vec.50 <- fn.cons.po(LOW.50,UP.50) 
-  #   Biom.Vec.75 <- fn.cons.po(LOW.75,UP.75) 
-  #   Biom.Vec.100 <-fn.cons.po(LOW.100,UP.100) 
-  #   
-  #   
-  #   #plot
-  #   plot(YR,UP.100,ylim=c(0,max(UP.100)),type="l",ylab="",xlab="",yaxt='n',xaxt='n',col='transparent',cex.axis=CX.AX)
-  #   
-  #   polygon(Year.Vec, Biom.Vec.100, col = COLS[3], border = "grey20")
-  #   polygon(Year.Vec, Biom.Vec.75, col = COLS[2], border = "grey20")
-  #   polygon(Year.Vec, Biom.Vec.50, col = COLS[1], border = "grey20")
-  #   
-  #   
-  #   #add probs
-  #   if(ADD.prob=="YES")
-  #   {
-  #     add.probs(id.yr=match(Current,YR),YR,DAT,UP.100,LOW.100,SRT=0,CEX)
-  #     
-  #     abline(h=B.target,lwd=1.5,col='grey45',lty=3)
-  #     abline(h=B.threshold,lwd=1.5,col='grey45',lty=3)
-  #     abline(h=B.limit,lwd=1.5,col='grey45',lty=3)
-  #     
-  #     if(add.RP.txt=="YES")
-  #     {
-  #       text(YR[4],B.target,"Target",pos=3,cex=1.1)
-  #       text(YR[4],B.threshold,"Threshold",pos=3,cex=1.1)
-  #       text(YR[4],B.limit,"Limit",pos=3,cex=1.1)
-  #     }
-  #     
-  #   }
-  #   if(AdYXs=="YES")axis(2,at=seq(0,1,.2),labels=seq(0,1,.2),tck=-0.05,las=1,cex.axis=CX.AX)
-  #   axis(1,at=YR,labels=F,tck=-0.025)
-  #   axis(1,at=seq(YR[1],YR[length(YR)],5),labels=F,tck=-0.05,cex.axis=CX.AX)
-  #   if(AdXXs=="YES")axis(1,at=seq(YR[1],YR[length(YR)],5),labels=seq(YR[1],YR[length(YR)],5),tck=-0.05,cex.axis=CX.AX)
-  # }
-  # fn.fig("Sensitivity_Biomass_relative", 2800,800)
-  # par(mfcol=c((Nscen-1),N.sp),mar=c(1,1,.15,.15),oma=c(2,3.5,.95,.25),las=1,mgp=c(1,.5,0))
-  # for(s in 1: N.sp)
-  # {
-  #   Yrs=store.species[[s]]$Catch$finyear
-  #   NMs=names(store.species)[s]
-  #   if(NMs=="Scalloped hammerhead") NMs="Scalloped hh"
-  #   if(NMs=="Smooth hammerhead") NMs="Smooth hh"
-  #   for(sc in 2:Nscen)
-  #   {
-  #     Ktch_MSY_Rel.bio=store.species[[s]]$KTCH.MSY[[sc]]$bt.rel
-  #     SCNE.nm=names(store.species[[s]]$KTCH.MSY)[sc]
-  #     AddY="NO"
-  #     if(s==1) AddY="YES"
-  #     AddX='NO'
-  #     if(sc==3) AddX="YES"
-  #     fn.plot.percentile.sens(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES",
-  #                             add.RP.txt="NO",CEX=.7,CX.AX=.8,AdYXs=AddY,AdXXs=AddX)
-  #     
-  #     
-  #     #if(s==N.sp & sc==2) legend("bottom",c("50%","75%","100%"),fill=COLS,bty='n',cex=.65,horiz=T)
-  #     if(s==1) mtext(SCNE.nm,2,1.5)
-  #     if(NMs=="Low") NMs="Low resilience"
-  #     if(NMs=="Very.low") NMs="Very low resilience"
-  #     if(sc==2)mtext(NMs,3,0,cex=.75)
-  #   }
-  # }
-  # mtext("Financial year",1,1,cex=1.35,outer=T)
-  # mtext("Relative biomass",2,2,las=3,cex=1.35,outer=T)
-  # dev.off()
-  
-    #MSY
-  # Exprt.MSY=vector('list',length(N.sp))
-  # fn.fig("Sensitivity_MSY", 1000, 2400)
-  # par(mfrow=c(N.sp,Nscen),mar=c(2,2,.25,.35),oma=c(1.75,2.75,.95,.25),las=1,mgp=c(1,.5,0))
-  # for(s in 1: N.sp)
-  # {
-  #   Yrs=store.species[[s]]$Catch$finyear
-  #   NMs=names(store.species)[s]
-  #   yr=store.species[[s]]$Catch$finyear
-  #   ct=store.species[[s]]$Catch$Total.ktch
-  #   dummyMSY=vector('list',length(Nscen))
-  #   for(sc in 1:Nscen)
-  #   {
-  #     mean_ln_msy=as.numeric(store.species[[s]]$KTCH.MSY[[sc]]$"geom. mean MSY (tons)")
-  #     msy=store.species[[s]]$KTCH.MSY[[sc]]$msy
-  #     Mean.MSY=exp(mean(log(msy)))
-  #     Mean.MSY_UP=exp(mean(log(msy)) + 1.96 * sd(log(msy)))  
-  #     Mean.MSY_LOW=exp(mean(log(msy)) - 1.96 * sd(log(msy)))
-  #     
-  #     plot(yr, ct, type="l", ylim = c(0, 1.01*max(c(ct,Mean.MSY_UP))), xlab = "", ylab = "",
-  #          lwd=2,cex.lab=2,cex.axis=1)
-  #     all.yrs=c(yr[1]-2,yr,yr[length(yr)]+2)
-  #     polygon(c(all.yrs,rev(all.yrs)),  c(rep(Mean.MSY_LOW,length(all.yrs)),rep(Mean.MSY_UP,length(all.yrs))),
-  #             col=rgb(.1,.1,.1,alpha=.15),border="transparent")  
-  #     abline(h=Mean.MSY,col="grey50", lwd=2.5,lty=3)
-  #     #if(s==4)legend("topright",c("MSY (?1.96 SE)"),bty='n',col=c("grey50"),lty=3,lwd=2.5,cex=1.25)
-  #     SCNE.nm=names(store.species[[s]]$KTCH.MSY)[sc]
-  #     if(s==1) mtext(SCNE.nm,3,0)
-  #     if(NMs=="Low") NMs="Low resilience"
-  #     if(NMs=="Very.low") NMs="Very low resilience"
-  #     if(NMs=="Scalloped hammerhead") NMs="Scalloped hh"
-  #     if(NMs=="Smooth hammerhead") NMs="Smooth hh"
-  #     
-  #     if(sc==1)mtext(NMs,2,2,las=3,cex=.8)
-  #     dummyMSY[[sc]]=data.frame(Species=NMs,Scenario=SCNE.nm,LOW_CI=Mean.MSY_LOW,Mean.MSY=Mean.MSY,Mean.UP_CI=Mean.MSY_UP)
-  #   }
-  #   
-  #   Exprt.MSY[[s]]=do.call(rbind,dummyMSY)
-  # }
-  # mtext("Financial year",1,0.25,cex=1.35,outer=T)
-  # mtext("Total catch (tonnes)",2,1.25,las=3,cex=1.35,outer=T)
-  # dev.off()
-  # write.csv(do.call(rbind,Exprt.MSY),"MSY_estimates.csv",row.names=F)
-  
 }
 
 
+#---RISK ------
+Like.ranges=list(L1=c(0,0.0499999),L2=c(0.05,0.2),L3=c(0.20001,0.5),L4=c(0.50001,1))
+Risk.tab=data.frame(Consequence=paste("C",1:4,sep=""),
+                    L1=NA,L2=NA,L3=NA,L4=NA,
+                    Max.Risk.Score=NA)
+
+fn.risk=function(likelihood)
+{
+  consequence=names(likelihood)
+  TAB=Risk.tab
+  for(n in 1:length(likelihood))
+  {
+    id=match(names(likelihood)[n],TAB$Consequence)
+    idd=which(unlist(lapply(Like.ranges,function(x) check.in.range(likelihood[n],x,fatal=F))))
+    TAB[id,idd+1]="X"
+    TAB$Max.Risk.Score[id]=id*idd
+  }
+  return(TAB)
+}
+Risk.SPM=Store.cons.Like.SPM
+Risk.SRM=Store.cons.Like.SRM
+for(s in 1: N.sp)
+{
+  #SPM
+  if(!is.null(Store.cons.Like.SPM[[s]])) Risk.SPM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.SPM[[s]]))
+  #SRM
+  Risk.SRM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.SRM[[s]]))
+}
+
+fn.AD=function()
+{
+  X.rng=1:N.sp
+  x.Vec <-  fn.cons.po(0:(N.sp+1),0:(N.sp+1))
+  nn=N.sp+2
+  negigible.Vec <- fn.cons.po(rep(0,nn),rep(2,nn))
+  low.Vec <- fn.cons.po(rep(2,nn),rep(4,nn))
+  medium.Vec <- fn.cons.po(rep(4,nn),rep(8,nn))
+  high.Vec <- fn.cons.po(rep(8,nn),rep(12,nn))
+  severe.Vec <- fn.cons.po(rep(12,nn),rep(16,nn))
+  plot(X.rng,ylim=c(0,16),col="transparent",ylab="",yaxs="i",xlab="",xaxt='n',yaxt='n')
+  polygon(x.Vec, negigible.Vec, col = 'cornflowerblue', border = "transparent")
+  polygon(x.Vec, low.Vec, col = 'olivedrab3', border = "transparent")
+  polygon(x.Vec, medium.Vec, col = 'yellow', border = "transparent")
+  polygon(x.Vec, high.Vec, col = 'orange', border = "transparent")
+  polygon(x.Vec, severe.Vec, col = 'red', border = "transparent")
+  box()
+}
+
+fn.fig("Figure 5_Risk", 2400, 1400)
+par(mfrow=c(2,1),mar=c(.5,.5,.5,.95),oma=c(6,2,.2,.1),las=1,cex.axis=.8,mgp=c(1,.3,0))
+
+#SPM
+fn.AD()
+for(s in 1:N.sp)
+{
+  if(!is.null(Risk.SPM[[s]])) 
+  {
+    Mx=max(Risk.SPM[[s]]$Max.Risk.Score)[1]
+    points(s,Mx,type='h',lwd = 15,lend=1)
+  }
+}
+axis(2,seq(0,16,1),labels=F,tck=-0.015)
+axis(2,seq(0,16,2),seq(0,16,2),tck=-0.03,cex.axis=.7)
+legend('topright',"SPM",bty='n')
+
+#SRM
+fn.AD()
+for(s in 1:N.sp)
+{
+  Mx=max(Risk.SRM[[s]]$Max.Risk.Score)[1]
+  points(s,Mx,type='h',lwd = 15,lend=1)
+  
+}
+axis(2,seq(0,16,1),labels=F,tck=-0.015)
+axis(2,seq(0,16,2),seq(0,16,2),tck=-0.03,cex.axis=.7)
+axis(1,1:N.sp,labels=names(Risk.SRM),tck=-0.01,las=2,cex.axis=.7)
+legend('topright',"SRM",bty='n')
+mtext("Highest risk score",2,outer=T,las=3,cex=1.25,line=0.85)
+dev.off()
+
+
+#---Removed from CMSY ------
+
+#Geometric mean
+# Ktch_MSY_rel_bt_mean=Ktch_MSY_rel_bt_lowSE=Ktch_MSY_rel_bt_upSE=nrow(Ktch_MSY_Rel.bio)
+# for(nr in 1:nrow(Ktch_MSY_Rel.bio))
+# {
+#   Ktch_MSY_rel_bt_mean[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])))
+#   Ktch_MSY_rel_bt_upSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) + 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
+#   Ktch_MSY_rel_bt_lowSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) - 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
+# }
+# plot(Yrs,Ktch_MSY_rel_bt_mean,cex=.95,pch=19,col=CL.mean,ylim=c(0,1),xaxt='n',xlab="",ylab="",
+#      main=names(store.species)[s],cex.axis=1.15,cex.main=1.3)
+# segments(Yrs,Ktch_MSY_rel_bt_lowSE,Yrs,Ktch_MSY_rel_bt_upSE,col=CL)
+# abline(h=B.target,lwd=1,col='black',lty=2)
+# #text(Yrs[3],B.target,"Target",pos=3,cex=1.25)
+# abline(h=B.threshold,lwd=1,col='grey30',lty=2)
+# #text(Yrs[3],B.threshold,"Threshold",pos=3,cex=1.25)
+# abline(h=B.limit,lwd=1,col='grey50',lty=2)
+# #text(Yrs[3],B.limit,"Limit",pos=3,cex=1.25)
+# axis(1,Yrs,labels=F,tck=-0.015)
+# axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
+
+
+#Current depletion of total biomass
+# fn.fig("Figure 3_Current.depletion_Catch_MSY", 2000, 2200)
+# smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+# for(s in 1: N.sp)
+# {
+#   Yrs=Store.stuff[[s]]$yrs
+#   Current=Yrs[length(Yrs)]
+#   Ktch_MSY_Rel.bio=with(store.species[[s]]$KTCH.MSY$BaseCase,bt,k)
+#   Ktch_MSY_current_yr=Ktch_MSY_Rel.bio[length(Yrs),]
+#   NMs=names(store.species)[s]
+#   if(NMs=="Very.low") NMs="Very low"
+#   density.fun2(what=Ktch_MSY_current_yr,MAIN=NMs)
+# }
+# mtext(paste(Current,"Relative biomass"),1,line=0.25,cex=1.35,outer=T)
+# mtext("Probability",2,0.25,las=3,cex=1.35,outer=T)
+# dev.off()
+
+
+# #Fishing mortality
+# fn.fig("Fishing_mortality_Base case", 2000, 2000)
+# smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+# for(s in 1: N.sp)
+# {
+#   YYrs=Store.stuff[[s]]$yrs
+#   Ktch_MSY_Rel.bio=store.species[[s]]$KTCH.MSY$BaseCase$Fish.mort
+#
+#   #Percentile
+#   fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="NO",add.RP.txt="NO",CEX=1.2,
+#                      CX.AX=1.2,Ktch=Store.stuff[[s]]$Ktch)
+#   #if(s==1) legend("topleft",c("50%","75%","100%"),fill=COLS,bty='n',cex=1.25)
+#   NMs=names(store.species)[s]
+#   if(NMs=="Very.low") NMs="Very low"
+#   mtext(NMs,3,0)
+#
+#
+#   #   #Geometric mean
+#   # Ktch_MSY_rel_bt_mean=Ktch_MSY_rel_bt_lowSE=Ktch_MSY_rel_bt_upSE=nrow(Ktch_MSY_Rel.bio)
+#   # for(nr in 1:nrow(Ktch_MSY_Rel.bio))
+#   # {
+#   #   Ktch_MSY_rel_bt_mean[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])))
+#   #   Ktch_MSY_rel_bt_upSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) + 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
+#   #   Ktch_MSY_rel_bt_lowSE[nr]=exp(mean(log(Ktch_MSY_Rel.bio[nr,])) - 1.96 * sd(log(Ktch_MSY_Rel.bio[nr,])))
+#   # }
+#   # plot(Yrs,Ktch_MSY_rel_bt_mean,cex=1.1,pch=19,col=CL.mean,ylim=c(0,max(Ktch_MSY_rel_bt_upSE,na.rm=T)),xaxt='n',xlab="",ylab="",
+#   #      main=names(store.species)[s],cex.axis=1.15)
+#   # segments(Yrs,Ktch_MSY_rel_bt_lowSE,Yrs,Ktch_MSY_rel_bt_upSE,col=CL)
+#   # axis(1,Yrs,labels=F,tck=-0.015)
+#   # axis(1,Yrs[seq(1,length(Yrs),5)],labels=Yrs[seq(1,length(Yrs),5)],tck=-0.030,cex.axis=1.25)
+# }
+# mtext("Financial year",1,0.5,cex=1.35,outer=T)
+# mtext(expression(paste(plain("Fishing mortality (year") ^ plain("-1"),")",sep="")),2,0,las=3,cex=1.35,outer=T)
+# dev.off()
+
+
+#Catch and MSY
+# fn.fig("Figure4_CatchMSY_Plots", 2000, 2200)
+# smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+# for(s in 1: N.sp)
+# {
+#   yr=store.species[[s]]$Catch$finyear
+#   ct=store.species[[s]]$Catch$Total.ktch
+#   mean_ln_msy=as.numeric(store.species[[s]]$KTCH.MSY$BaseCase$"geom. mean MSY (tons)")
+#   msy=store.species[[s]]$KTCH.MSY$BaseCase$msy
+#   Mean.MSY=exp(mean(log(msy)))
+#   Mean.MSY_UP=exp(mean(log(msy)) + 1.96 * sd(log(msy)))
+#   Mean.MSY_LOW=exp(mean(log(msy)) - 1.96 * sd(log(msy)))
+#   NMs=names(store.species)[s]
+#   if(NMs=="Low") NMs="Low resilience complex"
+#   if(NMs=="Very.low") NMs="Very low resilience complex"
+#
+#   plot(yr, ct, type="l", ylim = c(0, 1.01*max(c(ct,Mean.MSY_UP))), xlab = "", ylab = "",
+#        lwd=2,cex.lab=2,cex.axis=1.15)
+#   mtext(NMs,3,0)
+#   all.yrs=c(yr[1]-2,yr,yr[length(yr)]+2)
+#   polygon(c(all.yrs,rev(all.yrs)),  c(rep(Mean.MSY_LOW,length(all.yrs)),rep(Mean.MSY_UP,length(all.yrs))),
+#           col=rgb(.1,.1,.1,alpha=.15),border="transparent")
+#   abline(h=Mean.MSY,col="grey50", lwd=2.5,lty=3)
+#   if(s==9)legend("topright",c("MSY (?1.96 SE)"),bty='n',col=c("grey50"),lty=3,lwd=2.5,cex=1.25)
+#
+# }
+# mtext("Financial year",1,0.25,cex=1.35,outer=T)
+# mtext("Total catch (tonnes)",2,0.35,las=3,cex=1.35,outer=T)
+# dev.off()
+
+
+#Sensitivity tests
+# Biomass
+# fn.plot.percentile.sens=function(DAT,YR,ADD.prob,add.RP.txt,CEX,CX.AX,AdYXs,AdXXs)
+# {
+#   #50% of data
+#   Nper=(100-50)/2
+#   LOW.50=Low.percentile(Nper,DAT)
+#   UP.50=High.percentile(Nper,DAT)
+#
+#   #75% of data
+#   Nper=(100-75)/2
+#   LOW.75=Low.percentile(Nper,DAT)
+#   UP.75=High.percentile(Nper,DAT)
+#
+#   #100% of data
+#   Nper=(100-100)/2
+#   LOW.100=Low.percentile(Nper,DAT)
+#   UP.100=High.percentile(Nper,DAT)
+#
+#   #construct polygons
+#   Year.Vec <-  fn.cons.po(YR,YR)
+#   Biom.Vec.50 <- fn.cons.po(LOW.50,UP.50)
+#   Biom.Vec.75 <- fn.cons.po(LOW.75,UP.75)
+#   Biom.Vec.100 <-fn.cons.po(LOW.100,UP.100)
+#
+#
+#   #plot
+#   plot(YR,UP.100,ylim=c(0,max(UP.100)),type="l",ylab="",xlab="",yaxt='n',xaxt='n',col='transparent',cex.axis=CX.AX)
+#
+#   polygon(Year.Vec, Biom.Vec.100, col = COLS[3], border = "grey20")
+#   polygon(Year.Vec, Biom.Vec.75, col = COLS[2], border = "grey20")
+#   polygon(Year.Vec, Biom.Vec.50, col = COLS[1], border = "grey20")
+#
+#
+#   #add probs
+#   if(ADD.prob=="YES")
+#   {
+#     add.probs(id.yr=match(Current,YR),YR,DAT,UP.100,LOW.100,SRT=0,CEX)
+#
+#     abline(h=B.target,lwd=1.5,col='grey45',lty=3)
+#     abline(h=B.threshold,lwd=1.5,col='grey45',lty=3)
+#     abline(h=B.limit,lwd=1.5,col='grey45',lty=3)
+#
+#     if(add.RP.txt=="YES")
+#     {
+#       text(YR[4],B.target,"Target",pos=3,cex=1.1)
+#       text(YR[4],B.threshold,"Threshold",pos=3,cex=1.1)
+#       text(YR[4],B.limit,"Limit",pos=3,cex=1.1)
+#     }
+#
+#   }
+#   if(AdYXs=="YES")axis(2,at=seq(0,1,.2),labels=seq(0,1,.2),tck=-0.05,las=1,cex.axis=CX.AX)
+#   axis(1,at=YR,labels=F,tck=-0.025)
+#   axis(1,at=seq(YR[1],YR[length(YR)],5),labels=F,tck=-0.05,cex.axis=CX.AX)
+#   if(AdXXs=="YES")axis(1,at=seq(YR[1],YR[length(YR)],5),labels=seq(YR[1],YR[length(YR)],5),tck=-0.05,cex.axis=CX.AX)
+# }
+# fn.fig("Sensitivity_Biomass_relative", 2800,800)
+# par(mfcol=c((Nscen-1),N.sp),mar=c(1,1,.15,.15),oma=c(2,3.5,.95,.25),las=1,mgp=c(1,.5,0))
+# for(s in 1: N.sp)
+# {
+#   Yrs=store.species[[s]]$Catch$finyear
+#   NMs=names(store.species)[s]
+#   if(NMs=="Scalloped hammerhead") NMs="Scalloped hh"
+#   if(NMs=="Smooth hammerhead") NMs="Smooth hh"
+#   for(sc in 2:Nscen)
+#   {
+#     Ktch_MSY_Rel.bio=store.species[[s]]$KTCH.MSY[[sc]]$bt.rel
+#     SCNE.nm=names(store.species[[s]]$KTCH.MSY)[sc]
+#     AddY="NO"
+#     if(s==1) AddY="YES"
+#     AddX='NO'
+#     if(sc==3) AddX="YES"
+#     fn.plot.percentile.sens(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES",
+#                             add.RP.txt="NO",CEX=.7,CX.AX=.8,AdYXs=AddY,AdXXs=AddX)
+#
+#
+#     #if(s==N.sp & sc==2) legend("bottom",c("50%","75%","100%"),fill=COLS,bty='n',cex=.65,horiz=T)
+#     if(s==1) mtext(SCNE.nm,2,1.5)
+#     if(NMs=="Low") NMs="Low resilience"
+#     if(NMs=="Very.low") NMs="Very low resilience"
+#     if(sc==2)mtext(NMs,3,0,cex=.75)
+#   }
+# }
+# mtext("Financial year",1,1,cex=1.35,outer=T)
+# mtext("Relative biomass",2,2,las=3,cex=1.35,outer=T)
+# dev.off()
+
+#MSY
+# Exprt.MSY=vector('list',length(N.sp))
+# fn.fig("Sensitivity_MSY", 1000, 2400)
+# par(mfrow=c(N.sp,Nscen),mar=c(2,2,.25,.35),oma=c(1.75,2.75,.95,.25),las=1,mgp=c(1,.5,0))
+# for(s in 1: N.sp)
+# {
+#   Yrs=store.species[[s]]$Catch$finyear
+#   NMs=names(store.species)[s]
+#   yr=store.species[[s]]$Catch$finyear
+#   ct=store.species[[s]]$Catch$Total.ktch
+#   dummyMSY=vector('list',length(Nscen))
+#   for(sc in 1:Nscen)
+#   {
+#     mean_ln_msy=as.numeric(store.species[[s]]$KTCH.MSY[[sc]]$"geom. mean MSY (tons)")
+#     msy=store.species[[s]]$KTCH.MSY[[sc]]$msy
+#     Mean.MSY=exp(mean(log(msy)))
+#     Mean.MSY_UP=exp(mean(log(msy)) + 1.96 * sd(log(msy)))
+#     Mean.MSY_LOW=exp(mean(log(msy)) - 1.96 * sd(log(msy)))
+#
+#     plot(yr, ct, type="l", ylim = c(0, 1.01*max(c(ct,Mean.MSY_UP))), xlab = "", ylab = "",
+#          lwd=2,cex.lab=2,cex.axis=1)
+#     all.yrs=c(yr[1]-2,yr,yr[length(yr)]+2)
+#     polygon(c(all.yrs,rev(all.yrs)),  c(rep(Mean.MSY_LOW,length(all.yrs)),rep(Mean.MSY_UP,length(all.yrs))),
+#             col=rgb(.1,.1,.1,alpha=.15),border="transparent")
+#     abline(h=Mean.MSY,col="grey50", lwd=2.5,lty=3)
+#     #if(s==4)legend("topright",c("MSY (?1.96 SE)"),bty='n',col=c("grey50"),lty=3,lwd=2.5,cex=1.25)
+#     SCNE.nm=names(store.species[[s]]$KTCH.MSY)[sc]
+#     if(s==1) mtext(SCNE.nm,3,0)
+#     if(NMs=="Low") NMs="Low resilience"
+#     if(NMs=="Very.low") NMs="Very low resilience"
+#     if(NMs=="Scalloped hammerhead") NMs="Scalloped hh"
+#     if(NMs=="Smooth hammerhead") NMs="Smooth hh"
+#
+#     if(sc==1)mtext(NMs,2,2,las=3,cex=.8)
+#     dummyMSY[[sc]]=data.frame(Species=NMs,Scenario=SCNE.nm,LOW_CI=Mean.MSY_LOW,Mean.MSY=Mean.MSY,Mean.UP_CI=Mean.MSY_UP)
+#   }
+#
+#   Exprt.MSY[[s]]=do.call(rbind,dummyMSY)
+# }
+# mtext("Financial year",1,0.25,cex=1.35,outer=T)
+# mtext("Total catch (tonnes)",2,1.25,las=3,cex=1.35,outer=T)
+# dev.off()
+# write.csv(do.call(rbind,Exprt.MSY),"MSY_estimates.csv",row.names=F)
