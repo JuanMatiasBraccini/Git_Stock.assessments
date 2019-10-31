@@ -278,8 +278,6 @@ Spinr.tdgdlf_mon=fn.read('Spinner Shark.annual.abundance.basecase.monthly_relati
 Spinr.tdgdlf_daily=fn.read('Spinner Shark.annual.abundance.basecase.daily_relative.csv')
 Tiger.tdgdlf_mon=fn.read('Tiger Shark.annual.abundance.basecase.monthly_relative.csv')
 Tiger.tdgdlf_daily=fn.read('Tiger Shark.annual.abundance.basecase.daily_relative.csv')
-Wobi.tdgdlf_mon=fn.read('Wobbegongs.annual.abundance.basecase.monthly_relative.csv')
-Wobi.tdgdlf_daily=fn.read('Wobbegongs.annual.abundance.basecase.daily_relative.csv')
 
 Greynurse.tdgdlf_mon=fn.read('Greynurse Shark.annual.abundance.basecase.monthly._relative.csv')
 Pencil.tdgdlf_mon=fn.read('Pencil Shark.annual.abundance.basecase.monthly_relative.csv')
@@ -328,7 +326,8 @@ pup.sx.ratio=.5
 HR_o.sd=0.005  #SD of HR likelihood (fixed)
 
     #Efficiency increase scenarios from 1995 on (done up to 1994 in cpue stand.)
-Efficien.scens=c(.01)
+Efficien.scens=c(0)
+#Efficien.scens=c(.01)
 
     #Proportional biomass (as proportion of K) at start of catch time series
 B.init=0.99 #(fixed)
@@ -364,8 +363,8 @@ Do.Ktch.MSY=T
 SIMS=5e4  
 
     #Assumed process error
-ERROR=0.01   #is default. 
-
+ERROR=0   #is default. 
+#ERROR=0.01
 
     #depletion level at start of catch series
 STARTBIO=c(B.init*.95,B.init)   #low depletion because starting time series prior to any fishing
@@ -416,6 +415,46 @@ Data.monthly=subset(Data.monthly,!FINYEAR%in%Drop)
 Data.monthly.north=subset(Data.monthly.north,!FINYEAR%in%Drop)
 YEARS=sort(as.numeric(substr(unique(Data.monthly$FINYEAR),1,4)))  
 Current=YEARS[length(YEARS)]   
+
+
+#Check what catch length frequency data are availabe
+FL.sp=c('Bull shark','Great hammerhead','Lemon shark','Pigeye shark','Scalloped hammerhead',
+        'Spinner shark','Tiger shark',' Wobbegong (general)','Smooth hammerhead','Spurdogs')
+Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
+           "RV GANNET","RV SNIPE 2")
+fun.check.LFQ=function(a,area)
+{
+  a=a%>%
+    select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,Method,TL,FL,Mid.Lat,Mid.Long))%>%
+    filter(!is.na(FL))
+  Unik.sp=unique(a$COMMON_NAME)
+  
+  smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  b1=table(a$SEX,a$COMMON_NAME)
+  for(u in 1:length(Unik.sp))
+  {
+    bb=b1[,match(Unik.sp[u],colnames(b1))]
+    Xsq <- chisq.test(bb)
+    barplot(bb,main=paste(Unik.sp[u],"(F:M=",round(bb[1]/bb[2],2),":1",", X2=",
+                          round(Xsq$p.value,2),")"),cex.main=.85)
+  } 
+  mtext(area,1,outer = T)
+  
+  smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  b1=table(10*(round(a$FL/10)),a$COMMON_NAME)
+  for(u in 1:length(Unik.sp))
+  {
+    barplot(b1[,match(Unik.sp[u],colnames(b1))],main=Unik.sp[u])
+  }
+  mtext(area,1,outer = T)
+  return(a)
+}
+LFQ.north=fun.check.LFQ(a=DATA%>%filter(Mid.Lat>(-26) & COMMON_NAME%in%FL.sp & 
+                                          Method%in%c('LL')  & !BOAT%in%Res.vess),
+                        area="North")
+LFQ.south=fun.check.LFQ(a=DATA%>%filter(Mid.Lat<(-26) & COMMON_NAME%in%FL.sp & 
+                                          Method%in%c('GN') &!BOAT%in%Res.vess),
+                        area="South")
 
 
 
@@ -896,7 +935,7 @@ for(i in 1:length(Uni.sp))
 }
 
 
-  #5.5 Remove blacktips and school shark because some were reapportioned
+  #5.5 Remove blacktips and school shark because some were reapportioned but are not assessed here
 Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','Spot tail shark',"School shark" ))
 
 
@@ -1073,8 +1112,8 @@ for(s in 1: N.sp)
        cl=COLs.type[match(unik.T[u],names(COLs.type))]
       with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=1,pch=21,bg=cl))
   }
-  if(s==1)legend('topleft',names(COLs.type),pt.bg=COLs.type,
-                 bty='n',pch=21,cex=1.5,pt.cex=2)
+  if(s==1)legend('topleft',c("WA commercial","WA recreational","Taiwanese"),pt.bg=COLs.type,
+                 bty='n',pch=21,cex=1.25,pt.cex=2)
   axis(1,all.yrs,F,tck=-.015)
   axis(1,seq(all.yrs[1],all.yrs[length(all.yrs)],10),
        seq(all.yrs[1],all.yrs[length(all.yrs)],10),tck=-.03)
@@ -1408,7 +1447,7 @@ for(s in 1: N.sp)
     #Initial values for estimable pars
     Mx.ktch=max(ct$LIVEWT.c,na.rm=T)
     AVrg.ktch=mean(ct$LIVEWT.c,na.rm=T)
-    K.init=20*AVrg.ktch
+    K.init=50*AVrg.ktch
     r.init=Init.r[[Id]]
     QS=Estimable.qs[[Id]]
     
@@ -1657,8 +1696,8 @@ if(Do.sim.test=="YES")
     dummy=Ktch.sim
     for(l in 1:length(Ktch.sim))
     {
-      k.lower=2
-      k.upper=100
+      k.lower=Low.bound.K
+      k.upper=Up.bound.K
       if(names(Sim.test.out)[s]=='Informative')
       {
         Usr="Yes"
@@ -1679,7 +1718,16 @@ if(Do.sim.test=="YES")
         k.lower=20
         k.upper=200
       }
-        
+       
+      nm=paste(names(Sim.test.out)[s],names(Ktch.sim)[l])
+      print(paste("-------------",nm))
+      
+      PATH=paste(hndl.sim.test,nm,sep='/')
+      if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
+      setwd(file.path(PATH))
+      Path.ktch_msy=getwd()
+      
+      
       dummy[[l]]=Catch_MSY(ct=Ktch.sim[[l]],
                            yr=Yrs.sim.tst,
                            r.prior=unlist(list(shape=13,rate=138)),
@@ -1689,7 +1737,7 @@ if(Do.sim.test=="YES")
                            startbio=StrtbiO,
                            finalbio=FinbiO,
                            res="Very low",
-                           n=10000,
+                           n=SIMS,
                            sigR=ERROR,
                            ct.future=0,           
                            yr.future=1)
@@ -2373,7 +2421,7 @@ for(s in 1: N.sp)
   Risk.SRM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.SRM[[s]]))
 }
 
-fn.AD=function()
+fn.AD=function(add.text)
 {
   X.rng=1:N.sp
   x.Vec <-  fn.cons.po(0:(N.sp+1),0:(N.sp+1))
@@ -2384,11 +2432,21 @@ fn.AD=function()
   high.Vec <- fn.cons.po(rep(8,nn),rep(12,nn))
   severe.Vec <- fn.cons.po(rep(12,nn),rep(16,nn))
   plot(X.rng,ylim=c(0,16),col="transparent",ylab="",yaxs="i",xlab="",xaxt='n',yaxt='n')
+  
   polygon(x.Vec, negigible.Vec, col = 'cornflowerblue', border = "transparent")
   polygon(x.Vec, low.Vec, col = 'olivedrab3', border = "transparent")
   polygon(x.Vec, medium.Vec, col = 'yellow', border = "transparent")
   polygon(x.Vec, high.Vec, col = 'orange', border = "transparent")
   polygon(x.Vec, severe.Vec, col = 'red', border = "transparent")
+  
+  if(add.text=="YES")
+  {
+    text(.55,mean(negigible.Vec),"Negligible",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))
+    text(.55,mean(low.Vec),"Low",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))
+    text(.55,mean(medium.Vec),"Medium",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))
+    text(.55,mean(high.Vec),"High",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))
+    text(.55,mean(severe.Vec),"Severe",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))  
+  }
   box()
 }
 
@@ -2396,7 +2454,7 @@ fn.fig("Figure 5_Risk", 2400, 1400)
 par(mfrow=c(2,1),mar=c(.5,.5,.5,.95),oma=c(6,2,.2,.1),las=1,cex.axis=.8,mgp=c(1,.3,0))
 
 #SPM
-fn.AD()
+fn.AD(add.text="YES")
 for(s in 1:N.sp)
 {
   if(!is.null(Risk.SPM[[s]])) 
@@ -2410,7 +2468,7 @@ axis(2,seq(0,16,2),seq(0,16,2),tck=-0.03,cex.axis=.7)
 legend('topright',"SPM",bty='n')
 
 #SRM
-fn.AD()
+fn.AD(add.text="NO")
 for(s in 1:N.sp)
 {
   Mx=max(Risk.SRM[[s]]$Max.Risk.Score)[1]
