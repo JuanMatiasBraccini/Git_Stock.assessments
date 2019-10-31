@@ -128,7 +128,11 @@ select_Millar(gillnet, x0 = NULL, rtype = "norm.sca")$value
 select_Millar(gillnet, x0 = NULL, rtype = "lognorm")$value
 
 
-# X ----------------Data-limited Methods  Toolkit (Carruthers & Hordyk)------------------------------
+# 6 ----------------LBSPR ( Hordyk)-------
+library(LBSPR)
+
+
+# 7 ----------------Data-limited Methods  Toolkit (Carruthers & Hordyk)------------------------------
 library(DLMtool)
 library(snowfall) # load package for parallel computing
 
