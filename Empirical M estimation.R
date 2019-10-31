@@ -1,5 +1,4 @@
 library(fishmethods)
-
 M.empirical(Linf=30.1,Kl=0.31,TC=24,method=c(1))
 
 library(TropFishR)
