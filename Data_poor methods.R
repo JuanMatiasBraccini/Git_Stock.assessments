@@ -128,8 +128,106 @@ select_Millar(gillnet, x0 = NULL, rtype = "norm.sca")$value
 select_Millar(gillnet, x0 = NULL, rtype = "lognorm")$value
 
 
-# 6 ----------------LBSPR ( Hordyk)-------
+# 6 ----------LBSPR for estimating SPR based on size data and life history-------
 library(LBSPR)
+
+#Create objects
+MyPars <- new("LB_pars")
+slotNames(MyPars) #check what's in the object
+
+#Populate the object
+MyPars@Linf <- 100 
+MyPars@L50 <- 66 
+MyPars@L95 <- 70
+MyPars@MK <- 1.5 
+
+MyPars@SL50 <- 50 
+MyPars@SL95 <- 65
+MyPars@SPR <- 0.4
+MyPars@BinWidth <- 5
+
+#Run simulation
+MySim <- LBSPRsim(MyPars)
+MyPars@BinMax <- 150
+MyPars@BinMin <- 0
+
+#Outputs
+MySim@SPR
+MySim@FM  #ratio of F/M. the value for fishing mortality refers to the 
+          # highest level of F experienced by any single size class
+
+#Simulate specifying F/M instead of SPR
+MyPars@SPR <- numeric() # remove value for SPR 
+MyPars@FM <- 1 # set value for FM
+MySim <- LBSPRsim(MyPars)
+round(MySim@SPR, 2) # SPR at F/M = 1 
+
+# Change the life history parameters
+MyPars@MK <- 2.0 
+MySim <- LBSPRsim(MyPars)
+round(MySim@SPR, 2) # SPR 
+
+MyPars@MK <- 0.5
+MySim <- LBSPRsim(MyPars)
+round(MySim@SPR, 2) # SPR 
+
+MyPars@Linf <- 120
+MySim <- LBSPRsim(MyPars)
+round(MySim@SPR, 2) # SPR 
+
+#Change selectivity parameters
+MyPars@MK <- 1.5 
+MyPars@SL50 <- 10
+MyPars@SL95 <- 15 
+MyPars@FM <- 1 
+MySim <- LBSPRsim(MyPars)
+round(MySim@SPR, 2) # SPR 
+
+MyPars@SL50 <- 80
+MyPars@SL95 <- 85 
+MySim <- LBSPRsim(MyPars)
+round(MySim@SPR, 2) # SPR 
+
+
+#fitting empirical data
+#need 2 objects: pars, and length data
+# The length data can be either raw data or length frequency data
+MyLengths <- new("LB_lengths") #The data type (freq or raw) must be 
+                          # specified in the call to the new function
+datdir <- DataDir()
+list.files(datdir, pattern=".csv")
+
+MyPars <- new("LB_pars")
+# Note that only the life history parameters need to be specified for 
+#            the estimation model. 
+# The exploitation parameters will be estimated
+MyPars@Species <- "MySpecies"
+MyPars@Linf <- 100 
+MyPars@L50 <- 66 
+MyPars@L95 <- 70
+MyPars@MK <- 1.5 
+MyPars@L_units <- "mm"
+
+#A ength freq data with multiple years
+Len1 <- new("LB_lengths", LB_pars=MyPars, file=paste0(datdir, "/LFreq_MultiYr.csv"), 
+            dataType="freq")
+plotSize(Len1)
+Len2 <- new("LB_lengths", LB_pars=MyPars, file=paste0(datdir, "/LFreq_MultiYrHead.csv"), 
+            dataType="freq", header=TRUE)
+
+#A raw length data set with multiple years
+Len3 <- new("LB_lengths", LB_pars=MyPars, file=paste0(datdir, "/LRaw_MultiYr.csv"), 
+            dataType="raw")
+plotSize(Len3)
+
+#Fit the model
+myFit1 <- LBSPRfit(MyPars, Len1)
+myFit3 <- LBSPRfit(MyPars, Len3)
+
+myFit1@Ests
+plotEsts(myFit1)
+#By default the plotting function adds the smoother line to the estimated points
+
 
 
 # 7 ----------------Data-limited Methods  Toolkit (Carruthers & Hordyk)------------------------------

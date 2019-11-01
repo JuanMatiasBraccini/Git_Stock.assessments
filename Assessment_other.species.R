@@ -36,6 +36,8 @@ library(mvtnorm)
 library(Biobase)
 library(numDeriv)
 library(spatstat.utils)
+library(fishmethods)
+library(TropFishR)
 set.seed(999) 
 
 
@@ -207,16 +209,19 @@ Greynurse.ktch=data.frame(finyear=unique(as.numeric(substr(sapply(strsplit(Grey.
                           mutate(LIVEWT.c=Under.rep.factor*(N.dead*GN.mn.wght+N.alive*GN.mn.wght*GN.pcm))%>%
                           select(finyear,LIVEWT.c)
 
-#source shark bio
+#Shark bio data
 User="Matias"
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
+
 
 #species codes
 All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/1.Other species/Species_names.csv")
 b=read.csv("C:\\Matias\\Data\\Species.code.csv")
 
+
 #list of life history param for demography
 LH.par=read.csv("C:/Matias/Data/Life history parameters/Life_History_other_sharks.csv",stringsAsFactors=F)
+
 
 #Temperature
 #TEMP=read.csv("C:/Matias/Data/Oceanography/SST.csv")
@@ -264,27 +269,41 @@ non.commercial.sharks=c("Brown-banded catshark","Cobbler Wobbegong",
                         "Port Jackson","Spotted shovelnose","Stingrays","Tawny nurse shark",
                         "Whitespot shovelnose","Zebra shark")
 
-#Bring in abundance data
+#Abundance data
 fn.read=function(x) read.csv(paste('C:/Matias/Analyses/Data_outs',x,sep='/'),stringsAsFactors = F)
   #Naturalist abundance survey
 Scal.hh.nat=fn.read('Scalloped hammerhead.Srvy.FixSt.csv')
 Tiger.nat=fn.read('Tiger shark.Srvy.FixSt.csv')
 Mil.nat=fn.read('Milk shark.Srvy.FixSt.csv')
 
-  #Standardised cpue
+  #Standardised TDGDLF cpue
 Smuz.hh.tdgdlf_mon=fn.read('Hammerhead.annual.abundance.basecase.monthly_relative.csv') #assumed to be all smooth HH
 Smuz.hh.tdgdlf_daily=fn.read('Hammerhead.annual.abundance.basecase.daily_relative.csv')
 Spinr.tdgdlf_mon=fn.read('Spinner Shark.annual.abundance.basecase.monthly_relative.csv')
 Spinr.tdgdlf_daily=fn.read('Spinner Shark.annual.abundance.basecase.daily_relative.csv')
 Tiger.tdgdlf_mon=fn.read('Tiger Shark.annual.abundance.basecase.monthly_relative.csv')
 Tiger.tdgdlf_daily=fn.read('Tiger Shark.annual.abundance.basecase.daily_relative.csv')
-
 Greynurse.tdgdlf_mon=fn.read('Greynurse Shark.annual.abundance.basecase.monthly._relative.csv')
 Pencil.tdgdlf_mon=fn.read('Pencil Shark.annual.abundance.basecase.monthly_relative.csv')
 Pencil.tdgdlf_daily=fn.read('Pencil Shark.annual.abundance.basecase.daily_relative.csv')
 Sawshrk.tdgdlf_daily=fn.read('Sawsharks.annual.abundance.basecase.daily_relative.csv')
 Mako.tdgdlf_mon=fn.read('Mako.annual.abundance.basecase.monthly_relative.csv')
 Mako.tdgdlf_daily=fn.read('Mako.annual.abundance.basecase.daily_relative.csv')
+
+
+
+#Mean catch size data
+
+  #Standardised TDGDLF mean size
+Smuz.hh.tdgdlf.size=fn.read('Smooth hammerhead.annual.mean.size_relative.csv')
+Spinr.tdgdlf.size=fn.read('Spinner Shark.annual.mean.size_relative.csv')
+Tiger.tdgdlf.size=fn.read('Tiger Shark.annual.mean.size_relative.csv')
+
+
+
+#Conventional tagging data
+Tag=fn.read('Tagging_conventional.data.csv')
+
 
 
 #---PARAMETERS SECTION-----
@@ -310,6 +329,11 @@ B.limit=Lim.prop*B.threshold
 #Life history parameters for selected species  
 pup.sx.ratio=.5
 
+#Do we use conventional tagging data?
+#note: too few recaptures...do not proceed 
+use.tags=F
+
+Mn.conv.Fl.Tl=.85  #average convertion (over gummy, dusky, whiskery, sandbar) from FL to TL
 
 #.. Surplus production arguments
 
@@ -417,15 +441,23 @@ YEARS=sort(as.numeric(substr(unique(Data.monthly$FINYEAR),1,4)))
 Current=YEARS[length(YEARS)]   
 
 
-#Check what catch length frequency data are availabe
+#Check what tagging data are available
 FL.sp=c('Bull shark','Great hammerhead','Lemon shark','Pigeye shark','Scalloped hammerhead',
-        'Spinner shark','Tiger shark',' Wobbegong (general)','Smooth hammerhead','Spurdogs')
+        'Smooth hammerhead','Spinner shark','Spurdogs','Tiger shark',' Wobbegong (general)')
+if(use.tags)
+{
+  Tag=Tag%>%filter(COMMON_NAME%in%FL.sp & Recaptured=="Yes")
+  table(Tag$COMMON_NAME)
+}
+
+
+#Check what catch length frequency data are availabe
 Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
            "RV GANNET","RV SNIPE 2")
 fun.check.LFQ=function(a,area)
 {
   a=a%>%
-    select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,Method,TL,FL,Mid.Lat,Mid.Long))%>%
+    select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,Method,FL,Mid.Lat,Mid.Long))%>%
     filter(!is.na(FL))
   Unik.sp=unique(a$COMMON_NAME)
   
@@ -435,10 +467,10 @@ fun.check.LFQ=function(a,area)
   {
     bb=b1[,match(Unik.sp[u],colnames(b1))]
     Xsq <- chisq.test(bb)
-    barplot(bb,main=paste(Unik.sp[u],"(F:M=",round(bb[1]/bb[2],2),":1",", X2=",
-                          round(Xsq$p.value,2),")"),cex.main=.85)
+    barplot(bb,main=paste(Unik.sp[u],"(F:M=",round(bb[1]/bb[2],2),":1",", X2, p=",
+                          round(Xsq$p.value,2),")"),cex.main=.9)
   } 
-  mtext(area,1,outer = T)
+  mtext(area,1,outer = T,cex=1.5)
   
   smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
   b1=table(10*(round(a$FL/10)),a$COMMON_NAME)
@@ -446,16 +478,35 @@ fun.check.LFQ=function(a,area)
   {
     barplot(b1[,match(Unik.sp[u],colnames(b1))],main=Unik.sp[u])
   }
-  mtext(area,1,outer = T)
+  mtext(area,1,outer = T,cex=1.5)
+  
+  
+  for(u in 1:length(Unik.sp))
+  {
+    b1=with(subset(a,COMMON_NAME==Unik.sp[u]),table(10*(round(FL/10)),year))
+    yrs=colnames(b1)
+    smart.par(n.plots=ncol(b1),MAR=c(2,2,1,1),OMA=c(1.75,2,2,.1),MGP=c(1,.5,0))
+    for(s in 1:ncol(b1))
+    {
+      barplot(b1[,match(yrs[s],colnames(b1))],main=paste(yrs[s],"n=",
+                      sum(b1[,match(yrs[s],colnames(b1))])))
+    }
+    mtext(paste(area,"-",unique(a$Method),"-",Unik.sp[u]),3,outer=T)
+  }
+  
   return(a)
 }
+PATH=paste(hNdl,"Outputs/Size.frequency",sep='/')
+if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
+
+pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data.pdf",sep=""))
 LFQ.north=fun.check.LFQ(a=DATA%>%filter(Mid.Lat>(-26) & COMMON_NAME%in%FL.sp & 
                                           Method%in%c('LL')  & !BOAT%in%Res.vess),
                         area="North")
 LFQ.south=fun.check.LFQ(a=DATA%>%filter(Mid.Lat<(-26) & COMMON_NAME%in%FL.sp & 
                                           Method%in%c('GN') &!BOAT%in%Res.vess),
                         area="South")
-
+dev.off()
 
 
 #Explore spatial catch distribution to check if species reporting issues
@@ -478,6 +529,31 @@ for(l in 1:length(SP.list))
   fn.expl.sp.ktch(d1=subset(Data.monthly.north,SPECIES%in%SP.list[[l]]))
   mtext(names(SP.list)[l],3)
   fn.expl.sp.ktch(d1=subset(Data.monthly,SPECIES%in%SP.list[[l]]))
+}
+
+fn.prop.exp=function(d,nm)
+{
+  d1=d%>%mutate(FINYEAR=as.numeric(substr(FINYEAR,1,4)))%>%
+         group_by(FINYEAR,BLOCKX)%>%
+         summarise(Sum=sum(LIVEWT.c))%>%
+         group_by(FINYEAR)%>%
+         mutate(Prop=Sum/sum(Sum))%>%
+         select(FINYEAR,BLOCKX,Prop)%>%
+         spread(BLOCKX,Prop)%>%
+         data.frame
+   colnames(d1)[-1]= substr(colnames(d1)[-1],2,100)
+   CL=rainbow(ncol(d1)-1)
+   plot(d1$FINYEAR,d1[,2],type='b',ylim=c(0,1),col=CL[1],pch=19,ylab="Proportion",xlab="Year")
+   for(h in 3:ncol(d1)) points(jitter(d1$FINYEAR,1),d1[,h],type='b',col=CL[h-1],pch=19)
+   legend("bottomright",colnames(d1)[-1],bty='n',col=CL,lty=1,lwd=2,cex=.6)
+   mtext(nm,3)
+}
+these.ones.spt=c("Hammerheads","Spinner","Spurdogs","Tiger","Wobbegongs")
+smart.par(n.plots=length(these.ones.spt),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+for(l in 1:length(these.ones.spt))
+{
+  fn.prop.exp(d=subset(Data.monthly,SPECIES==SP.list[[match(these.ones.spt[l],
+                      names(SP.list))]]),nm=these.ones.spt[l])
 }
 dev.off()
 
@@ -1124,7 +1200,35 @@ mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
 
-# Build r prior -----------------------------------------------------------------------
+
+#---Length-based Mortality estimation------------------------------------------------------
+# Beverton-Holt Nonequilibrium Z Estimator based on mean length
+Mn.siz.ktch=list("Smooth hammerhead"=LFQ.south%>%filter(COMMON_NAME=='Smooth hammerhead'),
+                 "Spinner shark"=LFQ.south%>%filter(COMMON_NAME=='Spinner shark'),
+                 "Spurdogs"=LFQ.south%>%filter(COMMON_NAME=='Spurdogs'),
+                 "Tiger shark"=LFQ.south%>%filter(COMMON_NAME=='Tiger shark'))
+fn.bhnoneq=function(d,K,Linf)
+{
+  Mlen=d%>%group_by(year)%>%
+    summarise(n=n(),
+              Mlen=mean(FL))
+  Z=bhnoneq(year=Mlen$year,mlen=Mlen$Mlen, ss=Mlen$n,
+            K=K,Linf=Linf,Lc=min(d$FL),nbreaks=0,stZ=0.2,
+            graph =F)
+  return(Z)
+}
+store.z.bhnoneq=vector('list',length(Mn.siz.ktch))
+names(store.z.bhnoneq)=names(Mn.siz.ktch)
+for(i in 1:length(Mn.siz.ktch))
+{
+  store.z.bhnoneq[[i]]=with(subset(LH.par,Name==names(Mn.siz.ktch)[i]),
+                            fn.bhnoneq(d=Mn.siz.ktch[[i]],K=K,Linf=FL_inf*Mn.conv.Fl.Tl))
+}
+
+
+ 
+
+#---Build r prior -----------------------------------------------------------------------
 fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle)
 {
   Fecu=unlist(FecunditY)
@@ -1246,7 +1350,7 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
 })
 
 
-# Single-species SPM -----------------------------------------------------------------------
+#---Single-species SPM -----------------------------------------------------------------------
 
   #get abundance data    
 cpue.list=list(
@@ -1616,7 +1720,7 @@ for(s in 1: N.sp)
 
 
 
-# Catch-MSY ---------------------------------------------------------------
+#---Catch-MSY ---------------------------------------------------------------
 #note: use SPM inputs (alreadyy done r prior, ct, etc)
 
 # - Simulation testing CMSY
