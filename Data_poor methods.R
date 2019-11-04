@@ -1,12 +1,13 @@
 library(fishmethods)
 
-# 1 ----------------Length-based Beverton-Holt Nonequilibrium Z Estimator------------------------------
+# 1 ----------------Mean length Beverton-Holt Nonequilibrium Z Estimator------------------------------
 
 #from: Gedamke, T. and J. M. Hoenig. 2006. Estimating mortality from mean length data in nonequilibrium
 #     situations, with application to the assessment of goosefish. Trans. Am. Fish. Soc. 135:476-487
 data(goosefish)
 Z=bhnoneq(year=goosefish$year,mlen=goosefish$mlen, ss=goosefish$ss,
           K=0.108,Linf=126,Lc=30,nbreaks=2,styrs=c(1982,1990),stZ=c(0.1,0.2,0.3))
+
 
 # 2 ----------------Mortality Estimators from tagging------------------------------
 ## Data come from Appendix Table A2 and model structure from model (a) in
@@ -41,7 +42,7 @@ tag_model_avg(model1,model2)
 
 library(TropFishR)
 # 3 ----------------Estimate Z based on a method derived by Beverton and Holt (1956)---------
-#using mide length or age composition data
+#using length or age composition data
 
   # based on length-frequency data
 data(synLFQ2)
@@ -100,6 +101,7 @@ sel_nf <- select_ogive(select.list, Lt)
 
 plot(Lt, sel_log, type = 'l')
 lines(Lt, sel_nf, col = 'blue')
+
 
 
 #Estimate selectivity from different experimental nets
