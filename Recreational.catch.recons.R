@@ -23,8 +23,16 @@ AVG.WT=data.frame(Common.Name=c("Bronze Whaler","Greynurse Shark","Gummy Sharks"
                   PCM.rec=c(.1,.1,.2,.4,.4,.1,.1,.1,.1,.1,.1,.1,.1,.05,.2,.2,.1,.1,.1,.1))   #assumed post capture mortality of released sharks        
 AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
 
-#WA population for rec catch recons
+#WA population for rec catch recons (ABS)
 WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors=F)
+dummy=rbind(cbind(Year=c(1940,1950,1960),Population=c(473300,557100,722100)),WA.population)
+  
+
+mod=loess(Population~Year,data=dummy)
+Historic.pop=predict(mod,newdata = data.frame(Year=1941:1970))
+WA.population=rbind(cbind(Year=1941:1970,Population=round(Historic.pop)),
+                    WA.population)
+
 
 
 #fix species names

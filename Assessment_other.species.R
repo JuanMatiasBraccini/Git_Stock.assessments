@@ -23,6 +23,7 @@ fn.source("Catch_MSY.R")
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 Do.jpeg="YES"
 Do.tiff="NO"
+source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R")
 
 library(MASS)
 library(plotrix)
@@ -310,21 +311,27 @@ Min.yrs=3        #minimum years with catch records for species to be included in
 Min.yr.ktch=10    #minimum tonnage per year for at least Min.yrs
 
 #Reference points
-  #Used in SPM
-Tar.prop=1.3  #target and limit proportions of Bmsy 
-Lim.prop=0.5  # source: Haddon et al 2014. Technical Reviews of Formal Harvest Strategies.
-
-#Tar.prop=1.2  #target and limit proportions of Bmsy based on FAO's recommendations
-#Lim.prop=0.8
-
-
-  #Used in Catch-MSY
 B.threshold=0.5  #Bmys
+Tar.prop=1.3    #target and limit proportions of Bmsy. source: Haddon et al 2014. Technical
+Lim.prop=0.5    #   Reviews of Formal Harvest Strategies.
 B.target=Tar.prop*B.threshold
 B.limit=Lim.prop*B.threshold
 
+  #Empirical reference points
+Fmsy.emp=function(M) 0.41*M     #Zhou et al 2012
+SPR.thre=0.3   #Punt 2000 Extinction of marine renewable resources: a demographic analysis. 
+SPR.tar=0.4                # Population Ecology 42, 19–27
+
+
 #Life history parameters for selected species  
 pup.sx.ratio=.5
+
+#Gillnet selectivity from different nets
+Estim.sel.exp='NO'  #not enough observations from different mesh sizes
+
+#Mean weight-based Mortality estimation
+do.Gedamke_Hoenig="NO"     #not used due to knife-edge sel. assumption 
+# and data are in weights, not length
 
 #Do we use conventional tagging data?
 #note: too few recaptures...do not proceed 
@@ -454,7 +461,8 @@ Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
 fun.check.LFQ=function(a,area)
 {
   a=a%>%
-    dplyr::select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,Method,FL,Mid.Lat,Mid.Long,
+    dplyr::select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,
+                    Method,FL,Mid.Lat,Mid.Long,
                     MESH_SIZE))%>%
     filter(!is.na(FL))%>%
     mutate(MESH_SIZE=sub("\"","",MESH_SIZE))
@@ -623,8 +631,7 @@ dev.off()
 
 #Plot recreational catch
 Rec.ktch=Rec.ktch%>%mutate(Region=ifelse(zone%in%c('Gascoyne','North Coast'),'North','South'),
-                           year=as.numeric(substr(FINYEAR,1,4)))%>%
-                    filter(year>=min(Agg$finyear))
+                           year=as.numeric(substr(FINYEAR,1,4)))
 Rec.sp=unique(Rec.ktch$Common.Name)
 fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_recreational',sep=''),2400,2400) 
 smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
@@ -1156,6 +1163,36 @@ RESILIENCE$`Spurdogs`="Very low"
 #Convert catch from kg to tonnes
 Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
 
+
+#Set catch of all species starting in 1940s
+TAB.dummy=with(Tot.ktch,table(FINYEAR,SP.group))
+Add.yrs=paste(seq(1941,1974),substr(seq(1942,1975),3,4),sep="-")
+id.dummy=match(Add.yrs[1],rownames(TAB.dummy)):match(Add.yrs[length(Add.yrs)],rownames(TAB.dummy))
+TAB.dummy=TAB.dummy[id.dummy,]
+Nms.dummy=names(which(colSums(TAB.dummy)<=1))
+Add.dummy=Tot.ktch[id.dummy,]%>%
+                replace(.,,NA)%>%
+                mutate(Type='Commercial',
+                       LIVEWT.c=0,
+                       FINYEAR=Add.yrs,
+                       finyear=as.numeric(substr(FINYEAR,1,4)))
+
+list.dummy=vector('list',length(Nms.dummy))
+for(l in 1:length(Nms.dummy))
+{
+  ss=Add.dummy
+  dd=Tot.ktch%>%filter(SP.group==Nms.dummy[l])%>%slice(1)
+  ss=ss%>%mutate(SPECIES=dd$SPECIES,
+                 SNAME=dd$SNAME,
+                 Name=dd$Name,
+                 SP.group=dd$SP.group)
+  if(Nms.dummy[l]=="Scalloped hammerhead") ss=ss%>%filter(!FINYEAR=="1974-75")
+  list.dummy[[l]]=ss
+}
+list.dummy=do.call(rbind,list.dummy)
+Tot.ktch=rbind(Tot.ktch,list.dummy)%>%arrange(SP.group,finyear)
+
+
 #Export total catch of each species
 for(s in 1: N.sp)
 {
@@ -1185,7 +1222,7 @@ for(s in 1: N.sp)
   for(u in 1:length(unik.T))
   {
        cl=COLs.type[match(unik.T[u],names(COLs.type))]
-      with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=1,pch=21,bg=cl))
+      with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=.8,pch=21,bg=cl))
   }
   if(s==1)legend('topleft',c("WA commercial","WA recreational","Taiwanese"),pt.bg=COLs.type,
                  bty='n',pch=21,cex=1.25,pt.cex=2)
@@ -1199,22 +1236,21 @@ mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
 
-#ACA
 #---Length-based Mortality estimation------------------------------------------------------
 library(TropFishR)
 
 #catch size frequency
-Mn.siz.ktch=list("Smooth hammerhead"=LFQ.south%>%filter(COMMON_NAME=='Smooth hammerhead' &
+ktch.size.fq=list("Smooth hammerhead"=LFQ.south%>%filter(COMMON_NAME=='Smooth hammerhead' &
                                                           MESH_SIZE%in%c("6.5","7")),
                  "Spinner shark"=LFQ.south%>%filter(COMMON_NAME=='Spinner shark'&
                                                       MESH_SIZE%in%c("6.5","7")),
-                 "Spurdogs"=LFQ.south%>%filter(COMMON_NAME=='Spurdogs'&
-                                                 MESH_SIZE%in%c("6.5","7")),
                  "Tiger shark"=LFQ.south%>%filter(COMMON_NAME=='Tiger shark'&
                                                     MESH_SIZE%in%c("6.5","7")))
 
 #get gillnet selectivity schedule from different experimental nets
-Estim.sel.exp='NO'  #not enough observations for different mesh sizes
+Estim.sel.exp='NO'  #not enough observations from different mesh sizes
+Size.sel=vector('list',length(ktch.size.fq))
+names(Size.sel)=names(ktch.size.fq)
 if(Estim.sel.exp=="YES")
 {
   fn.sel.stim=function(d,size.int)
@@ -1223,55 +1259,83 @@ if(Estim.sel.exp=="YES")
     tab=d%>%mutate(Size.class=size.int*floor(FL/size.int)+size.int/2)%>%
       group_by(MESH_SIZE,Size.class)%>%
       summarise(n=n())%>%
-      spread(MESH_SIZE,n,fill =0)%>%
+      spread(MESH_SIZE,n,fill=0)%>%
       data.frame
     colnames(tab)[-1]= substr(colnames(tab)[-1],2,100)
     d.list=list(midLengths=tab$Size.class,
                 type="gillnet",
-                meshSizes=25.4*as.numeric(colnames(tab)[-1]),   #in mm
+                meshSizes=2.54*as.numeric(colnames(tab)[-1]),   #inches to cm
                 CatchPerNet_mat=as.matrix(tab[,-1]))
     #apply sel estim methods
-    out <- select(param = d.list) 
+    out <- TropFishR::select(param = d.list) 
     
     #plot(out)
     return(list(out=out))
   }
-  Size.sel=Mn.siz.ktch
-  for(s in 1:length(Size.sel)) Size.sel[[s]]=fn.sel.stim(d=Mn.siz.ktch[[s]],size.int=10)
+  for(s in 1:length(Size.sel)) Size.sel[[s]]=fn.sel.stim(d=ktch.size.fq[[s]],size.int=10)
+}
+
+#Simple selectivity
+if(Estim.sel.exp=="NO")
+{
+  fn.sel.simple=function(d)
+  {
+    dist=fitdistr(d$FL, "normal")
+    FL=seq(min(d$FL),max(d$FL))
+    Sel=dnorm(FL, dist$estimate[1], dist$estimate[2])
+    
+    tab=d%>%mutate(Size.class=floor(FL))%>%
+      group_by(Size.class)%>%
+      summarise(n=n())
+    plot(tab$Size.class,tab$n,type='h',ylab="Frequency",xlab="FL (cm)",
+         main=names(ktch.size.fq)[s])
+    par(new=T)
+    plot(FL,Sel/max(Sel),ann=F,yaxt='n',type='l',col=2,lwd=2)
+    return(sel=data.frame(FL=FL,Sel=Sel/max(Sel)))
+  }
+  smart.par(length(Size.sel),c(3,3,4,2),c(1,1,1,1),c(2,.7,0))
+  for(s in 1:length(Size.sel)) Size.sel[[s]]=fn.sel.simple(d=ktch.size.fq[[s]])
 }
 
 detach("package:TropFishR", unload=TRUE)  #remove after use because it causes conflicts with dplyr
 
 
-#---Weight-based Mortality estimation------------------------------------------------------
-
-# Beverton-Holt Nonequilibrium Z Estimator based on mean weight of catch
+#---Mean weight-based Mortality estimation------------------------------------------------------
 library(fishmethods)
 
-# daily catch mean weight
+# daily standardised mean weight of catch
 Mn.weit.ktch=list("Smooth hammerhead"=Smuz.hh.tdgdlf.size,
-                 "Spinner shark"=Spinr.tdgdlf.size,
-                 "Tiger shark"=Tiger.tdgdlf.size)
-fn.bhnoneq=function(d,Lc,K,Linf,a,b)
+                  "Spinner shark"=Spinr.tdgdlf.size,
+                  "Tiger shark"=Tiger.tdgdlf.size)
+
+# Beverton-Holt Nonequilibrium Z Estimator based on mean size of catch
+#note: based on Gedamke & Hoenig 2006. 
+#      Knife-edge selectivity. Only provides Z estimate for a period
+if(do.Gedamke_Hoenig=="YES")
 {
-  Mwt=d%>%mutate(year=as.numeric(substr(Finyear,1,4)))%>%
-                rename(mean=Pred.mean)
-  Linf.w=a*Linf^b
-  Lc.w=a*Lc^b
-  Z=bhnoneq(year=Mwt$year,mlen=Mwt$mean, ss=Mwt$n,
-            K=K,Linf=Linf.w,Lc=Lc.w,nbreaks=0,stZ=0.2,
-            graph =F)
-  return(Z)
-}
-store.z.bhnoneq=vector('list',length(Mn.weit.ktch))
-names(store.z.bhnoneq)=names(Mn.weit.ktch)
-for(i in 1:length(Mn.weit.ktch))
-{
-  this=match(names(Mn.weit.ktch)[i],names(Size.sel))
-  store.z.bhnoneq[[i]]=with(subset(LH.par,Name==names(Mn.weit.ktch)[i]),
-                            fn.bhnoneq(d=Mn.weit.ktch[[i]],Lc=Size.sel[[this]],
-                                       K=K,Linf=FL_inf*Mn.conv.Fl.Tl,  #convert TL_inf to FL_inf
-                                       a=a_w8t,b=b_w8t))
+  #for dome-shape selectivity, select Lc as size of full vulnerability
+  #   (Gedamke & Hoenig 2006 page 484)
+  fn.bhnoneq=function(d,Lc,K,Linf,a,b)
+  {
+    d=d%>%mutate(year=as.numeric(substr(Finyear,1,4)),
+                   mean=(Pred.mean/a)^(1/b))
+    Z=bhnoneq(year=d$year,mlen=d$mean, ss=d$n,
+              K=K,Linf=Linf,Lc=Lc,nbreaks=0,stZ=0.2,
+              graph =F)
+    return(Z)
+  }
+  store.z.bhnoneq=vector('list',length(Mn.weit.ktch))
+  names(store.z.bhnoneq)=names(Mn.weit.ktch)
+  for(i in 1:length(Mn.weit.ktch))
+  {
+    this=match(names(Mn.weit.ktch)[i],names(Size.sel))
+    Lc=Size.sel[[this]]
+    Lc=Lc[which.max(Lc$Sel),1]
+    store.z.bhnoneq[[i]]=with(subset(LH.par,Name==names(Mn.weit.ktch)[i]),
+                              fn.bhnoneq(d=Mn.weit.ktch[[i]],Lc=Lc,
+                                         K=K,Linf=FL_inf*Mn.conv.Fl.Tl,  #convert TL_inf to FL_inf
+                                         a=a_w8t,b=b_w8t))
+  }
 }
 
 #---Build r prior -----------------------------------------------------------------------
@@ -1283,11 +1347,13 @@ fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle)
                     sexratio=0.5,Reprod_cycle=Breed.cycle,Hoenig.only="NO")  
   
   #get mean and sd from lognormal distribution
-  normal.pars=suppressWarnings(fitdistr(Rprior, "normal"))
-  gamma.pars=suppressWarnings(fitdistr(Rprior, "gamma"))  
+  normal.pars=suppressWarnings(fitdistr(Rprior$r.prior, "normal"))
+  gamma.pars=suppressWarnings(fitdistr(Rprior$r.prior, "gamma"))  
   shape=gamma.pars$estimate[1]        
   rate=gamma.pars$estimate[2]      
-  return(list(shape=shape,rate=rate,mean=normal.pars$estimate[1],sd=normal.pars$estimate[2]))
+  return(list(shape=shape,rate=rate,
+              mean=normal.pars$estimate[1],sd=normal.pars$estimate[2],
+              M=Rprior$M))
   
   #get mean and sd from lognormal distribution
   #LogN.pars=fitdistr(Rprior, "lognormal")  
@@ -1373,6 +1439,7 @@ density.fun2=function(what,MAIN)
 }
 store.species=vector('list',N.sp)
 names(store.species)=Specs$SP.group
+store.species.M=store.species
 PATH=paste(getwd(),"each_species",sep='/')
 if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))   
 setwd(file.path(PATH))
@@ -1393,7 +1460,77 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
                                MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle)
   store.species[[s]]$r.prior=list(shape=r.prior.dist$shape,rate=r.prior.dist$rate)
   store.species[[s]]$r.prior.normal=list(mean=r.prior.dist$mean,sd=r.prior.dist$sd)
+  store.species.M[[s]]=r.prior.dist$M
 })
+
+#ACA
+#---Length-based Spawning potential ratio------------------------------------------------------
+#note: based on Hordyk et al 2016. Assumptions:
+#      asymptotic selectivity (overestimates F and underestimates SPR if dome-shape)
+#      length-at-age is normally distributed
+#      constant M at age and growth rates
+library(LBSPR)
+LBSPR.assmnt=vector('list',length(ktch.size.fq))
+names(LBSPR.assmnt)=names(ktch.size.fq)
+apply.LBSPR.fn=function(LH,M,d,BinWidth,min.samp.size)
+{
+  #get length at maturity from age at maturity
+  k=LH$K
+  Linf=LH$FL_inf*Mn.conv.Fl.Tl   #convert to FL as Linf is in TL 
+  L50=Linf*(1-exp(-k*(LH$Age_50_Mat_min-LH$to)))
+  L95=Linf*(1-exp(-k*(LH$Age_50_Mat_max-LH$to)))
+  
+  #populate life history object
+  MyPars <- new("LB_pars")
+  MyPars@Linf <- Linf
+  MyPars@L50 <- L50 
+  MyPars@L95 <- L95
+  MyPars@MK <- M/k
+  MyPars@Walpha=LH$a_w8t
+  MyPars@Wbeta=LH$b_w8t
+  MyPars@FecB=LH$b_w8t
+  MyPars@L_units <- "cm"
+
+  #populate lengths object
+  tab=d%>%mutate(Size.class=BinWidth*floor(FL/BinWidth)+BinWidth/2)%>%
+          group_by(year,Size.class)%>%
+          summarise(n=n())%>%
+          spread(year,n,fill=0)%>%
+          data.frame
+  LMids=tab$Size.class
+  tab=tab[,-1]
+  colnames(tab)=substr(colnames(tab),2,100)
+  tab=tab[,colSums(tab) > min.samp.size] 
+  
+  MyLengths <- new("LB_lengths", LB_pars=MyPars)
+  MyLengths@LMids<-LMids
+  MyLengths@LData<-as.matrix(tab)
+  MyLengths@L_units<- "cm"
+  MyLengths@Years<-as.numeric(colnames(tab))
+  MyLengths@NYears<-length(MyLengths@Years)
+  
+  #fit model
+  Fit <- LBSPRfit(MyPars, MyLengths)
+  
+  return(Fit)
+}
+for(s in 1:length(LBSPR.assmnt))
+{
+  M=mean(unlist(lapply(store.species.M[[match(names(Size.sel)[s],names(store.species.M))]],mean)))
+  LBSPR.assmnt[[s]]=apply.LBSPR.fn(LH=LH.par%>%filter(SP.group==names(Size.sel)[s]),
+                               M=M,
+                               d=ktch.size.fq[[s]],
+                               BinWidth=10,
+                               min.samp.size=40)
+}
+
+for(s in 1:length(LBSPR.assmnt))
+{
+  LBSPR.assmnt[[s]]@Ests
+  plotMat(LBSPR.assmnt[[s]])
+  plotEsts(LBSPR.assmnt[[s]])
+}
+
 
 
 #---Single-species SPM -----------------------------------------------------------------------
@@ -2075,6 +2212,97 @@ mtext(expression(paste("Longitude ",degree,"E")),side=1,line=1.1,cex=1.2,outer=T
 dev.off()
 
 
+#Catch by year
+South.WA.lat=c(-36,-25); South.WA.long=c(112,130)
+Long.seq=seq(South.WA.long[1]+1,South.WA.long[2]-1,by=3)
+Lat.seq=c(-26,-28,-30,-32,-34)
+
+PLATE=c(.01,.9,.075,.9)
+numInt=20
+Colfunc <- colorRampPalette(c("yellow","red"))
+Couleurs=c("white",Colfunc(numInt-1))
+
+fn.ctch.plot.all.yrs=function(DATA,tcl.1,tcl.2,numInt) 
+{
+  DATA$LAT=-as.numeric(substr(DATA$BLOCKX,1,2))
+  DATA$LONG=100+as.numeric(substr(DATA$BLOCKX,3,4))
+  DATA=subset(DATA,!is.na(LAT))
+  DATA=subset(DATA,LAT>(-40))
+  DATA$blk=substr(DATA$BLOCKX,1,4)
+  A=aggregate(LIVEWT.c~FINYEAR+blk,DATA,sum)
+  Ymax=max(A$LIVEWT.c)
+  Ymin=min(A$LIVEWT.c)
+  
+  Breaks=quantile(A$LIVEWT.c,probs=seq(0,1,1/numInt),na.rm=T)
+  a=South.WA.long[1]:South.WA.long[2]
+  b=seq(South.WA.lat[1],South.WA.lat[2],length.out=length(a))
+  DATA$BLOCKX.c=with(DATA,paste(LAT,LONG))
+  
+  FINYrS=table(DATA$FINYEAR)
+  FINYrS=FINYrS[FINYrS>20]
+  FINYrS=sort(names(FINYrS))
+  
+  smart.par(length(FINYrS)+1,MAR=c(1,2.5,1.5,.1),OMA=c(2,2,.1,.1),MGP=c(.1,.7,0))
+  for(y in 1:length(FINYrS))
+  {
+    A=subset(DATA,FINYEAR==FINYrS[y])
+    MapCatch=with(A,aggregate(LIVEWT.c,list(BLOCKX.c),FUN=sum,na.rm=T))
+    colnames(MapCatch)=c("BLOCKX.c","Total Catch")
+    id=unique(match(MapCatch$BLOCKX.c,DATA$BLOCKX.c))
+    MapCatch$LAT=DATA$LAT[id]
+    MapCatch$LONG=DATA$LONG[id]
+    msn.lat=seq(min(MapCatch$LAT),max(MapCatch$LAT))
+    msn.lat=msn.lat[which(!msn.lat%in%MapCatch$LAT)]
+    if(length(msn.lat)>0)
+    {
+      dummy=MapCatch[1:length(msn.lat),]
+      dummy$`Total Catch`=0
+      dummy$LAT=msn.lat
+      dummy$BLOCKX.c=with(dummy,paste(LAT,LONG))
+      MapCatch=rbind(MapCatch,dummy)
+    }
+    
+    MapCatch$LAT.cen=MapCatch$LAT-.5
+    MapCatch$LONG.cen=MapCatch$LONG+.5  
+    MapCatch=MapCatch[order(MapCatch$LAT.cen,MapCatch$LONG.cen),]
+    MapCatch=subset(MapCatch,LONG.cen<=South.WA.long[2])
+    long=sort(unique(MapCatch$LONG.cen))
+    lat=sort(unique(MapCatch$LAT.cen))      #latitude vector for image  
+    MapCatch=MapCatch[,match(c("LONG.cen","LAT.cen","Total Catch"),names(MapCatch))]  
+    Reshaped=as.matrix(reshape(MapCatch,idvar="LONG.cen",  	#transposed as matrix 	
+                               timevar="LAT.cen",v.names="Total Catch", direction="wide"))	
+    Reshaped=Reshaped[order(Reshaped[,1]),]
+    Reshaped=Reshaped[,-1]	
+    numberLab=10
+    colLeg=(rep(c("black",rep("transparent",numberLab-1)),(numInt+1)/numberLab))
+    
+    plotmap(a,b,PLATE,"dark grey",South.WA.long,South.WA.lat)
+    image(long,lat,z=Reshaped,xlab="",ylab="",col =Couleurs,breaks=Breaks,axes = FALSE,add=T)			
+    axis(side = 1, at =South.WA.long[1]:South.WA.long[2], labels = F, tcl = tcl.1)
+    axis(side = 4, at = South.WA.lat[2]:South.WA.lat[1], labels = F,tcl =tcl.2)
+    par(new=T)
+    plotmap(a,b,PLATE,"dark grey",South.WA.long,South.WA.lat)
+    legend('top',FINYrS[y],bty='n',cex=1.2)
+    axis(side = 1, at =Long.seq, labels = Long.seq, tcl = .35,las=1,cex.axis=1,padj=-.15)
+    axis(side = 2, at = Lat.seq, labels = -Lat.seq,tcl = .35,las=2,cex.axis=1,hadj=1.1)
+  }
+  plot(a,b,ann=F,axes=F,col='transparent')
+  color.legend(quantile(a,probs=.25),quantile(b,probs=.75),quantile(a,probs=.4),quantile(b,probs=.25),
+               paste(round(Breaks,0),"kg"),rect.col=Couleurs,gradient="y",col=colLeg,cex=.5)
+}
+Spatial.ktch.sp=c(19000,18023,20000,18022,13000)
+names(Spatial.ktch.sp)=c("Smooth hammerhead","Spinner shark","Spurdogs",
+                  "Tiger shark","Wobbegongs")
+pdf("Appendix1_Spatial catch by year.pdf")
+for(s in 1: length(Spatial.ktch.sp))
+{
+  fn.ctch.plot.all.yrs(DATA=subset(Data.monthly,SPECIES==Spatial.ktch.sp[s]),tcl.1=.1,tcl.2=.1,numInt=20)
+  legend("bottom",names(Spatial.ktch.sp)[s],bty='n',cex=.9)
+  mtext("Longitude (E)",1,outer=T,line=1,cex=1.25)
+  mtext("Latitude (S)",2,outer=T,line=0,cex=1.25,las=3)
+}
+dev.off()
+
 #Plot total catch and effort
 ktch.s=subset(Data.monthly,SPECIES%in%c(19000,Specs$SPECIES))%>%
   mutate(finyear=as.numeric(substr(FINYEAR,1,4)))%>%
@@ -2132,6 +2360,28 @@ mtext("Year",1, line = .5,outer=T,cex=1.5)
 mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.5)
 dev.off()
 
+
+
+#---Mean weight-based Mortality estimation RESULTS----
+fn.plt.mn.ktch.wght=function(d)
+{
+  yr=as.numeric(substr(d$Finyear,1,4))
+  plot(yr,d$Pred.mean,ylab="",xlab="",pch=19,cex=1.5,cex.axis=1.25,
+       ylim=c(min(d$Pred.mean-1.96*d$Pred.SE),max(d$Pred.mean+1.96*d$Pred.SE)))
+  arrows(yr,d$Pred.mean,yr,d$Pred.mean-1.96*d$Pred.SE, angle=90, length=0.05)
+  arrows(yr,d$Pred.mean,yr,d$Pred.mean+1.96*d$Pred.SE, angle=90, length=0.05)
+}
+
+tiff(file="pred Mean weight of ktch.tiff",width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+smart.par(length(Mn.weit.ktch),MAR=c(1,3,3,.1),OMA=c(3,1,.1,.1),MGP=c(.1,.7,0))
+for(i in 1:length(Mn.weit.ktch))
+{
+  fn.plt.mn.ktch.wght(d=Mn.weit.ktch[[i]])
+  mtext(names(Mn.weit.ktch)[i],cex=1.5)
+}
+mtext("Mean catch weight (kg)",2,outer=T,cex=1.25,las=3,line=-1)
+mtext("Financial year",1,outer=T,cex=1.25,line=1.5)
+dev.off()
 
 #---SPM RESULTS------
 

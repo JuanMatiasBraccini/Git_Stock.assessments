@@ -41,6 +41,11 @@ tag_model_avg(model1,model2)
 
 
 library(TropFishR)
+
+#  --------------Empirical M -------------
+M_empirical(Linf = 80, K_l = 0.5, temp = 25, tmax = 30,
+             method = c("Pauly_Linf","Hoenig","Then_growth","Then_tmax"))
+
 # 3 ----------------Estimate Z based on a method derived by Beverton and Holt (1956)---------
 #using length or age composition data
 
