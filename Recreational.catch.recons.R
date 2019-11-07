@@ -119,29 +119,29 @@ fn.rec=function(DAT)
         return(LisT)
 }
 Rec.ktch=fn.rec(Rec.fish.catch)  
+Part.rate.hist=30
 Part.rate.89=26.6  #Ryan et al 2012
 Part.rate.00=28.5
-Part.rate=lm(c(Part.rate.89,Part.rate.00)~c(1989,2000))
-Part.rate.pred=coef(Part.rate)[1]+coef(Part.rate)[2]*WA.population$Year
-Part.rate.pred=(Part.rate.pred/100)*WA.population$Population
-Part.rate.pred=Part.rate.pred/Part.rate.pred[match(2011,WA.population$Year)]
-Part.rate.pred=data.frame(P.rate=Part.rate.pred[1:(length(Part.rate.pred)-1)],
+Part.rate=mean(c(Part.rate.hist,Part.rate.89,Part.rate.00))
+Fishing.population=(Part.rate/100)*WA.population$Population
+Fishing.population=Fishing.population/Fishing.population[match(2011,WA.population$Year)] #relative to 2011-12
+Fishing.population=data.frame(Size=Fishing.population[1:(length(Fishing.population)-1)],
                           FinYear=paste(WA.population$Year[1:(length(WA.population$Year)-1)],"-",
                                         substr(WA.population$Year[2:length(WA.population$Year)],start=3,stop=4),sep=""))
 
 back.fill=function(dat)
 {
-        id=match(unique(dat$FinYear),Part.rate.pred$FinYear)
+        id=match(unique(dat$FINYEAR),Fishing.population$FinYear)
         Regns=unique(dat$Bioregion)
         Dummy=vector('list',length(Regns))
         for (d in 1:length(Dummy))
         {
                 a=subset(dat,Bioregion==Regns[d])
-                Mat=matrix(NA,nrow=length(Part.rate.pred$FinYear),ncol=2)
-                Mat[,2]=mean(a$LIVEWT.c)*Part.rate.pred$P.rate
+                Mat=matrix(NA,nrow=length(Fishing.population$FinYear),ncol=2)
+                Mat[,2]=mean(a$LIVEWT.c)*Fishing.population$Size
                 Mat=as.data.frame(Mat)
                 names(Mat)=c("FINYEAR","LIVEWT.c")
-                Mat$FINYEAR=Part.rate.pred$FinYear
+                Mat$FINYEAR=Fishing.population$FinYear
                 Mat$zone=Regns[d]
                 Mat$Common.Name=dat$Common.Name[1]
                 Dummy[[d]]=Mat
@@ -149,7 +149,7 @@ back.fill=function(dat)
         Dummy=do.call(rbind,Dummy)
         return(Dummy)
 }
-for(i in 1:length(Rec.ktch)) Rec.ktch[[i]]=back.fill(Rec.ktch[[i]])
+for(i in 1:length(Rec.ktch)) Rec.ktch[[i]]=back.fill(dat=Rec.ktch[[i]])
 Rec.ktch=do.call(rbind,Rec.ktch)
 row.names(Rec.ktch)=NULL
 
