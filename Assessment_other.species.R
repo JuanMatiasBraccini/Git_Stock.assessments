@@ -2101,7 +2101,9 @@ if(Do.Ktch.MSY)
       if(is.na(SCENARIOS[[sc]]$R.prior[1])) USR="No" else
         if(SCENARIOS[[sc]]$R.prior[1]=="USER")USR= "Yes"
         Scen.start.bio=SCENARIOS[[sc]]$Initial.dep       
-        ktch_msy_scen[[sc]]=list(r.prior=SCENARIOS[[sc]]$R.prior,user=USR,k.lower=Low.bound.K,k.upper=Up.bound.K, 
+        ktch_msy_scen[[sc]]=list(r.prior=SCENARIOS[[sc]]$R.prior,
+                                 user=USR,
+                                 k.lower=Low.bound.K,k.upper=Up.bound.K, 
                                  startbio=Scen.start.bio,finalbio=FINALBIO,res=RESILIENCE[[s]],
                                  niter=SIMS,sigR=SCENARIOS[[sc]]$Error)
         if(!is.na(ktch_msy_scen[[sc]]$r.prior[1])) ktch_msy_scen[[sc]]$r.prior=unlist(store.species[[s]]$r.prior)
@@ -3122,4 +3124,4 @@ dev.off()
 # mtext("Total catch (tonnes)",2,1.25,las=3,cex=1.35,outer=T)
 # dev.off()
 # write.csv(do.call(rbind,Exprt.MSY),"MSY_estimates.csv",row.names=F)
-=======
+
