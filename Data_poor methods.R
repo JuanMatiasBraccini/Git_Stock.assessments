@@ -1,3 +1,23 @@
+#  -------------- 1. SRAplus   --------------
+#install.packages("remotes")
+#remotes::install_github("james-thorson/FishLife@master")
+remotes::install_github("DanOvando/sraplus")
+
+
+
+
+#  -------------- CCSRA   --------------
+#Catch curve stock reduction analysis with size composition in last year
+#asumes logistic selectivity
+#remotes::install_github("James-Thorson/CCSRA")
+library(CCSRA)
+
+#convert length to age composition
+convert_length_to_age_samples(K, Linf, L0, Lcv, Lbin_mat, LengthComp_lt,
+                              checkforbugs = TRUE)
+
+
+
 library(fishmethods)
 
 # 1 ----------------Mean length Beverton-Holt Nonequilibrium Z Estimator------------------------------
@@ -38,6 +58,18 @@ model3=mort.al(relyr = tanaka$relyr, tal = tanaka$tal, N = tanaka$N)
 tag_model_avg(model1,model2)
 
 
+
+# -------------- 3. DBSRA Stock REduction (Dick and MAcCall 2011)   --------------
+data(cowcod)
+a=dbsra(year =cowcod$year, catch = cowcod$catch, catchCV = NULL, 
+        catargs = list(dist="none",low=0,up=Inf,unit="MT"),
+        agemat=11, k = list(low=100,up=15000,tol=0.01,permax=1000), 
+        b1k = list(dist="none",low=0.01,up=0.99,mean=1,sd=0.1),
+        btk = list(dist="beta",low=0.01,up=0.99,mean=0.1,sd=0.1,refyr=2009),
+        fmsym = list(dist="lnorm",low=0.1,up=2,mean=-0.223,sd=0.2),
+        bmsyk = list(dist="beta",low=0.05,up=0.95,mean=0.4,sd=0.05),
+        M = list(dist="lnorm",low=0.001,up=1,mean=-2.90,sd=0.4),
+        nsims = 10000)
 
 
 library(TropFishR)

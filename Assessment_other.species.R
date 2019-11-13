@@ -51,6 +51,16 @@ fnkr8t(paste(hNdl,"Outputs",sep="/"))
 #---DATA SECTION-----
 setwd("C:/Matias/Analyses/Data_outs")
 
+#missing:
+#For the size data, use catch curve for size
+# (or convert size to age, using 'convert_length_to_age_samples')
+# with dome shaped selectivity (as other methods, like Adrian Hordyk's
+# and CCSRA assume logistic selectivity)
+#and SPR to calculate F (need Alex's help)
+#For SRA, use Dan Ovando's approach, once it is installed
+#but will need cpue index or FMI
+
+
 #Total effort
 Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
 Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
