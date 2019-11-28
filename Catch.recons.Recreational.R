@@ -9,40 +9,47 @@
 #         Add shore base
 #         Add charter boats
 
-library(dplyr)
+library(tidyverse)
+library(readxl)
+library(lubridate)
 
 
 # 1 -------------------DATA SECTION------------------------------------
-#I-Survey
+
+# I-Survey
 Rec.hndl="C:/Matias/Data/Catch and Effort/Recreational/I.Survey."
-#Rec.fish.catch.2011.12=read.csv(paste(Rec.hndl,"2011_12.csv",sep=''),stringsAsFactors=F) #Ryan et al 2013 
+#Rec.fish.catch.2011.12=read.csv(paste(Rec.hndl,"2011_12.csv",sep=''),stringsAsFactors=F) #Ryan et al 2013    #FIX THIS!!!!
 #Rec.fish.catch.2013.14=read.csv(paste(Rec.hndl,"2013_14.csv",sep=''),stringsAsFactors=F) #Ryan et al 2015 
 #Rec.fish.catch.2015.16=read.csv(paste(Rec.hndl,"2015_16.csv",sep=''),stringsAsFactors=F) #Ryan et al 2015 
 #Rec.fish.catch=rbind(Rec.fish.catch.2011.12,Rec.fish.catch.2013.14,Rec.fish.catch.2015.16)
 Rec.fish.catch=read.csv(paste(Rec.hndl,"csv",sep=''),stringsAsFactors=F)
 
-
-#Shore-based
-#statewide estimated kept, released & total recreational catch for sharks & rays in 2000_01
-#K_SE = standard error associated with Kept
-# K_RSE = relative standard error associated with Kept
-# K_HHs = number of households that reported a Kept catch 
-# R = released, T = Total 
-# 
-# Estimates at a statewide level would be considered to be robust because the sample size is > 30 and rse < 0.40; however, need caution with reporting estimates where comparisons can be made between 2000/01 and iSurveys because of differences in
-# •	magnitude of estimates between surveys
-# •	sampling frames – white pages vs RBFL holders
-# •	primary sampling units – households vs persons
-# •	survey populations – ABS Estimated Residential Population vs RBFL totals
+# Shore-based
+#notes from Karina:
+  #statewide estimated kept, released & total recreational catch for sharks & rays in 2000_01
+  #K_SE = standard error associated with Kept
+  # K_RSE = relative standard error associated with Kept
+  # K_HHs = number of households that reported a Kept catch 
+  # R = released, T = Total 
+  # 
+  # Estimates at a statewide level would be considered to be robust because the sample size is > 30 and rse < 0.40; however, need caution with reporting estimates where comparisons can be made between 2000/01 and iSurveys because of differences in
+  # •	magnitude of estimates between surveys
+  # •	sampling frames – white pages vs RBFL holders
+  # •	primary sampling units – households vs persons
+  # •	survey populations – ABS Estimated Residential Population vs RBFL totals
 Shore.based=read.csv("C:/Matias/Data/Catch and Effort/Recreational/statewide shark 2000_01.csv",stringsAsFactors=F)
 
+# Charter boats
+Charter=read_excel("C:\\Matias\\Data\\Catch and Effort\\Charter\\Charter.xlsx",sheet ='Data')
 
-#WA population for rec catch recons (ABS)
+# WA population for rec catch recons (ABS)
 #source: https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Dec%202018?OpenDocument
 WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors=F)
 
 
 # 2 -------------------PROCEDURE SECTION------------------------------------
+
+#2.1 I-Survey
 Rec.fish.catch=Rec.fish.catch%>%mutate(Bioregion=ifelse(Bioregion%in%c("Gasconye","Gascoyne Coast"),"Gascoyne",Bioregion),
                                        FINYEAR=Survey,
                                        Kept.Number=Estimated.Kept.Catch..by.numbers.,
@@ -61,17 +68,12 @@ AVG.WT=data.frame(Common.Name=c("Bronze Whaler","Greynurse Shark","Gummy Sharks"
                   PCM.rec=c(.1,.1,.2,.4,.4,.1,.1,.1,.1,.1,.1,.1,.1,.05,.2,.2,.1,.1,.1,.1))   #assumed post capture mortality of released sharks        
 AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
 
-
-#Reconstruct population fishing
+#reconstruct population fishing
 dummy=rbind(cbind(Year=c(1940,1950,1960),Population=c(473300,557100,722100)),WA.population)
-  
-
 mod=loess(Population~Year,data=dummy)
 Historic.pop=predict(mod,newdata = data.frame(Year=1941:1970))
 WA.population=rbind(cbind(Year=1941:1970,Population=round(Historic.pop)),
                     WA.population)
-
-
 
 #fix species names
 Rec.fish.catch=Rec.fish.catch%>%
@@ -83,7 +85,7 @@ Rec.fish.catch=Rec.fish.catch%>%
                            ifelse(Common.Name%in%c('Other Sharks','Unspecified Shark',"Sharks"),'Other Shark',
                                   Common.Name))))))
 
-#Reapportion 'whaler sharks' among all reported whaler species
+#reapportion 'whaler sharks' among all reported whaler species
 Whaler.prop=Rec.fish.catch%>%
                 filter(Common.Name%in%c("Dusky Whaler","Sandbar Shark","Bronze Whaler","Tiger Shark",
                                         "Blacktip Reef Shark","Lemon Shark","Whitetip Reef Shark"))%>%
@@ -107,7 +109,7 @@ Rec.fish.catch=Rec.fish.catch%>%
                 filter(!Common.Name=="Whaler Sharks")
 Rec.fish.catch=rbind(Rec.fish.catch,Whaler.reap)
 
-#Reapportion 'other sharks' among all reported shark species                            
+#reapportion 'other sharks' among all reported shark species                            
 Shark.prop=Rec.fish.catch%>%
         filter(!Common.Name%in%c("Other Shark","Western Shovelnose Ray","Rays & Skates","Other Rays and Skates"))%>%
         group_by(Common.Name,Bioregion,FINYEAR)%>%
@@ -116,24 +118,19 @@ Shark.prop=Rec.fish.catch%>%
 Shark.prop$Kept.Number.prop=Shark.prop$Kept.Number/sum(Shark.prop$Kept.Number)
 Shark.prop$Rel.Number.prop=Shark.prop$Rel.Number/sum(Shark.prop$Rel.Number)
 Shark.prop=Shark.prop%>%dplyr::select(-c(Kept.Number,Rel.Number))
-
-
 Other.Sharks=Rec.fish.catch%>%
                filter(Common.Name%in%c("Other Shark"))%>%
         summarise_at(vars(c(Kept.Number,Rel.Number)), sum, na.rm = TRUE)%>%
         data.frame
-
 Other.reap=cbind(Shark.prop,Other.Sharks)%>%
         mutate(Kept.Number=Kept.Number*Kept.Number.prop,
                Rel.Number=Rel.Number*Rel.Number.prop)%>%
         dplyr::select(names(Rec.fish.catch))
-
 Rec.fish.catch=Rec.fish.catch%>%
         filter(!Common.Name=="Other Shark")
 Rec.fish.catch=rbind(Rec.fish.catch,Other.reap)
 
-
-#Reapportion 'hammerheads'
+#reapportion 'hammerheads'
 Rec.fish.catch=Rec.fish.catch%>%
                 mutate(Common.Name=ifelse(Common.Name=='Hammerhead Sharks' &
                                           Bioregion%in%c("Gascoyne","North Coast"),"Scalloped hammerhead",
@@ -191,6 +188,26 @@ for(i in 1:length(Rec.ktch)) Rec.ktch[[i]]=back.fill(dat=Rec.ktch[[i]])
 Rec.ktch=do.call(rbind,Rec.ktch)
 row.names(Rec.ktch)=NULL
 
-#Change Backtip reef shark to spinner if in the south
+#change Backtip reef shark to spinner if in the south
 Rec.ktch=Rec.ktch%>%mutate(Common.Name=ifelse(Common.Name=="Blacktip Reef Shark" & 
                         zone%in%c('South Coast','West Coast'),'Spinner Shark',Common.Name))
+
+
+#2.2 Shore-based
+Shore.to.Boat.ratio=Shore.based$Total[2]/Shore.based$Total[1]
+Rec.ktch$LIVEWT.c= Rec.ktch$LIVEWT.c + Rec.ktch$LIVEWT.c*Shore.to.Boat.ratio
+  
+  
+
+#2.3 Charter boats
+charter.shk.sp=unique(Charter$Species.Common.Name)
+charter.shk.sp=charter.shk.sp[grep('Shark|Whaler|Hammerhead',charter.shk.sp)]
+  
+
+Charter=Charter%>%
+        filter(Species.Common.Name%in%charter.shk.sp)%>%
+        mutate(Mn=month(Month),
+               Year=year(Calendar.Year))%>%
+        data.frame
+
+#ACA: split whaler into species using catch compo of species by zone....then add species code and add to Rec.ktch
