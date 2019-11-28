@@ -1,10 +1,48 @@
+#-- Script for reconstructing time series of recreational catch
+
+#notes: This script uses I-Survey (boat-based) point estimates to reconstruct
+#       time series considering participation rates and WA population growth
+#       Shore-based fishing is added as a proportion of boat-based fishing
+
+
+#MISSING: Check discrepancies betweeen previous files and current files
+#         Add shore base
+#         Add charter boats
+
 library(dplyr)
+
+
+# 1 -------------------DATA SECTION------------------------------------
+#I-Survey
 Rec.hndl="C:/Matias/Data/Catch and Effort/Recreational/I.Survey."
 #Rec.fish.catch.2011.12=read.csv(paste(Rec.hndl,"2011_12.csv",sep=''),stringsAsFactors=F) #Ryan et al 2013 
 #Rec.fish.catch.2013.14=read.csv(paste(Rec.hndl,"2013_14.csv",sep=''),stringsAsFactors=F) #Ryan et al 2015 
 #Rec.fish.catch.2015.16=read.csv(paste(Rec.hndl,"2015_16.csv",sep=''),stringsAsFactors=F) #Ryan et al 2015 
 #Rec.fish.catch=rbind(Rec.fish.catch.2011.12,Rec.fish.catch.2013.14,Rec.fish.catch.2015.16)
 Rec.fish.catch=read.csv(paste(Rec.hndl,"csv",sep=''),stringsAsFactors=F)
+
+
+#Shore-based
+#statewide estimated kept, released & total recreational catch for sharks & rays in 2000_01
+#K_SE = standard error associated with Kept
+# K_RSE = relative standard error associated with Kept
+# K_HHs = number of households that reported a Kept catch 
+# R = released, T = Total 
+# 
+# Estimates at a statewide level would be considered to be robust because the sample size is > 30 and rse < 0.40; however, need caution with reporting estimates where comparisons can be made between 2000/01 and iSurveys because of differences in
+# •	magnitude of estimates between surveys
+# •	sampling frames – white pages vs RBFL holders
+# •	primary sampling units – households vs persons
+# •	survey populations – ABS Estimated Residential Population vs RBFL totals
+Shore.based=read.csv("C:/Matias/Data/Catch and Effort/Recreational/statewide shark 2000_01.csv",stringsAsFactors=F)
+
+
+#WA population for rec catch recons (ABS)
+#source: https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Dec%202018?OpenDocument
+WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors=F)
+
+
+# 2 -------------------PROCEDURE SECTION------------------------------------
 Rec.fish.catch=Rec.fish.catch%>%mutate(Bioregion=ifelse(Bioregion%in%c("Gasconye","Gascoyne Coast"),"Gascoyne",Bioregion),
                                        FINYEAR=Survey,
                                        Kept.Number=Estimated.Kept.Catch..by.numbers.,
@@ -23,9 +61,8 @@ AVG.WT=data.frame(Common.Name=c("Bronze Whaler","Greynurse Shark","Gummy Sharks"
                   PCM.rec=c(.1,.1,.2,.4,.4,.1,.1,.1,.1,.1,.1,.1,.1,.05,.2,.2,.1,.1,.1,.1))   #assumed post capture mortality of released sharks        
 AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
 
-#WA population for rec catch recons (ABS)
-#source: https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Dec%202018?OpenDocument
-WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors=F)
+
+#Reconstruct population fishing
 dummy=rbind(cbind(Year=c(1940,1950,1960),Population=c(473300,557100,722100)),WA.population)
   
 
