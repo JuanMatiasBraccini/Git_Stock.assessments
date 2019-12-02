@@ -68,7 +68,7 @@ Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
 #Total catch
 
   #WA Recreational catch
-source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Recreational.catch.recons.R")
+source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Catch.recons.Recreational.R")
 
   #Commercial catch shark fisheries TDGDLF and NSF
 Data.monthly=read.csv("Data.monthly.csv",stringsAsFactors=F)

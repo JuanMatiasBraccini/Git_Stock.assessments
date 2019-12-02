@@ -6,8 +6,10 @@
 #       Shore-based fishing is added as a proportion of boat-based fishing
 #       Charter boat fishing is also added
 
-#MISSING: add 2017-18 I-Survey
+#For each new I-survey, get data from Karina
+# Also update Charter boat data each year
 
+rm(list=ls(all=TRUE))
 
 library(tidyverse)
 library(readxl)
@@ -17,15 +19,34 @@ library(lubridate)
 Do.recons.rec.fishn.paper="NO"
 
 
+#Catch reconstruction scenarios
+Scenarios=data.frame(Scenario=c('Base Case','Upper 95%','Lower 95%'),
+                     Time.series=c('mean','upper','lower'),
+                     PCM=c(1,1.5,.5))
+
 # 1 -------------------DATA SECTION------------------------------------
 
 # I-Survey
 Rec.hndl="C:/Matias/Data/Catch and Effort/Recreational/I.Survey."
-Rec.fish.catch.2011.12=read.csv(paste(Rec.hndl,"2011_12.csv",sep=''),stringsAsFactors=F) #Ryan et al 2013    
-Rec.fish.catch.2013.14=read.csv(paste(Rec.hndl,"2013_14.csv",sep=''),stringsAsFactors=F) #Ryan et al 2015 
-Rec.fish.catch.2015.16=read.csv(paste(Rec.hndl,"2015_16.csv",sep=''),stringsAsFactors=F) #Ryan et al 2015 
-Rec.fish.catch=rbind(Rec.fish.catch.2011.12,Rec.fish.catch.2013.14,Rec.fish.catch.2015.16)
-#Rec.fish.catch=read.csv(paste(Rec.hndl,"csv",sep=''),stringsAsFactors=F)
+#Rec.fish.catch.2011.12=read.csv(paste(Rec.hndl,"2011_12.csv",sep=''),stringsAsFactors=F) #Ryan et al 2013    
+#Rec.fish.catch.2013.14=read.csv(paste(Rec.hndl,"2013_14.csv",sep=''),stringsAsFactors=F) #Ryan et al 2015 
+#Rec.fish.catch.2015.16=read.csv(paste(Rec.hndl,"2015_16.csv",sep=''),stringsAsFactors=F) #Ryan et al 2017 
+#Rec.fish.catch=rbind(Rec.fish.catch.2011.12,Rec.fish.catch.2013.14,Rec.fish.catch.2015.16)
+Rec.fish.catch=read.csv(paste(Rec.hndl,"csv",sep=''),stringsAsFactors=F)
+Rec.fish.catch=Rec.fish.catch%>%
+            mutate(FinYear=paste(2000+as.numeric(substr(Year,1,2)),substr(Year,3,4),sep="-"),
+                   Bioregion=paste(sapply(strsplit(Rec.fish.catch$RegionReportingGroupName, "_"), "[", 2),
+                                   sapply(strsplit(Rec.fish.catch$RegionReportingGroupName, "_"), "[", 3)),
+                   Common.Name=Lowlevelgrouping,
+                   Scientific.Name=ScientificName,
+                   Kept.Number=Kept,
+                   Kept.Number.se=se.Kept,
+                   Rel.Number=Released,
+                   Rel.Number.se=se.Released,
+                   Caught.Number=Total,
+                   Caught.Number.se=se.Total)%>%
+      dplyr::select(Common.Name,Scientific.Name,Kept.Number,Kept.Number.se,Rel.Number,
+                   Rel.Number.se,Caught.Number,Caught.Number.se,Bioregion,FinYear)
 I.survey.years=unique(Rec.fish.catch$FinYear)
 
 # Shore-based
@@ -79,24 +100,19 @@ AVG.WT=data.frame(Common.Name=c("Bronze Whaler","Greynurse Shark","Gummy Sharks"
                                 "Silky Shark","Silvertip Shark",                          
                                 "Sliteye Shark","Spinner Shark",                            
                                 "Tawny Shark","Thresher Shark",                        
-                                "Zebra Shark"),
+                                "Zebra Shark",
+                                "Sawfishes"),
                   AVG.wt=c(6.7,6.7,4.2,6.7,6.7,6.7,6.7,6.7,6.7,5,4.2,4.2,4.2,4.2,6.7,6.7,6.7,6.7,
-                           rep(6.7,5),4.2,rep(6.7,3),4.2,rep(6.7,7)), 
+                           rep(6.7,5),4.2,rep(6.7,3),4.2,rep(6.7,7),10), 
                   PCM.rec=c(Asmd,Asmd,.1,.7,.7,Asmd,Asmd,Asmd,Asmd,Asmd,Asmd,.05,Asmd,Asmd,Asmd,
                             Asmd,Asmd,Asmd,
-                            rep(Asmd,5),.5,rep(Asmd,2),Asmd,rep(Asmd,8)))           
+                            rep(Asmd,5),.5,rep(Asmd,2),Asmd,rep(Asmd,9)))           
 AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
 
-#reconstruct population fishing
-dummy=rbind(cbind(Year=c(1940,1950,1960),Population=c(473300,557100,722100)),WA.population)
-mod=loess(Population~Year,data=dummy)
-Historic.pop=predict(mod,newdata = data.frame(Year=1941:1970))
-WA.population=rbind(cbind(Year=1941:1970,Population=round(Historic.pop)),
-                    WA.population)
 
 #fix species names
 Rec.fish.catch=Rec.fish.catch%>%
-        mutate(Common.Name=ifelse(Bioregion%in%c("Gascoyne","North Coast") & 
+        mutate(Common.Name=ifelse(Bioregion%in%c("Gascoyne","Gascoyne Coast","North Coast") & 
                                          Common.Name=="Bronze Whaler","Dusky Whaler",
                            ifelse(Common.Name%in%c('Whaler Shark – other',"Whaler & Weasel Sharks"),'Whaler Sharks',
                            ifelse(Common.Name=='Hammerhead Shark','Hammerhead Sharks',
@@ -115,8 +131,9 @@ Whaler.prop$Kept.Number.prop=Whaler.prop$Kept.Number/sum(Whaler.prop$Kept.Number
 Whaler.prop$Rel.Number.prop=Whaler.prop$Rel.Number/sum(Whaler.prop$Rel.Number)
 Whaler.prop=Whaler.prop%>%dplyr::select(-c(Kept.Number,Rel.Number))
 
+Reap.whalers=c('Other Whaler',"Whaler Sharks","Whaler Shark - other")
 Whaler.Sharks=Rec.fish.catch%>%
-                filter(Common.Name%in%c("Whaler Sharks","Whaler Shark - other"))%>%
+                filter(Common.Name%in%Reap.whalers)%>%
                 summarise_at(vars(c(Kept.Number,Rel.Number)), sum, na.rm = TRUE)%>%
                 data.frame
 Whaler.reap=cbind(Whaler.prop,Whaler.Sharks)%>%
@@ -125,7 +142,7 @@ Whaler.reap=cbind(Whaler.prop,Whaler.Sharks)%>%
         dplyr::select(names(Rec.fish.catch))
      
 Rec.fish.catch=Rec.fish.catch%>%
-                filter(!Common.Name%in%c("Whaler Sharks","Whaler Shark - other"))
+                filter(!Common.Name%in%Reap.whalers)
 Rec.fish.catch=rbind(Rec.fish.catch,Whaler.reap)
 
 #reapportion 'other sharks' among all reported shark species                            
@@ -149,6 +166,7 @@ Rec.fish.catch=Rec.fish.catch%>%
         filter(!Common.Name=="Other Shark")
 Rec.fish.catch=rbind(Rec.fish.catch,Other.reap)
 
+Rec.fish.catch.alone=Rec.fish.catch   #keep copy
 
 # 3 -------------------Shore-based------------------------------------
   #get  shore:boat ratio
@@ -268,10 +286,20 @@ Rec.fish.catch=Rec.fish.catch%>%
 
 
 # 6 -------------------Reconstruct time series------------------------------------
-fn.rec=function(DAT)
+
+#reconstruct size of population fishing
+Part.rate=mean(c(Part.rate.hist,Part.rate.89,Part.rate.00))  #mean fishing participating rate
+
+dummy=rbind(cbind(Year=c(1940,1950,1960),Population=c(473300,557100,722100)),WA.population)
+mod=loess(Population~Year,data=dummy)
+Historic.pop=predict(mod,newdata = data.frame(Year=1941:1970))
+WA.population=rbind(cbind(Year=1941:1970,Population=round(Historic.pop)),
+                    WA.population)
+
+fn.rec=function(DAT,PCM.scen)
 {
         AGG=DAT%>%left_join(AVG.WT,by="Common.Name")%>%
-                  mutate(LIVEWT.c=ceiling((Kept.Number+Rel.Number*PCM.rec)*AVG.wt))%>%
+                  mutate(LIVEWT.c=ceiling((Kept.Number+Rel.Number*PCM.rec*PCM.scen)*AVG.wt))%>%
                 group_by(FINYEAR,Common.Name,Bioregion)%>%
                 summarise(LIVEWT.c=sum(LIVEWT.c))%>%
                 data.frame
@@ -284,25 +312,32 @@ fn.rec=function(DAT)
         }
         return(LisT)
 }
-Rec.ktch=fn.rec(DAT=Rec.fish.catch)  
+Rec.ktch=vector('list',length(Scenarios))
+names(Rec.ktch)=Scenarios$Scenario
+for(s in 1:length(Rec.ktch))
+{
+  Rec.ktch[[s]]=fn.rec(DAT=subset(Rec.fish.catch,FINYEAR%in%I.survey.years),
+                       PCM.scen=Scenarios$PCM[s])   
+}
 
-Part.rate=mean(c(Part.rate.hist,Part.rate.89,Part.rate.00))
 Fishing.population=(Part.rate/100)*WA.population$Population
 Fishing.population=Fishing.population/Fishing.population[match(2011,WA.population$Year)] #relative to 2011-12
 Fishing.population=data.frame(Size=Fishing.population[1:(length(Fishing.population)-1)],
                              FinYear=paste(WA.population$Year[1:(length(WA.population$Year)-1)],"-",
                                         substr(WA.population$Year[2:length(WA.population$Year)],start=3,stop=4),sep=""))
 
-back.fill=function(dat)
+back.fill=function(dat,scen)
 {
-        id=match(unique(dat$FINYEAR),Fishing.population$FinYear)
         Regns=unique(dat$Bioregion)
         Dummy=vector('list',length(Regns))
         for (d in 1:length(Dummy))
         {
                 a=subset(dat,Bioregion==Regns[d])
                 Mat=matrix(NA,nrow=length(Fishing.population$FinYear),ncol=2)
-                Mat[,2]=mean(a$LIVEWT.c)*Fishing.population$Size
+                if(scen=='mean') VAL=mean(a$LIVEWT.c)
+                if(scen=='upper') VAL=quantile(a$LIVEWT.c,.975)
+                if(scen=='lower') VAL=quantile(a$LIVEWT.c,.025)
+                Mat[,2]=VAL*Fishing.population$Size
                 Mat=as.data.frame(Mat)
                 names(Mat)=c("FINYEAR","LIVEWT.c")
                 Mat$FINYEAR=Fishing.population$FinYear
@@ -313,10 +348,18 @@ back.fill=function(dat)
         Dummy=do.call(rbind,Dummy)
         return(Dummy)
 }
-for(i in 1:length(Rec.ktch)) Rec.ktch[[i]]=back.fill(dat=Rec.ktch[[i]])
-Rec.ktch=do.call(rbind,Rec.ktch)
-row.names(Rec.ktch)=NULL
-
+for(s in 1:length(Rec.ktch))
+{
+  DumY=vector('list',length(Rec.ktch[[s]]))
+  names(DumY)=names(Rec.ktch[[s]])
+  for(i in 1:length(DumY))DumY[[i]]=back.fill(dat=Rec.ktch[[s]][[i]],scen=Scenarios$Time.series[s])
+  DumY=do.call(rbind,DumY)
+  row.names(DumY)=NULL 
+  Rec.ktch[[s]]=DumY
+}
+Rec.ktch.Upper=Rec.ktch$`Upper 95%`
+Rec.ktch.Lower=Rec.ktch$`Lower 95%`
+Rec.ktch=Rec.ktch$`Base Case`
 
 
 
@@ -328,8 +371,33 @@ if(Do.recons.rec.fishn.paper=="YES")
   #export weight and PCS table
   write.csv(AVG.WT[order(AVG.WT$Common.Name),],paste(hndl.out,"Appendix.Table.wght.PCS.csv",sep=''),row.names = FALSE)
   
-  #Species proportions by zone based on Isurvey and Charter data
-  Ktch.by.sp.zn=Rec.fish.catch %>%
+  #1. Species proportions (by number) for each bioregion based on original Isurvey and Charter data
+  Rec.fish.catch.alone$source='Isurvey'
+  Charter$source='Charter'
+  Dat.show=rbind(Rec.fish.catch.alone,Charter)    
+  Dat.show=Dat.show%>%
+    mutate(Common.Name=ifelse(Common.Name=="Blacktip reef shark","Blacktip Reef Shark",
+                       ifelse(Common.Name=="Whitetip reef shark","Whitetip Reef Shark",
+                       ifelse(Common.Name=='Gulper sharks, Sleeper Sharks & Dogfishes','Dogfishes',
+                       ifelse(Common.Name=='Blind, Nurse, Carpet & Zebra Sharks','Zebra Shark',
+                       ifelse(Common.Name=='Other Rays and Skates','Rays & Skates',
+                       ifelse(Common.Name=='Sawshark','Sawsharks',
+                       ifelse(Common.Name=="School Shark" & 
+                                    Bioregion%in%c('North Coast'),'Gummy Sharks',
+                       ifelse(Common.Name=="Blacktip Reef Shark" & 
+                                    Bioregion%in%c('South Coast','West Coast'),'Spinner Shark',
+                       ifelse(Common.Name=="Gummy Shark","Gummy Sharks",Common.Name))))))))))
+  
+  Dat.show=Dat.show%>%
+    mutate(Common.Name=ifelse(Common.Name=='Hammerhead Sharks' & Bioregion%in%c("Gascoyne",
+                                  "North Coast","Gascoyne Coast"),"Scalloped hammerhead",
+                       ifelse(Common.Name=='Hammerhead Sharks' &
+                                    Bioregion%in%c("West Coast","South Coast"),"Smooth hammerhead",
+                       ifelse(Common.Name=='Scalloped Hammerhead',"Scalloped hammerhead",
+                       ifelse(Common.Name=='Smooth Hammerhead',"Smooth hammerhead",
+                       Common.Name)))))  
+  
+  Ktch.by.sp.zn=Dat.show %>%
     filter(FINYEAR%in%I.survey.years)%>%
     mutate(Tot=Kept.Number+ Rel.Number)%>%
     group_by(Bioregion, Common.Name) %>%
@@ -357,38 +425,73 @@ if(Do.recons.rec.fishn.paper=="YES")
   Ktch.by.sp.zn=Ktch.by.sp.zn%>%select(Common.Name,'North Coast',
                         'Gascoyne Coast','West Coast','South Coast')
   
+  COls=c('grey90','grey70','grey40','grey10')
+  names(COls)=c('North Coast','Gascoyne Coast','West Coast','South Coast')
   
-
   tiff(file=paste(hndl.out,"Fig2. Proportion.tiff",sep=''),width=2400,height=2400,
        units="px",res=300,compression="lzw")
-  par(mar=c(2.5,8,1,3),oma=c(.1,.1,.1,.1),mgp=c(.1,.3,0),las=1,xpd=TRUE)
-  s=barplot(t(as.matrix(Ktch.by.sp.zn[,-1])),horiz=T,
+  par(mar=c(2.5,8,.5,3),oma=c(.1,.1,.1,.1),mgp=c(.1,.3,0),las=1,xpd=TRUE)
+  s=barplot(t(as.matrix(Ktch.by.sp.zn[,-1])),horiz=T,col=COls,
           names.arg = Ktch.by.sp.zn$Common.Name,cex.names=.8,
           legend.text=T,args.legend=list(x=1,y=nrow(Ktch.by.sp.zn)+8,
-                                         bty='n',horiz=T,cex=.9))
+                                         bty='n',horiz=T,cex=1.1))
   text(.99,s,paste("n=",round(Sp.tot)),pos=4,cex=.8)
   mtext("Proportion",1,1.5,cex=1.5)
   dev.off()
   
-  
-  #MDS
+  #2. Multivariate
+    #MDS comparing bioregions from I-survey and Charter (using same years)
   library(vegan)
   library(network)
-  MDS=Rec.fish.catch %>%
+  MDS=Dat.show %>%
     filter(FINYEAR%in%I.survey.years)%>%
-    mutate(Tot=Kept.Number+ Rel.Number)%>%
-    group_by(Bioregion, FINYEAR,Common.Name) %>%
+    mutate(Tot=round(Kept.Number+ Rel.Number))%>%
+    group_by(Bioregion, FINYEAR,source,Common.Name) %>%
     summarise(n = sum(Tot,na.rm=T))%>%
     spread(Common.Name,n,fill=0)
-  Factors=MDS%>%select(Bioregion,FINYEAR)
+  Factors=MDS%>%select(Bioregion,source,FINYEAR)
   Factors$FINYEAR=substr(Factors$FINYEAR,1,4)
-  col.nms=colnames(MDS)[-(1:2)]
-  MDS=as.matrix(MDS[,-(1:2)])
+  col.nms=colnames(MDS)[-(1:ncol(Factors))]
+  MDS=as.matrix(MDS[,-(1:ncol(Factors))])
   MDS=sqrt(MDS) #apply sqrt transf
   #MDS=MDS^(1/4) #4th root trans
   colnames(MDS)=col.nms
   NMDS=metaMDS(MDS,k=2,trymax=100)
+  
+  dummi=data.frame(col=COls,Bioregion=names(COls))
+  dummi$col=as.character(dummi$col)
+  dummi$Bioregion=as.character(dummi$Bioregion)
+  Factors=left_join(Factors,dummi,by='Bioregion')
+  Factors$Shape=with(Factors,ifelse(source=='Charter',21,24))
+  
+  tiff(file=paste(hndl.out,"Fig3. MDS.tiff",sep=''),width=2400,height=2400,
+       units="px",res=300,compression="lzw")
+  par(mar=c(3,1,3,1),oma=c(.1,.1,.1,.1),mgp=c(.1,.3,0),las=1,xpd=TRUE)
+  plot(NMDS$points[,1],NMDS$points[,2],bg=Factors$col,cex=2,
+       pch=Factors$Shape,ann=F,xaxt='n',yaxt='n')
+  #text(NMDS$points[,1],NMDS$points[,2],Factors$FINYEAR,col=as.color(Factors$Bioregion),cex=.8)
+  legend('bottomright',paste("Stress=",round(NMDS$stress,2)),bty='n')
+  legend(x=-.4,y=-.96,c("I-survey","Charter"),pch=c(24,21),pt.cex=1.5,bty='n',horiz = T,cex=1.25)
+  legend(x=-1.75,y=1.4,names(COls),pch=22,pt.bg=COls,pt.cex=2,bty='n',horiz = T,cex=1.2)
+  dev.off()
+  
+  
+    #Simper to find species making the difference
+  Factors.env=subset(Factors,select=c(Bioregion,source))
+  Factors.env$Bioregion=factor(Factors.env$Bioregion,levels=names(COls))
+  Factors.env$source=factor(Factors.env$source)
+  
+  SIMPER.bioregion <- with(Factors.env, simper(MDS, Bioregion))
+  SIMPER.bioregion=summary(SIMPER.bioregion)
+  
+  SIMPER.source <- with(Factors.env, simper(MDS, source))
+  SIMPER.source=summary(SIMPER.source)
+  
+  capture.output(SIMPER.bioregion, file = paste(hndl.out,'SIMPER.bioregion.txt',sep=''))
+  capture.output(SIMPER.source, file = paste(hndl.out,'SIMPER.source.txt',sep=''))
+  
+  
+  #3. Temporal trends in reconstructed catches    
+  #ACA. plot this Rec.ktch.Lower,  Rec.ktch, Rec.ktch.Upper  as done in 'Other Assessment'
 
-  plot(NMDS$points[,1],NMDS$points[,2],col='transparent')
-  text(NMDS$points[,1],NMDS$points[,2],Factors$FINYEAR,col=as.color(Factors$Bioregion),cex=.8)
 }
