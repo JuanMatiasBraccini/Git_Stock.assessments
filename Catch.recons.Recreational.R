@@ -1,13 +1,39 @@
 #-- Script for reconstructing time series of recreational catch of sharks in WA
 
+# Annual updates:
+        # For each new I-survey, get data from Karina
+        # Update Charter boat data each year
+
 #notes: This script uses I-Survey (boat-based) point estimates to reconstruct
 #       time series considering rec fishing participation rates and WA 
 #       population growth
 #       Shore-based fishing is added as a proportion of boat-based fishing
 #       Charter boat fishing is also added
 
-#For each new I-survey, get data from Karina
-# Also update Charter boat data each year
+#Notes on Charter boat (from Rhonda):
+#       There is no reliable charter data before this date as it was not compulsory to send in logbook sheets.
+#       Compulsory logbooks were introduced in 2001.
+#       We have  a little data on the sharks for 1998 and 2000
+
+#To address charter boat issue reconstructed catch time series are
+# calculated using only the Isurvey years (combining Isurvey, beach fishing and charter
+#  boats which should be reliable) and the back calculating using WA population size
+#  and participating rate
+
+#Notes on Isurvey (from Karina):
+# The data is an extract of what will be the most up-to-date iSurvey data to be made
+#   available on fishcube in the near future, however, there are final checks to complete
+#   before release – will let you know when final estimates are available# 
+# The variable names all appear to be correct for your coding; the variable names
+#   may change slightly as there may be some differences between the extract provided and fishcube 
+# The variables Kept, Released and Total have always been estimates with decimals, 
+#   but rounded to integers for publication / release – and should have been rounded in the extract 
+# Please note a comment in your publication needs to be made about reliability of 
+#   estimates – for our purposes robust estimates are where relative standard error <40% and 
+#   sample size is >30 respondents, e.g. tables in iSurvey report shows estimates in bold to 
+#   indicate relative standard error >40% (i.e. se >40% of estimate); in italics to 
+#   indicate <30 respondents recorded catches of the species) to indicate unreliable estimates
+
 
 rm(list=ls(all=TRUE))
 
@@ -22,7 +48,8 @@ Do.recons.rec.fishn.paper="NO"
 #Catch reconstruction scenarios
 Scenarios=data.frame(Scenario=c('Base Case','Upper 95%','Lower 95%'),
                      Time.series=c('mean','upper','lower'),
-                     PCM=c(1,1.5,.5))
+                     PCM=c(1,1.5,.5),
+                     Weight=c(1,1.5,.5))
 
 # 1 -------------------DATA SECTION------------------------------------
 
@@ -33,20 +60,26 @@ Rec.hndl="C:/Matias/Data/Catch and Effort/Recreational/I.Survey."
 #Rec.fish.catch.2015.16=read.csv(paste(Rec.hndl,"2015_16.csv",sep=''),stringsAsFactors=F) #Ryan et al 2017 
 #Rec.fish.catch=rbind(Rec.fish.catch.2011.12,Rec.fish.catch.2013.14,Rec.fish.catch.2015.16)
 Rec.fish.catch=read.csv(paste(Rec.hndl,"csv",sep=''),stringsAsFactors=F)
+Scien.nm=Rec.fish.catch%>%
+            rename(Common.Name=Lowlevelgrouping,
+                   Scientific.name=ScientificName)%>%
+            select(Common.Name,Scientific.name)%>%
+            distinct(Common.Name,.keep_all=T)
+
 Rec.fish.catch=Rec.fish.catch%>%
             mutate(FinYear=paste(2000+as.numeric(substr(Year,1,2)),substr(Year,3,4),sep="-"),
                    Bioregion=paste(sapply(strsplit(Rec.fish.catch$RegionReportingGroupName, "_"), "[", 2),
                                    sapply(strsplit(Rec.fish.catch$RegionReportingGroupName, "_"), "[", 3)),
                    Common.Name=Lowlevelgrouping,
                    Scientific.Name=ScientificName,
-                   Kept.Number=Kept,
+                   Kept.Number=ceiling(Kept),
                    Kept.Number.se=se.Kept,
-                   Rel.Number=Released,
+                   Rel.Number=ceiling(Released),
                    Rel.Number.se=se.Released,
-                   Caught.Number=Total,
-                   Caught.Number.se=se.Total)%>%
-      dplyr::select(Common.Name,Scientific.Name,Kept.Number,Kept.Number.se,Rel.Number,
-                   Rel.Number.se,Caught.Number,Caught.Number.se,Bioregion,FinYear)
+                   RSE=rse.Total,
+                   Sample.size=counts)%>%
+      dplyr::select(FinYear,Bioregion,Sample.size,Common.Name,Scientific.Name,
+                    Kept.Number,Kept.Number.se,Rel.Number,Rel.Number.se,RSE)
 I.survey.years=unique(Rec.fish.catch$FinYear)
 
 # Shore-based
@@ -61,6 +94,7 @@ Shore.based=read.csv("C:/Matias/Data/Catch and Effort/Recreational/statewide sha
 # Charter boats
 Charter=read_excel("C:\\Matias\\Data\\Catch and Effort\\Charter\\Charter.xlsx",sheet ='Data')
 
+
 # WA population for rec catch recons (ABS)
 #source: https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Dec%202018?OpenDocument
 WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors=F)
@@ -72,43 +106,66 @@ Part.rate.00=28.5
 
 # 2 -------------------I-Survey------------------------------------
 Rec.fish.catch=Rec.fish.catch%>%
-      mutate(Bioregion=ifelse(Bioregion%in%c("Gasconye","Gascoyne","Gascoyne Coast"),"Gascoyne Coast",Bioregion),
-             FINYEAR=FinYear)%>% 
+      mutate(Bioregion=ifelse(Bioregion%in%c("Gasconye","Gascoyne","Gascoyne Coast"),
+                              "Gascoyne Coast",Bioregion))%>%
+      rename(FINYEAR=FinYear)
+
+RSE.weight=Rec.fish.catch%>%
+  dplyr::select(FINYEAR,Bioregion,Common.Name,RSE)  
+
+Rec.fish.catch=Rec.fish.catch%>% 
     dplyr::select(Common.Name,Kept.Number,Rel.Number,Bioregion,FINYEAR)
 
 #Rec catch weights and assumed post capture mortality of released individuals
-#Sources: 
-#     average weight sourced from Smallwood et al 2018 FRR 278 (Appendix 4)
-#     scalloped HH PCS=0.4 (Gulak et al 2015)
-#     Gummy PCS=0.9  (Frick et al 2010)
-#     School PCS=0.9  (Rogers et al 2017)
-#     Dusky PCS=0.75   (Gallagher et al 2014, though this is at vessel survival)
-#     Tiger=0.95   (Gallagher et al 2014, though this is at vessel survival)
-#     Blue=0.8   (Gallagher et al 2014, though this is at vessel survival)
-#     Oceanic white tip=0.75   (Gallagher et al 2014, though this is at vessel survival)
-Asmd=0.3  #Precautious PCM
-AVG.WT=data.frame(Common.Name=c("Bronze Whaler","Greynurse Shark","Gummy Sharks","Scalloped hammerhead",
-                                "Smooth hammerhead","Sandbar Shark","Tiger Shark","Wobbegong",             
-                                "Western Shovelnose Ray","Rays & Skates","Sawsharks",             
-                                "Port Jackson Shark","Whiskery Shark","School Shark","Blacktip Reef Shark",   
-                                "Dusky Whaler","Lemon Shark","Whitetip Reef Shark",
-                                "Australian Blacktip Shark","Bignose Shark",                            
-                                "Blue Shark","Bull Shark",                               
-                                "Grey Reef Shark","Dogfishes",
-                                "Nervous Shark","Oceanic Whitetip Shark",                    
-                                "Pencil Shark","Pigeye Shark",                             
-                                "Silky Shark","Silvertip Shark",                          
-                                "Sliteye Shark","Spinner Shark",                            
-                                "Tawny Shark","Thresher Shark",                        
-                                "Zebra Shark",
-                                "Sawfishes"),
-                  AVG.wt=c(6.7,6.7,4.2,6.7,6.7,6.7,6.7,6.7,6.7,5,4.2,4.2,4.2,4.2,6.7,6.7,6.7,6.7,
-                           rep(6.7,5),4.2,rep(6.7,3),4.2,rep(6.7,7),10), 
-                  PCM.rec=c(Asmd,Asmd,.1,.7,.7,Asmd,Asmd,Asmd,Asmd,Asmd,Asmd,.05,Asmd,Asmd,Asmd,
-                            Asmd,Asmd,Asmd,
-                            rep(Asmd,5),.5,rep(Asmd,2),Asmd,rep(Asmd,9)))           
-AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
+# Source of data: 
+  #Average weight:
+#   average weight sourced from Smallwood et al 2018 FRR 278 (Appendix 4)
+Mn.w.gum=4.2
+Mn.w.whi=3.7
+Mn.w.whalr=5.4
+Mn.w.wobi=6.7
+Mn.w.ray=.5
+#   assumed average across what's landed on beach and by boat, given observations
+#   of beach trophy fishing
+Mn.w.trophy=25     
 
+  #PCM:
+#   scalloped HH PCS=0.4 (Gulak et al 2015)
+#   Gummy PCS=0.9  (Frick et al 2010)
+#   School PCS=0.9  (Rogers et al 2017)
+#   Dusky PCS=0.75   (Gallagher et al 2014, though this is at vessel survival)
+#   Tiger=0.95   (Gallagher et al 2014, though this is at vessel survival)
+#   Blue=0.8   (Gallagher et al 2014, though this is at vessel survival)
+#   Oceanic white tip=0.75   (Gallagher et al 2014, though this is at vessel survival)
+
+# Give the lack of PCM info but the expected low PCM, a precautious value is 
+#  assumed (this is considered in Sensitivity Scenarios)
+Asmd=0.3  
+
+Trophy.ktch=c("Greynurse Shark","Sawfishes","Scalloped hammerhead","Smooth hammerhead","Tiger Shark")
+Small.shrk=c('Dogfishes',"Gummy Sharks","Pencil Shark","Nervous Shark","Port Jackson Shark",
+             "Sawsharks","School Shark","Sliteye Shark")
+AVG.WT=data.frame(
+  Common.Name=c(
+    "Australian Blacktip Shark","Bignose Shark","Blacktip Reef Shark","Blue Shark","Bronze Whaler","Bull Shark",
+    "Dogfishes","Dusky Whaler","Grey Reef Shark","Greynurse Shark","Gummy Sharks","Lemon Shark","Nervous Shark",
+    "Oceanic Whitetip Shark","Pencil Shark","Pigeye Shark","Port Jackson Shark","Rays & Skates","Sandbar Shark",
+    "Sawfishes","Sawsharks","Scalloped hammerhead","School Shark","Silky Shark","Silvertip Shark","Sliteye Shark",
+    "Smooth hammerhead","Spinner Shark","Tawny Shark","Thresher Shark","Tiger Shark","Western Shovelnose Ray",
+    "Whiskery Shark","Whitetip Reef Shark","Wobbegong","Zebra Shark"),
+  AVG.wt=rep(Mn.w.whalr,36), 
+  PCM.rec=rep(Asmd,36))%>%
+  mutate(AVG.wt=ifelse(Common.Name%in%Trophy.ktch,Mn.w.trophy,
+                ifelse(Common.Name%in%Small.shrk,Mn.w.gum,
+                ifelse(Common.Name=="Whiskery Shark",Mn.w.whi,
+                ifelse(Common.Name=="Rays & Skates",Mn.w.ray,
+                ifelse(Common.Name=="Wobbegong",Mn.w.wobi,
+                AVG.wt))))),
+        PCM.rec=ifelse(Common.Name=="Port Jackson Shark",.05,
+                ifelse(Common.Name%in%c("Scalloped hammerhead","Smooth hammerhead"),0.7,
+                ifelse(Common.Name=="Gummy Sharks",.1,PCM.rec))))%>%  
+  arrange(Common.Name)
+AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
 
 #fix species names
 Rec.fish.catch=Rec.fish.catch%>%
@@ -147,7 +204,8 @@ Rec.fish.catch=rbind(Rec.fish.catch,Whaler.reap)
 
 #reapportion 'other sharks' among all reported shark species                            
 Shark.prop=Rec.fish.catch%>%
-        filter(!Common.Name%in%c("Other Shark","Western Shovelnose Ray","Rays & Skates","Other Rays and Skates"))%>%
+        filter(!Common.Name%in%c("Other Shark","Western Shovelnose Ray",
+                                 "Rays & Skates","Other Rays and Skates"))%>%
         group_by(Common.Name,Bioregion,FINYEAR)%>%
         summarise_at(vars(c(Kept.Number,Rel.Number)), sum, na.rm = TRUE)%>%
         data.frame
@@ -296,10 +354,19 @@ Historic.pop=predict(mod,newdata = data.frame(Year=1941:1970))
 WA.population=rbind(cbind(Year=1941:1970,Population=round(Historic.pop)),
                     WA.population)
 
-fn.rec=function(DAT,PCM.scen)
+Fishing.population=(Part.rate/100)*WA.population$Population
+Fishing.population=Fishing.population/Fishing.population[match(2011,WA.population$Year)] #relative to 2011-12
+Fishing.population=data.frame(
+  Size=Fishing.population[1:(length(Fishing.population)-1)],
+  FinYear=paste(WA.population$Year[1:(length(WA.population$Year)-1)],"-",
+                substr(WA.population$Year[2:length(WA.population$Year)],start=3,stop=4),sep="")
+)
+
+  #get catch weight for each species
+fn.rec=function(DAT,PCM.scen,Wght.scen)  
 {
         AGG=DAT%>%left_join(AVG.WT,by="Common.Name")%>%
-                  mutate(LIVEWT.c=ceiling((Kept.Number+Rel.Number*PCM.rec*PCM.scen)*AVG.wt))%>%
+                  mutate(LIVEWT.c=ceiling((Kept.Number+Rel.Number*PCM.rec*PCM.scen)*AVG.wt*Wght.scen))%>%
                 group_by(FINYEAR,Common.Name,Bioregion)%>%
                 summarise(LIVEWT.c=sum(LIVEWT.c))%>%
                 data.frame
@@ -312,41 +379,57 @@ fn.rec=function(DAT,PCM.scen)
         }
         return(LisT)
 }
-Rec.ktch=vector('list',length(Scenarios))
+Rec.ktch=vector('list',nrow(Scenarios))
 names(Rec.ktch)=Scenarios$Scenario
 for(s in 1:length(Rec.ktch))
 {
   Rec.ktch[[s]]=fn.rec(DAT=subset(Rec.fish.catch,FINYEAR%in%I.survey.years),
-                       PCM.scen=Scenarios$PCM[s])   
+                       PCM.scen=Scenarios$PCM[s],
+                       Wght.scen=Scenarios$Weight[s])   
 }
 
-Fishing.population=(Part.rate/100)*WA.population$Population
-Fishing.population=Fishing.population/Fishing.population[match(2011,WA.population$Year)] #relative to 2011-12
-Fishing.population=data.frame(Size=Fishing.population[1:(length(Fishing.population)-1)],
-                             FinYear=paste(WA.population$Year[1:(length(WA.population$Year)-1)],"-",
-                                        substr(WA.population$Year[2:length(WA.population$Year)],start=3,stop=4),sep=""))
-
+  #reconstruct time series
 back.fill=function(dat,scen)
 {
-        Regns=unique(dat$Bioregion)
-        Dummy=vector('list',length(Regns))
-        for (d in 1:length(Dummy))
-        {
-                a=subset(dat,Bioregion==Regns[d])
-                Mat=matrix(NA,nrow=length(Fishing.population$FinYear),ncol=2)
-                if(scen=='mean') VAL=mean(a$LIVEWT.c)
-                if(scen=='upper') VAL=quantile(a$LIVEWT.c,.975)
-                if(scen=='lower') VAL=quantile(a$LIVEWT.c,.025)
-                Mat[,2]=VAL*Fishing.population$Size
-                Mat=as.data.frame(Mat)
-                names(Mat)=c("FINYEAR","LIVEWT.c")
-                Mat$FINYEAR=Fishing.population$FinYear
-                Mat$zone=Regns[d]
-                Mat$Common.Name=dat$Common.Name[1]
-                Dummy[[d]]=Mat
-        }
-        Dummy=do.call(rbind,Dummy)
-        return(Dummy)
+  Regns=unique(dat$Bioregion)
+  Dummy=vector('list',length(Regns))
+  for (d in 1:length(Dummy))
+  {
+      a=subset(dat,Bioregion==Regns[d])
+      Mat=matrix(NA,nrow=length(Fishing.population$FinYear),ncol=2)
+     if(scen=='mean')
+     {
+       rse.W=subset(RSE.weight,Common.Name==a$Common.Name[1] & Bioregion==a$Bioregion[1])
+       if(nrow(rse.W)==0) rse.w=mean(RSE.weight$RSE)
+       if(nrow(rse.W)>0)  rse.w=rse.W$RSE
+       if(!length(a$LIVEWT.c)==length(rse.w))
+       {
+         if(nrow(rse.W)==0) rse.w=rep(rse.w,length(a$LIVEWT.c))
+         if(nrow(rse.W)>0)
+         {
+           misn.id=which(!a$FINYEAR%in%rse.W$FINYEAR)
+           misn=rse.W[1:length(misn.id),]
+           misn$FINYEAR=a$FINYEAR[misn.id]
+           misn$RSE=max(rse.W$RSE)
+           rse.W=rbind(rse.W,misn)%>%arrange(FINYEAR)
+           rse.w=rse.W$RSE
+         }
+       }
+       VAL=weighted.mean(a$LIVEWT.c,w=1/rse.w)   #weighted mean by RSE
+     }
+     if(scen=='upper') VAL=quantile(a$LIVEWT.c,.975)
+     if(scen=='lower') VAL=quantile(a$LIVEWT.c,.025)
+                  
+     Mat[,2]=VAL*Fishing.population$Size
+     Mat=as.data.frame(Mat)
+     names(Mat)=c("FINYEAR","LIVEWT.c")
+     Mat$FINYEAR=Fishing.population$FinYear
+     Mat$zone=Regns[d]
+     Mat$Common.Name=dat$Common.Name[1]
+     Dummy[[d]]=Mat
+  }
+  Dummy=do.call(rbind,Dummy)
+  return(Dummy)
 }
 for(s in 1:length(Rec.ktch))
 {
@@ -369,7 +452,10 @@ if(Do.recons.rec.fishn.paper=="YES")
   hndl.out="C:\\Matias\\Analyses\\Reconstruction_catch_recreational\\"
   
   #export weight and PCS table
-  write.csv(AVG.WT[order(AVG.WT$Common.Name),],paste(hndl.out,"Appendix.Table.wght.PCS.csv",sep=''),row.names = FALSE)
+  Tab.1=left_join(AVG.WT,Scien.nm,by='Common.Name')%>%
+    arrange(Common.Name)%>%
+    select(Common.Name,Scientific.name,AVG.wt,PCM.rec)
+  write.csv(Tab.1,paste(hndl.out,"Appendix.Table.wght.PCS.csv",sep=''),row.names = FALSE)
   
   #1. Species proportions (by number) for each bioregion based on original Isurvey and Charter data
   Rec.fish.catch.alone$source='Isurvey'
@@ -491,7 +577,50 @@ if(Do.recons.rec.fishn.paper=="YES")
   capture.output(SIMPER.source, file = paste(hndl.out,'SIMPER.source.txt',sep=''))
   
   
-  #3. Temporal trends in reconstructed catches    
-  #ACA. plot this Rec.ktch.Lower,  Rec.ktch, Rec.ktch.Upper  as done in 'Other Assessment'
+  #3. Temporal trends in reconstructed catches      ACA
+  source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R')
+  Rec.ktch=Rec.ktch%>%
+    mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+    arrange(Common.Name)
+  Rec.sp=unique(Rec.ktch$Common.Name)
+  tiff(file=paste(hndl.out,"Fig4. Time series.tiff",sep=''),width=2400,height=2400,
+       units="px",res=300,compression="lzw") 
+  smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  for(i in 1:length(Rec.sp))
+  {
+    d=Rec.ktch%>%
+      filter(Common.Name==Rec.sp[i])%>%
+      mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+      group_by(year)%>%
+      summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+    
+    d.up=Rec.ktch.Upper%>%
+      filter(Common.Name==Rec.sp[i])%>%
+      mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+      group_by(year)%>%
+      summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+    
+    d.low=Rec.ktch.Lower%>%
+      filter(Common.Name==Rec.sp[i])%>%
+      mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+      group_by(year)%>%
+      summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+    
+    plot(sort(unique(d$year)),sort(unique(d$year)),col='transparent',cex=.8,ann=F,
+         ylim=c(0,max(d.up$LIVEWT.c,na.rm=T)))
+    if(nrow(d)>0) points(d$year,d$LIVEWT.c,pch=21,type='o',bg="grey60",cex=1)
+    if(nrow(d.up)>0) points(d.up$year,d.up$LIVEWT.c,pch=21,type='o',bg="grey30",cex=1)
+    if(nrow(d.low)>0) points(d.low$year,d.low$LIVEWT.c,pch=21,type='o',bg="grey80",cex=1)
+    
+    mtext(paste(Rec.sp[i]),3,line=0.2,cex=0.8)  
+  }
+  plot(1:10,ann=F,axes=F,col='transparent')
+  legend('center',c("North","South"),lty=c(1,1),col=c("grey60","grey25"),lwd=2,bty='n',pch=19,cex=1.5)
+  mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
+  mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
+  dev.off()
+  
+  
+  #4. Map of Bioregions
 
 }
