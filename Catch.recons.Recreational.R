@@ -46,8 +46,7 @@ Do.recons.rec.fishn.paper="NO"
 
 
 #Catch reconstruction scenarios
-Scenarios=data.frame(Scenario=c('Base Case','Upper 95%','Lower 95%'),
-                     Time.series=c('mean','upper','lower'),
+Scenarios=data.frame(Scenario=c('Base Case','High','Low'),
                      PCM=c(1,1.5,.5),
                      Weight=c(1,1.5,.5))
 
@@ -99,10 +98,12 @@ Charter=read_excel("C:\\Matias\\Data\\Catch and Effort\\Charter\\Charter.xlsx",s
 #source: https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Dec%202018?OpenDocument
 WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors=F)
 
-#Participationg rate (Ryan et al 2012)
-Part.rate.hist=30
-Part.rate.89=26.6  
-Part.rate.00=28.5
+#Participationg rate (Ryan et al 2017)
+#Part.rate.hist=30
+#Part.rate.89=26.6  
+#Part.rate.00=28.5
+#Part.rate=mean(c(Part.rate.hist,Part.rate.89,Part.rate.00))  #mean fishing participating rate
+Part.rate=31.1
 
 # 2 -------------------I-Survey------------------------------------
 Rec.fish.catch=Rec.fish.catch%>%
@@ -125,9 +126,6 @@ Mn.w.whi=3.7
 Mn.w.whalr=5.4
 Mn.w.wobi=6.7
 Mn.w.ray=.5
-#   assumed average across what's landed on beach and by boat, given observations
-#   of beach trophy fishing
-Mn.w.trophy=25     
 
   #PCM:
 #   scalloped HH PCS=0.4 (Gulak et al 2015)
@@ -140,9 +138,8 @@ Mn.w.trophy=25
 
 # Give the lack of PCM info but the expected low PCM, a precautious value is 
 #  assumed (this is considered in Sensitivity Scenarios)
-Asmd=0.3  
+Asmd=0.2  
 
-Trophy.ktch=c("Greynurse Shark","Sawfishes","Scalloped hammerhead","Smooth hammerhead","Tiger Shark")
 Small.shrk=c('Dogfishes',"Gummy Sharks","Pencil Shark","Nervous Shark","Port Jackson Shark",
              "Sawsharks","School Shark","Sliteye Shark")
 AVG.WT=data.frame(
@@ -155,14 +152,13 @@ AVG.WT=data.frame(
     "Whiskery Shark","Whitetip Reef Shark","Wobbegong","Zebra Shark"),
   AVG.wt=rep(Mn.w.whalr,36), 
   PCM.rec=rep(Asmd,36))%>%
-  mutate(AVG.wt=ifelse(Common.Name%in%Trophy.ktch,Mn.w.trophy,
-                ifelse(Common.Name%in%Small.shrk,Mn.w.gum,
+  mutate(AVG.wt=ifelse(Common.Name%in%Small.shrk,Mn.w.gum,
                 ifelse(Common.Name=="Whiskery Shark",Mn.w.whi,
                 ifelse(Common.Name=="Rays & Skates",Mn.w.ray,
                 ifelse(Common.Name=="Wobbegong",Mn.w.wobi,
-                AVG.wt))))),
+                AVG.wt)))),
         PCM.rec=ifelse(Common.Name=="Port Jackson Shark",.05,
-                ifelse(Common.Name%in%c("Scalloped hammerhead","Smooth hammerhead"),0.7,
+                ifelse(Common.Name%in%c("Scalloped hammerhead","Smooth hammerhead"),0.6,
                 ifelse(Common.Name=="Gummy Sharks",.1,PCM.rec))))%>%  
   arrange(Common.Name)
 AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
@@ -319,17 +315,19 @@ Rec.fish.catch=Rec.fish.catch%>%
                        ifelse(Common.Name=="Whitetip reef shark","Whitetip Reef Shark",
                        ifelse(Common.Name=='Gulper sharks, Sleeper Sharks & Dogfishes','Dogfishes',
                        ifelse(Common.Name=='Blind, Nurse, Carpet & Zebra Sharks','Zebra Shark',
-                       ifelse(Common.Name=='Other Rays and Skates','Rays & Skates',
+                       ifelse(Common.Name%in%c('Other Rays and Skates',"Western Shovelnose Ray"),
+                              'Rays & Skates',
                        ifelse(Common.Name=='Sawshark','Sawsharks',
+                       ifelse(Common.Name=='Wobbegong','Wobbegongs',
                        ifelse(Common.Name=="School Shark" & 
                                   Bioregion%in%c('North Coast'),'Gummy Sharks',
                        ifelse(Common.Name=="Blacktip Reef Shark" & 
                                   Bioregion%in%c('South Coast','West Coast'),'Spinner Shark',
-                        ifelse(Common.Name=="Gummy Shark","Gummy Sharks",Common.Name))))))))))
+                        ifelse(Common.Name=="Gummy Shark","Gummy Sharks",Common.Name)))))))))))
           
   
     
-   
+
   
 # 5 -------------------Reapportion 'hammerheads' across all rec fishing sources------------------------
 Rec.fish.catch=Rec.fish.catch%>%
@@ -346,8 +344,6 @@ Rec.fish.catch=Rec.fish.catch%>%
 # 6 -------------------Reconstruct time series------------------------------------
 
 #reconstruct size of population fishing
-Part.rate=mean(c(Part.rate.hist,Part.rate.89,Part.rate.00))  #mean fishing participating rate
-
 dummy=rbind(cbind(Year=c(1940,1950,1960),Population=c(473300,557100,722100)),WA.population)
 mod=loess(Population~Year,data=dummy)
 Historic.pop=predict(mod,newdata = data.frame(Year=1941:1970))
@@ -389,37 +385,33 @@ for(s in 1:length(Rec.ktch))
 }
 
   #reconstruct time series
-back.fill=function(dat,scen)
+back.fill=function(dat)
 {
   Regns=unique(dat$Bioregion)
   Dummy=vector('list',length(Regns))
   for (d in 1:length(Dummy))
   {
-      a=subset(dat,Bioregion==Regns[d])
-      Mat=matrix(NA,nrow=length(Fishing.population$FinYear),ncol=2)
-     if(scen=='mean')
+     a=subset(dat,Bioregion==Regns[d])
+     Mat=matrix(NA,nrow=length(Fishing.population$FinYear),ncol=2)
+     rse.W=subset(RSE.weight,Common.Name==a$Common.Name[1] & Bioregion==a$Bioregion[1])
+     if(nrow(rse.W)==0) rse.w=mean(RSE.weight$RSE)
+     if(nrow(rse.W)>0)  rse.w=rse.W$RSE
+     if(!length(a$LIVEWT.c)==length(rse.w))
      {
-       rse.W=subset(RSE.weight,Common.Name==a$Common.Name[1] & Bioregion==a$Bioregion[1])
-       if(nrow(rse.W)==0) rse.w=mean(RSE.weight$RSE)
-       if(nrow(rse.W)>0)  rse.w=rse.W$RSE
-       if(!length(a$LIVEWT.c)==length(rse.w))
-       {
-         if(nrow(rse.W)==0) rse.w=rep(rse.w,length(a$LIVEWT.c))
-         if(nrow(rse.W)>0)
-         {
-           misn.id=which(!a$FINYEAR%in%rse.W$FINYEAR)
-           misn=rse.W[1:length(misn.id),]
-           misn$FINYEAR=a$FINYEAR[misn.id]
-           misn$RSE=max(rse.W$RSE)
-           rse.W=rbind(rse.W,misn)%>%arrange(FINYEAR)
-           rse.w=rse.W$RSE
-         }
-       }
-       VAL=weighted.mean(a$LIVEWT.c,w=1/rse.w)   #weighted mean by RSE
+        if(nrow(rse.W)==0) rse.w=rep(rse.w,length(a$LIVEWT.c))
+        if(nrow(rse.W)>0)
+        {
+          misn.id=which(!a$FINYEAR%in%rse.W$FINYEAR)
+          misn=rse.W[1:length(misn.id),]
+          misn$FINYEAR=a$FINYEAR[misn.id]
+          misn$RSE=max(rse.W$RSE)
+          rse.W=rbind(rse.W,misn)%>%arrange(FINYEAR)
+          rse.w=rse.W$RSE
+        }
      }
-     if(scen=='upper') VAL=quantile(a$LIVEWT.c,.975)
-     if(scen=='lower') VAL=quantile(a$LIVEWT.c,.025)
-                  
+     #weighted mean by RSE
+     VAL=weighted.mean(a$LIVEWT.c,w=1/rse.w)   
+      
      Mat[,2]=VAL*Fishing.population$Size
      Mat=as.data.frame(Mat)
      names(Mat)=c("FINYEAR","LIVEWT.c")
@@ -435,13 +427,13 @@ for(s in 1:length(Rec.ktch))
 {
   DumY=vector('list',length(Rec.ktch[[s]]))
   names(DumY)=names(Rec.ktch[[s]])
-  for(i in 1:length(DumY))DumY[[i]]=back.fill(dat=Rec.ktch[[s]][[i]],scen=Scenarios$Time.series[s])
+  for(i in 1:length(DumY))DumY[[i]]=back.fill(dat=Rec.ktch[[s]][[i]])
   DumY=do.call(rbind,DumY)
   row.names(DumY)=NULL 
   Rec.ktch[[s]]=DumY
 }
-Rec.ktch.Upper=Rec.ktch$`Upper 95%`
-Rec.ktch.Lower=Rec.ktch$`Lower 95%`
+Rec.ktch.Upper=Rec.ktch$High
+Rec.ktch.Lower=Rec.ktch$Low
 Rec.ktch=Rec.ktch$`Base Case`
 
 
@@ -452,10 +444,12 @@ if(Do.recons.rec.fishn.paper=="YES")
   hndl.out="C:\\Matias\\Analyses\\Reconstruction_catch_recreational\\"
   
   #export weight and PCS table
-  Tab.1=left_join(AVG.WT,Scien.nm,by='Common.Name')%>%
+  Tab.1=AVG.WT%>%
+    filter(Common.Name%in%unique(Rec.fish.catch$Common.Name))%>%
+    left_join(Scien.nm,by='Common.Name')%>%
     arrange(Common.Name)%>%
     select(Common.Name,Scientific.name,AVG.wt,PCM.rec)
-  write.csv(Tab.1,paste(hndl.out,"Appendix.Table.wght.PCS.csv",sep=''),row.names = FALSE)
+  write.csv(Tab.1,paste(hndl.out,"Appendix1.Table.wght.PCS.csv",sep=''),row.names = FALSE)
   
   #1. Species proportions (by number) for each bioregion based on original Isurvey and Charter data
   Rec.fish.catch.alone$source='Isurvey'
@@ -466,13 +460,15 @@ if(Do.recons.rec.fishn.paper=="YES")
                        ifelse(Common.Name=="Whitetip reef shark","Whitetip Reef Shark",
                        ifelse(Common.Name=='Gulper sharks, Sleeper Sharks & Dogfishes','Dogfishes',
                        ifelse(Common.Name=='Blind, Nurse, Carpet & Zebra Sharks','Zebra Shark',
-                       ifelse(Common.Name=='Other Rays and Skates','Rays & Skates',
+                       ifelse(Common.Name%in%c('Other Rays and Skates',"Western Shovelnose Ray"),
+                              'Rays & Skates',
                        ifelse(Common.Name=='Sawshark','Sawsharks',
+                       ifelse(Common.Name=='Wobbegong','Wobbegongs',
                        ifelse(Common.Name=="School Shark" & 
                                     Bioregion%in%c('North Coast'),'Gummy Sharks',
                        ifelse(Common.Name=="Blacktip Reef Shark" & 
                                     Bioregion%in%c('South Coast','West Coast'),'Spinner Shark',
-                       ifelse(Common.Name=="Gummy Shark","Gummy Sharks",Common.Name))))))))))
+                       ifelse(Common.Name=="Gummy Shark","Gummy Sharks",Common.Name)))))))))))
   
   Dat.show=Dat.show%>%
     mutate(Common.Name=ifelse(Common.Name=='Hammerhead Sharks' & Bioregion%in%c("Gascoyne",
@@ -573,19 +569,20 @@ if(Do.recons.rec.fishn.paper=="YES")
   SIMPER.source <- with(Factors.env, simper(MDS, source))
   SIMPER.source=summary(SIMPER.source)
   
-  capture.output(SIMPER.bioregion, file = paste(hndl.out,'SIMPER.bioregion.txt',sep=''))
-  capture.output(SIMPER.source, file = paste(hndl.out,'SIMPER.source.txt',sep=''))
+  capture.output(SIMPER.bioregion, file = paste(hndl.out,'Appendix2.SIMPER.bioregion.txt',sep=''))
+  capture.output(SIMPER.source, file = paste(hndl.out,'Appendix3.SIMPER.source.txt',sep=''))
   
   
-  #3. Temporal trends in reconstructed catches      ACA
+  #3. Temporal trends in reconstructed catches      
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R')
   Rec.ktch=Rec.ktch%>%
     mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
     arrange(Common.Name)
   Rec.sp=unique(Rec.ktch$Common.Name)
+  LWD=3
   tiff(file=paste(hndl.out,"Fig4. Time series.tiff",sep=''),width=2400,height=2400,
        units="px",res=300,compression="lzw") 
-  smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1.2),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
   for(i in 1:length(Rec.sp))
   {
     d=Rec.ktch%>%
@@ -608,19 +605,21 @@ if(Do.recons.rec.fishn.paper=="YES")
     
     plot(sort(unique(d$year)),sort(unique(d$year)),col='transparent',cex=.8,ann=F,
          ylim=c(0,max(d.up$LIVEWT.c,na.rm=T)))
-    if(nrow(d)>0) points(d$year,d$LIVEWT.c,pch=21,type='o',bg="grey60",cex=1)
-    if(nrow(d.up)>0) points(d.up$year,d.up$LIVEWT.c,pch=21,type='o',bg="grey30",cex=1)
-    if(nrow(d.low)>0) points(d.low$year,d.low$LIVEWT.c,pch=21,type='o',bg="grey80",cex=1)
+    if(nrow(d)>0) lines(d$year,d$LIVEWT.c,col="grey55",lwd=LWD)
+    if(nrow(d.up)>0) lines(d.up$year,d.up$LIVEWT.c,col="grey20",lwd=LWD)
+    if(nrow(d.low)>0) lines(d.low$year,d.low$LIVEWT.c,col="grey80",lwd=LWD)
+    #ySeq=seq(min(d.up$LIVEWT.c),max(d.up$LIVEWT.c),length.out = 3)
+    #if(trunc(ySeq)[1]>0) ySeq.lab=round(ySeq.lab) else
+    #ySeq.lab=round(ySeq,3)
+    #axis(2,ySeq,ySeq.lab)
     
-    mtext(paste(Rec.sp[i]),3,line=0.2,cex=0.8)  
+    nm=Rec.sp[i]
+    nm=ifelse(nm=="Wobbegong","Wobbegongs",nm)
+    mtext(paste(nm),3,line=0.2,cex=0.85)  
   }
-  plot(1:10,ann=F,axes=F,col='transparent')
-  legend('center',c("North","South"),lty=c(1,1),col=c("grey60","grey25"),lwd=2,bty='n',pch=19,cex=1.5)
+  legend('topleft',c("Base case","High","Low"),lty=1,col=c("grey55","grey20","grey80"),
+         lwd=LWD,bty='n',cex=1)
   mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
   mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
   dev.off()
-  
-  
-  #4. Map of Bioregions
-
 }
