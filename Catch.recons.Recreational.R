@@ -622,4 +622,48 @@ if(Do.recons.rec.fishn.paper=="YES")
   mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
   mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
   dev.off()
+  
+  
+  #4. Bioregion map
+  hndl.map="C:/Matias/Data/Mapping/Bioregions"
+  library(rgdal)
+  library(PBSmapping)
+  data(worldLLhigh)
+  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R")
+  Bioregions=readOGR(paste(hndl.map,"Bioregions.shp",sep="/"), layer="Bioregions") 
+  
+  South.WA.long=c(109,129)
+  South.WA.lat=c(-38,-12)
+  Xlim=c(109,129)
+  Ylim=South.WA.lat
+  
+  tiff(file=paste(hndl.out,"Fig1. Map.tiff",sep=''),width=1600,height=2400,
+       units="px",res=300,compression="lzw") 
+  
+  par(mar=c(1,1,.5,.5),oma=c(3,3,1,.3),las=1,mgp=c(.04,.6,0))
+  plot(1,xlim=Xlim,ylim=Ylim,xlab="",ylab="",axes=F,main="")
+  plot(Bioregions,add=T)
+  polygon(WAcoast$Longitude,WAcoast$Latitude, col="grey70")
+  axis(2,seq(round(Ylim[1]),round(Ylim[2]),2),-seq(round(Ylim[1]),round(Ylim[2]),2),cex.axis=1.25)
+  axis(side = 1, seq(South.WA.long[1],South.WA.long[2],2), 
+       labels =seq(South.WA.long[1],South.WA.long[2],2), tck = -.015,cex.axis=1.25)
+  box()
+  mtext(expression(paste("Longitude (",degree,"E)",sep="")),side=1,line=1.2,font=1,las=0,cex=1.35,outer=T)
+  mtext(expression(paste("Latitude (",degree,"S)",sep="")),side=2,line=1,font=1,las=0,cex=1.35,outer=T)
+  
+  text(120,-16,"North Coast",cex=1.5,srt=45)
+  text(112.5,-22.8,"Gascoyne Coast",srt=75,cex=1.5)
+  text(113,-31,"West",cex=1.5)
+  text(113,-32.5,"Coast",cex=1.5)
+  text(121,-35.8,"South Coast",cex=1.5)
+  text(122,-26,"Western Australia",cex=2)
+  
+  # #Australia
+  par(fig = c(.05, .35, .7, 1), mar=c(0,0,0,0), new=TRUE)
+  OZ.lat=c(-44.5,South.WA.lat[2]);OZ.long=c(South.WA.long[1],155)
+  plotMap(worldLLhigh, xlim=OZ.long,ylim=OZ.lat,plt = c(.1, 1, 0.075, 1),
+          col='black',tck = 0.025, tckMinor = 0.0125, xlab="",ylab="",axes=F)
+  polygon(WAcoast$Longitude,WAcoast$Latitude, col="grey50")
+  text(135,-25,("Australia"),col="white", cex=1.3)
+  dev.off()
 }
