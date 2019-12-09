@@ -35,8 +35,6 @@
 #   indicate <30 respondents recorded catches of the species) to indicate unreliable estimates
 
 
-rm(list=ls(all=TRUE))
-
 library(tidyverse)
 library(readxl)
 library(lubridate)
@@ -62,7 +60,7 @@ Rec.fish.catch=read.csv(paste(Rec.hndl,"csv",sep=''),stringsAsFactors=F)
 Scien.nm=Rec.fish.catch%>%
             rename(Common.Name=Lowlevelgrouping,
                    Scientific.name=ScientificName)%>%
-            select(Common.Name,Scientific.name)%>%
+            dplyr::select(Common.Name,Scientific.name)%>%
             distinct(Common.Name,.keep_all=T)
 
 Rec.fish.catch=Rec.fish.catch%>%
@@ -448,7 +446,7 @@ if(Do.recons.rec.fishn.paper=="YES")
     filter(Common.Name%in%unique(Rec.fish.catch$Common.Name))%>%
     left_join(Scien.nm,by='Common.Name')%>%
     arrange(Common.Name)%>%
-    select(Common.Name,Scientific.name,AVG.wt,PCM.rec)
+    dplyr::select(Common.Name,Scientific.name,AVG.wt,PCM.rec)
   write.csv(Tab.1,paste(hndl.out,"Appendix1.Table.wght.PCS.csv",sep=''),row.names = FALSE)
   
   #1. Species proportions (by number) for each bioregion based on original Isurvey and Charter data
@@ -487,9 +485,9 @@ if(Do.recons.rec.fishn.paper=="YES")
   
   Prop= Ktch.by.sp.zn%>%
     mutate(freq = n / sum(n,na.rm=T))%>%
-    select(-n)%>%
+    dplyr::select(-n)%>%
     spread(Bioregion,freq,fill=0)%>%
-    select(Common.Name,'North Coast','Gascoyne Coast','West Coast','South Coast')
+    dplyr::select(Common.Name,'North Coast','Gascoyne Coast','West Coast','South Coast')
   
   write.csv(Prop,paste(hndl.out,"Catch.Proportion.by.weight.bioregion.csv",sep=''),row.names = FALSE)
 
@@ -504,7 +502,7 @@ if(Do.recons.rec.fishn.paper=="YES")
                                     Ktch.by.sp.zn$'Gascoyne Coast',
                                     Ktch.by.sp.zn$'West Coast'),]
   Sp.tot=Ktch.by.sp.zn$Sp.tot
-  Ktch.by.sp.zn=Ktch.by.sp.zn%>%select(Common.Name,'North Coast',
+  Ktch.by.sp.zn=Ktch.by.sp.zn%>%dplyr::select(Common.Name,'North Coast',
                         'Gascoyne Coast','West Coast','South Coast')
   
   COls=c('grey90','grey70','grey40','grey10')
@@ -531,7 +529,7 @@ if(Do.recons.rec.fishn.paper=="YES")
     group_by(Bioregion, FINYEAR,source,Common.Name) %>%
     summarise(n = sum(Tot,na.rm=T))%>%
     spread(Common.Name,n,fill=0)
-  Factors=MDS%>%select(Bioregion,source,FINYEAR)
+  Factors=MDS%>%dplyr::select(Bioregion,source,FINYEAR)
   Factors$FINYEAR=substr(Factors$FINYEAR,1,4)
   col.nms=colnames(MDS)[-(1:ncol(Factors))]
   MDS=as.matrix(MDS[,-(1:ncol(Factors))])

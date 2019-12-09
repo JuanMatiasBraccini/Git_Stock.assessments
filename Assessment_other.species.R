@@ -3,8 +3,7 @@
 #note: SPM and Catch-MSY implementation of Martell & Froese 2012.
 #       total catches must be used (i.e. all sources of F)
 
-#       Taiwanese pelagic gillnet (1974-1986) and longline (1989-91) catch (Stevens & Davenport 1991; Stevens 1999)
-#       are also considered
+#       All sources of mortalities (commercial and recreational catches) considered thru catch reconstructions
 
 #       If catches have never been >1% carrying capacity, then unexploited status so catch series have
 #       no information on productivity.
@@ -12,6 +11,14 @@
 #       preliminary analysis done to determine species grouping based on catch tonnage and number of
 #       years of reported catch data
 
+#missing:
+#For the size data, use catch curve for size
+# (or convert size to age, using 'convert_length_to_age_samples')
+# with dome shaped selectivity (as other methods, like Adrian Hordyk's
+# and CCSRA assume logistic selectivity)
+#and SPR to calculate F (need Alex's help)
+#For SRA, use Dan Ovando's approach, once it is installed
+#but will need cpue index or FMI
 
 rm(list=ls(all=TRUE))
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
@@ -51,175 +58,16 @@ fnkr8t(paste(hNdl,"Outputs",sep="/"))
 #---DATA SECTION-----
 setwd("C:/Matias/Analyses/Data_outs")
 
-#missing:
-#For the size data, use catch curve for size
-# (or convert size to age, using 'convert_length_to_age_samples')
-# with dome shaped selectivity (as other methods, like Adrian Hordyk's
-# and CCSRA assume logistic selectivity)
-#and SPR to calculate F (need Alex's help)
-#For SRA, use Dan Ovando's approach, once it is installed
-#but will need cpue index or FMI
-
-
 #Total effort
 Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
 Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
 
 #Total catch
+  #1. WA commercial catch and IUU
+source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Catch.recons.Commercial.R")
 
-  #WA Recreational catch
+  #2. WA Recreational catch
 source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Catch.recons.Recreational.R")
-
-  #Commercial catch shark fisheries TDGDLF and NSF
-Data.monthly=read.csv("Data.monthly.csv",stringsAsFactors=F)
-Data.monthly.north=read.csv("Data.monthly.NSF.csv",stringsAsFactors=F)
-Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT  
-
-  #Commercial shark catch reported in other WA fisheries
-Data.request.1=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1975_1987.csv",stringsAsFactors=F)
-Data.request.2=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1988_2002.csv",stringsAsFactors=F)
-Data.request.3=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/2003_2016.csv",stringsAsFactors=F)
-Data.request=rbind(Data.request.1,Data.request.2,Data.request.3)
-Data.request=subset(Data.request,!METHOD%in%c("GN","LL"))
-names(Data.request)[match("LIVEWT",names(Data.request))]="LIVEWT.c"
-
-  #remove data for other gears that is already recorded in Data.monthly
-TDGDLF.other.gears=Data.monthly%>%
-                        filter(!METHOD%in%c("GN","LL"))%>%
-                        mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
-NSF.other.gears=Data.monthly.north%>%
-                        filter(!METHOD%in%c("GN","LL"))%>%
-                        mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
-fn.subs=function(YEAR) substr(YEAR,start=3,stop=4)
-Data.request=Data.request%>%
-                  mutate(FINYEAR=ifelse(MONTH%in%1:6,paste(YEAR-1,"-",fn.subs(YEAR),sep=""),
-                                        ifelse(MONTH%in%7:12,paste(YEAR,"-",fn.subs(YEAR+1),sep=""),NA)),
-                         LAT=-as.numeric(substr(BLOCKX,1,2)),
-                         LONG=100+as.numeric(substr(BLOCKX,3,4)),
-                         zone=as.character(ifelse(LONG>=116.5 & LAT<=(-26),"Zone2",
-                                           ifelse(LONG<116.5 & LAT<=(-33),"Zone1",
-                                           ifelse(LAT>(-33) & LAT<=(-26) & LONG<116.5,"West",
-                                           ifelse(LAT>(-26) & LONG<114,"Closed",
-                                           ifelse(LAT>(-26) & LONG>=114 & LONG<123.75,"North",
-                                           ifelse(LAT>(-26) & LONG>=123.75,"Joint",NA))))))),
-                         dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))%>%
-                  filter(!dummy%in%c(TDGDLF.other.gears$dummy,NSF.other.gears$dummy))
-Data.request.south=Data.request%>%filter(LAT<=max(Data.monthly$LAT))
-Data.request.north=Data.request%>%filter(LAT>max(Data.monthly$LAT))
-rm(Data.request,Data.request.1,Data.request.2,Data.request.3)
-
-
-  #Historic (pre 1975)
-    #1.1 Whitley 1944 (citation in Simpfendorfer & Donohue 1998)
-    #description: All shark catch across southern WA (south of Abrolhos islands). Weight in pounds
-Catch_1941_1943=data.frame(year=1941:1943,LIVEWT.c=c(55332,77441,109064)) 
-Catch_1941_1943$LIVEWT.c=Catch_1941_1943$LIVEWT.c*0.453592/1000  #Convert to tonnes
-
-    #1.2 Heald 1987
-    #description: All shark catch by port. Weight in kgs
-Catch_1949=read.csv("C:/Matias/Data/Catch and Effort/Heald(1987)_1949_total_catch_by port_allspecies.csv",stringsAsFactors=F) 
-Catch_1949$LIVEWT.c=Catch_1949$Shark.catch.kg_live_wgt./1000   #in tonnes
-
-    #1.3 Simpfendorfer & Donohue 1998
-    #description: All shark catch for southern WA (Geraldton to SA border). Weight in tonnes
-Catch_1950=data.frame(year=1950,LIVEWT.c=50)   
-
-    #1.4 Heald 1987
-    #description= All shark catch for southern WA (Geraldton to SA border). Weight in tonnes
-Catch_1952_1975=read.csv("C:/Matias/Data/Catch and Effort/Historical_WA_shark_catches_1952_1975.csv",stringsAsFactors=F) 
-names(Catch_1952_1975)=c("year","LIVEWT.c")
-
-
-    #combine in single dataframe
-Catch_1949.total=data.frame(year=1949,LIVEWT.c=sum(Catch_1949$LIVEWT.c))     #TOO high catch?? Should we add all ports??? RORY!!
-Catch_1949.total$LIVEWT.c=Catch_1950$LIVEWT.c     #dummy, set to same 1950 as it seems too high catch, check with Rory
-Historic.yrs=1941:1975
-Historic.ktch=rbind(Catch_1941_1943,Catch_1949.total,Catch_1950,Catch_1952_1975)
-
-    #add missing years through linear interpolation
-Missing.yrs=Historic.yrs[which(!Historic.yrs%in%Historic.ktch$year)]
-Missing.ktch=approx(Historic.ktch$year,Historic.ktch$LIVEWT.c,xout=Missing.yrs)   
-
-Historic.ktch=rbind(Historic.ktch,data.frame(year=Missing.ktch$x,LIVEWT.c=Missing.ktch$y))
-Historic.ktch=Historic.ktch[order(Historic.ktch$year),]
-Historic.ktch$LIVEWT.c=Historic.ktch$LIVEWT.c*1000   #convert to kg
-
-    #get prop of catch for 1975-1980 to extract historic
-ALL=subset(Data.monthly,SPECIES<32000 & METHOD%in%c("GN","LL") & LAT<=(-26) & Estuary=="NO"
-           & FINYEAR%in%c("1975-76","1976-77","1977-78","1978-79","1979-80","1980-81"),
-           select=c(FINYEAR,LIVEWT.c,SPECIES,SNAME))%>%
-  filter(!SPECIES==22999)
-Prop.sp.yr.all=ALL%>%group_by(SPECIES)%>%
-  summarise(LIVEWT.c=sum(LIVEWT.c))%>%
-  mutate(Proportion=LIVEWT.c/sum(LIVEWT.c))%>%
-  dplyr::select(SPECIES,Proportion)%>%
-  data.frame
-
-    #allocate historic catch to species
-Hist.expnd=expand.grid(year=Historic.ktch$year,SPECIES=Prop.sp.yr.all$SPECIES)
-Hist.expnd=Hist.expnd%>%
-  left_join(Historic.ktch,by="year")%>%
-  left_join(Prop.sp.yr.all,by='SPECIES')%>%
-  rename(ktch=LIVEWT.c)%>%
-  mutate(LIVEWT.c=ktch*Proportion)
-
-  #Taiwanese gillnet fishery (source Stevens 1999 and Stevens & Davenport 1991, catch in tonnes)
-Taiwan.gillnet.ktch=data.frame(Year=1974:1986,
-                               Total.Ktch=c(321.4,8997.6,6455.3,9970.7,5528.2,3282.1,5831.1,6694.7,
-                                            5624.1,7589.9,6544.2,2929.5,2111.1),
-                               Shark.Ktch=c(rep(NA,5),557.9,4234.5,4486.2,3639.4,4418.6,2731.4,2327.4,2393.9),
-                               WA.Ktch=c(rep(NA,5),50,1250,720,800,790,400,10,70))  #From Figure 7 Stevens & Davenport
-Mn.ktch=mean(Taiwan.gillnet.ktch$WA.Ktch/Taiwan.gillnet.ktch$Shark.Ktch,na.rm=T)
-Taiwan.gillnet.ktch=Taiwan.gillnet.ktch%>%
-                      mutate(Shark.Ktch=ifelse(is.na(Shark.Ktch),Total.Ktch*mean(Shark.Ktch/Total.Ktch,na.rm=T),
-                                               Shark.Ktch),
-                             WA.Ktch=ifelse(is.na(WA.Ktch),Shark.Ktch*mean(WA.Ktch/Shark.Ktch,na.rm=T),WA.Ktch))
-
-Taiwan.gillnet.sp.comp=as.data.frame(matrix(c(.357,.166,.059),ncol=3))
-colnames(Taiwan.gillnet.sp.comp)=c("Australian.blacktip.Shark.West.prop",
-                                   "Spot.tail.Shark.West.prop","Hammerheads.West.prop")
-Taiwan.gillnet.ktch=cbind(Taiwan.gillnet.ktch,Taiwan.gillnet.sp.comp) %>%
-                      mutate('Australian blacktip shark'=Australian.blacktip.Shark.West.prop*WA.Ktch,
-                             'Spot-tail shark'=Spot.tail.Shark.West.prop*WA.Ktch,
-                             Hammerheads=Hammerheads.West.prop*WA.Ktch)%>%
-                      dplyr::select(Year,'Australian blacktip shark','Spot-tail shark',Hammerheads)%>%
-                      gather(Species,Ktch,-Year)
-
-
-Taiwan.longline.ktch=data.frame(Year=1990:1991,Shark.Ktch=c(1700*11/(11+9),1700*9/(11+9)))%>%
-                        mutate(WA.ktch=Shark.Ktch*Mn.ktch)
-
-Taiwan.longline.sp.comp=data.frame(Species=rep(c("Spot-tail shark","Australian blacktip shark","Tiger shark",
-                                              "Milk shark","Spinner shark",
-                                            "Pigeye shark","Graceful shark","Hammerheads","Other"),2),
-                                   Year=c(rep(1990,9),rep(1991,9)), 
-                                   Percent=c(18.3,25.6,8.1,.4,6.9,17.9,1.2,2,19.5,5.6,79.7,0.7,2,4.5,1,0,0.1,6.4))
-Taiwan.longline.ktch=Taiwan.longline.sp.comp%>%
-                          left_join(Taiwan.longline.ktch,by="Year")%>%
-                          mutate(Ktch=WA.ktch*Percent/100)%>%
-                          dplyr::select(names(Taiwan.gillnet.ktch))
-#detach("package:MASS", unload=TRUE)
-  
-  #Greynurse catches since protection
-GN.mn.wght=50
-GN.pcm=.2
-Under.rep.factor=2  #from white shark catch recons
-grey.hndl=paste('C:/Matias/Analyses/Catch and effort/State of fisheries/',
-                paste(Asses.year-2,substr(Asses.year-1,3,4),sep='-'),sep='')
-Greynurse.ktch=read.csv(paste(grey.hndl,'3.Table2.TEPS.csv',sep='/'),stringsAsFactors = F)
-Greynurse.ktch=Greynurse.ktch%>%
-                filter(Species=="SHARK, GREY NURSE")
-Grey.nms=colnames(Greynurse.ktch)[-1]
-Al.ded=c(NA,sapply(strsplit(Grey.nms, "[.]"), "[", 1))
-Greynurse.ktch=data.frame(finyear=unique(as.numeric(substr(sapply(strsplit(Grey.nms, "[.]"), "[", 2),1,4))),
-                          N.alive=unlist(Greynurse.ktch[,which(Al.ded=="alive")]),
-                          N.dead=unlist(Greynurse.ktch[,which(Al.ded=="dead")]))%>%
-                          mutate(LIVEWT.c=Under.rep.factor*(N.dead*GN.mn.wght+N.alive*GN.mn.wght*GN.pcm))%>%
-                          dplyr::select(finyear,LIVEWT.c)
-
-#Shark bio data
-User="Matias"
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
 
 
 #species codes
@@ -394,7 +242,6 @@ Up.bound.K=50
 
 
 #.. Catch-MSY arguments
-
 Do.Ktch.MSY=T
 
     #simulatins
