@@ -92,7 +92,7 @@ Shore.based=read.csv("C:/Matias/Data/Catch and Effort/Recreational/statewide sha
 Charter=read_excel("C:\\Matias\\Data\\Catch and Effort\\Charter\\Charter.xlsx",sheet ='Data')
 
 
-# WA population for rec catch recons (ABS)
+# WA population for rec catch recons (ABS) (Google "What is the population of Western Australia 20xx?")
 #source: https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Dec%202018?OpenDocument
 WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors=F)
 

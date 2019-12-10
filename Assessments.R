@@ -2,7 +2,6 @@
 
 #note:  This script firstdefine arguments used in each of the shark species/species complex assessed.
 #       It then run the relevant population models according to data availability
-#       Update 'WA.population' with each assessment (Google "What is the population of Western Australia 20xx?")
 
 rm(list=ls(all=TRUE))
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
@@ -11,6 +10,12 @@ library(dplyr)
 
 
 # 1. Define input data and input parameters -------------------------------
+
+#Year assessment is conducted
+Year.of.assessment=2019
+
+#Last complete financial year of catches
+Last.yr.ktch="2017-18"
 
   #Is this the first time the model is run?
 First.run="NO"
@@ -58,16 +63,6 @@ Sim.trans.Mat="NO"
 add.conv.tag="YES"
 add.effort="NO"
 
-  #Catch in fisheries other than NSF and TDGDLF
-Data.request.1=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1975_1987.csv",stringsAsFactors=F)
-Data.request.2=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1988_2002.csv",stringsAsFactors=F)
-Data.request.3=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/2003_2016.csv",stringsAsFactors=F)
-Data.request=rbind(Data.request.1,Data.request.2,Data.request.3)
-Data.request=subset(Data.request,!METHOD%in%c("GN","LL"))
-names(Data.request)[match("LIVEWT",names(Data.request))]="LIVEWT.c"
-
-  #WA population for rec catch recons
-WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors=F)
 
   #Jitter for estimable parameters
 N=5  #how much jitter
@@ -123,8 +118,8 @@ List.sp$Whiskery=list(
   
   
   #Data
-  AssessYr=2019,
-  Data.yr="2017-18",         #last year of catch
+  AssessYr=Year.of.assessment,            #year when assessment is conducted         
+  Data.yr=Last.yr.ktch,         #last year of catch
   Frst.yr.ktch="1975-76",    #first year of catch)
   AREAS=c("West","Zone1","Zone2"),  #Define spatial areas; 1 is West, 2 is Zn1, 3 is Zn2.
   Yr_q_change=1982,   #last year before targeting practices changed (Simpfendorfer 2000)
@@ -247,8 +242,8 @@ List.sp$Gummy=list(
    
   
   #Data
-  AssessYr=2019,
-  Data.yr="2017-18",         #last year of catch
+  AssessYr=Year.of.assessment,             #year when assessment is conducted
+  Data.yr=Last.yr.ktch,         #last year of catch
   Frst.yr.ktch="1975-76",    #first year of catch)
   AREAS=c("West","Zone1","Zone2"),  #Define spatial areas; 1 is West, 2 is Zn1, 3 is Zn2.
   Yr_q_change=0,   #last year before targeting practices changed (Simpfendorfer 2000)
@@ -366,8 +361,8 @@ List.sp$Dusky=list(
   #Data
   Ktch.source="WA.only",  #select whether to use all catch series or only WA
   #Ktch.source="ALL",
-  AssessYr=2019,
-  Data.yr="2017-18",         #last year of catch
+  AssessYr=Year.of.assessment,             #year when assessment is conducted
+  Data.yr=Last.yr.ktch,         #last year of catch
   Frst.yr.ktch="1975-76",    #first year of catch)
   AREAS=c("West","Zone1","Zone2"),  #Define spatial areas; 1 is West, 2 is Zn1, 3 is Zn2.  #MISSING!!
   Yr_q_change=0,   #last year before targeting practices changed (Simpfendorfer 2000)
@@ -489,8 +484,8 @@ List.sp$Sandbar=list(
   #Data
   Ktch.source="WA.only",  #select whether to use all catch series or only WA
   #Ktch.source="ALL",
-  AssessYr=2019,
-  Data.yr="2017-18",         #last year of catch
+  AssessYr=Year.of.assessment,             #year when assessment is conducted
+  Data.yr=Last.yr.ktch,         #last year of catch
   Frst.yr.ktch="1975-76",    #first year of catch)
   AREAS=c("West","Zone1","Zone2"),  #Define spatial areas; 1 is West, 2 is Zn1, 3 is Zn2.  #MISSING!!
   Yr_q_change=0,   #last year before targeting practices changed (Simpfendorfer 2000)
