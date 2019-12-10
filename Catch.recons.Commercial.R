@@ -391,7 +391,7 @@ if(SP=="BW")
 
 
 # 3 -------------------REPORT SECTION------------------------------------
-if(Do.recons.com.fishn.paper=="YES")
+if(Do.recons.com.fishn.paper=="YES")   #only report IUU and reconstructions, not the reported TDGDLF or NSF
 {
   
 }

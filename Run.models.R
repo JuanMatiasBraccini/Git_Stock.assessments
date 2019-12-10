@@ -22,7 +22,7 @@ if(First.run=="YES")
   set.seed(999)  #for reproducibility
   
 # Section A: BRING IN INPUT DATA -------------------------------------------
-  fn.source("Organise data.R")
+  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Organise data.R")
   fn.input.data(SP=species,Yr.assess=AssessYr,Conv.cal.mn.to.fin.mn="NO",           
                 Historic.Ktch="NO",Bin.size=TL.bins.cm,What.Efrt=What.Effort)  
   
@@ -377,7 +377,7 @@ if(First.run=="YES")
   hndl=paste("C:/Matias/Analyses/Population dynamics/1.",Spec," shark/",sep='')
   
     #B.1 Source all input parameters
-  fn.source("Organise input parameters.R")
+  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Organise input parameters.R")
   ParS=fn.input.pars(SP=species,add.growth.cv="NO",add.Mrt.age="NO")$pars
   
   #Maximum age
