@@ -70,7 +70,7 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   #Select relevant years of data
   Data.monthly=subset(Data.monthly,FINYEAR%in%Used.yrs)
   Data.monthly.north=subset(Data.monthly.north,FINYEAR%in%Used.yrs)
-  Data.request=subset(Data.request,YEAR<=as.numeric(substr(Last.year,1,4)))
+  #Data.request=subset(Data.request,YEAR<=as.numeric(substr(Last.year,1,4)))
   WRL=subset(WRL,Finyear%in%Used.yrs)
   
     
@@ -648,17 +648,17 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   historic.prop.ktch$LIVEWT.c=historic.prop.ktch$LIVEWT.c*Mean.prop.ctch
   
   
-  #remove data for other gears that is already recorded in Data.monthly
-  Data.request=subset(Data.request,SPECIES%in%Species)
-  
-  Data.request=subset(Data.request,!dummy%in%TDGDLF.other.gears$dummy)
-  if(SP%in%c("BW","TK")) 
-  {
-    a=Data.monthly.north%>%filter(SPECIES%in%Species)%>%
-                           mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD)) 
-    Data.request=subset(Data.request,!dummy%in%a$dummy)
-  }
-  if(nrow(Data.request)>0)if(KTCH.UNITS=="TONNES") Data.request$LIVEWT.c=Data.request$LIVEWT.c/1000   #in tonnes
+  # #remove data for other gears that is already recorded in Data.monthly
+  # #Data.request=subset(Data.request,SPECIES%in%Species)
+  # 
+  # #Data.request=subset(Data.request,!dummy%in%TDGDLF.other.gears$dummy)
+  # if(SP%in%c("BW","TK")) 
+  # {
+  #   a=Data.monthly.north%>%filter(SPECIES%in%Species)%>%
+  #                          mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD)) 
+  #   Data.request=subset(Data.request,!dummy%in%a$dummy)
+  # }
+  # if(nrow(Data.request)>0)if(KTCH.UNITS=="TONNES") Data.request$LIVEWT.c=Data.request$LIVEWT.c/1000   #in tonnes
   
   #combine TDGDLF (i.e. GN and LL) with other gears reported with TDGDLF
   TDGDLF.other.gears=TDGDLF.other.gears[,match(names(TDGDLF),names(TDGDLF.other.gears))]
@@ -711,13 +711,13 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   x=substr(Yrs.dummy[2]:Yrs.dummy[length(Yrs.dummy)],start=3,stop=4)
   FinYrs=paste(Yrs.dummy[1]:Yrs.dummy[length(Yrs.dummy)-1],"-",x,sep="")
   
-  #1.4 Other catches reported in WA fisheries
-  if(Conv.cal.mn.to.fin.mn=="YES")
-  {
-    Data.request$MONTH.calendar=Data.request$MONTH
-    Data.request$MONTH=fn.month.to.fin.mn(Data.request$MONTH)
-  }
-  if(nrow(Data.request)>0) other_ktch=aggregate(LIVEWT.c~FINYEAR+MONTH+zone,Data.request,sum)
+  #1.4 Other catches reported in WA fisheries    replace by Data.monthly.CAESS=M:/...CAES"
+  # if(Conv.cal.mn.to.fin.mn=="YES")
+  # {
+  #   Data.request$MONTH.calendar=Data.request$MONTH
+  #   Data.request$MONTH=fn.month.to.fin.mn(Data.request$MONTH)
+  # }
+  # if(nrow(Data.request)>0) other_ktch=aggregate(LIVEWT.c~FINYEAR+MONTH+zone,Data.request,sum)
   
 
   #1.5 Recreational catch                        

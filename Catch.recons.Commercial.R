@@ -61,12 +61,12 @@ names(Catch_1952_1975)=c("year","LIVEWT.c")
 
 
   #1.1.3 Commercial shark catch reported in other WA fisheries
-Data.request.1=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1975_1987.csv")
-Data.request.2=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1988_2002.csv")
-Data.request.3=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/2003_2016.csv")
-Data.request=rbind(Data.request.1,Data.request.2,Data.request.3)
-Data.request=subset(Data.request,!METHOD%in%c("GN","LL"))
-names(Data.request)[match("LIVEWT",names(Data.request))]="LIVEWT.c"
+# Data.request.1=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1975_1987.csv")
+# Data.request.2=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1988_2002.csv")
+# Data.request.3=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/2003_2016.csv")
+# Data.request=rbind(Data.request.1,Data.request.2,Data.request.3)
+# Data.request=subset(Data.request,!METHOD%in%c("GN","LL"))
+# names(Data.request)[match("LIVEWT",names(Data.request))]="LIVEWT.c"
 
 
   #1.1.4 Wetline  
@@ -110,6 +110,8 @@ Greynurse.ktch=data.frame(
   #1.1.7 WA scallop and prawn trawl fisheries
 #source Laurenson et al 1993 Table 5
 #assumption: Laurenson doesn't report the actual number but a range so the max of the range was chosen
+#            Only use commercial species for species composition of the catch and it's not expected
+#             that non-commercial species will be part of the catch
 South.west.trawl=data.frame(
   Scien.nm=c('Squatina australis','Aulohalaelurus labiosus','Urolophus circularis','Orectolobus tentaculatus',
              'Pristiophorus cirratus','Myliobatis australis','Trygonorhina fasciata','Mustelus antarcticus',
@@ -122,15 +124,18 @@ South.west.trawl=data.frame(
             'Lobed stingaree','Masked stingaree','Numbfish','Port Jackson shark',
             'Smooth hammerhead','Smooth stingray','Southern shovelnose ray','Sparsely-spotted stingaree',
             'Varied catshark','Western stingaree','Western wobbegong'),
+  Commercial=c('y',rep('n',3),rep('y',4),rep('n',4),'y','n','y',rep('n',3),'y'),
   Bell.buoy=c(10,0,0,0,0,10,10,0,100,50,0,10,0,0,10,50,0,50,0),
   Cottesloe=c(10,0,0,0,0,50,10,0,100,50,0,1000,0,10,10,10,0,50,0),
   Conventry.reef=c(10,0,0,0,0,10,10,10,1000,50,0,10,0,10,10,100,0,10,0),
   Comet.bay=c(50,0,0,0,10,10,10,10,10,10,10,50,10,0,10,10,0,50,0),
   Preston.deep=c(10,10,10,0,10,10,10,0,100,50,10,10,0,0,10,10,0,50,0),
-  Preston.shallow=c(0,10,0,0,0,10,10,0,0,10,10,10,0,0,0,0,10,10,0),
+  Preston.shallow=c(0,10,0,0,0,10,10,0,0,10,10,10,0,0,0,0,10,10,10),
   Capel=c(10,0,0,0,0,10,10,0,50,50,0,10,0,0,10,1000,0,50,0),
   Busselton=c(10,0,0,10,10,10,10,0,0,10,0,10,0,0,0,100,0,10,0),
   zoneC=c(50,0,0,0,10,10,10,0,0,10,0,50,0,0,10,100,0,100,0))%>%
+  filter(Commercial=='y')%>%
+  select(-Commercial)%>%
   mutate(Total = rowSums(select(., -Scien.nm,-Species)),
          Prop=Total/sum(Total))%>%
   select(Species,Scien.nm,Prop)
@@ -152,7 +157,10 @@ Shark.Bay=data.frame(
             'Stingray, Blue-spotted','Stingray, Brown reticulated','Stingray, Coachwhip','Whipray, Black-spotted',
             'Whipray, Reticulate','Stingray, Black-blotched','Ray, Rat-tailed/Butterfly','Stingaree, Striped',
             'Ray, White-spotted Eagle'),
+  Commercial=c('n','n',rep('y',7),'n','n','y',rep('n',10),'y'),
   Total=c(2,1,3,1,1,1,1,1,1,1,3,3,4,1,3,4,1,2,2,1,4,2,1))%>%
+  filter(Commercial=='y')%>%
+  select(-Commercial)%>%
   mutate(Prop=Total/sum(Total))%>%
   select(Species,Scien.nm,Prop)
 
@@ -165,7 +173,10 @@ Exmouth.Onslow=data.frame(
             'Shark, Sicklefin Weasel','Ray, White-spotted Shovelnose','Ray, Giant Shovelnose','Ray, Blue-spotted Stingray',
             'Ray, Brown Reticulated','Ray, Black-spotted Whipray','Ray, Butterfly/Rat-tailed',
             'Ray, Ornate Eagle Ray','Ray, Banded Eagle Ray'),
+  Commercial=c(rep('n',3),'y','y',rep('n',8)),
   Total=c(3,1,3,2,2,2,1,1,3,3,3,1,1))%>%
+  filter(Commercial=='y')%>%
+  select(-Commercial)%>%
   mutate(Prop=Total/sum(Total))%>%
   select(Species,Scien.nm,Prop)
 
@@ -281,22 +292,22 @@ NSF.other.gears=Data.monthly.north%>%
   filter(!METHOD%in%c("GN","LL"))%>%
   mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
 fn.subs=function(YEAR) substr(YEAR,start=3,stop=4)
-Data.request=Data.request%>%
-  mutate(FINYEAR=ifelse(MONTH%in%1:6,paste(YEAR-1,"-",fn.subs(YEAR),sep=""),
-                        ifelse(MONTH%in%7:12,paste(YEAR,"-",fn.subs(YEAR+1),sep=""),NA)),
-         LAT=-as.numeric(substr(BLOCKX,1,2)),
-         LONG=100+as.numeric(substr(BLOCKX,3,4)),
-         zone=as.character(ifelse(LONG>=116.5 & LAT<=(-26),"Zone2",
-                           ifelse(LONG<116.5 & LAT<=(-33),"Zone1",
-                           ifelse(LAT>(-33) & LAT<=(-26) & LONG<116.5,"West",
-                           ifelse(LAT>(-26) & LONG<114,"Closed",
-                           ifelse(LAT>(-26) & LONG>=114 & LONG<123.75,"North",
-                           ifelse(LAT>(-26) & LONG>=123.75,"Joint",NA))))))),
-         dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))%>%
-  filter(!dummy%in%c(TDGDLF.other.gears$dummy,NSF.other.gears$dummy))
-Data.request.south=Data.request%>%filter(LAT<=max(Data.monthly$LAT))
-Data.request.north=Data.request%>%filter(LAT>max(Data.monthly$LAT))
-rm(Data.request,Data.request.1,Data.request.2,Data.request.3)
+# Data.request=Data.request%>%                                                     REPLACE BY Data.monthly.CAESS
+#   mutate(FINYEAR=ifelse(MONTH%in%1:6,paste(YEAR-1,"-",fn.subs(YEAR),sep=""),
+#                         ifelse(MONTH%in%7:12,paste(YEAR,"-",fn.subs(YEAR+1),sep=""),NA)),
+#          LAT=-as.numeric(substr(BLOCKX,1,2)),
+#          LONG=100+as.numeric(substr(BLOCKX,3,4)),
+#          zone=as.character(ifelse(LONG>=116.5 & LAT<=(-26),"Zone2",
+#                            ifelse(LONG<116.5 & LAT<=(-33),"Zone1",
+#                            ifelse(LAT>(-33) & LAT<=(-26) & LONG<116.5,"West",
+#                            ifelse(LAT>(-26) & LONG<114,"Closed",
+#                            ifelse(LAT>(-26) & LONG>=114 & LONG<123.75,"North",
+#                            ifelse(LAT>(-26) & LONG>=123.75,"Joint",NA))))))),
+#          dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))%>%
+#   filter(!dummy%in%c(TDGDLF.other.gears$dummy,NSF.other.gears$dummy))
+# Data.request.south=Data.request%>%filter(LAT<=max(Data.monthly$LAT))
+# Data.request.north=Data.request%>%filter(LAT>max(Data.monthly$LAT))
+# rm(Data.request,Data.request.1,Data.request.2,Data.request.3)
 
 
 #ACA
