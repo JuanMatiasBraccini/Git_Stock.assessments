@@ -34,9 +34,11 @@ b=read.csv("C:\\Matias\\Data\\Species.code.csv")
 setwd("C:/Matias/Analyses/Data_outs")
 
   #1.1.1 TDGDLF and NSF shark fisheries
-Data.monthly=read.csv("Data.monthly.csv")
+Data.monthly=read.csv("Data.monthly.csv")   #this has catch of sharks from all fisheries for monthly records
+                                            # but from shark fisheries only for daily records
 Data.monthly.north=read.csv("Data.monthly.NSF.csv")
 Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT  
+daily.other=read.csv("Data.daily.other.fisheries.csv")  #this has shark catch from other fisheries for daily records  #MISSING, aDD THIS! 
 
 
   #1.1.2 Historic shark fisheries (pre 1975)

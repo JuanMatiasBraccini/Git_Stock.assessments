@@ -12,13 +12,12 @@
 
 #Notes on Charter boat (from Rhonda):
 #       There is no reliable charter data before this date as it was not compulsory to send in logbook sheets.
-#       Compulsory logbooks were introduced in 2001.
-#       We have  a little data on the sharks for 1998 and 2000
-
-#To address charter boat issue reconstructed catch time series are
-# calculated using only the Isurvey years (combining Isurvey, beach fishing and charter
-#  boats which should be reliable) and the back calculating using WA population size
-#  and participating rate
+#         Compulsory logbooks were introduced in 2001.
+#         We have  a little data on the sharks for 1998 and 2000
+#      To address this issue reconstructed catch time series are
+#        calculated using only the Isurvey years (combining Isurvey, beach fishing and charter
+#        boats which should be reliable) and the back calculating using WA population size
+#        and participating rate
 
 #Notes on Isurvey (from Karina):
 # The data is an extract of what will be the most up-to-date iSurvey data to be made
@@ -34,6 +33,12 @@
 #   indicate relative standard error >40% (i.e. se >40% of estimate); in italics to 
 #   indicate <30 respondents recorded catches of the species) to indicate unreliable estimates
 
+
+#MISSING: update participation rates with figures from Eva for recent years. 
+#         Karina reported 26.5%
+#        Eva: "The participation rate for 18/19 was about 26%. It was below 30% in 
+#               the last several years. The average over the last 10 years (2009/10 
+#               to 2018/19) was about 29.8%.”"
 
 library(tidyverse)
 library(readxl)
