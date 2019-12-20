@@ -33,12 +33,18 @@ b=read.csv("C:\\Matias\\Data\\Species.code.csv")
 #1.1 Catch_WA Fisheries
 setwd("C:/Matias/Analyses/Data_outs")
 
-  #1.1.1 TDGDLF and NSF shark fisheries
-Data.monthly=read.csv("Data.monthly.csv")   #this has catch of sharks from all fisheries for monthly records
-                                            # but from shark fisheries only for daily records
+  #1.1.1 all monthly return and daily logbook fisheries from 1975-76
+  #south of 26 S
+Data.monthly=read.csv("Data.monthly.csv")
+#note:  this has catch of sharks from all fisheries for monthly returns
+#       but only from shark fisheries for daily records
+
+daily.other=read.csv("Data.daily.other.fisheries.csv")                #MISSING: add this to catch, reapportion 'shark other' by fishery
+#note:  this has shark catch from other fisheries for daily records  
+
+  #north of 26 S
 Data.monthly.north=read.csv("Data.monthly.NSF.csv")
 Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT  
-daily.other=read.csv("Data.daily.other.fisheries.csv")  #this has shark catch from other fisheries for daily records  #MISSING, aDD THIS! 
 
 
   #1.1.2 Historic shark fisheries (pre 1975)
@@ -62,35 +68,26 @@ Catch_1952_1975=read.csv("C:/Matias/Data/Catch and Effort/Historical_WA_shark_ca
 names(Catch_1952_1975)=c("year","LIVEWT.c")
 
 
-  #1.1.3 Commercial shark catch reported in other WA fisheries
-# Data.request.1=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1975_1987.csv")
-# Data.request.2=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/1988_2002.csv")
-# Data.request.3=read.csv("C:/Matias/Data/Catch and Effort/Data_request_12_2014/2003_2016.csv")
-# Data.request=rbind(Data.request.1,Data.request.2,Data.request.3)
-# Data.request=subset(Data.request,!METHOD%in%c("GN","LL"))
-# names(Data.request)[match("LIVEWT",names(Data.request))]="LIVEWT.c"
-
-
-  #1.1.4 Wetline  
+  #1.1.3 Wetline  
   #Western Rock lobster
 WRL=read.csv("C:/Matias/Data/Catch and Effort/WRL/Number-of-vessels.csv")
 WRL.Wann=read.csv("C:/Matias/Data/Catch and Effort/WRL/Wann_catch.csv")
 
-  #1.1.5 Pilbara trawl (Corey W.)
+  #1.1.4 Pilbara trawl (Corey W.)               MISSING!!!!!!!!!!!!!
 #44% of observed shots (n=2000) have carcharhinids reaching deck. Unknown post-capture survival and 
 # unknown species composition. This could be resolved if videos reviewed...
 
-  #1.1.6 TEPs   
-    #1.1.6.1 TDGDLF
+  #1.1.5 TEPs   
+    #1.1.5.1 TDGDLF
 #note: data obtained from Comments in TDGDLF returns
-# Oversized dusky sharks   #MISING: aDD 2011-12 AND 2012-13 YEARS!!!
+# Oversized dusky sharks                            #MISING: aDD 2011-12 AND 2012-13 YEARS!!!
 Overzd.Whler=read.csv("C:/Matias/Data/Catch and Effort/TEPS/Comments from SharkDailyTripReturns.csv")
 
-    #1.1.6.2 Other fisheries
+    #1.1.5.2 Other fisheries
 TEPS_other=read.csv("C:/Matias/Data/Catch and Effort/TEPS_catch.csv")
 
-    #1.1.6.3 Greynurse catches since protection           REVIEW in light of TEP stuff for dusky....
-Asses.year=2019                                     #remove, it won't be updated.....!!!!!
+    #1.1.5.3 Greynurse catches since protection           REVIEW in light of TEP stuff for dusky....
+Asses.year=2019                                     #MISSING, move Assess.year to overarching script so the year gets updated...
 GN.mn.wght=25
 GN.pcm=.2
 Under.rep.factor=2  #from white shark catch recons
@@ -109,11 +106,11 @@ Greynurse.ktch=data.frame(
   dplyr::select(finyear,LIVEWT.c)
 
 
-  #1.1.7 WA scallop and prawn trawl fisheries
+  #1.1.6 WA scallop and prawn trawl fisheries
 #source Laurenson et al 1993 Table 5
 #assumption: Laurenson doesn't report the actual number but a range so the max of the range was chosen
-#            Only use commercial species for species composition of the catch and it's not expected
-#             that non-commercial species will be part of the catch
+#            Only use commercial species to determine species composition of the catch (it's not expected
+#             that non-commercial species would be part of the catch)
 South.west.trawl=data.frame(
   Scien.nm=c('Squatina australis','Aulohalaelurus labiosus','Urolophus circularis','Orectolobus tentaculatus',
              'Pristiophorus cirratus','Myliobatis australis','Trygonorhina fasciata','Mustelus antarcticus',
@@ -184,7 +181,7 @@ Exmouth.Onslow=data.frame(
 
 
 
-#1.2. Catch_Other Fisheries
+#1.2. Catch of non WA Fisheries
 
   #1.2.1 Taiwanese gillnet (1974-1986) and longline (1989-91) fishery (catch in tonnes)
 #Sources: Stevens & Davenport 1991; Stevens 1999
@@ -223,11 +220,11 @@ Taiwan.longline.ktch=Taiwan.longline.sp.comp%>%
   dplyr::select(names(Taiwan.gillnet.ktch))
 
 
-  #1.2.2 Commonwealth Southern and Western Tuna and Billfish Fisheries (SWTBF)
+  #1.2.2 Commonwealth Southern and Western Tuna and Billfish Fisheries (SWTBF)          MISSING!!!!!!!
 #source: Bensely et al 2010. Appendix A
 #also note that page 43 Borg & McAuley 2004: 1165 individuals of bronzey in 2001
-AFMA_catch=read.csv("Catch and Effort/AFMA_catch.csv")  
-Effort_WTBF=read.csv("Catch and Effort/AFMA full effort series.csv")
+AFMA_catch=read.csv("C:/Matias/Data/Catch and Effort/AFMA_catch.csv")  
+Effort_WTBF=read.csv("C:/Matias/Data/Catch and Effort/AFMA full effort series.csv")
 
 #number of individuals per 203205 hooks observed.
 # 97% discarded alive (Stobutski et al 2006 Table 3)
@@ -236,14 +233,15 @@ cpue_dusky_WTBF=37/203205
 cpue_sandbar_WTBF=8/203205   #100% discarded alive
 
 
-#1.2.3 Japanese longline
+#1.2.3 Japanese longline                          MISSING!!!!!!!!!!!!!!!!!
 
 
 
 
 # 2 -------------------PROCEDURE SECTION------------------------------------
 
-#2.1 Catch_WA Fisheries
+#2.1 Catch from WA Fisheries
+
   #2.1.1 combine historic in single dataframe
 Catch_1949.total=data.frame(year=1949,LIVEWT.c=sum(Catch_1949$LIVEWT.c))     
 Catch_1949.total$LIVEWT.c=Catch_1950$LIVEWT.c     
@@ -286,33 +284,22 @@ Hist.expnd=Hist.expnd%>%
   mutate(LIVEWT.c=ktch*Proportion)
 
 
-  #2.1.2 remove data for other gears that is already recorded in Data.monthly
+#get data for other gears from Data.monthly
 TDGDLF.other.gears=Data.monthly%>%
   filter(!METHOD%in%c("GN","LL"))%>%
   mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
 NSF.other.gears=Data.monthly.north%>%
   filter(!METHOD%in%c("GN","LL"))%>%
   mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
+
+
+  #2.1.2 reapportioning of 'shark,other' and 'hammerheads'
 fn.subs=function(YEAR) substr(YEAR,start=3,stop=4)
-# Data.request=Data.request%>%                                                     REPLACE BY Data.monthly.CAESS
-#   mutate(FINYEAR=ifelse(MONTH%in%1:6,paste(YEAR-1,"-",fn.subs(YEAR),sep=""),
-#                         ifelse(MONTH%in%7:12,paste(YEAR,"-",fn.subs(YEAR+1),sep=""),NA)),
-#          LAT=-as.numeric(substr(BLOCKX,1,2)),
-#          LONG=100+as.numeric(substr(BLOCKX,3,4)),
-#          zone=as.character(ifelse(LONG>=116.5 & LAT<=(-26),"Zone2",
-#                            ifelse(LONG<116.5 & LAT<=(-33),"Zone1",
-#                            ifelse(LAT>(-33) & LAT<=(-26) & LONG<116.5,"West",
-#                            ifelse(LAT>(-26) & LONG<114,"Closed",
-#                            ifelse(LAT>(-26) & LONG>=114 & LONG<123.75,"North",
-#                            ifelse(LAT>(-26) & LONG>=123.75,"Joint",NA))))))),
-#          dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))%>%
-#   filter(!dummy%in%c(TDGDLF.other.gears$dummy,NSF.other.gears$dummy))
-# Data.request.south=Data.request%>%filter(LAT<=max(Data.monthly$LAT))
-# Data.request.north=Data.request%>%filter(LAT>max(Data.monthly$LAT))
-# rm(Data.request,Data.request.1,Data.request.2,Data.request.3)
+
+#ACA     move code from 'Assessment_other.species.R' to here. Also include 'daily.other'.
+#       for reapportioning, consider fisheryCode and area.....
 
 
-#ACA
 
   #2.1.3 Wetline catches of dusky sharks                   
   #rock lobster
@@ -330,7 +317,8 @@ Dusky.Tot.Ktch.WRL=Dusky.Tot.Ktch.WRL[,-1]   #remove number of vessels
 Dusky.Tot.Ktch.WRL=fn.exp.his(Dusky.Tot.Ktch.WRL,Monthly.prop)  #partition catch by month    
 
 
-#2.2. Catch_Other Fisheries
+#2.2. Catch from non WA Fisheries
+
   #2.2.1 Commonwealth SWTBF and GAB trawl fishery               
 #Option=1       #select source to use to obtain catches
 Option=2
@@ -464,9 +452,8 @@ if(SP=="BW")
   these.sp=c("Shark, Bronze Whaler","Shark, Bronze Whaler (oversize)","Shark, Dusky Whaler (oversize)")
   #note: no sandbars reported
   
-  TEPS_other=subset(TEPS_other,CommonName%in%these.sp)
-  #Note: it seems all reported TEPS are for the Shark fisheries...  don't use this and only using TEPS from TDGDFL
-  
+  TEPS_other=subset(TEPS_other,CommonName%in%these.sp & !FisheryCode%in%c('SGL','TDGDLF','WCGL')) #avoid duplication
+
   TEPS_dusky=TEPS_TDGDLF[,c(1,5)]
   TEPS_dusky=fn.exp.his(TEPS_dusky,Monthly.prop)
   
@@ -475,7 +462,7 @@ if(SP=="BW")
 
 
 # 3 -------------------REPORT SECTION------------------------------------
-if(Do.recons.com.fishn.paper=="YES")   #only report IUU and reconstructions, not the reported TDGDLF or NSF
+if(Do.recons.com.fishn.paper=="YES")   #for paper, report only IUU and reconstructions (not the TDGDLF or NSF)
 {
   
 }
