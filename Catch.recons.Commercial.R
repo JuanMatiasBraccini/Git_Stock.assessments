@@ -9,7 +9,7 @@ library(readxl)
 library(lubridate)
 
 
-Do.recons.com.fishn.paper="NO"
+Do.recons.com.fishn.paper="NO"  #outputs for reconstruction paper
 Historic.yrs=1941:1975
 
 #Catch reconstruction scenarios
@@ -27,22 +27,23 @@ source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
 
 #species codes
 All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/1.Other species/Species_names.csv")
-b=read.csv("C:\\Matias\\Data\\Species.code.csv")
+species.codes=read.csv("C:\\Matias\\Data\\Species.code.csv")   #formerly declared as 'b'
 
 
 #1.1 Catch_WA Fisheries
 setwd("C:/Matias/Analyses/Data_outs")
 
   #1.1.1 all monthly return and daily logbook fisheries from 1975-76
-  #south of 26 S
+
+    #south of 26 S
 Data.monthly=read.csv("Data.monthly.csv")
 #note:  this has catch of sharks from all fisheries for monthly returns
 #       but only from shark fisheries for daily records
 
-daily.other=read.csv("Data.daily.other.fisheries.csv")                #MISSING: add this to catch, reapportion 'shark other' by fishery
+daily.other=read.csv("Data.daily.other.fisheries.csv")                
 #note:  this has shark catch from other fisheries for daily records  
-
-  #north of 26 S
+  
+    #north of 26 S
 Data.monthly.north=read.csv("Data.monthly.NSF.csv")
 Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT  
 
@@ -73,9 +74,30 @@ names(Catch_1952_1975)=c("year","LIVEWT.c")
 WRL=read.csv("C:/Matias/Data/Catch and Effort/WRL/Number-of-vessels.csv")
 WRL.Wann=read.csv("C:/Matias/Data/Catch and Effort/WRL/Wann_catch.csv")
 
-  #1.1.4 Pilbara trawl (Corey W.)               MISSING!!!!!!!!!!!!!
-#44% of observed shots (n=2000) have carcharhinids reaching deck. Unknown post-capture survival and 
-# unknown species composition. This could be resolved if videos reviewed...
+  #1.1.4 Pilbara trawl shark species composition (Corey W.) 
+#44% of observed shots (n=2000) have carcharhinids reaching deck. Unknown post-capture survival 
+#source: Table 6.4 Heupel & McAuley 2007 (weight is live weight in kg)
+Pilbara.trawl.observed.comp=data.frame(
+  Common.name=c('Sandbar shark','Great hammerhead','Pigeye shark',
+                'Fossil shark','Blacktip sharks','Tiger shark',
+                'Milk shark','Weasel shark','Sharpnose shark','Whitecheek shark',
+                'Leopard shark','Tawny nurse shark','Scalloped hammerhead','Spot-tail shark',
+                'Smooth hammerhead','Longtail carpet sharks','Banded catshark','Winghead',
+                'Tasseled woggegong','Bignose shark','Spinner shark',
+                'Sliteye','Northern wobbegong'),
+  Scientific.name=c('Carcharhinus plumbeus','Sphyrna mokarran','Carcharhinus amboinensis',
+                    'Hemipristis elongata','Carcharhinus tilstoni & C. limbatus','Galeocerdo cuvier',
+                    'Rhizoprionodon acutus','Hemigaleus microstoma','Rhizoprionodon taylori','Carcharhinus dussumieri',
+                    'Stegastoma fasciatum','Nebrius ferrugineus','Sphyna lewini','Carcharhinus sorrah',
+                    'Sphyrna zygaena','Hemiscylliidae','Chiloscylium punctatum','Eusphyra blochii',
+                    'Eucrossorhinus dasypogon','Carcharhinus altimus','Carcharhinus brevipinna',
+                    'Loxodon macrorhinus','Orectolobus wardi'),
+  Retained=c(rep('yes',10),rep('no',13)),
+  Numbers=c(90,7,3,27,80,5,238,559,114,102,101,4,115,25,1,12,43,1,4,6,1,1,2),
+  Weight=c(2058.6,595.9,295.1,395.8,593.2,168.3,522.6,772.7,210.5,214.2,
+           1627.8,257.1,189.5,90.7,39.4,20.0,15.6,15.1,9.5,4.9,4.2,2,.8)
+)
+Pilbara.trawl.observed.effort=100  #days (McAuley et al 2005 page 25; 5 vessels observed)
 
   #1.1.5 TEPs   
     #1.1.5.1 TDGDLF
@@ -107,7 +129,8 @@ Greynurse.ktch=data.frame(
 
 
   #1.1.6 WA scallop and prawn trawl fisheries
-#source Laurenson et al 1993 Table 5
+
+    #source Laurenson et al 1993 Table 5
 #assumption: Laurenson doesn't report the actual number but a range so the max of the range was chosen
 #            Only use commercial species to determine species composition of the catch (it's not expected
 #             that non-commercial species would be part of the catch)
@@ -139,7 +162,7 @@ South.west.trawl=data.frame(
          Prop=Total/sum(Total))%>%
   select(Species,Scien.nm,Prop)
 
-#Source Kangas et al 2007 Appendix 3.1 and 3.2
+    #Source Kangas et al 2007 Appendix 3.1 and 3.2
 Shark.Bay=data.frame(
   Scien.nm=c('Chiloscyllium punctatum','Halaelurus boesemani','Mustelus sp. A',
              'Carcharhinus cautus','Carcharhinus melanopterus','Carcharhinus obscurus',
@@ -180,6 +203,31 @@ Exmouth.Onslow=data.frame(
   select(Species,Scien.nm,Prop)
 
 
+  #1.1.7 Kimberley Gillnet and Barramundi Fishery
+
+  #source: Table 6.5 Heupel & McAuley 2007 (weights are live weight in kg)
+Kimberley.GBF.observed.comp=data.frame(
+  Common.name=c('Blacktip sharks','Bull shark','Graceful shark','Hardnose shark',
+                'Scalloped hammerhead','Winghead','Lemon shark','Spinner shark',
+                'Milk shark','Nervous shark','Narrow sawfish','Dwarf sawfish',
+                'Pigeye shark','Freshwater sawfish','Green sawfish',
+                'Blacktip reef','Sliteye shark','Shovelnose','Spot-tail shark',
+                'Stingray','Australian sharpnose','Tiger shark','Whitespot guitarfish'),
+  Scientific.name=c('Carcharhinus tilstoni & C. limbatus','Carcharhinus leucas',
+                    'Carcharhinus amblyrhynchoides','Carcharhinus macloti',
+                    'Sphyrna lewini','Eusphyra blochii','Negaprion acutidens',
+                    'Carcharhinus brevipinna','Rhizoprionodon acutus',
+                    'Carcharhinus cautus','Anoxypristis cuspidata','Pristis clavata',
+                    'Carcharhinus amboinensis','Pristis microdon','Pristis zijsron',
+                    'Carcharhinus melanopterus','Loxodon macrorhinus',
+                    'Rhynchobatidae/F Rhinobatidae','Carcharhinus sorrah',
+                    'Dasyatididae','Rhizoprionodon taylori','Galeocerdo cuvier',
+                    'Rhynchobatus australiae'),
+  Numbers=c(87,32,36,3,1,45,27,3,13,82,190,31,398,1,17,1,6,22,1,5,4,1,5),
+  Weight=c(578.1,126.5,178.6,12.5,109.1,106.9,165.1,3.4,13.9,422.5,5239.1,370.1,
+           2284.5,23.7,161.6,1.4,5.4,63.5,5.7,20.0,2.9,57.2,56.8)
+)
+Kimberley.GBF.observed.effort=160  #days (McAuley et al 2005 page 26; 5 vessels observed)
 
 #1.2. Catch of non WA Fisheries
 
@@ -296,9 +344,10 @@ NSF.other.gears=Data.monthly.north%>%
   #2.1.2 reapportioning of 'shark,other' and 'hammerheads'
 fn.subs=function(YEAR) substr(YEAR,start=3,stop=4)
 
-#ACA     move code from 'Assessment_other.species.R' to here. Also include 'daily.other'.
+#DEJE ACA     move code from 'Assessment_other.species.R' to here. Also include 'daily.other'.
 #       for reapportioning, consider fisheryCode and area.....
-
+#  Pilbara.trawl and Kimberley.GBF: species total catch =species catch rate X annual effort  but 
+#             consider pre and post 2006 issues (retaining and discarding....)
 
 
   #2.1.3 Wetline catches of dusky sharks                   
