@@ -20,6 +20,9 @@
 #For SRA, use Dan Ovando's approach, once it is installed
 #but will need cpue index or FMI
 
+# rather than standard SPM, try JABBA: Just Another Bayesian Biomass Assessment (can be 
+#             run from R..see Winker et al 2018; it's what IUCN uses)
+
 rm(list=ls(all=TRUE))
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
 source.hnld="C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/"
