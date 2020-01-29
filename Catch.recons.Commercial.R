@@ -1,25 +1,17 @@
 #-- Script for reconstructing time series of commercial catch of sharks in WA and IUU
 
-#MISSING:
-# Mervi to send species numbers from Appendix 3.1 and 3.2
-# how to split dusky:bronzie catch in Whaler_SA?
-
-# see Table 6.3 Heupel & McAuley 2007. They report annual shark catch by fishery in the north!!
-#     are all these fisheries captured in 'other fisheries' from returns????
-
-# Annual updates:       MISSING, add all fisheries for which I use annual effort or catch
-  # . Annual effort:      
-#  Kimberley.GBF.annual.effort    (this is Kimberley.GBF & Eighty mile beach combined)
-#  Exmouth.Onslow.trawl.annual.effort
-#  Shark.Bay.trawl.annual.effort
-#  South.west.trawl.annual.effort
-#  Pilbara.trawl.annual.effort
-
-  # . Annual catch:
-#  Whaler_SA
+#MISSING: Mervi to send species numbers from Appendix 3.1 and 3.2
+#         See Table 6.3 Heupel & McAuley 2007. They report annual shark catch by fishery in the north!!
+#           are all these fisheries captured in 'other fisheries' from returns????
 
 
-#Asses.year=2019            #delete once script is done as this is declared in "Assessment_other.species.R"
+# Annual updates:                         
+  # Get Annual effort for fisheries listed in: #Effort time series (must be updated every year)     
+
+  # Get Annual catch for: Whaler_SA, GAB.trawl_catch, WTBF_catch
+
+
+#Asses.year=2019     #delete once script is done as this is declared in "Assessment.R" & "Assessment_other.species.R"
 
 library(tidyverse)
 library(readxl)
@@ -135,14 +127,37 @@ Pilbara.trawl.observed.comp=data.frame(
   Weight=c(2058.6,595.9,295.1,395.8,593.2,168.3,522.6,772.7,210.5,214.2,
            1627.8,257.1,189.5,90.7,39.4,20.0,15.6,15.1,9.5,4.9,4.2,2,.8)
 )
-Pilbara.trawl.observed.effort=100  #days (McAuley et al 2005 page 25; 5 vessels observed)
-#Pilbara.trawl.annual.effort=    #days                      MISSING
+#Pilbara.trawl.observed.effort=100  #days (Stephenson & Chidlow 2003 fide in McAuley et al 2005 page 25)
+Pilbara.trawl.observed.effort=1601.898   #hours; derived from get.observed.Pilbara
+get.observed.Pilbara=FALSE
+if(get.observed.Pilbara)
+{
+  Observed.hours.Pilbara=DATA.bio%>%
+    filter(Method=='TW')%>%
+    distinct(SHEET_NO)%>%
+    pull(SHEET_NO)
+  Observed.hours.Pilbara=DATA%>%
+    filter(SHEET_NO%in%Observed.hours.Pilbara)%>%
+    distinct(SHEET_NO,.keep_all = T)
+  #Stephenson & Chidlow repoted 100 days observed but only 83 records in DATA
+  # hence, add 17 days with mean observed hours per day
+  Mean.hour=Observed.hours.Pilbara%>%
+    group_by(date)%>%
+    summarise(Total.hours=sum(SOAK.TIME,na.rm=T))
+  Mean.hour=mean(Mean.hour$Total.hours)
+  Total.observed.hours=sum(Observed.hours.Pilbara$SOAK.TIME,na.rm=T)+17*Mean.hour
+}
+#BRD_pilbara.trawl_prop.shark=xx  #source ???       MISSING!!!!!!!!!
+#BRD_pilbara.trawl_prop.ray=xx  
+#BRD_pilbara.trawl_year='200x-0x'
+
+
 
   #-- 1.1.6 WA scallop and prawn trawl fisheries (go to scientist: Mervi Kangas)
 
     #source Laurenson et al 1993 Table 5
 # notes: Authors grouped all sites and replicates in Table 5 
-#        Authors reported a range so the mid point is used
+#        Authors reported a range of number of individuals so the mid point is used
 South.west.trawl.observed.comp=data.frame(
     Scien.nm=c('Squatina australis','Aulohalaelurus labiosus','Urolophus circularis','Orectolobus tentaculatus',
              'Pristiophorus cirratus','Myliobatis australis','Trygonorhina fasciata','Mustelus antarcticus',
@@ -167,7 +182,7 @@ South.west.trawl.observed.comp=data.frame(
     zoneC=c(30,0,0,0,5,5,5,0,0,5,0,30,0,0,5,75,0,75,0))
 South.west.trawl.observed.effort=9*4*(15/60)*4  #hours, 9 sites X 4 replicates X 15 mins X 4 times in a year (Laurenson et al 1993 page 13)
 South.west.trawl.observed.PCM= 0.5 #observed for gummy sharks after 7 days of capture
-#South.west.trawl.annual.effort=    #hours                      MISSING
+
 
     #Source Kangas et al 2006 Appendix 3.1 and 3.2
 # notes: Authors grouped all sites and replicates in Appendix 3.1 and 3.2 and only report presence/absence
@@ -190,7 +205,7 @@ Shark.Bay.trawl.observed.comp=data.frame(
   Commercial=c('n','n',rep('y',7),'n','n','y',rep('n',10),'y'),
   Total=c(2,1,3,1,1,1,1,1,1,1,3,3,4,1,3,4,1,2,2,1,4,2,1))
 Shark.Bay.trawl.observed.effort=26*3*(10/60)*4  #hours, 26 sites X 3 replicates X 10 mins X 4 times in a year (Kangas et al 2006 Table 2.1)
-#Shark.Bay.trawl.annual.effort=    #hours                      MISSING
+
 
 Exmouth.Onslow.trawl.observed.comp=data.frame(
   Scien.nm=c('Chiloscyllium punctatum','Eucrossorhinus dasypogon','Atelomycterus sp.','Rhizoprionodon acutus',
@@ -204,11 +219,11 @@ Exmouth.Onslow.trawl.observed.comp=data.frame(
   Commercial=c(rep('n',3),'y','y',rep('n',8)),
   Total=c(3,1,3,2,2,2,1,1,3,3,3,1,1))
 Exmouth.Onslow.trawl.observed.effort=26*3*(10/60)*3  #hours, 26 sites X 3 replicates X 10 mins X 3 times in a year (Kangas et al 2006 Table 2.1)
-#Exmouth.Onslow.trawl.annual.effort=    #hours                      MISSING
 
-BRD.prop.shark=9/70  #Kangas & Thomson 2004 :70 sharks retained with no BRD VS 9 with BRD
-BRD.prop.ray=8/65  #                         65 rays retained with no BRD VS 8 with BRD
-BRD.year=2003-04
+
+BRD_prawn.trawl_prop.shark=9/70  #Kangas & Thomson 2004 :70 sharks retained with no BRD VS 9 with BRD
+BRD_prawn.trawl_prop.ray=8/65  #                         65 rays retained with no BRD VS 8 with BRD
+BRD_prawn.trawl_year='2003-04'
 
 
   #-- 1.1.7 Kimberley Gillnet and Barramundi Fishery and Eighty Mile Beach Gillnet Fishery
@@ -236,7 +251,42 @@ Kimberley.GBF.observed.comp=data.frame(
            2284.5,23.7,161.6,1.4,5.4,63.5,5.7,20.0,2.9,57.2,56.8)
 )
 Kimberley.GBF.observed.effort=160  #days (McAuley et al 2005 page 26; 5 vessels observed)
-#Kimberley.GBF.annual.effort=    #days                      MISSING
+
+
+#Effort time series (must be updated every year)       MISSING, add all fisheries for which I use annual effort or catch
+fn.rid.efrt=function(d) paste('C:/Matias/Data/Catch and Effort/Effort_other_fisheries',d,sep='/')
+
+  #KGBF
+Kimberley.GBF.annual.effort=read.csv(fn.rid.efrt('KGBF Annual catch and Bdays.csv'))    #days (KGBF and 80 mile beach combined)
+
+  #Pilbara trawl
+#Pilbara.trawl.annual.effort=read.csv()   #hours
+
+  #Scallop and prawn trawl
+Prawn.scallop_Trawl.effort=read.csv(fn.rid.efrt('Prawn.scallop_Trawl fishing effort.csv')) #hours
+
+Exmouth.Onslow.trawl.annual.effort=Prawn.scallop_Trawl.effort[,c('Finyear','EGP','ONP')]%>%  # (note: combined Exmouth & Onslow)
+                                          mutate(ONP=ifelse(is.na(ONP),0,ONP),
+                                                 Effort=EGP+ONP)%>%
+                                   dplyr::select(Finyear,Effort)
+Shark.Bay.trawl.annual.effort=Prawn.scallop_Trawl.effort[,c('Finyear','SBP')]%>%
+                                          rename(Effort=SBP)%>%
+                                          mutate(Effort=ifelse(is.na(Effort),0,Effort))
+Shark.Bay.trawl.scallop.annual.effort=Prawn.scallop_Trawl.effort[,c('Finyear','SBS')] %>%
+                                          rename(Effort=SBS)%>%
+                                          mutate(Effort=ifelse(is.na(Effort),0,Effort))   
+Kimberley.trawl.annual.effort=Prawn.scallop_Trawl.effort[,c('Finyear','KP')] %>%
+                                          rename(Effort=KP) %>%
+                                          mutate(Effort=ifelse(is.na(Effort),0,Effort)) 
+Nickol.Bay.trawl.annual.effort=Prawn.scallop_Trawl.effort[,c('Finyear','NBP')] %>%
+                                          rename(Effort=NBP) %>%
+                                          mutate(Effort=ifelse(is.na(Effort),0,Effort))  
+Abrolhos.trawl.annual.effort=Prawn.scallop_Trawl.effort[,c('Finyear','AIS')]%>%
+                                          rename(Effort=AIS)%>%
+                                          mutate(Effort=ifelse(is.na(Effort),0,Effort))
+
+#South.west.trawl.annual.effort=Prawn.scallop_Trawl.effort[,]  
+
 
 #1.2. Catch of non WA Fisheries
 
@@ -264,34 +314,66 @@ Taiwan.longline.sp.comp=data.frame(
 
 
 
-  #-- 1.2.2 Commonwealth Southern and Western Tuna and Billfish Fisheries (SWTBF)     ACA     MISSING!!!!!!!
-#source: Bensely et al 2010. Appendix A
-#also note that page 43 Borg & McAuley 2004: 1165 individuals of bronzey in 2001
-AFMA_catch=read.csv("C:/Matias/Data/Catch and Effort/AFMA_catch.csv")  
-Effort_WTBF=read.csv("C:/Matias/Data/Catch and Effort/AFMA full effort series.csv")
+  #-- 1.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)     ACA     MISSING!!!!!!!
+#source: Bensely et al 2010. Table 2 in Appendix A
+WTBF_catch=read.csv("C:/Matias/Data/Catch and Effort/WTBF_catch_Benseley.et.al.2010.csv")  #catch in kg
+WTBF_effort=read.csv("C:/Matias/Data/Catch and Effort/WTBF_effort_Benseley.et.al.2010.csv")  #hook numbers
+
+GAB.trawl_catch=read.csv("C:/Matias/Data/Catch and Effort/Gab.trawl_catch_Benseley.et.al.2010.csv")  #catch in kg
+GAB.trawl_effort=read.csv("C:/Matias/Data/Catch and Effort/GAB.trawl_effort_Benseley.et.al.2010.csv")  #hours trawled
+
 
 #Stobutski et al 2006 Table 3 
+WTBF_observed=read.csv("C:/Matias/Data/Catch and Effort/WTBF_Stobutzki.et.al.2006.csv")  #catch in numbers
+
 cpue_dusky_WTBF=37/203205  #number of individuals per 203205 hooks observed.
 cpue_sandbar_WTBF=8/203205   
 dusky_WTBF.at.vessel.mortality=1-.97  # 97% discarded alive
 sandbar_WTBF.at.vessel.mortality=1-1  # 100% discarded alive
 
-#Taylor et al 2016 (page 15)
-
-#Brikmanis et al 2019 has dusky cpue...
-
 
   #-- 1.2.3 SA Marine Scalefish fishery (source Taylor et al 2015)
 #description: whaler shark catch from SA MArine Scale fishery (in tonnes). 
 Whaler_SA=read.csv("C:/Matias/Data/Catch and Effort/SA_marine_scalefish_whaler_ktch.csv")
+Whaler_SA_dusky.prop=.1  # Steer et al 2018 (page 148)
+Whaler_SA_bronzie.prop=1-Whaler_SA_dusky.prop
 
 
+#--Length weigth
+bwt=3.47e-06
+awt=3.10038
 
 
 #DEJE ACA 
+Prawn.scallop.trawl.fisheries=c("EGPR","ONPR","KPF","SBPR","SBSC","NBPR","SWTF","AITF","SCT")
+
+#total of 51 fisheries have reported Shark/ray catches in WA
+#Criteria for calculating discards post 2006: > 10 tonnes (all years with reported catches combined)
+
+FisheryCode==c("WL")   #reapportion shark other using the composition of the other species; catches reported to 2017-18 no need to calculate discarding post 2006
+
+#do these fisheries still operate? only calculate discarding to last year of operation:
+#1.reapportion shark other using the composition of the other species, then calculate discarding post 2006 using total reported landings
+FisheryCode==c('C019',"PTWL",'C127',"CL02",'SBS')   
+Kimberley.barra="KGB"
+Pilbara.trawl='PFT'
+Prawn.scallop.trawl.fisheries
+
+#2.need to reapportion catch and calculate discarding post 2006 but reported species are only blacktip and dusky, any independent study??
+FisheryCode=="EGBS"   
+
+#3.thre is species data so no need to reapportion; just calculate discarding post 2006 using total reported landings
+FisheryCode==c('C070','OT','CSLP','C073')  
+
+#other fisheries reported <10 tonnes between 1975 and 2006 so discards post 2006 no calculated as catches are negligible but
+# the reported catches from these fisheries are considered 
+
+
 # Careful when calculating total catch as 'Organise.data.R' sources this script and uses
 # 'Data.monthly', etc to calculate catch by fishery and total catch. Make sure other
 #  scripts like 'Assessment.other.R' source this script and Catch.recons.Recreational.R'
+
+#  Careful if having rm(all) statements 
 
 # Move code from 'Assessment_other.species.R' to here. Also include 'daily.other'.
 #       for reapportioning, consider fisheryCode and area.....
@@ -381,17 +463,21 @@ fn.subs=function(YEAR) substr(YEAR,start=3,stop=4)
   #2.1.3 Wetline catches of dusky sharks                   
   #rock lobster
 #note: extrapolate Wann's catch (for one season) to the entire fishery as a proportion of the number of boats
-WRL.Wann$TL=WRL.Wann$TL_metres*100    #convert to cm
-WRL.Wann$TL=with(WRL.Wann,ifelse(is.na(TL),TL_feet*30.48,TL))
-Dusky.WRL=subset(WRL.Wann,Species=="DW")
-Dusky.WRL$LiveWt=fn.weight(Dusky.WRL$TL,bwt,awt)   #in kg
+WRL.Wann=WRL.Wann%>%mutate(TL=TL_metres*100,
+                           TL=ifelse(is.na(TL),TL_feet*30.48,TL))   #convert to cm
+fn.weight=function(TL,bwt,awt) bwt*TL^awt
+#1.  Assumption on proportion of lobster boats setting droplines
+WRL.prop=0.1  #small number of operators used the gear (Taylor et al 2015)     #is this already in CAESS??
+Dusky.WRL=WRL.Wann%>%
+            filter(Species=="DW")%>%
+            mutate(LiveWt=fn.weight(TL,bwt,awt))   #in kg
+  
 if(KTCH.UNITS=="TONNES") Annual.Dusky.Ktch.WRL.Wann=sum(Dusky.WRL$LiveWt)/1000 else #in tonnes
                          Annual.Dusky.Ktch.WRL.Wann=sum(Dusky.WRL$LiveWt)
 Dusky.Tot.Ktch.WRL=WRL
 Dusky.Tot.Ktch.WRL$LiveWt=WRL.prop*Annual.Dusky.Ktch.WRL.Wann*Dusky.Tot.Ktch.WRL$Number.of.vessels  #in tonnes
 colnames(Dusky.Tot.Ktch.WRL)[2:3]=c("FINYEAR","LIVEWT.c")
 Dusky.Tot.Ktch.WRL=Dusky.Tot.Ktch.WRL[,-1]   #remove number of vessels     
-Dusky.Tot.Ktch.WRL=fn.exp.his(Dusky.Tot.Ktch.WRL,Monthly.prop)  #partition catch by month    
 
 
 #2.2. Catch from non WA Fisheries
@@ -422,11 +508,16 @@ Taiwan.longline.ktch=Taiwan.longline.sp.comp%>%
   #2.2.1 Commonwealth SWTBF and GAB trawl fishery               
 #Option=1       #select source to use to obtain catches
 Option=2
-if(KTCH.UNITS=="TONNES") for(i in 2:ncol(AFMA_catch))AFMA_catch[,i]=AFMA_catch[,i]/1000   #convert to tonnes
+if(KTCH.UNITS=="TONNES")   #convert to tonnes
+{
+  WTBF_catch$Livewt=WTBF_catch$Catch_kg/1000
+  GAB.trawl_catch$Livewt=GAB.trawl_catch$Catch_kg/1000
+}
+    
 
 if(SP=="BW") 
 {
-  GAB_trawl=AFMA_catch[,c(1,2)]
+  GAB_trawl=AFMA_catch[,c(1,2)]     #MISSING: I changed AFMA_catch for WTBF_catch GAB.trawl_catch  ditto Effort_WTBF
   Bronzey_WTBF=AFMA_catch[,c(1,5)]
   names(Bronzey_WTBF)[2]='LIVEWT.c'
 }
@@ -455,7 +546,7 @@ if(SP%in%c("BW","TK"))
     Mean.wt.sandbar=20
     Dusky_WTBF=Effort_WTBF[,1:2]
     #Dusky_WTBF=AFMA_catch[,c(1,6)]  
-    Dusky_WTBF[,2]=Effort_WTBF[,2]*PCM*cpue_dusky_WTBF*Mean.wt.dusky
+    Dusky_WTBF[,2]=Effort_WTBF[,2]*PCM*cpue_dusky_WTBF*Mean.wt.dusky    #MISSING, replaced cpue_dusky_WTBF with WTBF_observed
     if(KTCH.UNITS=="TONNES") Dusky_WTBF[,2]=Dusky_WTBF[,2]/1000
     Sandbar_WTBF=Effort_WTBF[,1:2]
     #Sandbar_WTBF=AFMA_catch[,c(1,7)]
@@ -581,10 +672,11 @@ Shark.Bay.trawl.observed.comp
 Exmouth.Onslow.trawl.observed.comp
 
 
-#SA Marine Scalefish fishery
-#split dusky from bronzy                      #MISSING, how to split?????
+#SA Marine Scalefish fishery        #MISSING: add these two to total catch!!!
+#split dusky from bronzy                      
 names(Whaler_SA)[2]="LIVEWT.c"
-
+Whaler_SA$Dusky=Whaler_SA$LIVEWT.c*Whaler_SA_dusky.prop
+Whaler_SA$Bronzie=Whaler_SA$LIVEWT.c*Whaler_SA_bronzie.prop      
 
 
 

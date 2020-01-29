@@ -13,6 +13,7 @@ library(dplyr)
 
 #Year assessment is conducted
 Year.of.assessment=2019
+Asses.year=Year.of.assessment
 
 #Last complete financial year of catches
 Last.yr.ktch="2017-18"
