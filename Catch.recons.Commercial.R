@@ -1,15 +1,15 @@
 #-- Script for reconstructing time series of commercial catch of sharks in WA and IUU
 
+#notes: 'wetline' (as reported in Heupel & McAuley 2007) groups the byproduct of several 
+#       different fisheries. This is already included in CAESS
+
 #MISSING: Mervi to send species numbers from Appendix 3.1 and 3.2
 #         See Table 6.3 Heupel & McAuley 2007. They report annual shark catch by fishery in the north!!
 #           are all these fisheries captured in 'other fisheries' from returns????
 
 
-# Annual updates:                         
-  # Get Annual effort for fisheries listed in: #Effort time series (must be updated every year)     
-
-  # Get Annual catch for: Whaler_SA, GAB.trawl_catch, WTBF_catch
-
+# Annual updates for fisheries listed in: #Total landings time series
+# (each year download annual reported landings from FISHCUBE using the FishCube fishery code in 'Lista.reap.FishCubeCode')
 
 #Asses.year=2019     #delete once script is done as this is declared in "Assessment.R" & "Assessment_other.species.R"
 
@@ -30,6 +30,16 @@ ScenarioS=data.frame(Scenario=c('Base Case','High','Low'),
 # 1 -------------------DATA SECTION------------------------------------
 
 options(stringsAsFactors = FALSE)
+
+#Fishery codes
+FisheryCodes=read_excel('C:/Matias/Data/Catch and Effort/FisheryCodeTable.xlsx', sheet = "CAEStoFISHCUBE")
+
+
+#Total landings time series                          #MISSING, have all fisheries here....
+Whaler_SA=read.csv("C:/Matias/Data/Catch and Effort/SA_marine_scalefish_whaler_ktch.csv")
+WTBF_catch=read.csv("C:/Matias/Data/Catch and Effort/WTBF_catch_Benseley.et.al.2010.csv")  #catch in kg
+GAB.trawl_catch=read.csv("C:/Matias/Data/Catch and Effort/Gab.trawl_catch_Benseley.et.al.2010.csv")  #catch in kg
+
 
 #Shark bio data
 User="Matias"
@@ -316,10 +326,7 @@ Taiwan.longline.sp.comp=data.frame(
 
   #-- 1.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)     ACA     MISSING!!!!!!!
 #source: Bensely et al 2010. Table 2 in Appendix A
-WTBF_catch=read.csv("C:/Matias/Data/Catch and Effort/WTBF_catch_Benseley.et.al.2010.csv")  #catch in kg
 WTBF_effort=read.csv("C:/Matias/Data/Catch and Effort/WTBF_effort_Benseley.et.al.2010.csv")  #hook numbers
-
-GAB.trawl_catch=read.csv("C:/Matias/Data/Catch and Effort/Gab.trawl_catch_Benseley.et.al.2010.csv")  #catch in kg
 GAB.trawl_effort=read.csv("C:/Matias/Data/Catch and Effort/GAB.trawl_effort_Benseley.et.al.2010.csv")  #hours trawled
 
 
@@ -334,7 +341,6 @@ sandbar_WTBF.at.vessel.mortality=1-1  # 100% discarded alive
 
   #-- 1.2.3 SA Marine Scalefish fishery (source Taylor et al 2015)
 #description: whaler shark catch from SA MArine Scale fishery (in tonnes). 
-Whaler_SA=read.csv("C:/Matias/Data/Catch and Effort/SA_marine_scalefish_whaler_ktch.csv")
 Whaler_SA_dusky.prop=.1  # Steer et al 2018 (page 148)
 Whaler_SA_bronzie.prop=1-Whaler_SA_dusky.prop
 
@@ -343,32 +349,57 @@ Whaler_SA_bronzie.prop=1-Whaler_SA_dusky.prop
 bwt=3.47e-06
 awt=3.10038
 
+#-- Add fisheries code and name
+FisheryCodes=FisheryCodes%>%data.frame
+Data.monthly=Data.monthly%>%left_join(FisheryCodes,by=c("FisheryCode"="SASCode"))
+Data.monthly.north=Data.monthly.north%>%left_join(FisheryCodes,by=c("FisheryCode"="SASCode"))
+
+
+
+#-- Select fisheries for reapportioning 'shark other' & reconstructing discards post 2006 if appropriate
+#notes: Total of 51 fisheries have reported Shark/ray catches in WA
+#       Criteria for calculating discards post 2006: > 10 tonnes (all years with reported catches combined)
+#       Other fisheries reported <10 tonnes between 1975 and 2006 so discards post 2006 no calculated as 
+#         catches are negligible but the reported catches from these fisheries are considered 
+Calculate.discarding=c('PFT','C019','C066','C070','CSLP','EGBS','EGP','KGB','KP','KTR','NBP',
+                       'OANCGCWC','OP','SBP','SBS','SBSC','SCT','SWT')
+Reaportion.from.reported.ktch=c('C019','C066','C070','CSLP','EGBS','JANS','JASDGDL','KGB','KTR','NCS',
+                                'OANCGCWC','OASC','SBS','WANCS','WCDGDL')
+Reaportion.from.survey=c('PFT','EGP','KP','NBP','OP','SBP','SBSC','SCT','SWT')
+
+Lista.reap.FishCubeCode=list(Pilbara.trawl='PFT',
+                             Estuaries.19='C019',
+                             Cockburn.Sound.fish.net='C066',
+                             Power.hauler.70='C070',
+                             Cockburn.Sound.line.pot='CSLP',
+                             Exmouth.beach.seine.mesh='EGBS',
+                             JANSF=c('JANS','NCS'),
+                             JASDGDL='JASDGDL',
+                             Kimberley.gillnet.barra='KGB',
+                             Kimberley.prawn='KP',
+                             Kimberley.trap='KTR',
+                             Nickol.Bay.prawn='NBP',
+                             Open.north.gas.west='OANCGCWC',
+                             Open.south=' OASC',
+                             Onslow.prawn='OP',
+                             Shark.Bay.prawn='SBP',
+                             Shark.Bay.snapper='SBS',
+                             Shark.Bay.scallop='SBSC',
+                             South.coast.trawl='SCT',
+                             South.west.trawl='SWT',
+                             WANCS='WANCS',
+                             WCDGDL='WCDGDL')
+  
+
+ some.ktch.in.daily.other=c('OANCGCWC','OASC','PFT')  #note, for these, only calculate discards for years not reported in daily.other
+ 
+ 
+
+
+
+
 
 #DEJE ACA 
-Prawn.scallop.trawl.fisheries=c("EGPR","ONPR","KPF","SBPR","SBSC","NBPR","SWTF","AITF","SCT")
-
-#total of 51 fisheries have reported Shark/ray catches in WA
-#Criteria for calculating discards post 2006: > 10 tonnes (all years with reported catches combined)
-
-FisheryCode==c("WL")   #reapportion shark other using the composition of the other species; catches reported to 2017-18 no need to calculate discarding post 2006
-
-#do these fisheries still operate? only calculate discarding to last year of operation:
-#1.reapportion shark other using the composition of the other species, then calculate discarding post 2006 using total reported landings
-FisheryCode==c('C019',"PTWL",'C127',"CL02",'SBS')   
-Kimberley.barra="KGB"
-Pilbara.trawl='PFT'
-Prawn.scallop.trawl.fisheries
-
-#2.need to reapportion catch and calculate discarding post 2006 but reported species are only blacktip and dusky, any independent study??
-FisheryCode=="EGBS"   
-
-#3.thre is species data so no need to reapportion; just calculate discarding post 2006 using total reported landings
-FisheryCode==c('C070','OT','CSLP','C073')  
-
-#other fisheries reported <10 tonnes between 1975 and 2006 so discards post 2006 no calculated as catches are negligible but
-# the reported catches from these fisheries are considered 
-
-
 # Careful when calculating total catch as 'Organise.data.R' sources this script and uses
 # 'Data.monthly', etc to calculate catch by fishery and total catch. Make sure other
 #  scripts like 'Assessment.other.R' source this script and Catch.recons.Recreational.R'
