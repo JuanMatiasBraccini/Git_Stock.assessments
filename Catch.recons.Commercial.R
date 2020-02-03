@@ -11,6 +11,7 @@
 #         Whaler_SA (waiting to hear form Paul Rogers)
 # Annual updates for fisheries listed in: #Total landings time series
 # (each year download annual reported landings from FISHCUBE using the FishCube fishery code in 'Lista.reap.FishCubeCode')
+# Annual update of effort for Kimberley.GBF.annual.effort
 
 #Asses.year=2019     #delete once script is done as this is declared in "Assessment.R" & "Assessment_other.species.R"
 
@@ -289,15 +290,13 @@ Kimberley.GBF.observed.comp=data.frame(
 )
 Kimberley.GBF.observed.effort=160  #days (McAuley et al 2005 page 26; 5 vessels observed)
 
+fn.rid.efrt=function(d) paste('C:/Matias/Data/Catch and Effort/Effort_other_fisheries',d,sep='/')
+Kimberley.GBF.annual.effort=read.csv(fn.rid.efrt('KGBF Annual catch and Bdays.csv'))    #days (KGBF and 80 mile beach combined)
+
 
 #Effort time series 
 if(use.effort)
 {
-  fn.rid.efrt=function(d) paste('C:/Matias/Data/Catch and Effort/Effort_other_fisheries',d,sep='/')
-  
-  #KGBF
-  Kimberley.GBF.annual.effort=read.csv(fn.rid.efrt('KGBF Annual catch and Bdays.csv'))    #days (KGBF and 80 mile beach combined)
-  
   #Pilbara trawl
   #Pilbara.trawl.annual.effort=read.csv()   #hours
   
@@ -406,7 +405,6 @@ Lista.reap.FishCubeCode=list(Pilbara.trawl='PFT',
                              Exmouth.beach.seine.mesh='EGBS',
                              JANSF=c('JANS','NCS'),
                              JASDGDL='JASDGDL',
-                             Kimberley.gillnet.barra='KGB',
                              Kimberley.prawn='KP',
                              Kimberley.trap='KTR',
                              Nickol.Bay.prawn='NBP',
@@ -424,6 +422,28 @@ Lista.reap.FishCubeCode=list(Pilbara.trawl='PFT',
 some.ktch.in.daily.other=c('OANCGCWC','OASC','PFT')  
  
  
+
+#Kimberley Gillnet and Barramundi
+Kimberley.GBF.observed.comp=Kimberley.GBF.observed.comp%>%
+  mutate(cpue=Weight/Kimberley.GBF.observed.effort)
+
+fn.cpue.to.ktch=function(cpue,annual.effrt)
+{
+  spi=unique(cpue$Common.name)
+  d.list=vector('list',length(spi))
+  for(d in 1:length(spi))
+  {
+    x1=cpue[d,]
+    x2=annual.effrt%>%
+      mutate(total.catch=Total.Bdays*x1$cpue,
+             Common.name=x1$Common.name)
+    d.list[[d]]=x2
+  }
+  return(do.call(rbind,d.list))
+}
+KGB.tot.ktch=fn.cpue.to.ktch(cpue=Kimberley.GBF.observed.comp,
+                             annual.effrt=Kimberley.GBF.annual.effort%>%
+                               dplyr::select(Year,Total.Bdays))
 
 
 
