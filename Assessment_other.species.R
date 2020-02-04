@@ -12,6 +12,7 @@
 #       years of reported catch data
 
 #missing:
+# All catch reapportioning is now done in 'Catch.recons.Commercial.R', fix accordingly......
 #For the size data, use catch curve for size
 # (or convert size to age, using 'convert_length_to_age_samples')
 # with dome shaped selectivity (as other methods, like Adrian Hordyk's
