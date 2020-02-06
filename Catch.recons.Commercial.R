@@ -17,7 +17,6 @@
 
 
 #MISSING: 
-#         BRD_pilbara
 #         Commonwealth (waiting from John Garvey, James Woodham): 1.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)
 #         Whaler_SA (waiting to hear form Paul Rogers)
 
@@ -39,13 +38,37 @@ Do.recons.paper="NO"  #outputs for reconstruction paper
 
 Historic.yrs=1941:1975
 
-#Catch reconstruction scenarios 
-PCM=0.7
+#Post capture mortality
+#source: Ellis et al 2016. Values are for AVM so tit's bumped up by Inc.AVM
+assumed.sawfish.trawl=.3   #no data for these species
+assumed.sawfish.gn=.1
+assumed.sawshark.trawl=.3
+assumed.wobbie.trawl=.3
+
+assumed.greynurse.ll=.1
+assumed.guitarfish.gn=.3
+
+Inc.AVM=1.3  #30% increase
+PCM=data.frame(Group=c("Sawfish","Sawsharks","Wobbegongs","Mackerel","Greynurse","Hexanchids","Whalers",
+                       "Hammerheads","Triakids","Angels","Dogfish","Catsharks",
+                       "Guitarfish","Numbfish","Rajids","Eagle.rays","Other.rays",
+                       "Dasyatids"),
+               Trawl=c(assumed.sawfish.trawl,assumed.sawshark.trawl,assumed.wobbie.trawl,rep(NA,3),
+                       .519,.98,.3,.6,.21,.14,.185,.4,.24,.25,.42,.56),
+               GN=c(assumed.sawfish.gn,.31,0,.66,.41,.59,.47,.94,.68,.34,.133,.28,assumed.guitarfish.gn,NA,
+                    .06,.13,.5,.07),
+               LL=c(NA,NA,0,.28,assumed.greynurse.ll,NA,.21,.61,0,rep(NA,8),.12))%>%
+      mutate(Trawl=sapply(Trawl,function(x)min(x*Inc.AVM,1)),
+             GN=sapply(GN,function(x)min(x*Inc.AVM,1)),
+             LL=sapply(LL,function(x)min(x*Inc.AVM,1)))
+
+
 
 
 library(tidyverse)
 library(readxl)
 library(lubridate)
+library(tm)
 
 # 1 -------------------DATA SECTION------------------------------------
 
@@ -173,8 +196,8 @@ Pilbara.trawl.observed.shrk= 562 + 885   # in kg; observed retained and discarde
 Pilbara.trawl_shrk.to.land=Pilbara.trawl.observed.shrk/Pilbara.trawl.observed.landing
 
     #BRD
-#BRD_pilbara.trawl_prop.shark=xx  #source ???                     MISSING!!!!!!!!!
-#BRD_pilbara.trawl_prop.ray=xx  
+BRD_pilbara.trawl_prop.shark=0.61  #Wakefield et al 2017                     
+BRD_pilbara.trawl_prop.ray=0.36  
 BRD_pilbara.trawl_year='2003-04'
 
     #Observed effort
@@ -464,10 +487,20 @@ Data.monthly.north=rbind(Data.monthly.north,
                             filter(FishCubeCode%in%c("NDS","PFT","OP","OANCGCWC"))%>%
                             dplyr::select(-NETLEN.c))
 
+#-- Keep only sharks and rays and set NA FishCubeCode to 'unknwn'
+Data.monthly=Data.monthly%>%
+                  filter(SPECIES<50000)%>%
+                  mutate(FishCubeCode=ifelse(is.na(FishCubeCode),"unknwn",FishCubeCode),
+                         Discarded.ktch="NO")
+Data.monthly.north=Data.monthly.north%>%
+                  filter(SPECIES<50000)%>%
+                  mutate(FishCubeCode=ifelse(is.na(FishCubeCode),"unknwn",FishCubeCode),
+                         Discarded.ktch="NO")
 
 #-- Select fisheries for reapportioning 'shark other' & reconstructing discards post 2006
 
-Trawl.fisheries=c('PFT','EGP','SWT','SCT','SBP','NBP','KTR','KP','OP','SBSC','C156','AIMWT')
+Prawn.Trawl.fisheries=c('EGP','SWT','SCT','SBP','NBP','KTR','KP','OP','SBSC','C156','AIMWT')
+Scalefish.Trawl.fisheries=c('PFT')
 
 fn.hnd.out=function(x)paste('C:/Matias/Analyses/Reconstruction_catch_commercial/',x,sep='')
 if(Do.recons.paper=="YES")
@@ -513,13 +546,6 @@ Lista.reap.FishCubeCode=list(Pilbara.trawl='PFT',
                              WCDGDL='WCDGDL')
 
   
-Dont.calculate.discarding=unique(daily.other$FishCubeCode)  #these fisheries are currenlty reporting  
-                            # shark catch so only reapportion catch, don't calculate discard 
-
-Calculate.discarding=subset(Calculate.discarding,!Calculate.discarding%in%Dont.calculate.discarding)
-
-
-
 
 # 2 -------------------PROCEDURE SECTION------------------------------------
 
@@ -544,8 +570,14 @@ Prop.reported.shark.ray=Calculate.discarding_catch%>%
 for(i in 1:length(Calculate.discarding))
 {
   Fishry=Calculate.discarding[[i]]
+  
+  Dis.yrs=Discarding.yrs
+  
+    #These fisheries reported sharks one year after prohibition
+  if(Fishry%in%c('OANCGCWC','OASC')) Dis.yrs=Discarding.yrs[-match(c("2006-07","2007-08"),Discarding.yrs)]   
+  if(Fishry%in%c('PFT')) Dis.yrs=Discarding.yrs[-match(c("2006-07","2007-08","2008-09"),Discarding.yrs)]   
   Landings=Calculate.discarding_catch%>%
-              filter(FINYEAR%in%Discarding.yrs & 
+              filter(FINYEAR%in%Dis.yrs & 
                      Fishery.Code==Fishry)%>%
               group_by(FINYEAR)%>%
               summarise(KG=sum(KG))%>%
@@ -554,7 +586,8 @@ for(i in 1:length(Calculate.discarding))
   
   #Bycatch reduction devices
   BRD=1
-  if(Fishry%in%Trawl.fisheries) BRD=mean(c(BRD_prawn.trawl_prop.shark,BRD_prawn.trawl_prop.ray))
+  if(Fishry%in%Prawn.Trawl.fisheries) BRD=mean(c(BRD_prawn.trawl_prop.shark,BRD_prawn.trawl_prop.ray))
+  if(Fishry%in%Scalefish.Trawl.fisheries) BRD=mean(c(BRD_pilbara.trawl_prop.shark,BRD_pilbara.trawl_prop.ray))
   
   #only calculate discarding for years since Shark.protection.yr 
   if(nrow(Landings)>0)  
@@ -565,19 +598,21 @@ for(i in 1:length(Calculate.discarding))
       Prop=Prop.reported.shark.ray%>%
                   filter(Fishery.Code==Fishry)%>%
                   pull(Prop.shark.ray)
-      Shark.disc=Landings%>%mutate(Shark.ktch=KG*Prop*PCM*BRD)
+      Shark.disc=Landings%>%mutate(Shark.ktch=KG*Prop*BRD)
     }
     
     #Calculate discards from observed composition
     if(Fishry %in% Reaportion.from.survey)
     {
+      if(Fishry%in%c("PFT")) Prop=Pilbara.trawl_shrk.to.land
       if(Fishry%in%c("SWT","SCT")) Prop=South.west.trawl_shrk.to.land
       if(Fishry%in%c("SBP","SBSC")) Prop=Shark.Bay.trawl_shrk.to.land
       if(Fishry%in%c("EGP","OP","KP","NBP")) Prop=Exmouth.Onslow.trawl_shrk.to.land
         
-      Shark.disc=Landings%>%mutate(Shark.ktch=KG*Prop*PCM*BRD)
+      Shark.disc=Landings%>%mutate(Shark.ktch=KG*Prop*BRD)
       
       #Expand to species using observed composition
+      if(Fishry%in%c("PFT")) Survey=Pilbara.trawl.observed.comp
       if(Fishry%in%c("SWT","SCT")) Survey=South.west.trawl.observed.comp
       if(Fishry%in%c("SBP","SBSC")) Survey=Shark.Bay.trawl.observed.comp
       if(Fishry%in%c("EGP","OP","KP","NBP")) Survey=Exmouth.Onslow.trawl.observed.comp
@@ -611,7 +646,8 @@ for(i in 1:length(Calculate.discarding))
       Dumy=Dumy%>%
         mutate(LIVEWT.c=Shark.disc$Shark.ktch,
                FINYEAR=Shark.disc$FINYEAR,
-               FishCubeCode=Fishry)
+               FishCubeCode=Fishry,
+               Discarded.ktch="YES")
       
       if(Fishry %in% Reaportion.from.reported.ktch)
       {
@@ -632,7 +668,8 @@ for(i in 1:length(Calculate.discarding))
       Dumy=Dumy%>%
         mutate(LIVEWT.c=Shark.disc$Shark.ktch,
                FINYEAR=Shark.disc$FINYEAR,
-               FishCubeCode=Fishry)
+               FishCubeCode=Fishry,
+               Discarded.ktch="YES")
       
       if(Fishry %in% Reaportion.from.reported.ktch)
       {
@@ -653,7 +690,7 @@ for(i in 1:length(Calculate.discarding))
 #2.2 Reapportion catch of 'shark,other' for non-shark fisheries      
 #note:  for TDGDLF, main 4 species already reapportioned      
 
-for(f in 1:length(Lista.reap.FishCubeCode))   #ACA: no funciono, it dropped lots of species!!!!
+for(f in 1:length(Lista.reap.FishCubeCode))   
 {
   Fishry=Lista.reap.FishCubeCode[[f]]
   
@@ -675,13 +712,20 @@ for(f in 1:length(Lista.reap.FishCubeCode))   #ACA: no funciono, it dropped lots
       
       if(sum(!South$SPECIES==South$Spec.old,na.rm=T)>0) #remove indicator species if already reapportioned
       {
-        South=South%>%filter(!SPECIES%in%c(17001,18003,17003,18007))
+        Survey=South%>%filter(!SPECIES%in%c(17001,18003,17003,18007))%>%
+              group_by(SPECIES)%>%
+              summarise(Total=sum(LIVEWT.c))%>%
+              mutate(Prop=Total/sum(Total))%>%
+              dplyr::select(-Total)%>%
+              data.frame
+      }else
+      {
+        Survey=South%>%group_by(SPECIES)%>%
+          summarise(Total=sum(LIVEWT.c))%>%
+          mutate(Prop=Total/sum(Total))%>%
+          dplyr::select(-Total)%>%
+          data.frame
       }
-      Survey=South%>%group_by(SPECIES)%>%
-        summarise(Total=sum(LIVEWT.c))%>%
-        mutate(Prop=Total/sum(Total))%>%
-        dplyr::select(-Total)%>%
-        data.frame
       
       N.dat=nrow(Shark.other)
       NN=rep(1:N.dat,each=nrow(Survey))
@@ -780,19 +824,127 @@ for(f in 1:length(Lista.reap.FishCubeCode))   #ACA: no funciono, it dropped lots
   }
   
   #Remove fishery 
-  if(nrow(South)>0) Data.monthly=Data.monthly%>%filter(!FishCubeCode==Fishry)
-  if(nrow(North)>0) Data.monthly.north=Data.monthly.north%>%filter(!FishCubeCode==Fishry)
+  if(nrow(South)>0) Data.monthly=Data.monthly%>%filter(!FishCubeCode==Fishry & SPECIES<50000)
+  if(nrow(North)>0) Data.monthly.north=Data.monthly.north%>%filter(!FishCubeCode==Fishry & SPECIES<50000)
   
   #Add fishery back with species reapportioned
-  if(nrow(South)>0) rbind(Data.monthly,South)
-  if(nrow(North)>0) rbind(Data.monthly.north,North)
-}                                     # do sort(table(Data.monthly$SPECIES))
+  if(nrow(South)>0) Data.monthly=rbind(Data.monthly,South)
+  if(nrow(North)>0) Data.monthly.north=rbind(Data.monthly.north,North)
+  
+  rm(North,South)
+}                                     
 
 #ACA:  see 5.2 Hammerheads in Assessment_other.species to include Hammerhead reapportioning here.... 
+{
+  Smooth.hh.south.p=.97   #McAuley & Simpfendorfer 2003 ratios for TDGDLF
+  Scalloped.hh.south.p=.03/2
+  Great.hh.south.p=.03/2
+  
+  Smooth.hh.north.p=.01      # from Sharks database (Naturaliste trip)
+  Scalloped.hh.north.p=.67
+  Great.hh.north.p=.32
+  
+  Dat.hh=subset(Tot.ktch,SPECIES==19000 & Region=="South")
+  Dat.hh.north=subset(Tot.ktch,SPECIES==19000 & Region=="North")
+  Tot.ktch=subset(Tot.ktch,!SPECIES==19000)
+  
+  #south
+  Dat.hh$Lat=-(as.numeric(substr(Dat.hh$BLOCKX,1,2)))
+  Dat.hh$Lon=100+as.numeric(substr(Dat.hh$BLOCKX,3,4))
+  a=b=d=Dat.hh
+  a$SPECIES=19004 #CSIRO CAAB code for ID
+  b$SPECIES=19001
+  d$SPECIES=19002
+  a$SNAME="SHARK, SMOOTH HH"
+  b$SNAME="SHARK, SCALLOPED HH"
+  d$SNAME="SHARK, GREAT HH"
+  a$LIVEWT.c=with(a,LIVEWT.c*Smooth.hh.south.p)
+  b$LIVEWT.c=with(b,LIVEWT.c*Scalloped.hh.south.p)
+  d$LIVEWT.c=with(d,LIVEWT.c*Great.hh.south.p)
+  
+  #a$LIVEWT.c=with(a,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Smooth.hh.south.p,LIVEWT.c))
+  #b$LIVEWT.c=with(b,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Scalloped.hh.south.p,0))
+  #d$LIVEWT.c=with(b,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Great.hh.south.p,0))
+  Dat.hh=rbind(a,b,d)
+  Dat.hh=Dat.hh[,-match(c('Lat','Lon'),names(Dat.hh))]
+  
+  #north
+  Dat.hh.north$Lat=-(as.numeric(substr(Dat.hh.north$BLOCKX,1,2)))
+  Dat.hh.north$Lon=100+as.numeric(substr(Dat.hh.north$BLOCKX,3,4))
+  a=b=d=Dat.hh.north
+  a$SPECIES=19004 
+  b$SPECIES=19001
+  d$SPECIES=19002
+  a$SNAME="SHARK, SMOOTH HH"
+  b$SNAME="SHARK, SCALLOPED HH"
+  d$SNAME="SHARK, GREAT HH"
+  
+  a$LIVEWT.c=with(a,LIVEWT.c*Smooth.hh.north.p)
+  b$LIVEWT.c=b$LIVEWT.c*Scalloped.hh.north.p
+  d$LIVEWT.c=d$LIVEWT.c*Great.hh.north.p
+  Dat.hh.north=rbind(a,b,d)
+  Dat.hh.north=Dat.hh.north[,-match(c('Lat','Lon'),names(Dat.hh.north))]
+  
+  Tot.ktch=rbind(Tot.ktch,Dat.hh,Dat.hh.north)
+  
+}
+
+#2.3 Apply fishery and species specific PCM to discarded catch
+fn.x=function(x)as.numeric(x[1]):as.numeric(x[2])
+PCM.sp=list(Sawfish=fn.x(c( 25000,25020)),
+            Wobbegongs=fn.x(c(13000,13020)),
+            Mackerel=fn.x(c(10000,10020)),
+            Greynurse=fn.x(c(8000,8020)),
+            Hexanchids=fn.x(c(5001,5020)),
+            Whalers=fn.x(c(18000,18090)),
+            Hammerheads=fn.x(c(19000,19020)),
+            Triakids=fn.x(c(17000,17020)),
+            Angels=fn.x(c(24900,24920)),
+            Dogfish=fn.x(c(20000,20020)),
+            Sawsharks=fn.x(c(23000,23920)),
+            Guitarfish=fn.x(c(26990,26999)),
+            Shark.other=22999,
+            Ray.other=31000)
+PCM.sp=unlist(PCM.sp)
+names(PCM.sp)=removeNumbers(names(PCM.sp))
+
+All.rays=c("Numbfish","Rajids","Eagle.rays","Other.rays","Dasyatids")  
+All.shrks=PCM$Group[-match(c("Sawfish","Guitarfish",All.rays),PCM$Group)]
+PCM.sp=data.frame(Group=names(PCM.sp),SPECIES=PCM.sp)%>%
+  left_join(PCM,by="Group")%>%
+  mutate(Trawl=ifelse(Group=='Shark.other',mean(PCM%>%filter(Group%in%All.shrks)%>%pull(Trawl),na.rm=T),
+               ifelse(Group=='Ray.other',mean(PCM%>%filter(Group%in%All.rays)%>%pull(Trawl),na.rm=T),Trawl)),
+         GN=ifelse(Group=='Shark.other',mean(PCM%>%filter(Group%in%All.shrks)%>%pull(GN),na.rm=T),
+            ifelse(Group=='Ray.other',mean(PCM%>%filter(Group%in%All.rays)%>%pull(GN),na.rm=T),GN)),
+         LL=ifelse(Group=='Shark.other',mean(PCM%>%filter(Group%in%All.shrks)%>%pull(LL),na.rm=T),
+            ifelse(Group=='Ray.other',mean(PCM%>%filter(Group%in%All.rays)%>%pull(LL),na.rm=T),LL)))
+
+fn.PCM=function(d)
+{
+  d.disc=d%>%filter(Discarded.ktch=='YES')
+  d=d%>%filter(!Discarded.ktch=='YES')
+  
+  d.disc=d.disc%>%
+      mutate(what.method=ifelse(FishCubeCode%in%c('C156','PFT','KP','SBSC','AIMWT','SBP','SCT','SWT','EGP',
+                                                  'NBP','OP'),"Trawl",
+                         ifelse(FishCubeCode%in%c('SWBN','MBC','CSFN','SCE','WCE','C066','C070',
+                                                  'JASDGDL','OANCGCWC','KGB','SBBS','EGBS'),"GN",
+                         ifelse(FishCubeCode%in%c('C019','CSC','C048','C074','C111','PT','NDS','KTR',
+                                                  'OASC','SBS','CSLP','WCDGDL','WANCS'),"LL",NA))))%>%
+      left_join(PCM.sp,by="SPECIES")%>%
+      mutate(LIVEWT.c=ifelse(what.method=='Trawl',LIVEWT.c*Trawl,
+                      ifelse(what.method=='GN',LIVEWT.c*GN,
+                      ifelse(what.method=='LL',LIVEWT.c*LL,
+                      LIVEWT.c))))
+  d.disc=d.disc%>%dplyr::select(-c(what.method,Group,Trawl,GN,LL))
+  return(rbind(d,d.disc))
+}
+Data.monthly=fn.PCM(d=Data.monthly)
+Data.monthly.north=fn.PCM(d=Data.monthly.north)
 
 
 
-#2.3. Kimberley Gillnet and Barramundi recalculation of catch (in kg) using effort as per McAuley et al 2005
+#2.4. Kimberley Gillnet and Barramundi recalculation of catch (in kg) using effort as per McAuley et al 2005
 Kimberley.GBF.observed.comp=Kimberley.GBF.observed.comp%>%
           mutate(cpue=Weight/Kimberley.GBF.observed.effort)
 fn.cpue.to.ktch=function(cpue,annual.effrt)
@@ -934,6 +1086,18 @@ Taiwan.longline.ktch=Taiwan.longline.sp.comp%>%
   left_join(Taiwan.longline.ktch,by="Year")%>%
   mutate(Ktch=WA.ktch*Percent/100)%>%
   dplyr::select(names(Taiwan.gillnet.ktch))
+
+    #reapportion of hammerhead catch
+Taiwan$Species=as.character(Taiwan$Species)
+drop.HH=subset(Taiwan,Species=="Hammerheads")
+nhh=nrow(drop.HH)
+drop.HH=rbind(drop.HH,drop.HH)%>%
+  mutate(Prop=c(rep(Scalloped.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh),
+                rep(Great.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh)),
+         LIVEWT.c=LIVEWT.c*Prop,
+         Species=c(rep('Scalloped hammerhead',nhh),rep('Great hammerhead',nhh)))%>%
+  dplyr::select(names(Taiwan))
+Taiwan=rbind(subset(Taiwan,!Species=="Hammerheads"),drop.HH)
 
 
   #2.2.1 Commonwealth SWTBF and GAB trawl fishery               

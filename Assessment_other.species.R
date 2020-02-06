@@ -557,18 +557,18 @@ dev.off()
 
 #2. Reapportion catch of hammerhead, blacktip and "shark,other'
 
-  #2.1. Split of hammerhead catch by species
-Split.HH="YES"
-if(Split.HH=="YES")
-{
-  Smooth.hh.south.p=.97   #McAuley & Simpfendorfer 2003 ratios for TDGDLF
-  Scalloped.hh.south.p=.03/2
-  Great.hh.south.p=.03/2
-  
-  Smooth.hh.north.p=.01      # from Sharks database (Naturaliste trip)
-  Scalloped.hh.north.p=.67
-  Great.hh.north.p=.32
-}
+  #2.1. Split of hammerhead catch by species   #remove, done in Catch.recons.commercial.R
+# Split.HH="YES"
+# if(Split.HH=="YES")
+# {
+#   Smooth.hh.south.p=.97   #McAuley & Simpfendorfer 2003 ratios for TDGDLF
+#   Scalloped.hh.south.p=.03/2
+#   Great.hh.south.p=.03/2
+#   
+#   Smooth.hh.north.p=.01      # from Sharks database (Naturaliste trip)
+#   Scalloped.hh.north.p=.67
+#   Great.hh.north.p=.32
+# }
 
   #2.2 blacktip sharks
 #note: reported all the way to Esperance, this doesn't conform to the species distribution
@@ -684,65 +684,65 @@ Tot.ktch=rbind(Tot.ktch,Shark.OtheR[,match(names(Tot.ktch),names(Shark.OtheR))],
                Shark.OtheR.north[,match(names(Tot.ktch),names(Shark.OtheR.north))])
 
 
-  #5.2 Hammerheads  
-if(Split.HH=="YES")
-{
-  Dat.hh=subset(Tot.ktch,SPECIES==19000 & Region=="South")
-  Dat.hh.north=subset(Tot.ktch,SPECIES==19000 & Region=="North")
-  Tot.ktch=subset(Tot.ktch,!SPECIES==19000)
-
-  #south
-  Dat.hh$Lat=-(as.numeric(substr(Dat.hh$BLOCKX,1,2)))
-  Dat.hh$Lon=100+as.numeric(substr(Dat.hh$BLOCKX,3,4))
-  a=b=d=Dat.hh
-  a$SPECIES=19004 #CSIRO CAAB code for ID
-  b$SPECIES=19001
-  d$SPECIES=19002
-  a$SNAME="SHARK, SMOOTH HH"
-  b$SNAME="SHARK, SCALLOPED HH"
-  d$SNAME="SHARK, GREAT HH"
-  a$LIVEWT.c=with(a,LIVEWT.c*Smooth.hh.south.p)
-  b$LIVEWT.c=with(b,LIVEWT.c*Scalloped.hh.south.p)
-  d$LIVEWT.c=with(d,LIVEWT.c*Great.hh.south.p)
-  
-  #a$LIVEWT.c=with(a,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Smooth.hh.south.p,LIVEWT.c))
-  #b$LIVEWT.c=with(b,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Scalloped.hh.south.p,0))
-  #d$LIVEWT.c=with(b,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Great.hh.south.p,0))
-  Dat.hh=rbind(a,b,d)
-  Dat.hh=Dat.hh[,-match(c('Lat','Lon'),names(Dat.hh))]
-  
-  #north
-  Dat.hh.north$Lat=-(as.numeric(substr(Dat.hh.north$BLOCKX,1,2)))
-  Dat.hh.north$Lon=100+as.numeric(substr(Dat.hh.north$BLOCKX,3,4))
-  a=b=d=Dat.hh.north
-  a$SPECIES=19004 
-  b$SPECIES=19001
-  d$SPECIES=19002
-  a$SNAME="SHARK, SMOOTH HH"
-  b$SNAME="SHARK, SCALLOPED HH"
-  d$SNAME="SHARK, GREAT HH"
-  
-  a$LIVEWT.c=with(a,LIVEWT.c*Smooth.hh.north.p)
-  b$LIVEWT.c=b$LIVEWT.c*Scalloped.hh.north.p
-  d$LIVEWT.c=d$LIVEWT.c*Great.hh.north.p
-  Dat.hh.north=rbind(a,b,d)
-  Dat.hh.north=Dat.hh.north[,-match(c('Lat','Lon'),names(Dat.hh.north))]
-  
-  Tot.ktch=rbind(Tot.ktch,Dat.hh,Dat.hh.north)
-  
-  #Reapportion Taiwanese catch
-  Taiwan$Species=as.character(Taiwan$Species)
-  drop.HH=subset(Taiwan,Species=="Hammerheads")
-  nhh=nrow(drop.HH)
-  drop.HH=rbind(drop.HH,drop.HH)%>%
-    mutate(Prop=c(rep(Scalloped.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh),
-                  rep(Great.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh)),
-           LIVEWT.c=LIVEWT.c*Prop,
-           Species=c(rep('Scalloped hammerhead',nhh),rep('Great hammerhead',nhh)))%>%
-    dplyr::select(names(Taiwan))
-  
-  Taiwan=rbind(subset(Taiwan,!Species=="Hammerheads"),drop.HH)
-}
+  #5.2 Hammerheads  #remove, done in Catch.recons.commercial.R
+# if(Split.HH=="YES")
+# {
+#   Dat.hh=subset(Tot.ktch,SPECIES==19000 & Region=="South")
+#   Dat.hh.north=subset(Tot.ktch,SPECIES==19000 & Region=="North")
+#   Tot.ktch=subset(Tot.ktch,!SPECIES==19000)
+# 
+#   #south
+#   Dat.hh$Lat=-(as.numeric(substr(Dat.hh$BLOCKX,1,2)))
+#   Dat.hh$Lon=100+as.numeric(substr(Dat.hh$BLOCKX,3,4))
+#   a=b=d=Dat.hh
+#   a$SPECIES=19004 #CSIRO CAAB code for ID
+#   b$SPECIES=19001
+#   d$SPECIES=19002
+#   a$SNAME="SHARK, SMOOTH HH"
+#   b$SNAME="SHARK, SCALLOPED HH"
+#   d$SNAME="SHARK, GREAT HH"
+#   a$LIVEWT.c=with(a,LIVEWT.c*Smooth.hh.south.p)
+#   b$LIVEWT.c=with(b,LIVEWT.c*Scalloped.hh.south.p)
+#   d$LIVEWT.c=with(d,LIVEWT.c*Great.hh.south.p)
+#   
+#   #a$LIVEWT.c=with(a,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Smooth.hh.south.p,LIVEWT.c))
+#   #b$LIVEWT.c=with(b,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Scalloped.hh.south.p,0))
+#   #d$LIVEWT.c=with(b,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Great.hh.south.p,0))
+#   Dat.hh=rbind(a,b,d)
+#   Dat.hh=Dat.hh[,-match(c('Lat','Lon'),names(Dat.hh))]
+#   
+#   #north
+#   Dat.hh.north$Lat=-(as.numeric(substr(Dat.hh.north$BLOCKX,1,2)))
+#   Dat.hh.north$Lon=100+as.numeric(substr(Dat.hh.north$BLOCKX,3,4))
+#   a=b=d=Dat.hh.north
+#   a$SPECIES=19004 
+#   b$SPECIES=19001
+#   d$SPECIES=19002
+#   a$SNAME="SHARK, SMOOTH HH"
+#   b$SNAME="SHARK, SCALLOPED HH"
+#   d$SNAME="SHARK, GREAT HH"
+#   
+#   a$LIVEWT.c=with(a,LIVEWT.c*Smooth.hh.north.p)
+#   b$LIVEWT.c=b$LIVEWT.c*Scalloped.hh.north.p
+#   d$LIVEWT.c=d$LIVEWT.c*Great.hh.north.p
+#   Dat.hh.north=rbind(a,b,d)
+#   Dat.hh.north=Dat.hh.north[,-match(c('Lat','Lon'),names(Dat.hh.north))]
+#   
+#   Tot.ktch=rbind(Tot.ktch,Dat.hh,Dat.hh.north)
+#   
+#   #Reapportion Taiwanese catch
+#   Taiwan$Species=as.character(Taiwan$Species)
+#   drop.HH=subset(Taiwan,Species=="Hammerheads")
+#   nhh=nrow(drop.HH)
+#   drop.HH=rbind(drop.HH,drop.HH)%>%
+#     mutate(Prop=c(rep(Scalloped.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh),
+#                   rep(Great.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh)),
+#            LIVEWT.c=LIVEWT.c*Prop,
+#            Species=c(rep('Scalloped hammerhead',nhh),rep('Great hammerhead',nhh)))%>%
+#     dplyr::select(names(Taiwan))
+#   
+#   Taiwan=rbind(subset(Taiwan,!Species=="Hammerheads"),drop.HH)
+# }
 
 
 #Some manipulations  
