@@ -582,48 +582,48 @@ Data.monthly=Data.monthly%>%
                                         "Spinner Shark",RSCommonName))
 
 
-  #2.3. Split 'shark, other' based on observers data of catch composition north and south
-a=subset(DATA.bio,!is.na(BLOCK))
-a=subset(a,!BLOCK==0)
-Res.vess=c("NAT","HOU","FLIN","HAM","RV BREAKSEA","RV GANNET","RV SNIPE 2","RV Gannet")
-a=subset(a,!BOAT%in%Res.vess)
-a=subset(a,!is.na(BOAT))
-a=subset(a,Method%in%c("GN","LL"))
-
-a=subset(a,!COMMON_NAME%in%non.sharks)
-a=subset(a,!is.na(COMMON_NAME))
-a$N=1
-non.commercial.sharks=subset(b,COMMON_NAME%in%non.commercial.sharks,select=c(CAES_Code,COMMON_NAME))
-b=subset(b,!is.na(CAES_Code),select=c(Species,CAES_Code))
-a=merge(a,b,by.x=c("SPECIES","CAES_Code" ),by.y=c("Species","CAES_Code"),all.x=T)
-a=subset(a,!CAES_Code%in%c(25000:25010,13006,26999))
-Agg.n.zone=aggregate(N~CAES_Code+zone,subset(a,!is.na(CAES_Code)),sum)
-Agg.n.zone1=aggregate(N~zone,subset(a,!is.na(CAES_Code)),sum)
-colnames(Agg.n.zone1)[2]="Total"
-Agg.n.zone=merge(Agg.n.zone,Agg.n.zone1,by="zone",all.x=T)
-Agg.n.zone$Prop=Agg.n.zone$N/Agg.n.zone$Total
-Agg.n.zone=subset(Agg.n.zone,select=c(zone,CAES_Code,Prop))
-Agg.n.zone=subset(Agg.n.zone,!CAES_Code%in%non.commercial.sharks$CAES_Code) #remove discarded species
-
-Shark.OtheR=subset(Data.monthly,SPECIES%in%c(22999,31000))     
-Shark.OtheR.north=subset(Data.monthly.north,SPECIES%in%c(22999,31000))
-Shark.OtheR.north$zone=with(Shark.OtheR.north,ifelse(zone=="Closed",'North',zone))
-
-Shark.OtheR=aggregate(LIVEWT.c~FINYEAR+zone,Shark.OtheR,sum)
-Shark.OtheR.north=aggregate(LIVEWT.c~FINYEAR+zone,Shark.OtheR.north,sum)
-
-Shark.OtheR=merge(Shark.OtheR,Agg.n.zone,by.x=c('zone'),by.y=c('zone'))
-Shark.OtheR.north=merge(Shark.OtheR.north,Agg.n.zone,by.x=c('zone'),by.y=c('zone'))
-
-names(Shark.OtheR)[3]=names(Shark.OtheR.north)[3]="weight"
-names(Shark.OtheR)[4]=names(Shark.OtheR.north)[4]="SPECIES"
-Shark.OtheR$LIVEWT.c=Shark.OtheR$weight*Shark.OtheR$Prop
-Shark.OtheR.north$LIVEWT.c=Shark.OtheR.north$weight*Shark.OtheR.north$Prop
-Shark.OtheR=aggregate(LIVEWT.c~FINYEAR+SPECIES,Shark.OtheR,sum)
-Shark.OtheR.north=aggregate(LIVEWT.c~FINYEAR+SPECIES,Shark.OtheR.north,sum)
-
-Shark.OtheR=subset(Shark.OtheR,!SPECIES%in%Indicator.species)
-Shark.OtheR.north=subset(Shark.OtheR.north,!SPECIES%in%Indicator.species)
+#   #2.3. Split 'shark, other' based on observers data of catch composition north and south    REMOVE, this is done in "Catch.recons.Commercial.R"
+# a=subset(DATA.bio,!is.na(BLOCK))
+# a=subset(a,!BLOCK==0)
+# Res.vess=c("NAT","HOU","FLIN","HAM","RV BREAKSEA","RV GANNET","RV SNIPE 2","RV Gannet")
+# a=subset(a,!BOAT%in%Res.vess)
+# a=subset(a,!is.na(BOAT))
+# a=subset(a,Method%in%c("GN","LL"))
+# 
+# a=subset(a,!COMMON_NAME%in%non.sharks)
+# a=subset(a,!is.na(COMMON_NAME))
+# a$N=1
+# non.commercial.sharks=subset(b,COMMON_NAME%in%non.commercial.sharks,select=c(CAES_Code,COMMON_NAME))
+# b=subset(b,!is.na(CAES_Code),select=c(Species,CAES_Code))
+# a=merge(a,b,by.x=c("SPECIES","CAES_Code" ),by.y=c("Species","CAES_Code"),all.x=T)
+# a=subset(a,!CAES_Code%in%c(25000:25010,13006,26999))
+# Agg.n.zone=aggregate(N~CAES_Code+zone,subset(a,!is.na(CAES_Code)),sum)
+# Agg.n.zone1=aggregate(N~zone,subset(a,!is.na(CAES_Code)),sum)
+# colnames(Agg.n.zone1)[2]="Total"
+# Agg.n.zone=merge(Agg.n.zone,Agg.n.zone1,by="zone",all.x=T)
+# Agg.n.zone$Prop=Agg.n.zone$N/Agg.n.zone$Total
+# Agg.n.zone=subset(Agg.n.zone,select=c(zone,CAES_Code,Prop))
+# Agg.n.zone=subset(Agg.n.zone,!CAES_Code%in%non.commercial.sharks$CAES_Code) #remove discarded species
+# 
+# Shark.OtheR=subset(Data.monthly,SPECIES%in%c(22999,31000))     
+# Shark.OtheR.north=subset(Data.monthly.north,SPECIES%in%c(22999,31000))
+# Shark.OtheR.north$zone=with(Shark.OtheR.north,ifelse(zone=="Closed",'North',zone))
+# 
+# Shark.OtheR=aggregate(LIVEWT.c~FINYEAR+zone,Shark.OtheR,sum)
+# Shark.OtheR.north=aggregate(LIVEWT.c~FINYEAR+zone,Shark.OtheR.north,sum)
+# 
+# Shark.OtheR=merge(Shark.OtheR,Agg.n.zone,by.x=c('zone'),by.y=c('zone'))
+# Shark.OtheR.north=merge(Shark.OtheR.north,Agg.n.zone,by.x=c('zone'),by.y=c('zone'))
+# 
+# names(Shark.OtheR)[3]=names(Shark.OtheR.north)[3]="weight"
+# names(Shark.OtheR)[4]=names(Shark.OtheR.north)[4]="SPECIES"
+# Shark.OtheR$LIVEWT.c=Shark.OtheR$weight*Shark.OtheR$Prop
+# Shark.OtheR.north$LIVEWT.c=Shark.OtheR.north$weight*Shark.OtheR.north$Prop
+# Shark.OtheR=aggregate(LIVEWT.c~FINYEAR+SPECIES,Shark.OtheR,sum)
+# Shark.OtheR.north=aggregate(LIVEWT.c~FINYEAR+SPECIES,Shark.OtheR.north,sum)
+# 
+# Shark.OtheR=subset(Shark.OtheR,!SPECIES%in%Indicator.species)
+# Shark.OtheR.north=subset(Shark.OtheR.north,!SPECIES%in%Indicator.species)
 
 
 #3. Data manipulations
