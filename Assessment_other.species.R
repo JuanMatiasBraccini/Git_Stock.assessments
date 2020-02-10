@@ -665,7 +665,7 @@ Tot.ktch=rbind(Data.monthly,Data.monthly.north)
 Tot.ktch.other=rbind(Data.monthly.other,Data.monthly.north.other)
 
 
-#5. Add reapportioned catch
+#5. Add reapportioned catch                   #Is this done already in Catch.recons.commercial.R???
   #5.1 Shark,other
 SNAMEs=Data.monthly[!duplicated(Data.monthly$SPECIES),match(c("SPECIES","SNAME"),names(Data.monthly))]
 SNAMEs.north=Data.monthly.north[!duplicated(Data.monthly.north$SPECIES),match(c("SPECIES","SNAME"),names(Data.monthly.north))]
@@ -882,13 +882,9 @@ for(i in 1:length(Uni.sp))
 Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','Spot tail shark',"School shark" ))
 
 
-#add reconstructed greynurse catch from reported TEP interactions
-Grey.dummy=subset(Tot.ktch,Name=='Grey nurse shark')[1:nrow(Greynurse.ktch),]
-Grey.dummy$BLOCKX=NA
-Grey.dummy$finyear=Greynurse.ktch$finyear
-Grey.dummy$LIVEWT.c=Greynurse.ktch$LIVEWT.c
+#add TEP interactions        MISSING!!!!!
 
-Tot.ktch=rbind(Tot.ktch,Grey.dummy)
+Tot.ktch=rbind(Tot.ktch,Greynurse.ktch)
 
 
   #Add historic

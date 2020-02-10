@@ -628,7 +628,7 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   TDGDLF$SPECIES=with(TDGDLF,ifelse(SPECIES==18001,18003,SPECIES))   #combine dusky and bronzy catches
   
   
-      #get prop of catch to extract historic
+      #get prop of catch to extract historic       #MISSING: for consistency, use Hist.expnd
   Prop.four=aggregate(LIVEWT.c~FINYEAR,ALL.four,sum)
   Prop.sp=aggregate(LIVEWT.c~FINYEAR,TDGDLF,sum)
   Prop.four=subset(Prop.four,FINYEAR%in%unique(Prop.sp$FINYEAR))
@@ -642,6 +642,17 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   
 
   #combine TDGDLF (i.e. GN and LL) with other gears reported with TDGDLF
+  #get data for other gears from Data.monthly
+  TDGDLF.other.gears=Data.monthly%>%
+    filter(!METHOD%in%c("GN","LL"))%>%
+    mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
+ 
+   NSF.other.gears=Data.monthly.north%>%            #MISSING: shouldn't I also use NSF.other.gears? currently not used....
+    filter(!METHOD%in%c("GN","LL"))%>%
+    mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
+  
+  
+  
   TDGDLF.other.gears=TDGDLF.other.gears[,match(names(TDGDLF),names(TDGDLF.other.gears))]
   TDGDLF=rbind(TDGDLF,TDGDLF.other.gears) 
   TDGDLF=aggregate(LIVEWT.c~FINYEAR+MONTH+SPECIES+zone,TDGDLF,sum)
@@ -692,8 +703,8 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   x=substr(Yrs.dummy[2]:Yrs.dummy[length(Yrs.dummy)],start=3,stop=4)
   FinYrs=paste(Yrs.dummy[1]:Yrs.dummy[length(Yrs.dummy)-1],"-",x,sep="")
   
- 
-  #1.5 Recreational catch                        
+  
+  #1.4 Recreational catch                        
   if(SP=='WH') SPEC='Whiskery Shark'
   if(SP=='GM') SPEC='Gummy Sharks'
   if(SP=='BW') SPEC='Dusky Whaler'
@@ -715,6 +726,80 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   }
   rec.ktch=fn.rec.month(rec.ktch,Monthly.prop)
   
+  
+  #1.5 Non-WA Fisheries                      MISSING, FIX accordingly
+  #Brought back from Catch.recons.Commercial.R Not use AFMA_catch but  GAB.trawl_catch and WTBF_catch 
+  {
+    if(SP=="BW") 
+    {
+      GAB_trawl=AFMA_catch[,c(1,2)]     #MISSING: I changed AFMA_catch for WTBF_catch GAB.trawl_catch  ditto Effort_WTBF
+      Bronzey_WTBF=AFMA_catch[,c(1,5)]
+      names(Bronzey_WTBF)[2]='LIVEWT.c'
+    }
+    
+    if(SP=="GM") GAB_trawl=AFMA_catch[,c(1,3)]
+    if(SP=="WH") GAB_trawl=AFMA_catch[,c(1,4)]
+    
+    if(!SP=="TK") names(GAB_trawl)[2]='LIVEWT.c'
+    
+    if(SP%in%c("BW","TK"))
+    {
+      #option 1 (data reported by AFMA)
+      if(Option==1)    
+      {
+        Dusky_WTBF=AFMA_catch[,c(1,6)]  
+        Sandbar_WTBF=AFMA_catch[,c(1,7)]
+      }
+      
+      #option 2 (weigh up observed catch rate by effort in Commonwealth waters, an assumed 
+      # mean weight and an assumed PCM
+      Effort_WTBF=subset(Effort_WTBF,Fleet=="Australian")
+      if(Option==2)    
+      {
+        PCM=0.3
+        Mean.wt.dusky=50   #MISSING: get mean weight from size frequency composion of longlines   
+        Mean.wt.sandbar=20
+        Dusky_WTBF=Effort_WTBF[,1:2]
+        #Dusky_WTBF=AFMA_catch[,c(1,6)]  
+        Dusky_WTBF[,2]=Effort_WTBF[,2]*PCM*cpue_dusky_WTBF*Mean.wt.dusky    #MISSING, replaced cpue_dusky_WTBF with WTBF_observed
+        if(KTCH.UNITS=="TONNES") Dusky_WTBF[,2]=Dusky_WTBF[,2]/1000
+        Sandbar_WTBF=Effort_WTBF[,1:2]
+        #Sandbar_WTBF=AFMA_catch[,c(1,7)]
+        Sandbar_WTBF[,2]=Effort_WTBF[,2]*PCM*cpue_sandbar_WTBF*Mean.wt.sandbar
+        if(KTCH.UNITS=="TONNES")Sandbar_WTBF[,2]=Sandbar_WTBF[,2]/1000
+      }
+      names(Dusky_WTBF)[2]=names(Sandbar_WTBF)[2]='LIVEWT.c'
+    }
+    
+    #add Bronzey catch to dusky catch for trawl and WTBF?????
+    if(SP=="BW")
+    {
+      ADD.bronzy_dusky="NO"        
+      if(ADD.bronzy_dusky=="YES")
+      {
+        Dusky_GAB_trawl=Bronzey_GAB_trawl
+        Dusky_WTBF[,2]=Dusky_WTBF[,2]+Bronzey_WTBF[,2] 
+        names(GAB_trawl)[2]="LIVEWT.c"
+        GAB_trawl=fn.exp.his(GAB_trawl,Monthly.prop)
+      }
+    }
+    
+    if(SP=="BW") Dusky_WTBF$FINYEAR=as.numeric(substr(Dusky_WTBF$FINYEAR,1,4))
+    # partition by month
+    
+    if(SP=="BW")
+    {
+      GAB_trawl=fn.exp.his(GAB_trawl,Monthly.prop) 
+      colnames(Dusky_WTBF)[match("Calendar.Year",colnames(Dusky_WTBF))]="FINYEAR"
+      Dusky_WTBF=fn.exp.his(Dusky_WTBF,Monthly.prop)
+    }
+    
+    if(SP=="TK")
+    {
+      colnames(Sandbar_WTBF)[match("Calendar.Year",colnames(Sandbar_WTBF))]="FINYEAR"
+      Sandbar_WTBF=fn.exp.his(Sandbar_WTBF,Monthly.prop)
+    } 
+  }
   
   #-Put all catches in list 
   if(SP=="WH") catch=list(TDGDLF=TDGDLF,Other=other_ktch,Rec=rec.ktch)
