@@ -441,7 +441,16 @@ Rec.ktch=Rec.ktch$`Base Case`
 
 
 
-# 7 -------------------Report------------------------------------
+
+# 7 -------------------EXPORT CATCH DATA------------------------------------
+fn.out=function(d,NM)
+{
+  write.csv(d,paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),row.names = F)
+}
+fn.out(d=Rec.fish.catch,NM='recons_recreational.csv')
+
+
+# 8 -------------------Report------------------------------------
 if(Do.recons.rec.fishn.paper=="YES")
 {
   hndl.out="C:\\Matias\\Analyses\\Reconstruction_catch_recreational\\"

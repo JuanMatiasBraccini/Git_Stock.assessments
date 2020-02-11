@@ -67,12 +67,34 @@ Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
 Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
 
 #Total catch
-  #1. WA commercial catch and IUU
-source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Catch.recons.Commercial.R")
+fn.in=function(NM)
+{
+  read.csv(paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),stringsAsFactors = F)
+}
+
+  #1.1 Catch_WA Fisheries
+
+#Historic
+Hist.expnd=fn.in(NM='recons_Hist.expnd.csv')
+
+#Ammended reported catch including discards
+Data.monthly=fn.in(NM='recons_Data.monthly.csv')
+Data.monthly.north=fn.in(NM='recons_Data.monthly.north.csv')
+
+#TEPS
+Greynurse.ktch=fn.in(NM='recons_Greynurse.ktch.csv')
+TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
+
+
+  #1.2. Catch of non WA Fisheries
+
+#Taiwanese gillnet and longline
+Taiwan.gillnet.ktch=fn.in(NM='recons_Taiwan.gillnet.ktch.csv')
+Taiwan.longline.ktch=fn.in(NM='recons_Taiwan.longline.ktch.csv')
+
 
   #2. WA Recreational catch
-source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Catch.recons.Recreational.R")
-
+Rec.ktch=fn.in(NM='recons_recreational.csv')
 
 #species codes
 All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/1.Other species/Species_names.csv")
@@ -519,7 +541,7 @@ mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
-#plot Taiwanese catch
+#plot Taiwanese catch              #NOTE that Taiwan now is in KG!!!!!
 Taiwan.gillnet.ktch$Method="Pelagic.gillnet"
 Taiwan.longline.ktch$Method="Longline"
 Taiwan=rbind(Taiwan.longline.ktch,Taiwan.gillnet.ktch)%>%

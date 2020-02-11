@@ -21,7 +21,7 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
     
   if(SP=="BW")
   {
-    Species=c(18003,18001)
+    Species=c(18003)
     SP.LABELS=c("Dusky shark")
     SP.LABELS1=c("Dusky")
   }
@@ -36,8 +36,6 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   
     
   #----DATA SECTION------  
-  setwd("C:/Matias/Data")
-  
   fn.subs=function(YEAR) substr(YEAR,start=3,stop=4)
   fn.finyr=function(Finyr)paste(Finyr-1,"-",fn.subs(Finyr),sep="")
   fn.month.to.fin.mn=function(dat)ifelse(dat>6,dat-6,dat+6)
@@ -54,8 +52,36 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   #1. CATCH
   
   #1.1. Commercial
-  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Catch.recons.Commercial.R")
+  fn.in=function(NM)
+  {
+    read.csv(paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),stringsAsFactors = F)
+  }
+  
+    #1.1.1 Catch_WA Fisheries
+  
+  #Historic
+  Hist.expnd=fn.in(NM='recons_Hist.expnd.csv')
+  
+  #Ammended reported catch including discards
+  Data.monthly=fn.in(NM='recons_Data.monthly.csv')
+  Data.monthly.north=fn.in(NM='recons_Data.monthly.north.csv')
+  
+  #TEPS
+  TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
+  
+  
+    #1.1.2. Catch of non WA Fisheries
+ 
+  #Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF) 
+  GAB.trawl_catch=fn.in(NM='recons_GAB.trawl_catch.csv')
+  WTBF_catch=fn.in(NM='recons_WTBF_catch.csv')
+  
+  #SA Marine Scalefish fishery
+  Whaler_SA=fn.in(NM='recons_Whaler_SA.csv')
+  
+  
   Gummies.prop=read.csv("C:/Matias/Analyses/Catch and effort/Gummies.prop.csv",stringsAsFactors=F)
+  
   
   #Select years of data
   First.year=sort(unique(Data.monthly$FINYEAR))[1]
@@ -70,12 +96,27 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   #Select relevant years of data
   Data.monthly=subset(Data.monthly,FINYEAR%in%Used.yrs)
   Data.monthly.north=subset(Data.monthly.north,FINYEAR%in%Used.yrs)
-  WRL=subset(WRL,Finyear%in%Used.yrs)
+  if(exists('WRL'))WRL=subset(WRL,Finyear%in%Used.yrs)
   
     
   #1.2 Rec fishing
-  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Recreational.catch.recons.R")
+  Rec.ktch=fn.in(NM='recons_recreational.csv')
   
+  
+  #Convert to tonnes if required
+  if(KTCH.UNITS=="TONNES")
+  {
+    Data.monthly$LIVEWT.c=Data.monthly$LIVEWT.c/1000
+    Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT.c/1000
+    Hist.expnd$LIVEWT.c=Hist.expnd$LIVEWT.c/1000
+    TEPS_dusky$LIVEWT.c=TEPS_dusky$LIVEWT.c/1000
+    GAB.trawl_catch$LIVEWT.c=GAB.trawl_catch$LIVEWT.c/1000
+    WTBF_catch$LIVEWT.c=WTBF_catch$LIVEWT.c/1000
+    Whaler_SA$LIVEWT.c=Whaler_SA$LIVEWT.c/1000
+    
+    Rec.ktch$LIVEWT.c=Rec.ktch$LIVEWT.c/1000
+  }
+
 
   #2. ABUNDANCE     
    HNDL="C:/Matias/Analyses/Data_outs/"
@@ -168,7 +209,7 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   
   
    #3. CATCH SIZE COMPOSITION
-  
+   setwd("C:/Matias/Data")
   #3.1 Heald 1987
   #description: Partial length in cm obtained from Perth fish marke.
   #             Unspecified fishing method, most likely gillnets.
@@ -251,10 +292,7 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   #3.6 TEPS_TDGLDF
   Size.comp.Dusky.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #from Comments in TDGDLF returns
   
-  ##3.7 AVerage weight
-  #Average.wt=read.csv("C:/Matias/Analyses/Catch and effort/Logbook.data.mean.weight.csv",stringsAsFactors=F)
 
-  
   #4. TAGGING
   
   #4.1 Conventional
@@ -533,9 +571,6 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/Organise input parameters.R")
   ParS=fn.input.pars(SP,add.growth.cv="NO",add.Mrt.age="NO")$pars
   
-  #1.  Assumption on proportion of lobster boats setting droplines
-  WRL.prop=0.1  #10% of vessels using droplines (Taylor et al 2015)
-  
   Max.age=ParS$Max.Age.F
   
   #2. LENGTHS AND WEIGHTS CONVERSION FACTORS  
@@ -604,60 +639,18 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   #1. CATCH
   
   #1.1 Historic catches in TDGDLF 
-    
-    #partition data by species 
-    #Currently using a dummy: equal split
-    #also, how to partition by zone? (this is done in "#split historic catch equally among zones" in Create.data.inputs.R)
-    #NOTE: the historic catches were not used in the assessment for these reasons...
-    historic=Historic.ktch    
-    historic$LIVEWT.c=historic$LIVEWT.c/4      
-    names(historic)[1]="FINYEAR"
-    historic$FINYEAR=fn.finyr(historic$FINYEAR)
-    historic=historic[-1,]  #fishing starts in 1941
-  
-    historic.prop.ktch=subset(Historic.ktch,year<1975)
-  
-  #1.2 TDGDLF reported catch          
-  #note: TDGDLF is method==GN or LL. 
-  ALL.four=subset(Data.monthly,SPECIES%in%c(18001,18003,18007,17001,17003) & METHOD%in%c("GN","LL") & LAT<=(-26) & Estuary=="NO",
-                  select=c(FINYEAR,LIVEWT.c,SPECIES,zone,MONTH))
-  
-  TDGDLF=subset(Data.monthly,SPECIES%in%Species & METHOD%in%c("GN","LL") & LAT<=(-26) & Estuary=="NO",
-                select=c(FINYEAR,LIVEWT.c,SPECIES,zone,MONTH))
-  
-  TDGDLF$SPECIES=with(TDGDLF,ifelse(SPECIES==18001,18003,SPECIES))   #combine dusky and bronzy catches
-  
-  
-      #get prop of catch to extract historic       #MISSING: for consistency, use Hist.expnd
-  Prop.four=aggregate(LIVEWT.c~FINYEAR,ALL.four,sum)
-  Prop.sp=aggregate(LIVEWT.c~FINYEAR,TDGDLF,sum)
-  Prop.four=subset(Prop.four,FINYEAR%in%unique(Prop.sp$FINYEAR))
-  names(Prop.four)[2]="Total"
-  Prop.sp=merge(Prop.sp,Prop.four,by="FINYEAR",all.x=T)
-  Prop.sp$Prop=Prop.sp$LIVEWT.c/Prop.sp$Total
-  
-  yrs.considered=5
-  Mean.prop.ctch=mean(Prop.sp$Prop[1:yrs.considered])
-  historic.prop.ktch$LIVEWT.c=historic.prop.ktch$LIVEWT.c*Mean.prop.ctch
+  historic=Hist.expnd%>%filter(SPECIES%in%Species)
   
 
-  #combine TDGDLF (i.e. GN and LL) with other gears reported with TDGDLF
-  #get data for other gears from Data.monthly
-  TDGDLF.other.gears=Data.monthly%>%
-    filter(!METHOD%in%c("GN","LL"))%>%
-    mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
- 
-   NSF.other.gears=Data.monthly.north%>%            #MISSING: shouldn't I also use NSF.other.gears? currently not used....
-    filter(!METHOD%in%c("GN","LL"))%>%
-    mutate(dummy=paste(FINYEAR,MONTH,VESSEL,BLOCKX,METHOD))
-  
-  
-  
-  TDGDLF.other.gears=TDGDLF.other.gears[,match(names(TDGDLF),names(TDGDLF.other.gears))]
-  TDGDLF=rbind(TDGDLF,TDGDLF.other.gears) 
-  TDGDLF=aggregate(LIVEWT.c~FINYEAR+MONTH+SPECIES+zone,TDGDLF,sum)
-  if(KTCH.UNITS=="TONNES") TDGDLF$LIVEWT.c=TDGDLF$LIVEWT.c/1000    
-  
+  #1.2 TDGDLF reported catch          
+  TDGDLF=subset(Data.monthly,SPECIES%in%Species & METHOD%in%c("GN","LL") & Estuary=="NO",
+                select=c(FINYEAR,LIVEWT.c,SPECIES,zone))
+
+   #combine TDGDLF (i.e. GN and LL) with other gears reported with TDGDLF
+  other_ktch=Data.monthly%>%
+              filter(SPECIES%in%Species & !METHOD%in%c("GN","LL"))%>%
+       dplyr::select(c(FINYEAR,LIVEWT.c,SPECIES,zone))
+
   #correct gummy catches by proportion of M antarcticus per bioregion
   if(SP=="GM")
   {
@@ -665,18 +658,8 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
     TDGDLF$LIVEWT.c=with(TDGDLF,ifelse(zone%in%c("West","Zone1"),LIVEWT.c*Gummy.prop,LIVEWT.c))
   }
   
-  Monthly.prop=aggregate(LIVEWT.c~MONTH+SPECIES,TDGDLF,mean)
-  Monthly.prop$prop=Monthly.prop$LIVEWT.c/sum(Monthly.prop$LIVEWT.c)
-  if(SP=="BW")Monthly.prop=subset(Monthly.prop,SPECIES==18003)
-  Monthly.prop$prop=Monthly.prop$prop/sum(Monthly.prop$prop)
-  
-  #partition historic catch with monthly proportion of reported catch
-  if(Historic.Ktch=="YES") historic=fn.exp.his(historic,Monthly.prop)
-     
-  
-  #1.3 Northern Shark Fisheries (WANCSF and JANSF)
-  #note: no species reapportioning done
  
+  #1.3 Northern Shark Fisheries (WANCSF and JANSF)
   #Check nonsense catch from Data.monthly.north
   if(SP%in%c("BW","TK"))
   {
@@ -685,24 +668,26 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
       unib=sort(unique(a$BLOCKX))
       this.b=unib[unib<26000]
       a=subset(a,BLOCKX%in%this.b)
+      a$YEAR=as.numeric(substr(a$FINYEAR,1,4))
       b=aggregate(LIVEWT.c~YEAR,a,sum)
       dd=b$LIVEWT.c
-      if(!KTCH.UNITS=="TONNES") dd=b$LIVEWT.c/1000
       plot(dd,type='l',lwd=2)
     }
     
     fn.check.NSF(Data.monthly.north)
-    NSF=subset(Data.monthly.north,select=c(FINYEAR,LIVEWT.c,SPECIES,zone,MONTH))
-    NSF$SPECIES=with(NSF,ifelse(SPECIES==18001,18003,SPECIES))   #combine dusky and bronzy catches
-    NSF=aggregate(LIVEWT.c~FINYEAR+MONTH+SPECIES+zone,NSF,sum)
-    if(KTCH.UNITS=="TONNES") NSF$LIVEWT.c=NSF$LIVEWT.c/1000    #in tonnes
+    NSF=subset(Data.monthly.north,SPECIES%in%Species & METHOD%in%c("LL","GN"),
+               select=c(FINYEAR,LIVEWT.c,SPECIES,zone))
+
+    other_ktch.north=subset(Data.monthly.north,SPECIES%in%Species & !METHOD%in%c("LL","GN"),
+               select=c(FINYEAR,LIVEWT.c,SPECIES,zone))
+    other_ktch=rbind(other_ktch,other_ktch.north)  
   }
    
   #construct species data frames
-  Yrs.dummy=sort(unique(Data.monthly$YEAR.c))
+  Yrs.dummy=as.numeric(substr(sort(unique(Data.monthly$FINYEAR)),1,4))
   x=substr(Yrs.dummy[2]:Yrs.dummy[length(Yrs.dummy)],start=3,stop=4)
   FinYrs=paste(Yrs.dummy[1]:Yrs.dummy[length(Yrs.dummy)-1],"-",x,sep="")
-  
+ 
   
   #1.4 Recreational catch                        
   if(SP=='WH') SPEC='Whiskery Shark'
@@ -712,105 +697,21 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   Rec.ktch=subset(Rec.ktch,Common.Name==SPEC)
   if(SP=='GM') Rec.ktch=subset(Rec.ktch,zone%in%c("South Coast","West Coast"))
 
-  #split month
-  fn.rec.month=function(dat,dat1)
-  {
-    dat2=expand.grid(FINYEAR=dat$FINYEAR,MONTH=1:12)
-    dat2=merge(dat2,dat1[,match(c("MONTH","prop"),names(dat1))],by="MONTH",all=T)
-    dat2=merge(dat2,dat,by="FINYEAR",all.x=T)
-    dat2$dup=with(dat2,paste(FINYEAR,MONTH,zone))
-    dat2=dat2[!duplicated(dat2$dup),]
-    dat2$LIVEWT.c=dat2$LIVEWT.c*dat2$prop
-    dat2=dat2[order(dat2$zone,dat2$FINYEAR,dat2$MONTH),]
-    return(dat2[,-match(c("prop","dup"),names(dat2))])
-  }
-  rec.ktch=fn.rec.month(rec.ktch,Monthly.prop)
+
+  #1.5 Non-WA Fisheries                      
+  GAB_trawl=GAB.trawl_catch%>%filter(SPECIES%in%Species)
+  WTBF=WTBF_catch%>%filter(SPECIES%in%Species)
+  Whaler_SA=Whaler_SA%>%filter(SPECIES%in%Species)
   
-  
-  #1.5 Non-WA Fisheries                      MISSING, FIX accordingly
-  #Brought back from Catch.recons.Commercial.R Not use AFMA_catch but  GAB.trawl_catch and WTBF_catch 
-  {
-    if(SP=="BW") 
-    {
-      GAB_trawl=AFMA_catch[,c(1,2)]     #MISSING: I changed AFMA_catch for WTBF_catch GAB.trawl_catch  ditto Effort_WTBF
-      Bronzey_WTBF=AFMA_catch[,c(1,5)]
-      names(Bronzey_WTBF)[2]='LIVEWT.c'
-    }
-    
-    if(SP=="GM") GAB_trawl=AFMA_catch[,c(1,3)]
-    if(SP=="WH") GAB_trawl=AFMA_catch[,c(1,4)]
-    
-    if(!SP=="TK") names(GAB_trawl)[2]='LIVEWT.c'
-    
-    if(SP%in%c("BW","TK"))
-    {
-      #option 1 (data reported by AFMA)
-      if(Option==1)    
-      {
-        Dusky_WTBF=AFMA_catch[,c(1,6)]  
-        Sandbar_WTBF=AFMA_catch[,c(1,7)]
-      }
-      
-      #option 2 (weigh up observed catch rate by effort in Commonwealth waters, an assumed 
-      # mean weight and an assumed PCM
-      Effort_WTBF=subset(Effort_WTBF,Fleet=="Australian")
-      if(Option==2)    
-      {
-        PCM=0.3
-        Mean.wt.dusky=50   #MISSING: get mean weight from size frequency composion of longlines   
-        Mean.wt.sandbar=20
-        Dusky_WTBF=Effort_WTBF[,1:2]
-        #Dusky_WTBF=AFMA_catch[,c(1,6)]  
-        Dusky_WTBF[,2]=Effort_WTBF[,2]*PCM*cpue_dusky_WTBF*Mean.wt.dusky    #MISSING, replaced cpue_dusky_WTBF with WTBF_observed
-        if(KTCH.UNITS=="TONNES") Dusky_WTBF[,2]=Dusky_WTBF[,2]/1000
-        Sandbar_WTBF=Effort_WTBF[,1:2]
-        #Sandbar_WTBF=AFMA_catch[,c(1,7)]
-        Sandbar_WTBF[,2]=Effort_WTBF[,2]*PCM*cpue_sandbar_WTBF*Mean.wt.sandbar
-        if(KTCH.UNITS=="TONNES")Sandbar_WTBF[,2]=Sandbar_WTBF[,2]/1000
-      }
-      names(Dusky_WTBF)[2]=names(Sandbar_WTBF)[2]='LIVEWT.c'
-    }
-    
-    #add Bronzey catch to dusky catch for trawl and WTBF?????
-    if(SP=="BW")
-    {
-      ADD.bronzy_dusky="NO"        
-      if(ADD.bronzy_dusky=="YES")
-      {
-        Dusky_GAB_trawl=Bronzey_GAB_trawl
-        Dusky_WTBF[,2]=Dusky_WTBF[,2]+Bronzey_WTBF[,2] 
-        names(GAB_trawl)[2]="LIVEWT.c"
-        GAB_trawl=fn.exp.his(GAB_trawl,Monthly.prop)
-      }
-    }
-    
-    if(SP=="BW") Dusky_WTBF$FINYEAR=as.numeric(substr(Dusky_WTBF$FINYEAR,1,4))
-    # partition by month
-    
-    if(SP=="BW")
-    {
-      GAB_trawl=fn.exp.his(GAB_trawl,Monthly.prop) 
-      colnames(Dusky_WTBF)[match("Calendar.Year",colnames(Dusky_WTBF))]="FINYEAR"
-      Dusky_WTBF=fn.exp.his(Dusky_WTBF,Monthly.prop)
-    }
-    
-    if(SP=="TK")
-    {
-      colnames(Sandbar_WTBF)[match("Calendar.Year",colnames(Sandbar_WTBF))]="FINYEAR"
-      Sandbar_WTBF=fn.exp.his(Sandbar_WTBF,Monthly.prop)
-    } 
-  }
-  
-  #-Put all catches in list 
+  #-Put all catches in list (currently not including 'historic')
   if(SP=="WH") catch=list(TDGDLF=TDGDLF,Other=other_ktch,Rec=rec.ktch)
   if(SP=="GM") catch=list(TDGDLF=TDGDLF,Other=other_ktch,Rec=rec.ktch)
   if(SP=="BW")
   {
-    Dusky_WTBF$FINYEAR=paste(Dusky_WTBF$FINYEAR,"-",fn.subs(Dusky_WTBF$FINYEAR+1),sep="")
     if(Ktch.source=="ALL")
     {
       catch=list(TDGDLF=TDGDLF,NSF=NSF,Other=other_ktch,WRL=Dusky.Tot.Ktch.WRL,
-                 WTBF=Dusky_WTBF,TEPS=TEPS_dusky,SA_marine=Whaler_SA,Rec=rec.ktch)
+                 WTBF=WTBF,TEPS=TEPS_dusky,SA_marine=Whaler_SA,Rec=rec.ktch)
     }
     if(Ktch.source=="WA.only")
     {
@@ -820,14 +721,13 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
     if(ADD.bronzy_dusky=="YES" & Ktch.source=="ALL")
     {
       catch=list(TDGDLF=TDGDLF,NSF=NSF,Other=other_ktch,WRL=Dusky.Tot.Ktch.WRL,
-                 GAB_trawl=Dusky_GAB_trawl,WTBF=Dusky_WTBF,TEPS=TEPS_dusky,
+                 GAB_trawl=Dusky_GAB_trawl,WTBF=WTBF,TEPS=TEPS_dusky,
                  SA_marine=Whaler_SA,Rec=rec.ktch)
     }
   }
   if(SP=="TK")
   {
-    #Sandbar_WTBF$FINYEAR=paste(Sandbar_WTBF$FINYEAR,"-",fn.subs(Sandbar_WTBF$FINYEAR+1),sep="")
-    if(Ktch.source=="ALL") catch=list(TDGDLF=TDGDLF,NSF=NSF,Other=other_ktch,WTBF=Sandbar_WTBF,Rec=rec.ktch)
+    if(Ktch.source=="ALL") catch=list(TDGDLF=TDGDLF,NSF=NSF,Other=other_ktch,WTBF=WTBF,Rec=rec.ktch)
     if(Ktch.source=="WA.only") catch=list(TDGDLF=TDGDLF,NSF=NSF,Other=other_ktch,Rec=rec.ktch)
   }
 
@@ -1090,48 +990,6 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   if(SP=="TK") All.size=list(TDGDLF=All.size,TDGDLF_7=All.size_7,Pilbara_trawl=Sandbar_FL_Pil.trwl_observers,NSF=FL_NSF_observers)
   
 
- #  #Average weight
- #  Average.wt$zone=as.character(Average.wt$zone)
- #  Average.wt=subset(Average.wt,zone%in%c("West","Zone1","Zone2")& species==Species)
- #  Average.wt$Mean.wgt=Average.wt$livewt/Average.wt$nfish
- #  
- #  Min.Wt=c(.210,.190,3,.690)   #from length weight relations
- #  Mx.Wt=c(25,35,350,150)
- #  names(Min.Wt)=names(Mx.Wt)=c("WH","GM","BW","TK")
- #  id=which(names(Min.Wt)==SP)
- #  Min.Wt=Min.Wt[id]
- #  Mx.Wt=Mx.Wt[id]
- #  
- #  Average.wt$Mean.wgt=with(Average.wt,ifelse(Mean.wgt<Min.Wt | Mean.wgt>Mx.Wt,NA,Mean.wgt))
- #  Average.wt=subset(Average.wt,!is.na(Mean.wgt))
- #  
- #  #by year-month-zone
- #  Avr.wt=aggregate(Mean.wgt~finyear+month+zone+species,Average.wt,mean)
- #  SD.wt=aggregate(Mean.wgt~finyear+month+zone+species,Average.wt,sd)
- #  Avr.wt$CV=SD.wt$Mean.wgt/Avr.wt$Mean.wgt
- #  Avr.wt=Avr.wt[!is.na(Avr.wt$CV),]    #remove single observations
- #  N.yrs.Avr.wt=unique(Avr.wt$finyear)
- #  
- #  #by year-zone
- #  Avr.wt.yr.zn=aggregate(Mean.wgt~finyear+zone+species,Average.wt,mean)
- #  SD.wt.yr.zn=aggregate(Mean.wgt~finyear+zone+species,Average.wt,sd)
- #  Avr.wt.yr.zn$CV=SD.wt.yr.zn$Mean.wgt/Avr.wt.yr.zn$Mean.wgt
- #  Avr.wt.yr.zn=Avr.wt.yr.zn[!is.na(Avr.wt.yr.zn$CV),]    #remove single observations
- #  
- #  
- #  #by year
- #  Avr.wt.yr=aggregate(Mean.wgt~finyear+species,Average.wt,mean)
- #  SD.wt.yr=aggregate(Mean.wgt~finyear+species,Average.wt,sd)
- #  Avr.wt.yr$CV=SD.wt.yr$Mean.wgt/Avr.wt.yr$Mean.wgt
- #  Avr.wt.yr=Avr.wt.yr[!is.na(Avr.wt.yr$CV),]    #remove single observations
- #  
- # if(SP=="BW")
- # {
- #   Avr.wt.yr.zn=subset(Avr.wt.yr.zn,species=="18003")
- #   Avr.wt.yr=subset(Avr.wt.yr,species=="18003")
- # }
-   
-  
   #2.6 Put abundance data together 
   
   #TDGDLF
@@ -1423,8 +1281,7 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
       
       if(is.numeric(a$FINYEAR[1])) a$FINYEAR=paste(a$FINYEAR,"-",fn.subs(a$FINYEAR+1),sep="") 
       a=a[order(a$FINYEAR),]
-      if(!KTCH.UNITS=="TONNES")a$LIVEWT.c=a$LIVEWT.c/1000   
-      if(!is.logical(a))
+       if(!is.logical(a))
       {
         a$FINYEAR=factor(a$FINYEAR,levels=YRS)
         if(names(DAT)[i]%in% Single)
@@ -2183,7 +2040,7 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   fn.exp.size(dat=All.size,Level='annual.by.zone')
   
  
-  #avg weight
+  #avg weight    
   if(exists('Avr.wt.yr.zn'))write.csv(Avr.wt.yr.zn,"ktch.avg.weight.annual.by.zone.csv",row.names=F) 
   write.csv(Avr.wt.yr,"ktch.avg.weight.annual.csv",row.names=F)
   
