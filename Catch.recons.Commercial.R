@@ -134,6 +134,7 @@ All.species.names=rbind(All.species.names,
                                           "Gummy shark","Whiskery shark")))%>%
                       arrange(SPECIES)%>%
                       distinct(SPECIES,.keep_all = T)
+All.species.names$Name=as.character(All.species.names$Name)
 
 species.codes=read.csv("C:\\Matias\\Data\\Species.code.csv")   #for shark bio
 
@@ -485,6 +486,48 @@ if(!exists('WTBF_catch'))
 #description: whaler shark catch from SA MArine Scale fishery (in tonnes). 
 Whaler_SA_dusky.prop=.1  # Steer et al 2018 (page 148)
 Whaler_SA_bronzie.prop=1-Whaler_SA_dusky.prop
+
+
+  #-- 2.2.4 Indonesian illegal fishing in Australia waters
+
+#source: ABC (https://www.abc.net.au/news/2019-11-12/illegal-shark-fishing-northern-territory-fishing-boat/11697036)
+Indo_flesh=60 #flesh (kg)
+Indo_fins=63
+Indo_skins=16
+Indo_prop.shark=8/36   #proportion of apprehended vessels fishing for sharks
+Indo_apprensions.2018=5  #number of apprehended vessels in 2018
+
+#source: Edyvane & Penny 2017 (using all vessels, including MOU because the MOU catch is not accounted for anywhere)
+Indo_sightings=data.frame(year=2000:2013,
+                          Total.FFVs.inside.AEEZ=c(4867,5878,3047,9550,6638,9362,7378,4320,
+                                                   6827,9117,9517,11822,13979,11455))
+#source: ANAO 2010
+Indo_apprehensions=data.frame(year=c(2003:2018),
+                              Apprehensions=c(134,203,367,216,156,27,rep(NA,9),5))
+Indo_jurisdiction.prop=data.frame(Jurisdiction=c('WA',"NT","QLD"),
+                                  prop=c(.33,.34,.33))   #arbitrary, from Figure 1.2
+
+#source: Marshall et al 2016 (MOU box)
+Indo_shark.N.vessels=9  # 9 Type 2 vessels sampled over a period of 1 week (8th to 15th May 2015)
+Indo_shark.comp=data.frame(Species=c('Silvertip shark','Bignose shark','Grey reef shark','Pigeye shark',
+                                     'Spinner shark','Silky shark','Blacktips',
+                                     'Dusky shark','Sandbar shark','Spot tail shark',
+                                     'Tiger shark','Lemon shark','Whitetip reef shark',
+                                     'Scalloped hammerhead','Great hammerhead'),
+                           Proportion=c(0.0022,0.0058,0.0141,0.0033,
+                                        0.0822,0.0011,
+                                        0.0259,0.0293,0.1524,
+                                        0.001,0.665,0.0075,
+                                        0.0017,0.0029,0.0056))   #by weight
+Indo_shark.weight=10486  #kg  Total weight of the shark catch for the monitored period
+Indo_shark.TL.range=c(89,409)
+Indo_shark.mature=.586    #Tables 5 and 6 have species-specific size and maturity ranges
+Indo_average.trip.length=23  #days
+
+#Assumptions
+Indo_assumed.n.trips.per.year=5  #assumed number of trips per vessel per year @ 23 days per trip
+Indo_assumed.missed.appr.rate=2  #assume rate of miss-apprehension
+
 
 
 # 3 -------------------PROCEDURE SECTION------------------------------------
@@ -1296,9 +1339,31 @@ Whaler_SA=Whaler_SA[rep(1:N.SA,each=2),]%>%
          LIVEWT.c=ifelse(SPECIES==18003,
                          LIVEWT.c*Whaler_SA_dusky.prop,
                          LIVEWT.c*Whaler_SA_bronzie.prop))
-                 
+
+
+#-- 3.2.4 Indonesian illegal fishing in Australia waters              
                 
-     
+  #Catch per vessel-day
+Indo_avrg.ktch.per.vessel.day=Indo_shark.weight/(Indo_shark.N.vessels*7)
+Indo_avrg.ktch.per.vessel.day=Indo_shark.comp%>%
+  mutate(kg.day.vessel=Proportion*Indo_avrg.ktch.per.vessel.day)
+
+  #Catch per vessel-year
+Indo_avrg.ktch.per.vessel.year=Indo_avrg.ktch.per.vessel.day%>%
+  mutate(kg.year.vessel=kg.day.vessel*Indo_average.trip.length*Indo_assumed.n.trips.per.year)
+
+  #Total catch per year
+Indo_total.annual.ktch=Indo_avrg.ktch.per.vessel.year[rep(1:nrow(Indo_avrg.ktch.per.vessel.year),nrow(Indo_apprehensions)),]%>%
+  mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_avrg.ktch.per.vessel.year)))%>%
+  left_join(Indo_apprehensions,by='year')%>%
+  mutate(kg.year=kg.year.vessel*Apprehensions*Indo_prop.shark*Indo_assumed.missed.appr.rate,
+         LIVEWT.c=kg.year*Indo_jurisdiction.prop%>%filter(Jurisdiction=="WA")%>%pull(prop))
+
+Indo_total.annual.ktch=Indo_total.annual.ktch%>%
+                        mutate(Species=as.character(Species))%>%
+                        left_join(All.species.names,by=c('Species'='Name'))
+
+
 
 # 4 -------------------EXPORT CATCH DATA------------------------------------
 fn.out=function(d,NM)
@@ -1340,12 +1405,27 @@ fn.out(d=WTBF_catch,NM='recons_WTBF_catch.csv')
 fn.out(d=Whaler_SA,NM='recons_Whaler_SA.csv')
 
 
+  #Indonesian illegal fishing in Australia waters
+fn.out(d=Indo_total.annual.ktch,NM='recons_Indo.IUU.csv')
+
+
 #ACA
 # 5 -------------------REPORT SECTION------------------------------------
 if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (not the TDGDLF or NSF)
 {
   fn.hnd.out()
   #use 'All.species.names' to get names
+  
+  
+  #Indonesian illegal fishing in Australia waters
+  tiff(file="IUU.tiff",2400,2400,units="px",res=300,compression="lzw")
+  par(mfcol=c(2,1),mar=c(4,4,1,.5),oma=c(2.2,7.2,1,1),las=1,mgp=c(2.5,.4,0))
+  D1=Indo_total.annual.ktch%>%group_by(year)%>%summarise(Tot=sum(kg.year))
+  plot(D1$year,D1$Tot/1000,type='o',pch=19,cex=2,ylab="Total catch (tonnes)",xlab="Year")
+  D1=Indo_total.annual.ktch%>%group_by(Species)%>%summarise(Tot=sum(kg.year,na.rm=T))%>%
+    arrange(Tot)
+  barplot(D1$Tot/1000,horiz = T,xlab="Total catch (tonnes)",names.arg=D1$Species,las=1)
+  dev.off()
 }
 
 
