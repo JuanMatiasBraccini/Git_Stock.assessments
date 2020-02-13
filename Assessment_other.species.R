@@ -12,15 +12,12 @@
 #       years of reported catch data
 
 #missing:
-# All catch reapportioning is now done in 'Catch.recons.Commercial.R', fix accordingly......
 #For the size data, use catch curve for size
 # (or convert size to age, using 'convert_length_to_age_samples')
 # with dome shaped selectivity (as other methods, like Adrian Hordyk's
 # and CCSRA assume logistic selectivity)
 #and SPR to calculate F (need Alex's help)
-#For SRA, use Dan Ovando's approach, once it is installed
-#but will need cpue index or FMI
-
+#For SRA, could try Dan Ovando's approach, once it is installed, but will need cpue index or FMI
 # rather than standard SPM, try JABBA: Just Another Bayesian Biomass Assessment (can be 
 #             run from R..see Winker et al 2018; it's what IUCN uses)
 
@@ -32,8 +29,8 @@ fn.source("fn.fig.R")
 fn.source("Leslie.matrix.R") 
 fn.source("Catch_MSY.R")
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
-Do.jpeg="YES"
-Do.tiff="NO"
+Do.jpeg="NO" 
+Do.tiff="YES"
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R")
 
 library(MASS)
@@ -93,7 +90,7 @@ Taiwan.gillnet.ktch=fn.in(NM='recons_Taiwan.gillnet.ktch.csv')
 Taiwan.longline.ktch=fn.in(NM='recons_Taiwan.longline.ktch.csv')
 
 #Indonesian illegal fishing in Australia waters
-Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv')         #MISSING: ADD to catch
+Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv') 
 
 
 
@@ -101,8 +98,8 @@ Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv')         #MISSING: ADD to 
 Rec.ktch=fn.in(NM='recons_recreational.csv')
 
 #species codes
-All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/1.Other species/Species_names.csv")
-b=read.csv("C:\\Matias\\Data\\Species.code.csv")
+All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/1.Other species/Species_names.csv",stringsAsFactors=F)
+#b=read.csv("C:\\Matias\\Data\\Species.code.csv")
 
 
 #list of life history param for demography
@@ -193,6 +190,7 @@ Tag=fn.read('Tagging_conventional.data.csv')
 
 
 #---PARAMETERS SECTION-----
+Explor="NO"
 
 Min.max.ktch=30  #minimum maximum annual catch for a species to be analysed
 Min.yrs=3        #minimum years with catch records for species to be included in analysis    
@@ -232,10 +230,6 @@ Mn.conv.Fl.Tl=.85  #average convertion (over gummy, dusky, whiskery, sandbar) fr
 #note: Only fitting species with species-specific abundance time series 
 #     (e.g. wobbegongs comprise several species so not fitted)
 #     Assumption, negligible exploitation at start of time series
-#     Assumed some efficiency increase to account for fact that spinner
-#     and hammerhead cpue increased with increase catch. Only up to 1% per
-#     year assumed because standardisation partly account for this (e.g. change
-#     in spatial distribution of fleet by considering block effect)
 
     #Initial harvest rate 
 #HR.o.scens=c(0.01,0.02,0.03)    #set by initial catch over max catch
@@ -305,6 +299,17 @@ Do.sim.test="NO"
 
 #---PROCEDURE SECTION-----
 
+#Add Species names to catch data sets    
+All.species.names=All.species.names%>%rename(SNAME=Name)
+Hist.expnd=Hist.expnd%>%left_join(All.species.names,by='SPECIES')
+Data.monthly=Data.monthly%>%left_join(All.species.names,by='SPECIES')
+Data.monthly.north=Data.monthly.north%>%left_join(All.species.names,by='SPECIES')
+Greynurse.ktch=Greynurse.ktch%>%left_join(All.species.names,by='SPECIES')
+TEPS_dusky=TEPS_dusky%>%left_join(All.species.names,by='SPECIES')
+Taiwan.gillnet.ktch=Taiwan.gillnet.ktch%>%left_join(All.species.names,by='SPECIES')
+Taiwan.longline.ktch=Taiwan.longline.ktch%>%left_join(All.species.names,by='SPECIES')
+Indo_total.annual.ktch=Indo_total.annual.ktch%>%left_join(All.species.names,by='SPECIES')
+
 Average.Lat=rbind(subset(Data.monthly,select=c(SPECIES,LAT)),subset(Data.monthly.north,select=c(SPECIES,LAT)))
 do.sp.table.WoE.paper="NO"
 if(do.sp.table.WoE.paper=="YES")
@@ -323,11 +328,6 @@ if(do.sp.table.WoE.paper=="YES")
   
 }
 
-A=table(Data.monthly$FINYEAR,Data.monthly$MONTH)
-A[A>0]=1
-Drop=names(which(rowSums(A)<12))
-Data.monthly=subset(Data.monthly,!FINYEAR%in%Drop)
-Data.monthly.north=subset(Data.monthly.north,!FINYEAR%in%Drop)
 YEARS=sort(as.numeric(substr(unique(Data.monthly$FINYEAR),1,4)))  
 Current=YEARS[length(YEARS)]   
 
@@ -343,157 +343,138 @@ if(use.tags)
 
 
 #Check what catch length frequency data are availabe
-Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
-           "RV GANNET","RV SNIPE 2")
-fun.check.LFQ=function(a,area)
+if(Explor=="YES") 
 {
-  a=a%>%
-    dplyr::select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,
-                    Method,FL,Mid.Lat,Mid.Long,
-                    MESH_SIZE))%>%
-    filter(!is.na(FL))%>%
-    mutate(MESH_SIZE=sub("\"","",MESH_SIZE))
-  Unik.sp=unique(a$COMMON_NAME)
-  
-  smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-  b1=table(a$SEX,a$COMMON_NAME)
-  for(u in 1:length(Unik.sp))
+  Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
+             "RV GANNET","RV SNIPE 2")
+  fun.check.LFQ=function(a,area)
   {
-    bb=b1[,match(Unik.sp[u],colnames(b1))]
-    Xsq <- chisq.test(bb)
-    barplot(bb,main=paste(Unik.sp[u],"(F:M=",round(bb[1]/bb[2],2),":1",", X2, p=",
-                          round(Xsq$p.value,2),")"),cex.main=.9)
-  } 
-  mtext(area,1,outer = T,cex=1.5)
-  
-  smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-  b1=table(10*(round(a$FL/10)),a$COMMON_NAME)
-  for(u in 1:length(Unik.sp))
-  {
-    barplot(b1[,match(Unik.sp[u],colnames(b1))],main=Unik.sp[u])
-  }
-  mtext(area,1,outer = T,cex=1.5)
-  
-  
-  for(u in 1:length(Unik.sp))
-  {
-    b1=with(subset(a,COMMON_NAME==Unik.sp[u]),table(10*(round(FL/10)),year))
-    yrs=colnames(b1)
-    smart.par(n.plots=ncol(b1),MAR=c(2,2,1,1),OMA=c(1.75,2,2,.1),MGP=c(1,.5,0))
-    for(s in 1:ncol(b1))
+    a=a%>%
+      dplyr::select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,
+                      Method,FL,Mid.Lat,Mid.Long,
+                      MESH_SIZE))%>%
+      filter(!is.na(FL))%>%
+      mutate(MESH_SIZE=sub("\"","",MESH_SIZE))
+    Unik.sp=unique(a$COMMON_NAME)
+    
+    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+    b1=table(a$SEX,a$COMMON_NAME)
+    for(u in 1:length(Unik.sp))
     {
-      barplot(b1[,match(yrs[s],colnames(b1))],main=paste(yrs[s],"n=",
-                      sum(b1[,match(yrs[s],colnames(b1))])))
+      bb=b1[,match(Unik.sp[u],colnames(b1))]
+      Xsq <- chisq.test(bb)
+      barplot(bb,main=paste(Unik.sp[u],"(F:M=",round(bb[1]/bb[2],2),":1",", X2, p=",
+                            round(Xsq$p.value,2),")"),cex.main=.9)
+    } 
+    mtext(area,1,outer = T,cex=1.5)
+    
+    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+    b1=table(10*(round(a$FL/10)),a$COMMON_NAME)
+    for(u in 1:length(Unik.sp))
+    {
+      barplot(b1[,match(Unik.sp[u],colnames(b1))],main=Unik.sp[u])
     }
-    mtext(paste(area,"-",unique(a$Method),"-",Unik.sp[u]),3,outer=T)
+    mtext(area,1,outer = T,cex=1.5)
+    
+    
+    for(u in 1:length(Unik.sp))
+    {
+      b1=with(subset(a,COMMON_NAME==Unik.sp[u]),table(10*(round(FL/10)),year))
+      yrs=colnames(b1)
+      smart.par(n.plots=ncol(b1),MAR=c(2,2,1,1),OMA=c(1.75,2,2,.1),MGP=c(1,.5,0))
+      for(s in 1:ncol(b1))
+      {
+        barplot(b1[,match(yrs[s],colnames(b1))],main=paste(yrs[s],"n=",
+                                                           sum(b1[,match(yrs[s],colnames(b1))])))
+      }
+      mtext(paste(area,"-",unique(a$Method),"-",Unik.sp[u]),3,outer=T)
+    }
+    
+    return(a)
   }
-  
-  return(a)
+  PATH=paste(hNdl,"Outputs/Size.frequency",sep='/')
+  if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
+  pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data.pdf",sep=""))
+  LFQ.north=fun.check.LFQ(a=DATA%>%filter(Mid.Lat>(-26) & COMMON_NAME%in%FL.sp &
+                                            Method%in%c('LL')  & !BOAT%in%Res.vess),
+                          area="North")
+  LFQ.south=fun.check.LFQ(a=DATA%>%filter(Mid.Lat<(-26) & COMMON_NAME%in%FL.sp &
+                                            Method%in%c('GN') &!BOAT%in%Res.vess),
+                          area="South")
+  dev.off()
 }
-PATH=paste(hNdl,"Outputs/Size.frequency",sep='/')
-if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
-
-pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data.pdf",sep=""))
-LFQ.north=fun.check.LFQ(a=DATA%>%filter(Mid.Lat>(-26) & COMMON_NAME%in%FL.sp & 
-                                          Method%in%c('LL')  & !BOAT%in%Res.vess),
-                        area="North")
-LFQ.south=fun.check.LFQ(a=DATA%>%filter(Mid.Lat<(-26) & COMMON_NAME%in%FL.sp & 
-                                          Method%in%c('GN') &!BOAT%in%Res.vess),
-                        area="South")
-dev.off()
-
 
 #Explore spatial catch distribution to check if species reporting issues
-fn.expl.sp.ktch=function(d1)
+if(Explor=="YES")    
 {
-  if(nrow(d1)>0)
+  fn.expl.sp.ktch=function(d1)
   {
-    aa=aggregate(LIVEWT.c~BLOCKX+LAT+LONG,d1,sum)
-    plot(aa$LONG,aa$LAT,pch=19,ylab="",ylim=c(-36,-9),xlim=c(111,129),
-         col="steelblue",xlab="",cex=((aa$LIVEWT.c/max(aa$LIVEWT.c))^0.5)*3)
-  }else   
-  {
-    plot(1,axes=F,ann=F,col="white")
+    if(nrow(d1)>0)
+    {
+      aa=aggregate(LIVEWT.c~BLOCKX+LAT+LONG,d1,sum)
+      plot(aa$LONG,aa$LAT,pch=19,ylab="",ylim=c(-36,-9),xlim=c(111,129),
+           col="steelblue",xlab="",cex=((aa$LIVEWT.c/max(aa$LIVEWT.c))^0.5)*3)
+    }else   
+    {
+      plot(1,axes=F,ann=F,col="white")
+    }
   }
-}
-pdf(paste(hNdl,"/Outputs/reported.spatial.catch.pdf",sep=""))
-for(l in 1:length(SP.list))
-{
-  par(mfcol=c(2,1),mar=c(1.5,2.5,1,.5),las=1,mgp=c(1,.7,0))
-  fn.expl.sp.ktch(d1=subset(Data.monthly.north,SPECIES%in%SP.list[[l]]))
-  mtext(names(SP.list)[l],3)
-  fn.expl.sp.ktch(d1=subset(Data.monthly,SPECIES%in%SP.list[[l]]))
+  pdf(paste(hNdl,"/Outputs/reported.spatial.catch.pdf",sep=""))
+  for(l in 1:length(SP.list))
+  {
+    par(mfcol=c(2,1),mar=c(1.5,2.5,1,.5),las=1,mgp=c(1,.7,0))
+    fn.expl.sp.ktch(d1=subset(Data.monthly.north,SPECIES%in%SP.list[[l]]))
+    mtext(names(SP.list)[l],3)
+    fn.expl.sp.ktch(d1=subset(Data.monthly,SPECIES%in%SP.list[[l]]))
+  }
+  
+  fn.prop.exp=function(d,nm)
+  {
+    d1=d%>%mutate(FINYEAR=as.numeric(substr(FINYEAR,1,4)))%>%
+      group_by(FINYEAR,BLOCKX)%>%
+      summarise(Sum=sum(LIVEWT.c))%>%
+      group_by(FINYEAR)%>%
+      mutate(Prop=Sum/sum(Sum))%>%
+      dplyr::select(FINYEAR,BLOCKX,Prop)%>%
+      spread(BLOCKX,Prop)%>%
+      data.frame
+    colnames(d1)[-1]= substr(colnames(d1)[-1],2,100)
+    CL=rainbow(ncol(d1)-1)
+    plot(d1$FINYEAR,d1[,2],type='b',ylim=c(0,1),col=CL[1],pch=19,ylab="Proportion",xlab="Year")
+    for(h in 3:ncol(d1)) points(jitter(d1$FINYEAR,1),d1[,h],type='b',col=CL[h-1],pch=19)
+    legend("bottomright",colnames(d1)[-1],bty='n',col=CL,lty=1,lwd=2,cex=.6)
+    mtext(nm,3)
+  }
+  these.ones.spt=c("Hammerheads","Spinner","Spurdogs","Tiger","Wobbegongs")
+  smart.par(n.plots=length(these.ones.spt),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  for(l in 1:length(these.ones.spt))
+  {
+    fn.prop.exp(d=subset(Data.monthly,SPECIES==SP.list[[match(these.ones.spt[l],
+                                                              names(SP.list))]]),nm=these.ones.spt[l])
+  }
+  dev.off()
 }
 
-fn.prop.exp=function(d,nm)
-{
-  d1=d%>%mutate(FINYEAR=as.numeric(substr(FINYEAR,1,4)))%>%
-         group_by(FINYEAR,BLOCKX)%>%
-         summarise(Sum=sum(LIVEWT.c))%>%
-         group_by(FINYEAR)%>%
-         mutate(Prop=Sum/sum(Sum))%>%
-         dplyr::select(FINYEAR,BLOCKX,Prop)%>%
-         spread(BLOCKX,Prop)%>%
-         data.frame
-   colnames(d1)[-1]= substr(colnames(d1)[-1],2,100)
-   CL=rainbow(ncol(d1)-1)
-   plot(d1$FINYEAR,d1[,2],type='b',ylim=c(0,1),col=CL[1],pch=19,ylab="Proportion",xlab="Year")
-   for(h in 3:ncol(d1)) points(jitter(d1$FINYEAR,1),d1[,h],type='b',col=CL[h-1],pch=19)
-   legend("bottomright",colnames(d1)[-1],bty='n',col=CL,lty=1,lwd=2,cex=.6)
-   mtext(nm,3)
-}
-these.ones.spt=c("Hammerheads","Spinner","Spurdogs","Tiger","Wobbegongs")
-smart.par(n.plots=length(these.ones.spt),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-for(l in 1:length(these.ones.spt))
-{
-  fn.prop.exp(d=subset(Data.monthly,SPECIES==SP.list[[match(these.ones.spt[l],
-                      names(SP.list))]]),nm=these.ones.spt[l])
-}
-dev.off()
-
-#Add catch from 'other methods'
-Data.monthly=Data.monthly%>%
-                dplyr::select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,RSCommonName,
-                       BLOCKX,LAT,LONG,zone)
-Data.monthly.north=Data.monthly.north%>%
-                dplyr::select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,RSCommonName,
-                       BLOCKX,LAT,LONG,zone)
-RSCommonName=rbind(Data.monthly%>%distinct(SPECIES,.keep_all = T),
-                   Data.monthly.north%>%distinct(SPECIES,.keep_all = T))%>%
-                dplyr::select(SPECIES,RSCommonName)%>%
-                  distinct(SPECIES,.keep_all = T)
-Data.request.south=Data.request.south%>%
-                    mutate(Same.return=paste(FINYEAR,MONTH,VESSEL,METHOD,BLOCKX))%>%
-                dplyr::select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,
-                           BLOCKX,LAT,LONG,zone)%>%
-                    left_join(RSCommonName,by="SPECIES")
-Data.request.north=Data.request.north%>%
-                    mutate(Same.return=paste(FINYEAR,MONTH,VESSEL,METHOD,BLOCKX))%>%
-                dplyr::select(Same.return,FINYEAR,LIVEWT.c,SPECIES,SNAME,
-                           BLOCKX,LAT,LONG,zone)%>%
-                    left_join(RSCommonName,by="SPECIES")
-
-Data.monthly=rbind(Data.monthly,Data.request.south)
-Data.request.north=rbind(Data.request.north,Data.request.north)
 
 #1. Plot catch data as reported in logbooks
 ThIs=subset(Shark.species,!Shark.species%in%c(Indicator.species))
 Data.monthly$Region="South"
 Data.monthly.north$Region="North"
 Tot.ktch=rbind(subset(Data.monthly,SPECIES%in%ThIs,select=c(FINYEAR,LIVEWT.c,SPECIES,SNAME,Region)),
-               subset(Data.monthly.north,SPECIES%in%ThIs,select=c(FINYEAR,LIVEWT.c,SPECIES,SNAME,Region)))
-Tot.ktch=merge(Tot.ktch,All.species.names,by="SPECIES",all.x=T)  
-Tot.ktch$finyear=as.numeric(substr(Tot.ktch$FINYEAR,1,4))
-Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000   #in tonnes
-Tot.ktch$Name=as.character(Tot.ktch$Name)
-Tot.ktch$SNAME=as.character(Tot.ktch$SNAME)
-Tot.ktch$Name=with(Tot.ktch,ifelse(SPECIES%in%c(22999,31000),"unidentified sharks",Name))
-Agg=aggregate(LIVEWT.c~Name+finyear+Region,Tot.ktch,sum)
-Agg.r=reshape(Agg, v.names = "LIVEWT.c", idvar = c("Name","Region"),timevar = "finyear", direction = "wide")
-colnames(Agg.r)[3:ncol(Agg.r)]=substr(colnames(Agg.r)[3:ncol(Agg.r)],10,20)
+               subset(Data.monthly.north,SPECIES%in%ThIs,select=c(FINYEAR,LIVEWT.c,SPECIES,SNAME,Region)))%>%
+        mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
+               LIVEWT.c=LIVEWT.c/1000,        #in tonnes
+               Name=ifelse(SPECIES%in%c(22999,31000),"unidentified sharks",SNAME))%>%
+        group_by(Name,finyear,Region)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c))
+
+Agg.r=Tot.ktch%>%
+        spread(finyear,LIVEWT.c)%>%
+        data.frame%>%
+        arrange(Name)
+colnames(Agg.r)[3:ncol(Agg.r)]=substr(colnames(Agg.r)[3:ncol(Agg.r)],2,20)
 PCH=rep(19,nrow(Agg.r))
 COL=rep(1,nrow(Agg.r))
-Agg.r=Agg.r[order(Agg.r$Name),]
 Sp.fig.1=unique(Agg.r$Name)
 
 #Commercial
@@ -521,7 +502,7 @@ Rec.ktch=Rec.ktch%>%mutate(Region=ifelse(zone%in%c('Gascoyne','North Coast'),'No
                            year=as.numeric(substr(FINYEAR,1,4)))
 Rec.sp=unique(Rec.ktch$Common.Name)
 fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_recreational',sep=''),2400,2400) 
-smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+smart.par(n.plots=length(Rec.sp)+1,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(i in 1:length(Rec.sp))
 {
   d=subset(Rec.ktch,Common.Name==Rec.sp[i])
@@ -545,28 +526,28 @@ mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
-#plot Taiwanese catch              #NOTE that Taiwan now is in KG!!!!!
+#plot Taiwanese catch              
 Taiwan.gillnet.ktch$Method="Pelagic.gillnet"
 Taiwan.longline.ktch$Method="Longline"
 Taiwan=rbind(Taiwan.longline.ktch,Taiwan.gillnet.ktch)%>%
               mutate(Region="North",
-                     LIVEWT.c=1000*Ktch)%>%
-              rename(year=Year)%>%
-              arrange(Species,year)
-sp.taiwan=unique(Taiwan$Species)
+                     LIVEWT.c=LIVEWT.c/1000)%>%
+              mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+              arrange(SNAME,year)
+sp.taiwan=unique(Taiwan$SNAME)
 fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_Taiwan',sep=''),2400,2400) 
 smart.par(n.plots=length(sp.taiwan),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(i in 1:length(sp.taiwan))
 {
-  d=subset(Taiwan,Species==sp.taiwan[i])
+  d=subset(Taiwan,SNAME==sp.taiwan[i])
   d.N=d%>%
     filter(Region=="North")%>%
     group_by(year)%>%
-    summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+    summarise(LIVEWT.c=sum(LIVEWT.c))
   d.S=d%>%
     filter(Region=="South")%>%
     group_by(year)%>%
-    summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+    summarise(LIVEWT.c=sum(LIVEWT.c))
   
   plot(sort(unique(Taiwan$year)),sort(unique(Taiwan$year)),col='transparent',cex=.8,ann=F,ylim=c(0,max(c(d.N$LIVEWT.c,d.S$LIVEWT.c,na.rm=T))))
   if(nrow(d.N)>0) points(d.N$year,d.N$LIVEWT.c,pch=PCH[i],type='o',col="grey60",cex=.8)
@@ -580,25 +561,10 @@ mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
 
-
-#2. Reapportion catch of hammerhead, blacktip and "shark,other'
-
-  #2.1. Split of hammerhead catch by species   #remove, done in Catch.recons.commercial.R
-# Split.HH="YES"
-# if(Split.HH=="YES")
-# {
-#   Smooth.hh.south.p=.97   #McAuley & Simpfendorfer 2003 ratios for TDGDLF
-#   Scalloped.hh.south.p=.03/2
-#   Great.hh.south.p=.03/2
-#   
-#   Smooth.hh.north.p=.01      # from Sharks database (Naturaliste trip)
-#   Scalloped.hh.north.p=.67
-#   Great.hh.north.p=.32
-# }
-
-  #2.2 blacktip sharks
-#note: reported all the way to Esperance, this doesn't conform to the species distribution
-#      nor with observer data. Hence set to spinner shark any blacktip record east of Cape Leuwin (Last and Stevens) 
+#DEJE ACA   add Indo_total.annual.ktch to total catch (and plots) and NOTE that Taiwan now is in KG!!!!!
+#2. blacktip sharks
+#note: reported all the way to Esperance, this doesn't conform to the species distribution or with observer data. 
+#      Hence set to spinner shark any blacktip record east of Cape Leuwin (Last and Stevens) 
 Data.monthly=Data.monthly%>%
                   mutate(SNAME=ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
                                       "SHARK, SPINNER (LONG-NOSE GREY)",SNAME),
