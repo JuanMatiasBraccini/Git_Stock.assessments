@@ -34,12 +34,6 @@
 #   indicate <30 respondents recorded catches of the species) to indicate unreliable estimates
 
 
-#MISSING: update participation rates with figures from Eva for recent years. 
-#         Karina reported 26.5%
-#        Eva: "The participation rate for 18/19 was about 26%. It was below 30% in 
-#               the last several years. The average over the last 10 years (2009/10 
-#               to 2018/19) was about 29.8%.”"
-
 library(tidyverse)
 library(readxl)
 library(lubridate)
@@ -106,7 +100,12 @@ WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors
 #Part.rate.89=26.6  
 #Part.rate.00=28.5
 #Part.rate=mean(c(Part.rate.hist,Part.rate.89,Part.rate.00))  #mean fishing participating rate
-Part.rate=31.1
+#MISSING: update participation rates with figures from Eva for recent years. 
+#         Karina reported 26.5%
+#        Eva: "The participation rate for 18/19 was about 26%. It was below 30% in 
+#               the last several years. The average over the last 10 years (2009/10 
+#               to 2018/19) was about 29.8%.”"
+Part.rate=29.8
 
 # 2 -------------------I-Survey------------------------------------
 Rec.fish.catch=Rec.fish.catch%>%
@@ -130,18 +129,22 @@ Mn.w.whalr=5.4
 Mn.w.wobi=6.7
 Mn.w.ray=.5
 
-  #PCM:
+  #Reported PCM (or PCS, post capture survival):
 #   scalloped HH PCS=0.4 (Gulak et al 2015)
 #   Gummy PCS=0.9  (Frick et al 2010)
 #   School PCS=0.9  (Rogers et al 2017)
 #   Dusky PCS=0.75   (Gallagher et al 2014, though this is at vessel survival)
-#   Tiger=0.95   (Gallagher et al 2014, though this is at vessel survival)
-#   Blue=0.8   (Gallagher et al 2014, though this is at vessel survival)
-#   Oceanic white tip=0.75   (Gallagher et al 2014, though this is at vessel survival)
+#   Tiger PCS=0.95   (Gallagher et al 2014, though this is at vessel survival)
+#   Blue PCS= 0.8   (Gallagher et al 2014, though this is at vessel survival)
+#   Oceanic white tip PCS=0.75   (Gallagher et al 2014, though this is at vessel survival)
+#  Wobbegongs PCM=0   #(Ellis et al 2016, average at vessel survival for LL)
+#  Whalers PCM=0.273   #(Ellis et al 2016, average at vessel survival for LL)
+#  Dasyatids PCM=0.156   #(Ellis et al 2016, average at vessel survival for LL)
+#  Greynurse  PCM=0.13   #(Ellis et al 2016, average at vessel survival for LL)
 
 # Give the lack of PCM info but the expected low PCM, a precautious value is 
 #  assumed (this is considered in Sensitivity Scenarios)
-Asmd=0.2  
+Asmd=0.3  
 
 Small.shrk=c('Dogfishes',"Gummy Sharks","Pencil Shark","Nervous Shark","Port Jackson Shark",
              "Sawsharks","School Shark","Sliteye Shark")
@@ -155,15 +158,20 @@ AVG.WT=data.frame(
     "Whiskery Shark","Whitetip Reef Shark","Wobbegong","Zebra Shark"),
   AVG.wt=rep(Mn.w.whalr,36), 
   PCM.rec=rep(Asmd,36))%>%
-  mutate(AVG.wt=ifelse(Common.Name%in%Small.shrk,Mn.w.gum,
-                ifelse(Common.Name=="Whiskery Shark",Mn.w.whi,
-                ifelse(Common.Name=="Rays & Skates",Mn.w.ray,
-                ifelse(Common.Name=="Wobbegong",Mn.w.wobi,
-                AVG.wt)))),
-        PCM.rec=ifelse(Common.Name=="Port Jackson Shark",.05,
-                ifelse(Common.Name%in%c("Scalloped hammerhead","Smooth hammerhead"),0.6,
-                ifelse(Common.Name=="Gummy Sharks",.1,PCM.rec))))%>%  
-  arrange(Common.Name)
+          mutate(AVG.wt=ifelse(Common.Name%in%Small.shrk,Mn.w.gum,
+                        ifelse(Common.Name=="Whiskery Shark",Mn.w.whi,
+                        ifelse(Common.Name=="Rays & Skates",Mn.w.ray,
+                        ifelse(Common.Name=="Wobbegong",Mn.w.wobi,
+                        AVG.wt)))),
+                PCM.rec=ifelse(Common.Name=="Port Jackson Shark",.05,
+                        ifelse(Common.Name%in%c("Scalloped hammerhead","Smooth hammerhead"),0.6,
+                        ifelse(Common.Name=="Gummy Sharks",.1,
+                        ifelse(Common.Name=="Rays & Skates",0.16,
+                        ifelse(Common.Name=="Wobbegong",0.05,
+                        ifelse(Common.Name=="Greynurse Shark",0.13,
+                        ifelse(Common.Name=="School Shark",0.1,
+                               PCM.rec))))))))%>%  
+           arrange(Common.Name)
 AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
 
 #fix species names
@@ -328,7 +336,8 @@ Rec.fish.catch=Rec.fish.catch%>%
                                   Bioregion%in%c('South Coast','West Coast'),'Spinner Shark',
                         ifelse(Common.Name=="Gummy Shark","Gummy Sharks",Common.Name)))))))))))
           
-  
+AVG.WT=AVG.WT%>%
+        mutate(Common.Name=ifelse(Common.Name=='Wobbegong','Wobbegongs',Common.Name))  
     
 
   
@@ -447,7 +456,8 @@ fn.out=function(d,NM)
 {
   write.csv(d,paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),row.names = F)
 }
-fn.out(d=Rec.fish.catch,NM='recons_recreational.csv')
+fn.out(d=Rec.ktch,NM='recons_recreational.csv')
+
 
 
 # 8 -------------------Report------------------------------------

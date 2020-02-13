@@ -85,7 +85,7 @@ assumed.guitarfish.gn=.3
   #Assumed 30% increase from AVM to PCM
 Inc.AVM=1.3  
 
-  #Ellis et al 2016. Values are for AVM so tit's bumped up by Inc.AVM
+  #Ellis et al 2016. Values are for AVM so it's bumped up by Inc.AVM
 PCM=data.frame(Group=c("Sawfish","Sawsharks","Wobbegongs","Mackerel","Greynurse","Hexanchids","Whalers",
                        "Hammerheads","Triakids","Angels","Dogfish","Catsharks",
                        "Guitarfish","Numbfish","Rajids","Eagle.rays","Other.rays",
