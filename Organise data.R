@@ -1,3 +1,6 @@
+# a few things missing, search for MISSING
+# where is the aggregation by year done and is adding missing intermediate years??
+
 # Script for bringing in all shark data
 fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size,What.Efrt)
 {
@@ -79,7 +82,11 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   #SA Marine Scalefish fishery
   Whaler_SA=fn.in(NM='recons_Whaler_SA.csv')
   
+  #Indonesian illegal fishing in Australia waters
+  Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv')         #MISSING: ADD to catch for sandbar and dusky!!
+
   
+  #Proportion of gummies by region
   Gummies.prop=read.csv("C:/Matias/Analyses/Catch and effort/Gummies.prop.csv",stringsAsFactors=F)
   
   

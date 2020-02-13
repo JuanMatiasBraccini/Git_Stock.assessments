@@ -34,6 +34,10 @@ library(lubridate)
 library(tm)
 
 # 1 -------------------PARAMETERS SECTION------------------------------------
+
+Asses.year=2019    #enter year of assessment
+Last.yr.ktch="2017-18"  #enter year of last complete catches
+
 Shark.protection.yr=2007   #Commercial protection in non-shark fisheries came in November 2006 (Heupel & McAuley 2007 page 74)
 
 use.effort=FALSE  #whether to use Effort or catch to derive discards
@@ -125,18 +129,7 @@ source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
 
 ## Species codes
 All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/1.Other species/Species_names.csv") #for catch
-All.species.names=rbind(All.species.names,
-                        data.frame(SPECIES=c(19001,19002,19004,
-                                             18001,18003,18007,
-                                             17001,17003),
-                                   Name=c("Scalloped hammerhead","Great hammerhead","Smooth hammerhead",
-                                          "Copper shark","Dusky shark","Sandbar shark",
-                                          "Gummy shark","Whiskery shark")))%>%
-                      arrange(SPECIES)%>%
-                      distinct(SPECIES,.keep_all = T)
 All.species.names$Name=as.character(All.species.names$Name)
-
-species.codes=read.csv("C:\\Matias\\Data\\Species.code.csv")   #for shark bio
 
 
 ## 2.1 Catch_WA Fisheries
@@ -495,15 +488,21 @@ Indo_flesh=60 #flesh (kg)
 Indo_fins=63
 Indo_skins=16
 Indo_prop.shark=8/36   #proportion of apprehended vessels fishing for sharks
-Indo_apprensions.2018=5  #number of apprehended vessels in 2018
+Indo_apprehensions.2018=5  #number of apprehended vessels in 2018
 
 #source: Edyvane & Penny 2017 (using all vessels, including MOU because the MOU catch is not accounted for anywhere)
 Indo_sightings=data.frame(year=2000:2013,
                           Total.FFVs.inside.AEEZ=c(4867,5878,3047,9550,6638,9362,7378,4320,
                                                    6827,9117,9517,11822,13979,11455))
+#source: Stacey 2007 Boats to Burn: Bajo Fishing Activity in the Australian Fishing Zone. 
+Indo_apprehensions.Stacey=data.frame(year=1975:2002,
+                               Apprehensions=c(3,rep(0,4),2,rep(0,4),5,0,1,46,29,43,38,15,
+                                               23,111,76,97,122,rep(NA,5)))
 #source: ANAO 2010
 Indo_apprehensions=data.frame(year=c(2003:2018),
-                              Apprehensions=c(134,203,367,216,156,27,rep(NA,9),5))
+                              Apprehensions=c(134,203,367,216,156,27,rep(NA,9),Indo_apprehensions.2018))
+Indo_apprehensions=rbind(Indo_apprehensions.Stacey,Indo_apprehensions)
+
 Indo_jurisdiction.prop=data.frame(Jurisdiction=c('WA',"NT","QLD"),
                                   prop=c(.33,.34,.33))   #arbitrary, from Figure 1.2
 
@@ -590,9 +589,9 @@ if(Do.recons.paper=="YES")
 Prawn.Trawl.fisheries=c('EGP','SWT','SCT','SBP','NBP','KTR','KP','OP','SBSC','C156','AIMWT')
 Scalefish.Trawl.fisheries=c('PFT')
 
-fn.hnd.out=function(x)paste('C:/Matias/Analyses/Reconstruction_catch_commercial/',x,sep='')
 if(Do.recons.paper=="YES")
 {
+  fn.hnd.out=function(x)paste('C:/Matias/Analyses/Reconstruction_catch_commercial/',x,sep='')
   dit=rbind(daily.other%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT),
             Data.monthly%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT),
             Data.monthly.north%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT))%>%
@@ -1119,6 +1118,7 @@ add.KGBM.to.Data.monthly.north=add.KGBM.to.Data.monthly.north%>%
                                Estuary="NO",
                                zone=sample(names(Tab.zon.KGB),nrow(KGB.tot.ktch),replace=T,prob=Tab.zon.KGB/sum(Tab.zon.KGB)))   #randomly allocate zone by observed records
 Data.monthly.north=rbind(Data.monthly.north,add.KGBM.to.Data.monthly.north)
+rm(KGB.tot.ktch,add.KGBM.to.Data.monthly.north)
 
 
   #3.1.5. Combine historic in single dataframe
@@ -1357,11 +1357,13 @@ Indo_total.annual.ktch=Indo_avrg.ktch.per.vessel.year[rep(1:nrow(Indo_avrg.ktch.
   mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_avrg.ktch.per.vessel.year)))%>%
   left_join(Indo_apprehensions,by='year')%>%
   mutate(kg.year=kg.year.vessel*Apprehensions*Indo_prop.shark*Indo_assumed.missed.appr.rate,
-         LIVEWT.c=kg.year*Indo_jurisdiction.prop%>%filter(Jurisdiction=="WA")%>%pull(prop))
+         LIVEWT.c=kg.year*Indo_jurisdiction.prop%>%filter(Jurisdiction=="WA")%>%pull(prop))  #keep WA component
 
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%
-                        mutate(Species=as.character(Species))%>%
-                        left_join(All.species.names,by=c('Species'='Name'))
+                        mutate(Species=as.character(Species),
+                               FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
+                        left_join(All.species.names,by=c('Species'='Name'))%>%
+                    dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
 
 
 
@@ -1371,61 +1373,144 @@ fn.out=function(d,NM)
   write.csv(d,paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),row.names = F)
 }
  
+Yr.lim=c(as.numeric(substr(min(unique(Hist.expnd$FINYEAR)),1,4)),
+         as.numeric(substr(Last.yr.ktch,1,4)))
+This.fin.yr=paste(Yr.lim[1]:Yr.lim[2],substr((Yr.lim[1]+1):(Yr.lim[2]+1),3,4),sep='-')
+
 #4.1 Catch_WA Fisheries
 
   #Historic
-fn.out(d=Hist.expnd,NM='recons_Hist.expnd.csv')
+fn.out(d=Hist.expnd%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Hist.expnd.csv')
 
   #Ammended reported catch including discards
-fn.out(d=Data.monthly%>%
+fn.out(d=Data.monthly%>%filter(FINYEAR%in%This.fin.yr)%>%
          dplyr::select(FINYEAR,FishCubeCode,METHOD,BLOCKX,LAT,LONG,SPECIES,LIVEWT.c,
                        Estuary,zone),               
        NM='recons_Data.monthly.csv')
-fn.out(d=Data.monthly.north%>%
+fn.out(d=Data.monthly.north%>%filter(FINYEAR%in%This.fin.yr)%>%
          dplyr::select(FINYEAR,FishCubeCode,METHOD,BLOCKX,LAT,LONG,SPECIES,LIVEWT.c,
                        Estuary,zone),                
        NM='recons_Data.monthly.north.csv')
 
   #TEPS
-fn.out(d=Greynurse.ktch,NM='recons_Greynurse.ktch.csv')
-fn.out(d=TEPS_dusky,NM='recons_TEPS_dusky.csv')
+fn.out(d=Greynurse.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Greynurse.ktch.csv')
+fn.out(d=TEPS_dusky%>%filter(FINYEAR%in%This.fin.yr),NM='recons_TEPS_dusky.csv')
 
 
 #4.2. Catch of non WA Fisheries
  
    #Taiwanese gillnet and longline
-fn.out(d=Taiwan.gillnet.ktch,NM='recons_Taiwan.gillnet.ktch.csv')
-fn.out(d=Taiwan.longline.ktch,NM='recons_Taiwan.longline.ktch.csv')
+fn.out(d=Taiwan.gillnet.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Taiwan.gillnet.ktch.csv')
+fn.out(d=Taiwan.longline.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Taiwan.longline.ktch.csv')
 
   #Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF) 
-fn.out(d=GAB.trawl_catch,NM='recons_GAB.trawl_catch.csv')
-fn.out(d=WTBF_catch,NM='recons_WTBF_catch.csv')
+fn.out(d=GAB.trawl_catch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_GAB.trawl_catch.csv')
+fn.out(d=WTBF_catch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_WTBF_catch.csv')
  
   #SA Marine Scalefish fishery
-fn.out(d=Whaler_SA,NM='recons_Whaler_SA.csv')
+fn.out(d=Whaler_SA%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Whaler_SA.csv')
 
 
   #Indonesian illegal fishing in Australia waters
-fn.out(d=Indo_total.annual.ktch,NM='recons_Indo.IUU.csv')
+fn.out(d=Indo_total.annual.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Indo.IUU.csv')
 
 
-#ACA
+
 # 5 -------------------REPORT SECTION------------------------------------
 if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (not the TDGDLF or NSF)
 {
-  fn.hnd.out()
-  #use 'All.species.names' to get names
+  #Table 1. Species composition
+  Hist.expnd$TYPE="Historic"
+  Greynurse.ktch$TYPE="Protected"
+  TEPS_dusky$TYPE="Protected"
+  Taiwan.gillnet.ktch$TYPE="Taiwanese"
+  Taiwan.longline.ktch$TYPE="Taiwanese"
+  
+  Indo_total.annual.ktch$TYPE="IFF"
+  Data.monthly.agg=Data.monthly%>%
+                    group_by(FINYEAR,SPECIES)%>%
+                    summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+                    mutate(TYPE="WA.south")%>%
+                    data.frame
+  Data.monthly.north.agg=Data.monthly.north%>%
+                    group_by(FINYEAR,SPECIES)%>%
+                    summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+                    mutate(TYPE="WA.north")%>%
+                    data.frame
+  
+  Unified=rbind(Hist.expnd,Greynurse.ktch,TEPS_dusky,Indo_total.annual.ktch,
+                Taiwan.gillnet.ktch,Taiwan.longline.ktch,
+                Data.monthly.agg,Data.monthly.north.agg)%>%
+              left_join(All.species.names,by='SPECIES')%>%
+              filter(!is.na(Name) & FINYEAR%in%This.fin.yr) #report only complete years
+    
+  
+  Table1=Unified%>%
+            group_by(TYPE,SPECIES,Name)%>%
+            summarise(Total=round(sum(LIVEWT.c)/1000,1))%>%
+            spread(TYPE,Total,fill=0)%>%
+            data.frame%>%
+            dplyr::select(Name,Historic,WA.south,WA.north,Protected,Taiwanese,IFF)%>%
+            mutate(Total=Historic+WA.south+WA.north+Protected+Taiwanese+IFF)%>%
+            arrange(-Total)
+  write.csv(Table1,fn.hnd.out("Table1.csv"),row.names = F)
   
   
-  #Indonesian illegal fishing in Australia waters
-  tiff(file="IUU.tiff",2400,2400,units="px",res=300,compression="lzw")
-  par(mfcol=c(2,1),mar=c(4,4,1,.5),oma=c(2.2,7.2,1,1),las=1,mgp=c(2.5,.4,0))
-  D1=Indo_total.annual.ktch%>%group_by(year)%>%summarise(Tot=sum(kg.year))
-  plot(D1$year,D1$Tot/1000,type='o',pch=19,cex=2,ylab="Total catch (tonnes)",xlab="Year")
-  D1=Indo_total.annual.ktch%>%group_by(Species)%>%summarise(Tot=sum(kg.year,na.rm=T))%>%
-    arrange(Tot)
-  barplot(D1$Tot/1000,horiz = T,xlab="Total catch (tonnes)",names.arg=D1$Species,las=1)
+  #Figure 1. species annual catch by fishery
+  source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R')
+  Cum.ktch=cumsum(Table1$Total)/sum(Table1$Total)
+  ID=which.min(abs(Cum.ktch-0.99))
+  these.sp=Table1[1:ID,]%>%pull(Name)
+  
+  LWD=1.75
+  CLs=data.frame(TYPE=c("Historic","South","North","Protected","Taiwanese","IFF"),
+                 CL=c("black","deepskyblue2","coral2","forestgreen","dodgerblue4","darkorange2"),
+                 LT=c(1,1,1,1,3,3))
+  fun.plt.Fig1=function(SP)
+  {
+    d=Unified%>%filter(Name==SP)%>%
+                group_by(FINYEAR,TYPE)%>%
+                summarise(Total=sum(LIVEWT.c)/1000)%>%
+                spread(TYPE,Total,fill=NA)%>%
+                data.frame
+    yr=as.numeric(substr(d$FINYEAR,1,4))
+    plot(yr,yr,xlim=Yr.lim,col='transparent',ylab="",xlab="",ylim=c(0,max(d[,-c(1)],na.rm=T)))
+    with(CLs,
+         {
+           if("Historic"%in%names(d)) lines(yr,d$Historic,lwd=LWD,col=CL[1],lty=LT[1])
+           if("WA.south"%in%names(d)) lines(yr,d$WA.south,lwd=LWD,col=CL[2],lty=LT[2])
+           if("WA.north"%in%names(d)) lines(yr,d$WA.north,lwd=LWD,col=CL[3],lty=LT[3])
+           if("Protected"%in%names(d)) lines(yr,d$Protected,lwd=LWD,col=CL[4],lty=LT[4])
+           if("Taiwanese"%in%names(d)) lines(yr,d$Taiwanese,lwd=LWD,col=CL[5],lty=LT[5])
+           if("IFF"%in%names(d)) lines(yr,d$IFF,lwd=LWD,col=CL[6],lty=LT[6]) 
+         })
+
+    mtext(SP,3,cex=.85)
+  }
+  tiff(file=fn.hnd.out("Figure1_reconstructed.catch.by.species.tiff"),2400,2400,
+       units="px",res=300,compression="lzw")
+  smart.par(n.plots=length(these.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  for(s in 1:length(these.sp)) fun.plt.Fig1(SP=these.sp[s])
+  plot.new()
+  legend("center",CLs$TYPE,col=CLs$CL,lty=CLs$LT,lwd=LWD*1.5,bty='n',cex=1.2)
+  mtext("Financial year",1,outer=T,cex=1.15)
+  mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.15)
   dev.off()
+
+
+  
+  #Indonesian illegal fishing in Western Australia waters
+  # tiff(file=fn.hnd.out("Figure_WA_illegal.Indo.tiff"),2400,2400,units="px",res=300,compression="lzw")
+  # par(mfcol=c(2,1),mar=c(4,4,1,.5),oma=c(2.2,7.2,1,1),las=1,mgp=c(2.5,.4,0))
+  # D1=Indo_total.annual.ktch%>%
+  #           group_by(FINYEAR)%>%
+  #           summarise(Tot=sum(LIVEWT.c))%>%
+  #           mutate(year=as.numeric(substr(FINYEAR,1,4)))
+  # plot(D1$year,D1$Tot/1000,type='o',pch=19,cex=2,ylab="Total catch (tonnes)",xlab="Year")
+  # D1=Indo_total.annual.ktch%>%group_by(SPECIES)%>%summarise(Tot=sum(LIVEWT.c,na.rm=T))%>%
+  #   arrange(Tot)
+  # barplot(D1$Tot/1000,horiz = T,xlab="Total catch (tonnes)",names.arg=D1$SPECIES,las=1)
+  # dev.off()
 }
 
 
