@@ -98,7 +98,7 @@ Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv')
 Rec.ktch=fn.in(NM='recons_recreational.csv')
 
 #species codes
-All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/1.Other species/Species_names.csv",stringsAsFactors=F)
+All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for catch
 #b=read.csv("C:\\Matias\\Data\\Species.code.csv")
 
 
@@ -112,16 +112,10 @@ LH.par=read.csv("C:/Matias/Data/Life history parameters/Life_History_other_shark
 #Species scientific names for assessed species
 Shark.species=5001:24900
 School.shark= 17008
-Indicator.species=c(17001,17003,18001,18003,18007)
+Indicator.species=c(17001,17003,18003,18007)
 Shar_other=22999
 
-Scien.nm=data.frame(SPECIES=c(17008,8001,10001,13000,17006,18013,18014,18021,18022,18023,18026,
-                              18029,19004,19001,19002,20000,23002,18006,18030),
-                    Scien.nm=c("Galeorhinus galeus","Carcharias taurus","Isurus oxyrinchus","Orectolobidae",
-                               "Hypogaleus hyugaensis","Carcharhinus sorrah","C. limbatus & C. tilstoni",
-                               "Carcharhinus leucas","Galeocerdo cuvier","C. brevipinna","C. amboinensis","Negaprion acutidens",
-                               "Sphyrna zygaena","S. lewini","S. mokarran","Squalus spp.","Pristiophorus cirratus",
-                               "Rhizoprionodon acutus","C. amblyrhynchos"))
+Scien.nm=All.species.names[,c('SPECIES','Scien.nm')]
 
 #species list for exploring spatial dist of catch
 SP.list=list(Angels=24900,Bignose=18012,BlacktipReef=18036,Blacktips=18014,
@@ -192,8 +186,9 @@ Tag=fn.read('Tagging_conventional.data.csv')
 #---PARAMETERS SECTION-----
 Explor="NO"
 
-Min.max.ktch=30  #minimum maximum annual catch for a species to be analysed
-Min.yrs=3        #minimum years with catch records for species to be included in analysis    
+Min.max.ktch=20  #minimum maximum annual catch for a species to be analysed
+#Min.max.ktch=30
+Min.yrs=5        #minimum years with catch records for species to be included in analysis    
 Min.yr.ktch=10    #minimum tonnage per year for at least Min.yrs
 
 #Reference points
@@ -300,7 +295,9 @@ Do.sim.test="NO"
 #---PROCEDURE SECTION-----
 
 #Add Species names to catch data sets    
-All.species.names=All.species.names%>%rename(SNAME=Name)
+All.species.names=All.species.names%>%
+                      mutate(Name=tolower(Name))%>%
+                      rename(SNAME=Name)
 Hist.expnd=Hist.expnd%>%left_join(All.species.names,by='SPECIES')
 Data.monthly=Data.monthly%>%left_join(All.species.names,by='SPECIES')
 Data.monthly.north=Data.monthly.north%>%left_join(All.species.names,by='SPECIES')
@@ -477,7 +474,7 @@ PCH=rep(19,nrow(Agg.r))
 COL=rep(1,nrow(Agg.r))
 Sp.fig.1=unique(Agg.r$Name)
 
-#Commercial
+  #Commercial
 fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_commercial',sep=''),2400,2400) 
 smart.par(n.plots=length(Sp.fig.1),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(i in 1:length(Sp.fig.1))
@@ -497,9 +494,10 @@ mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
-#Plot recreational catch
+  #Recreational catch
 Rec.ktch=Rec.ktch%>%mutate(Region=ifelse(zone%in%c('Gascoyne','North Coast'),'North','South'),
-                           year=as.numeric(substr(FINYEAR,1,4)))
+                           year=as.numeric(substr(FINYEAR,1,4)),
+                           Common.Name=tolower(Common.Name))
 Rec.sp=unique(Rec.ktch$Common.Name)
 fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_recreational',sep=''),2400,2400) 
 smart.par(n.plots=length(Rec.sp)+1,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
@@ -526,7 +524,7 @@ mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
-#plot Taiwanese catch              
+  #Taiwanese catch              
 Taiwan.gillnet.ktch$Method="Pelagic.gillnet"
 Taiwan.longline.ktch$Method="Longline"
 Taiwan=rbind(Taiwan.longline.ktch,Taiwan.gillnet.ktch)%>%
@@ -560,203 +558,108 @@ mtext("Calendar year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
-
-#DEJE ACA   add Indo_total.annual.ktch to total catch (and plots) and NOTE that Taiwan now is in KG!!!!!
-#2. blacktip sharks
-#note: reported all the way to Esperance, this doesn't conform to the species distribution or with observer data. 
-#      Hence set to spinner shark any blacktip record east of Cape Leuwin (Last and Stevens) 
-Data.monthly=Data.monthly%>%
-                  mutate(SNAME=ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
-                                      "SHARK, SPINNER (LONG-NOSE GREY)",SNAME),
-                         SPECIES=ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
-                                        18023,SPECIES),
-                         RSCommonName=ifelse(SPECIES==18014 & LAT<(-30) & LONG>115.75,
-                                        "Spinner Shark",RSCommonName))
-
-
-#   #2.3. Split 'shark, other' based on observers data of catch composition north and south    REMOVE, this is done in "Catch.recons.Commercial.R"
-# a=subset(DATA.bio,!is.na(BLOCK))
-# a=subset(a,!BLOCK==0)
-# Res.vess=c("NAT","HOU","FLIN","HAM","RV BREAKSEA","RV GANNET","RV SNIPE 2","RV Gannet")
-# a=subset(a,!BOAT%in%Res.vess)
-# a=subset(a,!is.na(BOAT))
-# a=subset(a,Method%in%c("GN","LL"))
-# 
-# a=subset(a,!COMMON_NAME%in%non.sharks)
-# a=subset(a,!is.na(COMMON_NAME))
-# a$N=1
-# non.commercial.sharks=subset(b,COMMON_NAME%in%non.commercial.sharks,select=c(CAES_Code,COMMON_NAME))
-# b=subset(b,!is.na(CAES_Code),select=c(Species,CAES_Code))
-# a=merge(a,b,by.x=c("SPECIES","CAES_Code" ),by.y=c("Species","CAES_Code"),all.x=T)
-# a=subset(a,!CAES_Code%in%c(25000:25010,13006,26999))
-# Agg.n.zone=aggregate(N~CAES_Code+zone,subset(a,!is.na(CAES_Code)),sum)
-# Agg.n.zone1=aggregate(N~zone,subset(a,!is.na(CAES_Code)),sum)
-# colnames(Agg.n.zone1)[2]="Total"
-# Agg.n.zone=merge(Agg.n.zone,Agg.n.zone1,by="zone",all.x=T)
-# Agg.n.zone$Prop=Agg.n.zone$N/Agg.n.zone$Total
-# Agg.n.zone=subset(Agg.n.zone,select=c(zone,CAES_Code,Prop))
-# Agg.n.zone=subset(Agg.n.zone,!CAES_Code%in%non.commercial.sharks$CAES_Code) #remove discarded species
-# 
-# Shark.OtheR=subset(Data.monthly,SPECIES%in%c(22999,31000))     
-# Shark.OtheR.north=subset(Data.monthly.north,SPECIES%in%c(22999,31000))
-# Shark.OtheR.north$zone=with(Shark.OtheR.north,ifelse(zone=="Closed",'North',zone))
-# 
-# Shark.OtheR=aggregate(LIVEWT.c~FINYEAR+zone,Shark.OtheR,sum)
-# Shark.OtheR.north=aggregate(LIVEWT.c~FINYEAR+zone,Shark.OtheR.north,sum)
-# 
-# Shark.OtheR=merge(Shark.OtheR,Agg.n.zone,by.x=c('zone'),by.y=c('zone'))
-# Shark.OtheR.north=merge(Shark.OtheR.north,Agg.n.zone,by.x=c('zone'),by.y=c('zone'))
-# 
-# names(Shark.OtheR)[3]=names(Shark.OtheR.north)[3]="weight"
-# names(Shark.OtheR)[4]=names(Shark.OtheR.north)[4]="SPECIES"
-# Shark.OtheR$LIVEWT.c=Shark.OtheR$weight*Shark.OtheR$Prop
-# Shark.OtheR.north$LIVEWT.c=Shark.OtheR.north$weight*Shark.OtheR.north$Prop
-# Shark.OtheR=aggregate(LIVEWT.c~FINYEAR+SPECIES,Shark.OtheR,sum)
-# Shark.OtheR.north=aggregate(LIVEWT.c~FINYEAR+SPECIES,Shark.OtheR.north,sum)
-# 
-# Shark.OtheR=subset(Shark.OtheR,!SPECIES%in%Indicator.species)
-# Shark.OtheR.north=subset(Shark.OtheR.north,!SPECIES%in%Indicator.species)
+  #Indonesian IFF catch              
+Indo_total.annual.ktch=Indo_total.annual.ktch%>%filter(!is.na(SPECIES))
+sp.indo=unique(Indo_total.annual.ktch$SNAME)
+fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_Indo',sep=''),2400,2400) 
+smart.par(n.plots=length(sp.indo),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+for(i in 1:length(sp.indo))
+{
+  d=subset(Indo_total.annual.ktch,SNAME==sp.indo[i])%>%
+    mutate(LIVEWT.c=LIVEWT.c/1000,          #in tonnes
+           year=as.numeric(substr(FINYEAR,1,4)))%>%
+    arrange(year)
+  plot(d$year,d$LIVEWT.c,col="grey60",cex=.8,type='o',pch=PCH[i],ann=F,ylim=c(0,max(d$LIVEWT.c,na.rm=T)))
+    mtext(paste(sp.indo[i]),3,line=0.2,cex=0.8)  
+  
+}
+legend('center',c("North","South"),lty=c(1,1),col=c("grey60","grey25"),lwd=2,bty='n',pch=19,cex=1.5)
+mtext("Calendar year",1,line=0.5,cex=1.5,outer=T)
+mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
+dev.off()
 
 
-#3. Data manipulations
-  #3.1 remove indicator species and 'shark, other' (after catch reapportion)
-#note: in '#5. Add reapportioned catch" catch will be reapportioned accordingly to proportions in observed catch
+#2. Data manipulations
+  #2.1 remove indicator species and 'shark, other' (after catch reapportion)
 Shark.species=subset(Shark.species,!Shark.species%in%c(Indicator.species,Shar_other,31000))
 
 
-  #3.2 Remove blacktip sharks and school sharks (as per SAFS) 
+  #2.2 Remove blacktip sharks (blacktips and spot-tail) and school sharks (as per SAFS) 
 #note: 
-# blacktips is a shared with NT so NT assessment is used given their much higher catches (Grubert et al 2013)
-# school sharks are assumed to be a shared stock in the SESSF assessment (Thomson & Punt 2009)
+# . blacktips is a shared-stock with NT so NT assessment is used given their much higher catches (Grubert et al 2013)
+# . school sharks are assumed to be a shared stock in the SESSF assessment (Thomson & Punt 2009)
 blacktips=subset(Scien.nm,Scien.nm%in%c('C. limbatus & C. tilstoni','Carcharhinus sorrah'))$SPECIES
 Shark.species=subset(Shark.species,!Shark.species%in%c(blacktips,School.shark))
+  
 
-
-  #3.3 keep mapping data separate
-# Map=subset(Data.monthly,SPECIES%in%Shark.species,select=c(Same.return,METHOD,
-#         BLOCKX,LAT,LONG,Estuary,SPECIES,SNAME,FINYEAR,LIVEWT.c))
-# Map.north=subset(Data.monthly.north,SPECIES%in%Shark.species,select=c(Same.return,METHOD,
-#         BLOCKX,LAT,LONG,Estuary,SPECIES,SNAME,FINYEAR,LIVEWT.c))
-
-  #3.4 keep 'shark, other' separately
-Data.monthly.other=subset(Data.monthly,SPECIES%in%Shar_other,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX))
-Data.monthly.north.other=subset(Data.monthly.north,SPECIES%in%Shar_other,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX))
-
+  # Remove indicator species, blacktips  and school sharks
 Data.monthly=subset(Data.monthly,SPECIES%in%Shark.species,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX))
 Data.monthly.north=subset(Data.monthly.north,SPECIES%in%Shark.species,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX))
-
-Data.monthly.other$Region="South"
-Data.monthly.north.other$Region="North"
 
 Data.monthly$Region="South"
 Data.monthly.north$Region="North"
 
 
-#4. Get total catch (combine north and south)
+#3. Combine north and south
 Tot.ktch=rbind(Data.monthly,Data.monthly.north)
-Tot.ktch.other=rbind(Data.monthly.other,Data.monthly.north.other)
 
 
-#5. Add reapportioned catch                   #Is this done already in Catch.recons.commercial.R???
-  #5.1 Shark,other
+#4. Some manipulations
 SNAMEs=Data.monthly[!duplicated(Data.monthly$SPECIES),match(c("SPECIES","SNAME"),names(Data.monthly))]
 SNAMEs.north=Data.monthly.north[!duplicated(Data.monthly.north$SPECIES),match(c("SPECIES","SNAME"),names(Data.monthly.north))]
 
-Shark.OtheR$Region="South"
-Shark.OtheR.north$Region="North"
 
-Shark.OtheR=merge(Shark.OtheR,SNAMEs,by="SPECIES",all.x=T)
-Shark.OtheR.north=merge(Shark.OtheR.north,SNAMEs.north,by="SPECIES",all.x=T)
-
-Shark.OtheR$BLOCKX=NA
-Shark.OtheR.north$BLOCKX=NA
-
-
-Tot.ktch=rbind(Tot.ktch,Shark.OtheR[,match(names(Tot.ktch),names(Shark.OtheR))],
-               Shark.OtheR.north[,match(names(Tot.ktch),names(Shark.OtheR.north))])
+#pull sawsharks as reported by species and as 'sawsharks'   
+Tot.ktch=Tot.ktch%>%
+        mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
+               SPECIES=ifelse(SPECIES%in%c(23002,23001,23900),23900,SPECIES), 
+               SNAME=ifelse(SNAME%in%c("southern sawshark","common sawshark","sawsharks"),"sawsharks",SNAME),
+               Name=SNAME)
 
 
-  #5.2 Hammerheads  #remove, done in Catch.recons.commercial.R
-# if(Split.HH=="YES")
-# {
-#   Dat.hh=subset(Tot.ktch,SPECIES==19000 & Region=="South")
-#   Dat.hh.north=subset(Tot.ktch,SPECIES==19000 & Region=="North")
-#   Tot.ktch=subset(Tot.ktch,!SPECIES==19000)
-# 
-#   #south
-#   Dat.hh$Lat=-(as.numeric(substr(Dat.hh$BLOCKX,1,2)))
-#   Dat.hh$Lon=100+as.numeric(substr(Dat.hh$BLOCKX,3,4))
-#   a=b=d=Dat.hh
-#   a$SPECIES=19004 #CSIRO CAAB code for ID
-#   b$SPECIES=19001
-#   d$SPECIES=19002
-#   a$SNAME="SHARK, SMOOTH HH"
-#   b$SNAME="SHARK, SCALLOPED HH"
-#   d$SNAME="SHARK, GREAT HH"
-#   a$LIVEWT.c=with(a,LIVEWT.c*Smooth.hh.south.p)
-#   b$LIVEWT.c=with(b,LIVEWT.c*Scalloped.hh.south.p)
-#   d$LIVEWT.c=with(d,LIVEWT.c*Great.hh.south.p)
-#   
-#   #a$LIVEWT.c=with(a,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Smooth.hh.south.p,LIVEWT.c))
-#   #b$LIVEWT.c=with(b,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Scalloped.hh.south.p,0))
-#   #d$LIVEWT.c=with(b,ifelse(Lat<=(-26)&Lon<116,LIVEWT.c*Great.hh.south.p,0))
-#   Dat.hh=rbind(a,b,d)
-#   Dat.hh=Dat.hh[,-match(c('Lat','Lon'),names(Dat.hh))]
-#   
-#   #north
-#   Dat.hh.north$Lat=-(as.numeric(substr(Dat.hh.north$BLOCKX,1,2)))
-#   Dat.hh.north$Lon=100+as.numeric(substr(Dat.hh.north$BLOCKX,3,4))
-#   a=b=d=Dat.hh.north
-#   a$SPECIES=19004 
-#   b$SPECIES=19001
-#   d$SPECIES=19002
-#   a$SNAME="SHARK, SMOOTH HH"
-#   b$SNAME="SHARK, SCALLOPED HH"
-#   d$SNAME="SHARK, GREAT HH"
-#   
-#   a$LIVEWT.c=with(a,LIVEWT.c*Smooth.hh.north.p)
-#   b$LIVEWT.c=b$LIVEWT.c*Scalloped.hh.north.p
-#   d$LIVEWT.c=d$LIVEWT.c*Great.hh.north.p
-#   Dat.hh.north=rbind(a,b,d)
-#   Dat.hh.north=Dat.hh.north[,-match(c('Lat','Lon'),names(Dat.hh.north))]
-#   
-#   Tot.ktch=rbind(Tot.ktch,Dat.hh,Dat.hh.north)
-#   
-#   #Reapportion Taiwanese catch
-#   Taiwan$Species=as.character(Taiwan$Species)
-#   drop.HH=subset(Taiwan,Species=="Hammerheads")
-#   nhh=nrow(drop.HH)
-#   drop.HH=rbind(drop.HH,drop.HH)%>%
-#     mutate(Prop=c(rep(Scalloped.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh),
-#                   rep(Great.hh.north.p/(Scalloped.hh.north.p+Great.hh.north.p),nhh)),
-#            LIVEWT.c=LIVEWT.c*Prop,
-#            Species=c(rep('Scalloped hammerhead',nhh),rep('Great hammerhead',nhh)))%>%
-#     dplyr::select(names(Taiwan))
-#   
-#   Taiwan=rbind(subset(Taiwan,!Species=="Hammerheads"),drop.HH)
-# }
+#5. Add recreational catch
+Rec.ktch=Rec.ktch%>%
+              rename(finyear=year)%>%
+              mutate(BLOCKX=NA,
+                     Common.Name=ifelse(Common.Name=="dogfishes","spurdogs",
+                                 ifelse(Common.Name=="greynurse shark","grey nurse shark",
+                                 ifelse(Common.Name=="thresher shark","thresher sharks",
+                                 ifelse(Common.Name=="bronze whaler","copper shark",
+                                        Common.Name)))))%>%
+              filter(Common.Name%in%unique(Tot.ktch$SNAME))%>%
+              left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Common.Name'='SNAME'))%>%
+              mutate(SNAME=Common.Name,
+                     Name=Common.Name)%>%
+              dplyr::select(names(Tot.ktch))
+Rec.ktch$Type="Recreational"
+Tot.ktch$Type="Commercial"
+Tot.ktch=rbind(Tot.ktch,Rec.ktch)
 
 
-#Some manipulations  
-dummy=subset(All.species.names,SPECIES%in%unique(Tot.ktch$SPECIES))
-Tot.ktch=merge(Tot.ktch,dummy,by="SPECIES",all.x=T)
-Remaining_shark_other=subset(Tot.ktch,SPECIES==Shar_other)
-Tot.ktch=subset(Tot.ktch,!SPECIES==Shar_other)
-Percent.ktc.not.reapp=100*sum(Remaining_shark_other$LIVEWT.c)/sum(Tot.ktch$LIVEWT.c)
-Tot.ktch$finyear=as.numeric(substr(Tot.ktch$FINYEAR,1,4))
+#6. Add Taiwanese catch
+Taiwan=Taiwan%>%
+          rename(finyear=year)%>%
+          mutate(BLOCKX=NA,
+                 Name=SNAME,
+                 Type="Taiwan")%>%
+          dplyr::select(names(Tot.ktch))%>%
+          filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+Tot.ktch=rbind(Tot.ktch,Taiwan)
 
 
-Tot.ktch$Name=as.character(Tot.ktch$Name)
-Tot.ktch$SNAME=as.character(Tot.ktch$SNAME)
+#7. Add Indonesia IFF
+Indo=Indo_total.annual.ktch%>%
+        mutate(BLOCKX=NA,
+               Region="North",
+               finyear=as.numeric(substr(FINYEAR,1,4)),
+               Name=SNAME,
+               Type="IFF")%>%
+        dplyr::select(names(Tot.ktch))%>%
+        filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+Tot.ktch=rbind(Tot.ktch,Indo)
 
-  #5.3. Pool sawsharks because they are reported both by speces and by family
-Tot.ktch$SPECIES=ifelse(Tot.ktch$SPECIES%in%c(23002,23001,23900),23900,Tot.ktch$SPECIES)    
-Tot.ktch$Name=ifelse(Tot.ktch$Name%in%c("Southern sawshark","Common sawshark","Sawsharks"),"Sawsharks",Tot.ktch$Name)
-Tot.ktch$SNAME=ifelse(Tot.ktch$SNAME%in%c("SHARK, COMMON SAW","shark, common saw","shark, southern saw","SHARK, SOUTHERN SAW",
-                                          "SHARK, SAW","shark, saw"),"SHARK, SAW",Tot.ktch$SNAME)
 
-
-  #5.4 Plot catch of all species (in tonnes) after reapportioning
+#8. Display Catch for each Species (in tonnes)  
 Plot.yrs=sort(unique(Tot.ktch$finyear))
 fn.add=function(D)
 {
@@ -789,8 +692,8 @@ Pt.ktch.sp=function(sp,SP,LWD)
     b.N=aggregate(LIVEWT.c/1000~finyear,d1,sum)
     uno=nrow(b.N)
     b.N=fn.add(D=b.N)
-    if(uno>2)lines(1:length(b.N$finyear),b.N$"LIVEWT.c",col="grey50",lwd=LWD)
-    if(uno<=2)points(1:length(b.N$finyear),b.N$"LIVEWT.c",pch=19,cex=2,col="grey50")
+    if(uno>2)lines(1:length(b.N$finyear),b.N$"LIVEWT.c",col="red",lwd=LWD)
+    if(uno<=2)points(1:length(b.N$finyear),b.N$"LIVEWT.c",pch=19,cex=2,col="red")
   }
   
   d1=subset(d,Region=="South")
@@ -799,14 +702,14 @@ Pt.ktch.sp=function(sp,SP,LWD)
     b.S=aggregate(LIVEWT.c/1000~finyear,d1,sum)
     uno=nrow(b.S)
     b.S=fn.add(D=b.S)
-    if(uno>2)lines(1:length(b.S$finyear),b.S$"LIVEWT.c",col="Grey75",lty=4,lwd=LWD)
-    if(uno<=2)points(1:length(b.S$finyear),b.S$"LIVEWT.c",pch=19,cex=2,col="Grey75")
+    if(uno>2)lines(1:length(b.S$finyear),b.S$"LIVEWT.c",col="forestgreen",lty=4,lwd=LWD)
+    if(uno<=2)points(1:length(b.S$finyear),b.S$"LIVEWT.c",pch=19,cex=2,col="forestgreen")
   }
   
   mtext(SP,3,0,cex=1.5)
   legend("topleft",c("Total",expression(paste("North of 26 ",degree,"S")),
                      expression(paste("South of 26 ",degree,"S"))),bty='n',lty=c(1,1,4),
-         lwd=LWD,col=c("black","grey50","Grey75"),cex=1.5,pt.lwd=4)
+         lwd=LWD,col=c("black","red","forestgreen"),cex=1.5,pt.lwd=4)
   mtext("Catch (tonnes)",2,3,cex=2,las=3)
   mtext("Financial year",1,2.5,cex=2)
   axis(1,1:length(b.Tot$finyear),F,tck=-0.0125)
@@ -816,84 +719,45 @@ Pt.ktch.sp=function(sp,SP,LWD)
 test=Tot.ktch[!duplicated(Tot.ktch$SPECIES),]
 Uni.sp=test$SPECIES
 names(Uni.sp)=test$Name
-
-
-#Add recreational catch
-dumi=Tot.ktch%>%distinct(SPECIES,.keep_all = T)%>%
-            dplyr::select(SPECIES,Name,SNAME)%>%
-                filter(Name%in%c("Scalloped hammerhead","Smooth hammerhead","Tiger shark",
-                                 "Wobbegongs","Blacktip reef shark","Spinner shark"))%>%
-                mutate(Common.Name=ifelse(Name=="Wobbegongs","Wobbegong",
-                                   ifelse(Name=="Tiger shark","Tiger Shark",
-                                   ifelse(Name=="Blacktip reef shark","Blacktip Reef Shark",
-                                   ifelse(Name=="Spinner shark","Spinner Shark",
-                                   Name)))))
-Rec.ktch=Rec.ktch%>%
-              rename(finyear=year)%>%
-              mutate(BLOCKX=NA)%>%
-              filter(Common.Name%in%dumi$Common.Name)%>%
-              left_join(dumi,by='Common.Name')%>%
-              dplyr::select(names(Tot.ktch))
-
-Rec.ktch$Type="Recreational"
-Tot.ktch$Type="Commercial"
-Tot.ktch=rbind(Tot.ktch,Rec.ktch)
-
-
-#Add Taiwanese catch
-dumi2=Tot.ktch%>%distinct(SPECIES,.keep_all = T)%>%
-             dplyr::select(SPECIES,Name,SNAME)%>%
-             rename(Common.Name=Name)
-
-Taiwan=Taiwan%>%
-          rename(finyear=year,
-                 Common.Name=Species)%>%
-          mutate(BLOCKX=NA,
-                 Type="Taiwan",
-                 FINYEAR=paste(finyear,substr(finyear+1,3,4),sep="-"))%>%
-          left_join(dumi2,by='Common.Name')%>%
-          rename(Name=Common.Name)%>%
-          dplyr::select(names(Tot.ktch))%>%
-          filter(Name%in%unique(Tot.ktch$Name))
-  
-Tot.ktch=rbind(Tot.ktch,Taiwan)
-
-  #Display Catch for each Species    
 HnDl=paste(hNdl,"/Outputs/Catch_all_sp/",sep="")
 fnkr8t(HnDl)
 for(i in 1:length(Uni.sp))
 {
-  fn.fig(paste(HnDl,"Used.total.ktch",names(Uni.sp)[i],sep=""),2400,2400) 
+  fn.fig(paste(HnDl,"Used.total.ktch_",names(Uni.sp)[i],sep=""),2400,2400) 
   par(las=1,mgp=c(1,.8,0),mai=c(.8,1,.3,.1))
   Pt.ktch.sp(sp=Uni.sp[i],SP=names(Uni.sp)[i],LWD=3)
   dev.off()
 }
 
 
-  #5.5 Remove blacktips and school shark because some were reapportioned but are not assessed here
-Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','Spot tail shark',"School shark" ))
-
-
-#add TEP interactions        MISSING!!!!!
-
+#9. add TEP interactions        
+Greynurse.ktch=Greynurse.ktch%>%
+                mutate(BLOCKX=NA,
+                       Region="South",
+                       finyear=as.numeric(substr(FINYEAR,1,4)),
+                       Name=SNAME,
+                       Type="IFF")%>%
+                dplyr::select(names(Tot.ktch))
 Tot.ktch=rbind(Tot.ktch,Greynurse.ktch)
 
 
-  #Add historic
-a=Hist.expnd%>%filter(SPECIES%in%c(13000,18022,19000))%>%
-  rename(finyear=year)%>%
-  dplyr::select(finyear,SPECIES,LIVEWT.c)%>%
-  mutate(BLOCKX=NA,Region="South",Type="Commercial",
-         FINYEAR=paste(finyear,substr(finyear+1,3,4),sep="-"),
-         SPECIES=ifelse(SPECIES==19000,19004,SPECIES),
-         SNAME=ifelse(SPECIES==19004,"SHARK, SMOOTH HH",
-               ifelse(SPECIES==18022,"SHARK, TIGER",
-               ifelse(SPECIES==13000,"SHARK, WOBBEGONG",NA))),
-         Name=ifelse(SPECIES==19004,"Smooth hammerhead",
-              ifelse(SPECIES==18022,"Tiger shark",
-              ifelse(SPECIES==13000,"Wobbegongs",NA))))%>%
-  dplyr::select(names(Tot.ktch))
+#10. Add historic  
+a=Hist.expnd%>%
+            mutate(BLOCKX=NA,
+                   Region="South",
+                   finyear=as.numeric(substr(FINYEAR,1,4)),
+                   Type="Commercial",
+                   SNAME=ifelse(SNAME%in%c('southern sawshark','common sawshark'),'sawsharks',SNAME),
+                   SPECIES=ifelse(SPECIES%in%c(23001,23002),23900,SPECIES),
+                   Name=SNAME)%>%
+            dplyr::select(names(Tot.ktch))%>%
+            filter(SPECIES%in%unique(Tot.ktch$SPECIES))
 Tot.ktch=rbind(Tot.ktch,a)
+
+
+#11. Remove blacktips and school shark because some were reapportioned but are not assessed here
+Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','Spot tail shark',"School shark" ))
+
 
   #Species together   
 Agg=aggregate(LIVEWT.c~Name+finyear,Tot.ktch,sum)
@@ -908,25 +772,26 @@ id=rev(sort(id))
 Agg.r=Agg.r[match(names(id),Agg.r$Name),]
 
 
-#6. Select species with enough data  
+#12. Select species with enough data  
 
-  #6.1 Total cumulative catch of at least Min.max.ktch 
+  #12.1 Total cumulative catch of at least Min.max.ktch (in tonnes)
 MAX.ktch=apply(Agg.r[,2:ncol(Agg.r)],1,max,na.rm=T)/1000
 names(MAX.ktch)=as.character(Agg.r$Name)
 Keep.species=names(MAX.ktch[which(MAX.ktch>=Min.max.ktch)])
 MAX.ktch=rev(sort(MAX.ktch))
 
-  #6.2 with annual catches of Min.yr.ktch for at least Min.yrs
+  #12.2 with annual catches of Min.yr.ktch (in kg) for at least Min.yrs
 Tab.sp=subset(Agg.r,Name%in%Keep.species)
 rownames(Tab.sp)=Tab.sp$Name
 Tab.sp=Tab.sp[,-1]
-Tab.sp[Tab.sp<Min.yr.ktch]=0
-Tab.sp[Tab.sp>=Min.yr.ktch]=1
+Tab.sp[Tab.sp<Min.yr.ktch*1000]=0
+Tab.sp[Tab.sp>=Min.yr.ktch*1000]=1
 Keep.species=rowSums(Tab.sp,na.rm=T)
 Keep.species=names(Keep.species[Keep.species>=Min.yrs])
 Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)    
 
-#7. Species grouping   
+#DEJE ACA 
+#13. Species grouping   
 Tot.ktch$SP.group=Tot.ktch$Name
 
 Specs=Tot.ktch[!duplicated(Tot.ktch$SP.group),match(c("SPECIES","SNAME","Name","SP.group"),names(Tot.ktch))]

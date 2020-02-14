@@ -128,8 +128,7 @@ User="Matias"
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
 
 ## Species codes
-All.species.names=read.csv("C:/Matias/Analyses/Population dynamics/1.Other species/Species_names.csv") #for catch
-All.species.names$Name=as.character(All.species.names$Name)
+All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for catch
 
 
 ## 2.1 Catch_WA Fisheries
@@ -592,15 +591,24 @@ Scalefish.Trawl.fisheries=c('PFT')
 if(Do.recons.paper=="YES")
 {
   fn.hnd.out=function(x)paste('C:/Matias/Analyses/Reconstruction_catch_commercial/',x,sep='')
+  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
+  
   dit=rbind(daily.other%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT),
             Data.monthly%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT),
             Data.monthly.north%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT))%>%
             filter(SPECIES<50000 & !is.na(FishCubeName))%>%
             group_by(FishCubeCode,FishCubeName)%>%
-            summarise(Total=sum(LIVEWT)/1000)%>%    #in tonnes
+            summarise(Total=round(sum(LIVEWT,na.rm=T)/1000,2))%>%    #in tonnes
             arrange(-Total)%>%
-            data.frame
-  write.csv(dit,fn.hnd.out("Fisheries.reporting.shark_rays_tonnes.csv"),row.names = F)
+            data.frame%>%
+            rename(Total.catch=Total,
+                   Fishery=FishCubeName)%>%
+    dplyr::select(-FishCubeCode)
+  setwd('C:/Matias/Analyses/Reconstruction_catch_commercial')
+  fn.word.table(WD=getwd(),TBL=dit,Doc.nm="Fisheries.reporting.shark_rays_tonnes",caption=NA,paragph=NA,
+                HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+                Zebra='NO',Zebra.col='grey60',Grid.col='black',
+                Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
 }
 Calculate.discarding=c('PFT','C019','C066','C070','CSLP','EGBS','EGP','KP','KTR','NBP',
                        'OANCGCWC','OP','SBP','SBS','SBSC','SCT','SWT')
@@ -1030,6 +1038,17 @@ Data.monthly=fn.reap.hh(d=Data.monthly,Survey=Comp.hh.south)
 Data.monthly.north=fn.reap.hh(d=Data.monthly.north,Survey=Comp.hh.north)
 
 
+  #reapportion blacktip sharks reported too far south
+#note: reported all the way to Esperance (doesn't conform to the species distribution / observer data) 
+#      Hence set to spinner shark any blacktip record south of 32 (Harry et al 2019 as 
+#      evidence of southernmost distribution, though for east coast)
+Data.monthly=Data.monthly%>%
+  mutate(SNAME=ifelse(SPECIES==18014 & LAT<(-31.5) & LONG >114,
+                      "SHARK, SPINNER (LONG-NOSE GREY)",SNAME),
+         SPECIES=ifelse(SPECIES==18014 & LAT<(-31.5) & LONG >114,
+                        18023,SPECIES))
+
+
   #3.1.3 Apply fishery and species specific PCM to discarded catch
 fn.x=function(x)as.numeric(x[1]):as.numeric(x[2])
 PCM.sp=list(Sawfish=fn.x(c( 25000,25020)),
@@ -1362,7 +1381,7 @@ Indo_total.annual.ktch=Indo_avrg.ktch.per.vessel.year[rep(1:nrow(Indo_avrg.ktch.
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%
                         mutate(Species=as.character(Species),
                                FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
-                        left_join(All.species.names,by=c('Species'='Name'))%>%
+                        left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Species'='Name'))%>%
                     dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
 
 
@@ -1450,11 +1469,22 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
             summarise(Total=round(sum(LIVEWT.c)/1000,1))%>%
             spread(TYPE,Total,fill=0)%>%
             data.frame%>%
-            dplyr::select(Name,Historic,WA.south,WA.north,Protected,Taiwanese,IFF)%>%
             mutate(Total=Historic+WA.south+WA.north+Protected+Taiwanese+IFF)%>%
-            arrange(-Total)
-  write.csv(Table1,fn.hnd.out("Table1.csv"),row.names = F)
+            arrange(-Total)%>%
+            left_join(All.species.names%>%dplyr::select(-SPECIES),by="Name")%>%
+            rename(Common.name=Name,
+                   South=WA.south,
+                   North=WA.north,
+                   Scientific.name=Scien.nm)%>%
+    dplyr::select(Common.name,Scientific.name,Historic,South,North,Protected,Taiwanese,IFF)
   
+  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")  
+  setwd('C:/Matias/Analyses/Reconstruction_catch_commercial')
+  fn.word.table(WD=getwd(),TBL=Table1,Doc.nm="Table1",caption=NA,paragph=NA,
+                HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+                Zebra='NO',Zebra.col='grey60',Grid.col='black',
+                Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+
   
   #Figure 1. species annual catch by fishery
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R')
