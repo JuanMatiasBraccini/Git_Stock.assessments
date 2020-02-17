@@ -24,8 +24,8 @@
 
 
 ### MISSING ### 
-#   Commonwealth (waiting from John Garvey, James Woodham): 1.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)
-#   Whaler_SA (waiting to hear form Paul Rogers)
+#   Commonwealth (waiting from AFMA's Julie Cotsell/ Ryan Murpthy): 1.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)
+#   Whaler_SA (waiting to hear from SARDI's Angelo Tsolos, Paul Rogers)
 ####
 
 library(tidyverse)
@@ -119,13 +119,10 @@ Calculate.discarding_catch=read_excel(fn.hndl('Calculate.discarding.xlsx'), shee
          Group=Species.Group)
 
   #Non-WA fisheries
-Whaler_SA=read.csv(fn.hndl("SA_marine_scalefish_whaler_ktch.csv"))  #catch in tonnes; source: john XX   MISSING
-WTBF_catch=read.csv(fn.hndl("WTBF_catch_Benseley.et.al.2010.csv"))  #catch in kg; source: john XX   MISSING
-GAB.trawl_catch=read.csv(fn.hndl("Gab.trawl_catch_Benseley.et.al.2010.csv"))  #catch in kg; source: john XX   MISSING
+Whaler_SA=read.csv(fn.hndl("SA_marine_scalefish_whaler_ktch.csv"))  #catch in tonnes; source SARDI's Angelo Tsolos, Paul Rogers
+WTBF_catch=read.csv(fn.hndl("WTBF_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
+GAB.trawl_catch=read.csv(fn.hndl("Gab.trawl_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
 
-## Shark bio data
-User="Matias"
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
 
 ## Species codes
 All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for catch
@@ -238,6 +235,9 @@ BRD_pilbara.trawl_year='2003-04'
   get.observed.Pilbara=FALSE
   if(get.observed.Pilbara)
   {
+    ## Shark bio data
+    User="Matias"
+    source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
     Observed.hours.Pilbara=DATA.bio%>%
       filter(Method=='TW')%>%
       distinct(SHEET_NO)%>%
@@ -1475,12 +1475,13 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
             rename(Common.name=Name,
                    South=WA.south,
                    North=WA.north,
-                   Scientific.name=Scien.nm)%>%
-    dplyr::select(Common.name,Scientific.name,Historic,South,North,Protected,Taiwanese,IFF)
+                   Scientific.name=Scien.nm)
+    
   
   source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")  
   setwd('C:/Matias/Analyses/Reconstruction_catch_commercial')
-  fn.word.table(WD=getwd(),TBL=Table1,Doc.nm="Table1",caption=NA,paragph=NA,
+  fn.word.table(WD=getwd(),TBL=Table1%>%dplyr::select(Common.name,Scientific.name,Historic,South,North,Protected,Taiwanese,IFF),
+                Doc.nm="Table1",caption=NA,paragph=NA,
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                 Zebra='NO',Zebra.col='grey60',Grid.col='black',
                 Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
@@ -1490,10 +1491,10 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R')
   Cum.ktch=cumsum(Table1$Total)/sum(Table1$Total)
   ID=which.min(abs(Cum.ktch-0.99))
-  these.sp=Table1[1:ID,]%>%pull(Name)
+  these.sp=Table1[1:ID,]%>%pull(Common.name)
   
   LWD=1.75
-  CLs=data.frame(TYPE=c("Historic","South","North","Protected","Taiwanese","IFF"),
+  CLs=data.frame(TYPE=c("Historic","South","North","Protected","Taiwanese","IFI"),
                  CL=c("black","deepskyblue2","coral2","forestgreen","dodgerblue4","darkorange2"),
                  LT=c(1,1,1,1,3,3))
   fun.plt.Fig1=function(SP)
@@ -1528,6 +1529,62 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   dev.off()
 
 
+  #Difference between original and reconstructed   #ACA
+  these.sp=these.sp   #combine hammerheads because original doesn't discriminate among species
+  
+  Data.monthly.original.agg=Data.monthly.original%>%
+    group_by(FINYEAR,SPECIES)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+    mutate(TYPE="WA.south")%>%
+    data.frame
+  Data.monthly.north.original.agg=Data.monthly.north.original%>%
+    group_by(FINYEAR,SPECIES)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+    mutate(TYPE="WA.north")%>%
+    data.frame
+  
+  Data.monthly.original.agg=rbind(Data.monthly.original.agg,Data.monthly.north.original.agg)%>%
+    group_by(FINYEAR,SPECIES)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+    data.frame%>%
+    left_join(All.species.names,by='SPECIES')
+  
+  Unified2=Unified%>%
+    mutate(Name=ifelse(Name%in%c("Smooth hammerhead","Scalloped hammerhead","Great hammerhead"),
+                  "Hammerheads",Name))
+  these.sp2=these.sp
+  these.sp2=unique(ifelse(these.sp2%in%c("Smooth hammerhead","Scalloped hammerhead","Great hammerhead"),
+                   "Hammerheads",these.sp2))
+
+  
+  fun.plt.Fig2=function(SP)
+  {
+    d=Unified2%>%filter(Name==SP)%>%
+      group_by(FINYEAR)%>%
+      summarise(Total=sum(LIVEWT.c)/1000)%>%
+      data.frame
+    yr=as.numeric(substr(d$FINYEAR,1,4))
+    
+    d1=Data.monthly.original.agg%>%filter(Name==SP)%>%
+      group_by(FINYEAR)%>%
+      summarise(Total=sum(LIVEWT.c)/1000)%>%
+      data.frame
+    yr1=as.numeric(substr(d1$FINYEAR,1,4))
+    
+    plot(yr,yr,xlim=Yr.lim,col='transparent',ylab="",xlab="",ylim=c(0,max(d[,-c(1)],na.rm=T)))
+    lines(yr,d$Total,lwd=LWD,col='deepskyblue4',lty=1)
+    lines(yr1,d1$Total,lwd=LWD,col='red',lty=3)
+    mtext(SP,3,cex=.85)
+  }
+  tiff(file=fn.hnd.out("Figure2_reconstructed.vs.original.tiff"),2400,2400,
+       units="px",res=300,compression="lzw")
+  smart.par(n.plots=length(these.sp2),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  for(s in 1:length(these.sp2)) fun.plt.Fig2(SP=these.sp2[s])
+  plot.new()
+  legend("right",c("Reconstructed","Original"),col=c('deepskyblue4','red'),lty=c(1,3),lwd=LWD*1.5,bty='n',cex=1.2)
+  mtext("Financial year",1,outer=T,cex=1.15)
+  mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.15)
+  dev.off()
   
   #Indonesian illegal fishing in Western Australia waters
   # tiff(file=fn.hnd.out("Figure_WA_illegal.Indo.tiff"),2400,2400,units="px",res=300,compression="lzw")
