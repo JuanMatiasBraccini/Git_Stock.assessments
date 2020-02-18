@@ -15,10 +15,12 @@
 #         If catch composition is not in weight, then convert numbers to weights
 
 #ANNUAL UPDATES:
+
 #1. "#Total landings time series". For fisheries listed in 'Calculate.discarding_catch' each year 
          #  download annual reported landings from FISHCUBE using the FishCube fishery code 
-         #  from 'Lista.reap.FishCubeCode'. 
-         #  Can Use the link provided in Calculate.discarding.xlsx and run an update)
+         #  from 'Lista.reap.FishCubeCode' or could use the link provided in 
+         # Calculate.discarding.xlsx and run an update)
+
 #2. Annual effort for "Kimberley.GBF.annual.effort"
 
 

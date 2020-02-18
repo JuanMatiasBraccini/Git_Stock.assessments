@@ -12,14 +12,15 @@
 #       years of reported catch data
 
 #missing:
-#For the size data, use catch curve for size
-# (or convert size to age, using 'convert_length_to_age_samples')
-# with dome shaped selectivity (as other methods, like Adrian Hordyk's
-# and CCSRA assume logistic selectivity)
-#and SPR to calculate F (need Alex's help)
-#For SRA, could try Dan Ovando's approach, once it is installed, but will need cpue index or FMI
-# rather than standard SPM, try JABBA: Just Another Bayesian Biomass Assessment (can be 
-#             run from R..see Winker et al 2018; it's what IUCN uses)
+# 1.For the size data, use catch curve for size
+#   (or convert size to age, using 'convert_length_to_age_samples')
+#   with dome shaped selectivity (as other methods, like Adrian Hordyk's
+#   and CCSRA assume logistic selectivity)
+#   and SPR to calculate F (need Alex's help)
+# 2.For SRA, could try Dan Ovando's approach, once it is installed, but will need cpue index or FMI
+#   rather than standard SPM, try JABBA: Just Another Bayesian Biomass Assessment (can be 
+#   run from R..see Winker et al 2018; it's what IUCN uses)
+# 3.Include ALL species in final risk scoring
 
 rm(list=ls(all=TRUE))
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
@@ -44,9 +45,9 @@ library(mvtnorm)
 library(Biobase)
 library(numDeriv)
 library(spatstat.utils)
+library(Hmisc)
 
-
-Asses.year=2019    #enter year of assessment
+Asses.year=2020    #enter year of assessment
 
 
 hNdl=paste("C:/Matias/Analyses/Population dynamics/1.Other species/",Asses.year,sep="")
@@ -756,7 +757,7 @@ Tot.ktch=rbind(Tot.ktch,a)
 
 
 #11. Remove blacktips and school shark because some were reapportioned but are not assessed here
-Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','Spot tail shark',"School shark" ))
+Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','spot tail shark','Spot tail shark',"School shark" ))
 
 
   #Species together   
@@ -788,6 +789,7 @@ Tab.sp[Tab.sp<Min.yr.ktch*1000]=0
 Tab.sp[Tab.sp>=Min.yr.ktch*1000]=1
 Keep.species=rowSums(Tab.sp,na.rm=T)
 Keep.species=names(Keep.species[Keep.species>=Min.yrs])
+
 Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)    
 
 #DEJE ACA 
@@ -1927,6 +1929,34 @@ mtext(expression(paste("Latitude ",degree,"S")),side=2,line=0.85,las=3,cex=1.2,o
 mtext(expression(paste("Longitude ",degree,"E")),side=1,line=1.1,cex=1.2,outer=T)
 dev.off()
 
+# Spatio-temporal catch
+#note: show number of blocks fished as proportion of maximum number of blocks fished for each species
+fn.spatio.temp.catch.dist=function(d)
+{
+  d1=d%>% count(FINYEAR,SPECIES,BLOCKX)%>%
+    group_by(FINYEAR,SPECIES)%>%
+    mutate(n=ifelse(n>0,1,0))%>%
+    group_by(FINYEAR,SPECIES)%>%
+    summarise(n=sum(n,na.rm=T))%>%
+    spread(FINYEAR,n,fill=0)
+  All.sp=d1$SPECIES 
+  d1=d1%>%dplyr::select(-SPECIES)%>%as.matrix
+  Mx=apply(d1,1,max)
+  d1=d1/Mx
+  
+  yrs=as.numeric(substr(colnames(d1),1,4))
+  Sp.nms=subset(All.species.names,SPECIES%in%All.sp)
+  
+  plot(1:nrow(d1),1:nrow(d1),col='transparent',ylab="",xlab="Financial year",yaxt='n',xlim=c(min(yrs),max(yrs)))
+  for(p in 1:length(All.sp)) points(yrs,rep(p,length(yrs)),col='steelblue',cex=2*d1[p,],pch=19)
+  axis(2,1:length(All.sp),capitalize(Sp.nms$SNAME),las=1)
+}
+
+fn.fig("Figure Spatio-temporal catch", 1800, 2400)
+par(mar=c(2.5,4,.1,.1),oma=c(.1,6,.1,.1),mgp=c(1.5,.7,0))
+fn.spatio.temp.catch.dist(d=rbind(Data.monthly%>%filter(!is.na(BLOCKX)),
+                                  Data.monthly.north%>%filter(!is.na(BLOCKX))))
+dev.off()
 
 #Catch by year
 South.WA.lat=c(-36,-25); South.WA.long=c(112,130)
