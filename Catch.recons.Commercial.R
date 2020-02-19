@@ -1531,7 +1531,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   dev.off()
 
 
-  #Difference between original and reconstructed   #ACA
+  #Difference between original and reconstructed   
   these.sp=these.sp   #combine hammerheads because original doesn't discriminate among species
   
   Data.monthly.original.agg=Data.monthly.original%>%

@@ -48,7 +48,7 @@ library(spatstat.utils)
 library(Hmisc)
 
 Asses.year=2020    #enter year of assessment
-
+Last.yr.ktch="2017-18"
 
 hNdl=paste("C:/Matias/Analyses/Population dynamics/1.Other species/",Asses.year,sep="")
 fnkr8t=function(x) if(!dir.exists(x))dir.create(x)
@@ -63,6 +63,12 @@ setwd("C:/Matias/Analyses/Data_outs")
 #Total effort
 Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
 Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
+
+Effort.monthly_blocks=read.csv("Effort.monthly.csv",stringsAsFactors=F)
+Effort.daily_blocks=read.csv("Effort.daily.csv",stringsAsFactors=F)
+Effort.monthly.north_blocks=read.csv("Effort.monthly.NSF.csv",stringsAsFactors=F)
+Effort.daily.north_blocks=read.csv("Effort.daily.NSF.csv",stringsAsFactors=F)
+
 
 #Total catch
 fn.in=function(NM)
@@ -294,6 +300,87 @@ Do.sim.test="NO"
 
 
 #---PROCEDURE SECTION-----
+
+#Relevant catch years
+Relevant.yrs=paste(seq(as.numeric(substr(min(Hist.expnd$FINYEAR),1,4)),
+                       as.numeric(substr(Last.yr.ktch,1,4))),
+                   substr(seq(as.numeric(substr(min(Hist.expnd$FINYEAR),1,4))+1,
+                       as.numeric(substr(Last.yr.ktch,1,4))+1),3,4),sep='-')
+
+#Select relevant effort vars  ACA
+Effort.monthly_blocks=Effort.monthly_blocks%>%
+        filter(FINYEAR%in%Relevant.yrs)%>%
+        count(FINYEAR,BLOCKX)%>%
+        group_by(FINYEAR,BLOCKX)%>%
+        mutate(n=ifelse(n>0,1,0))
+Effort.daily_blocks=Effort.daily_blocks%>%
+        rename(FINYEAR=finyear,
+               BLOCKX=blockx)%>%
+        filter(FINYEAR%in%Relevant.yrs)%>%
+        count(FINYEAR,BLOCKX)%>%
+        group_by(FINYEAR,BLOCKX)%>%
+        mutate(n=ifelse(n>0,1,0))
+Effort_blocks=rbind(Effort.monthly_blocks,Effort.daily_blocks)%>%
+        count(FINYEAR,BLOCKX)%>%
+        group_by(FINYEAR,BLOCKX)%>%
+        mutate(n=ifelse(n>0,1,0))%>%
+        group_by(FINYEAR)%>%
+        summarise(Tot=sum(n))%>%
+        data.frame
+
+#get GN equivalent of LL effort
+do.GN.quiv='NO'
+if(do.GN.quiv=="YES")
+{
+  GN.ktch.north=Data.monthly.north%>%   
+    filter(METHOD=="GN")%>%
+    group_by(FINYEAR,BLOCKX)%>%
+    summarise(Ktch.GN=sum(LIVEWT.c,na.rm=T))%>%
+    mutate(dummy=paste(FINYEAR,BLOCKX))
+  LL.effort.north=Effort.monthly.north_blocks%>%    
+    filter(!METHOD=="GN")%>%
+    group_by(FINYEAR,BLOCKX)%>%
+    summarise(Effort=sum(hook.hours,na.rm=T))%>%
+    mutate(dummy=paste(FINYEAR,BLOCKX))%>%
+    dplyr::filter(dummy%in%GN.ktch.north$dummy)
+  LL.ktch.north=Data.monthly.north%>%   
+    filter(!METHOD=="GN")%>%
+    group_by(FINYEAR,BLOCKX)%>%
+    summarise(Ktch.LL=sum(LIVEWT.c,na.rm=T))%>%
+    mutate(dummy=paste(FINYEAR,BLOCKX))%>%
+    dplyr::filter(dummy%in%LL.effort.north$dummy)
+  LL.cpue.north=left_join(LL.effort.north,LL.ktch.north,by=c('FINYEAR','BLOCKX'))%>%
+    mutate(cpue.LL=Ktch.LL/Effort)
+  GN.equiv.LL_effort.north=left_join(GN.ktch.north,LL.cpue.north,by=c('BLOCKX'))%>%
+    mutate(GN.equiv.eff=Ktch.GN/cpue.LL)
+} 
+Effort.monthly.north_blocks=Effort.monthly.north_blocks%>%
+        filter(FINYEAR%in%Relevant.yrs)%>%
+        count(FINYEAR,BLOCKX)%>%
+        group_by(FINYEAR,BLOCKX)%>%
+        mutate(n=ifelse(n>0,1,0))
+Effort.daily.north_blocks=Effort.daily.north_blocks%>%
+        rename(FINYEAR=finyear,
+               BLOCKX=blockx)%>%
+        filter(FINYEAR%in%Relevant.yrs)%>%
+        count(FINYEAR,BLOCKX)%>%
+        group_by(FINYEAR,BLOCKX)%>%
+        mutate(n=ifelse(n>0,1,0))
+Effort.north_blocks=rbind(Effort.monthly.north_blocks,Effort.daily.north_blocks)%>%
+        count(FINYEAR,BLOCKX)%>%
+        group_by(FINYEAR,BLOCKX)%>%
+        mutate(n=ifelse(n>0,1,0))%>%
+        group_by(FINYEAR)%>%
+        summarise(Tot=sum(n))%>%
+        data.frame
+
+Effort_blocks=rbind(Effort_blocks,Effort.north_blocks)%>%
+  group_by(FINYEAR)%>%
+  summarise(Tot=sum(Tot))%>%
+  data.frame
+
+
+
 
 #Add Species names to catch data sets    
 All.species.names=All.species.names%>%
@@ -658,6 +745,11 @@ Indo=Indo_total.annual.ktch%>%
         dplyr::select(names(Tot.ktch))%>%
         filter(SPECIES%in%unique(Tot.ktch$SPECIES))
 Tot.ktch=rbind(Tot.ktch,Indo)
+
+
+#Keep relevant years
+Tot.ktch=Tot.ktch%>%
+          filter(FINYEAR%in%Relevant.yrs)
 
 
 #8. Display Catch for each Species (in tonnes)  
@@ -1889,7 +1981,7 @@ if(Do.Ktch.MSY)
 
 setwd(paste(hNdl,'/Outputs',sep=''))
 
-#Plot spatial catch
+#Plot overall catch spatial distribution 
 data(worldLLhigh)
 xlm=c(112,130)
 ylm=c(-36,-10)
@@ -1930,10 +2022,11 @@ mtext(expression(paste("Longitude ",degree,"E")),side=1,line=1.1,cex=1.2,outer=T
 dev.off()
 
 # Spatio-temporal catch
-#note: show number of blocks fished as proportion of maximum number of blocks fished for each species
+#note: bubble size is proportion of blocks fished out of maximum number of blocks fished for each species
 fn.spatio.temp.catch.dist=function(d)
 {
-  d1=d%>% count(FINYEAR,SPECIES,BLOCKX)%>%
+  d1=d%>% filter(SNAME%in%Keep.species)%>%
+    count(FINYEAR,SPECIES,BLOCKX)%>%
     group_by(FINYEAR,SPECIES)%>%
     mutate(n=ifelse(n>0,1,0))%>%
     group_by(FINYEAR,SPECIES)%>%
@@ -1947,13 +2040,20 @@ fn.spatio.temp.catch.dist=function(d)
   yrs=as.numeric(substr(colnames(d1),1,4))
   Sp.nms=subset(All.species.names,SPECIES%in%All.sp)
   
-  plot(1:nrow(d1),1:nrow(d1),col='transparent',ylab="",xlab="Financial year",yaxt='n',xlim=c(min(yrs),max(yrs)))
+  plot(1:nrow(d1),1:nrow(d1),col='transparent',ylab="",xlab="",yaxt='n',xlim=c(min(yrs),max(yrs)))
   for(p in 1:length(All.sp)) points(yrs,rep(p,length(yrs)),col='steelblue',cex=2*d1[p,],pch=19)
   axis(2,1:length(All.sp),capitalize(Sp.nms$SNAME),las=1)
+  mtext(side = 1, line = 2, 'Financial year',cex=1.5)
+  
+  par(new=T)
+  plot(yrs,Effort_blocks$Tot,type='l',col=rgb(0,0,1,alpha=.3),xlab="",ylab="",axes=F,lwd=5,lty=1)
+  axis(side = 4,las=1)
+  mtext(side = 4, line = 3, 'Number of blocks fished',las=3,cex=1.5)
+  
+  
 }
-
-fn.fig("Figure Spatio-temporal catch", 1800, 2400)
-par(mar=c(2.5,4,.1,.1),oma=c(.1,6,.1,.1),mgp=c(1.5,.7,0))
+fn.fig("Figure Spatio-temporal catch", 2400, 2400)
+par(mar=c(2.5,4,.1,1),oma=c(.5,6,.1,3),mgp=c(1.5,.7,0))
 fn.spatio.temp.catch.dist(d=rbind(Data.monthly%>%filter(!is.na(BLOCKX)),
                                   Data.monthly.north%>%filter(!is.na(BLOCKX))))
 dev.off()
