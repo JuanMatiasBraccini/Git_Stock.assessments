@@ -681,8 +681,8 @@ Shark.species=subset(Shark.species,!Shark.species%in%c(blacktips,School.shark))
   
 
   # Remove indicator species, blacktips  and school sharks
-Data.monthly=subset(Data.monthly,SPECIES%in%Shark.species,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX))
-Data.monthly.north=subset(Data.monthly.north,SPECIES%in%Shark.species,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX))
+Data.monthly=subset(Data.monthly,SPECIES%in%Shark.species,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX,METHOD))
+Data.monthly.north=subset(Data.monthly.north,SPECIES%in%Shark.species,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX,METHOD))
 
 Data.monthly$Region="South"
 Data.monthly.north$Region="North"
@@ -717,7 +717,8 @@ Rec.ktch=Rec.ktch%>%
               filter(Common.Name%in%unique(Tot.ktch$SNAME))%>%
               left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Common.Name'='SNAME'))%>%
               mutate(SNAME=Common.Name,
-                     Name=Common.Name)%>%
+                     Name=Common.Name,
+                     METHOD='Rec.line')%>%
               dplyr::select(names(Tot.ktch))
 Rec.ktch$Type="Recreational"
 Tot.ktch$Type="Commercial"
@@ -729,7 +730,8 @@ Taiwan=Taiwan%>%
           rename(finyear=year)%>%
           mutate(BLOCKX=NA,
                  Name=SNAME,
-                 Type="Taiwan")%>%
+                 Type="Taiwan",
+                 METHOD=Method)%>%
           dplyr::select(names(Tot.ktch))%>%
           filter(SPECIES%in%unique(Tot.ktch$SPECIES))
 Tot.ktch=rbind(Tot.ktch,Taiwan)
@@ -741,7 +743,8 @@ Indo=Indo_total.annual.ktch%>%
                Region="North",
                finyear=as.numeric(substr(FINYEAR,1,4)),
                Name=SNAME,
-               Type="IFF")%>%
+               Type="IFF",
+               METHOD=NA)%>%
         dplyr::select(names(Tot.ktch))%>%
         filter(SPECIES%in%unique(Tot.ktch$SPECIES))
 Tot.ktch=rbind(Tot.ktch,Indo)
@@ -829,7 +832,8 @@ Greynurse.ktch=Greynurse.ktch%>%
                        Region="South",
                        finyear=as.numeric(substr(FINYEAR,1,4)),
                        Name=SNAME,
-                       Type="IFF")%>%
+                       Type="TEP",
+                       METHOD=NA)%>%
                 dplyr::select(names(Tot.ktch))
 Tot.ktch=rbind(Tot.ktch,Greynurse.ktch)
 
@@ -840,6 +844,7 @@ a=Hist.expnd%>%
                    Region="South",
                    finyear=as.numeric(substr(FINYEAR,1,4)),
                    Type="Commercial",
+                   METHOD=NA,
                    SNAME=ifelse(SNAME%in%c('southern sawshark','common sawshark'),'sawsharks',SNAME),
                    SPECIES=ifelse(SPECIES%in%c(23001,23002),23900,SPECIES),
                    Name=SNAME)%>%
@@ -852,12 +857,24 @@ Tot.ktch=rbind(Tot.ktch,a)
 Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','spot tail shark','Spot tail shark',"School shark" ))
 
 
-  #Species together   
-Agg=aggregate(LIVEWT.c~Name+finyear,Tot.ktch,sum)
-Agg.r=reshape(Agg, v.names = "LIVEWT.c", idvar = "Name",timevar = "finyear", direction = "wide")
-colnames(Agg.r)[2:ncol(Agg.r)]=substr(colnames(Agg.r)[2:ncol(Agg.r)],10,20)
-PCH=rep(19,nrow(Agg.r))
-COL=rep(1,nrow(Agg.r))
+
+#12. Select species with enough data  
+Agg=Tot.ktch%>%
+  mutate(Gear=ifelse(METHOD%in%c("BS","BH","GN","HN","Pelagic.gillnet"),"net",
+              ifelse(METHOD%in%c("DL","DV","EL","GL","HL","HR","HY",
+                                 "LL","Longline","Rec.line","TL"),'line',
+              ifelse(METHOD%in%c("FG","TW"),'trawl',
+              ifelse(METHOD%in%c("FT","PT"),'trap',
+                     NA)))))
+Agg.r=Agg%>%
+  group_by(Name,FINYEAR)%>%
+  summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+  spread(FINYEAR,LIVEWT.c,fill=0)%>%
+  data.frame
+names(Agg.r)[-(1:2)]=substr(names(Agg.r)[-(1:2)],1,4)
+
+PCH=rep(19,length(unique(Agg.r$Name)))
+COL=rep(1,length(unique(Agg.r$Name)))
 
 id=rowSums(Agg.r[,2:ncol(Agg.r)],na.rm=T)
 names(id)=Agg.r$Name
@@ -865,22 +882,97 @@ id=rev(sort(id))
 Agg.r=Agg.r[match(names(id),Agg.r$Name),]
 
 
-#12. Select species with enough data  
+Agg.PSA=Agg%>%
+  filter(!is.na(Gear))%>%
+  group_by(Name,Gear,FINYEAR)%>%
+  summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+  spread(FINYEAR,LIVEWT.c,fill=0)%>%
+  data.frame
+names(Agg.PSA)[-(1:2)]=substr(names(Agg.PSA)[-(1:2)],2,5)
 
-  #12.1 Total cumulative catch of at least Min.max.ktch (in tonnes)
-MAX.ktch=apply(Agg.r[,2:ncol(Agg.r)],1,max,na.rm=T)/1000
-names(MAX.ktch)=as.character(Agg.r$Name)
-Keep.species=names(MAX.ktch[which(MAX.ktch>=Min.max.ktch)])
-MAX.ktch=rev(sort(MAX.ktch))
 
-  #12.2 with annual catches of Min.yr.ktch (in kg) for at least Min.yrs
-Tab.sp=subset(Agg.r,Name%in%Keep.species)
-rownames(Tab.sp)=Tab.sp$Name
-Tab.sp=Tab.sp[,-1]
-Tab.sp[Tab.sp<Min.yr.ktch*1000]=0
-Tab.sp[Tab.sp>=Min.yr.ktch*1000]=1
-Keep.species=rowSums(Tab.sp,na.rm=T)
-Keep.species=names(Keep.species[Keep.species>=Min.yrs])
+  #12.1 PSA  (aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
+Agg.sp=unique(Agg.PSA$Name)
+
+Min.yrs=5
+Min.ktch=5000 #in kg
+KIP=vector('list',length(Agg.sp))
+for(s in 1:length(Agg.sp))
+{
+  d=Agg.PSA%>%filter(Name==Agg.sp[s])
+  
+  d1=d[,-c(1:2)]
+  d1[d1<Min.ktch]=0
+  d1[d1>=Min.ktch]=1
+  kip=data.frame(Gear=d$Gear)%>%
+    mutate(
+      Name=d$Name,
+      Sum.yrs=rowSums(d1),
+      Keep=ifelse(Sum.yrs>=Min.yrs,"YES","NO"))
+  KIP[[s]]=kip
+}
+KIP=do.call(rbind,KIP)
+
+PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv',stringsAsFactors=F)
+PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)
+{
+  PSA=data.frame(Species=d$Species,
+                 Productivity=rep(NA,nrow(d)),
+                 Susceptibility=rep(NA,nrow(d)),
+                 Vulnerability=rep(NA,nrow(d)))
+  for(p in 1:nrow(d))
+  {
+    PSA$Productivity[p]=mean(unlist(d[p,c('Max.age','Age.mat','Fecun','Max.size','Size.mat','Rep.strat','Troph.Lvl')]))
+    S1=1+((d$Net.avail[p]*d$Net.encoun[p]*d$Net.sel[p]*d$Net.PCM[p])-1)/40
+    S2=1+((d$Line.avail[p]*d$Line.encoun[p]*d$Line.sel[p]*d$Line.PCM[p])-1)/40
+    S3=1+((d$Trawl.avail[p]*d$Trawl.encoun[p]*d$Trawl.sel[p]*d$Trawl.PCM[p])-1)/40
+    S4=1+((d$Trap.avail[p]*d$Trap.encoun[p]*d$Trap.sel[p]*d$Trap.PCM[p])-1)/40
+    Cum.susc=min(3,(1+((S1-1)^2+(S2-1)^2+(S3-1)^2+(S4-1)^2)^0.5))
+    PSA$Susceptibility[p]=Cum.susc
+    PSA$Vulnerability[p]=(PSA$Productivity[p]^2+Cum.susc^2)^0.5  #Euclidean distance
+  }
+  
+  PSA=PSA%>%
+    mutate(Species=Hmisc::capitalize(as.character(Species)),
+           Risk=factor(ifelse(Vulnerability<=Low.risk,'low',
+                              ifelse(Vulnerability>Low.risk & Vulnerability<=medium.risk,'medium',
+                                     'high')),levels=c('low','medium','high')))%>%
+    arrange(Vulnerability)
+  cols=c(low="green",medium="yellow",high="red")
+  p=ggplot(PSA,
+           aes(Productivity, Susceptibility, label = Species,colour = Risk, fill = Risk)) +
+    geom_point(shape = 21, size = 6,colour="black") + 
+    geom_text_repel(segment.colour='black',col='black',box.padding = 0.5) + 
+    scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
+    xlim(0.75,3.25)+ylim(0.75,3.25)+
+    theme(panel.background = element_blank(),
+          axis.line = element_line(colour = "black"),
+          axis.text=element_text(size=12),
+          axis.title=element_text(size=14),
+          panel.border = element_rect(colour = "black", fill=NA, size=1))
+  
+  p
+  ggsave(Exprt, width = 8,height = 8, dpi = "retina")
+  
+  return(as.character(PSA%>%filter(Risk=="high")%>%pull(Species)))
+}
+Keep.species=PSA.fn(d=PSA.list,Exprt=paste(hNdl,"/Outputs/Figure. PSA.tiff",sep=''))
+
+
+#   #12.1 Total cumulative catch of at least Min.max.ktch (in tonnes)
+# MAX.ktch=apply(Agg.r[,2:ncol(Agg.r)],1,max,na.rm=T)/1000
+# names(MAX.ktch)=as.character(Agg.r$Name)
+# Keep.species=names(MAX.ktch[which(MAX.ktch>=Min.max.ktch)])
+# MAX.ktch=rev(sort(MAX.ktch))
+# 
+#   #12.2 with annual catches of Min.yr.ktch (in kg) for at least Min.yrs
+# Tab.sp=subset(Agg.r,Name%in%Keep.species)
+# rownames(Tab.sp)=Tab.sp$Name
+# Tab.sp=Tab.sp[,-1]
+# Tab.sp[Tab.sp<Min.yr.ktch*1000]=0
+# Tab.sp[Tab.sp>=Min.yr.ktch*1000]=1
+# Keep.species=rowSums(Tab.sp,na.rm=T)
+# Keep.species=names(Keep.species[Keep.species>=Min.yrs])
 
 Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)    
 
