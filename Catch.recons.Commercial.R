@@ -510,15 +510,22 @@ Indo_jurisdiction.prop=data.frame(Jurisdiction=c('WA',"NT","QLD"),
 #source: Marshall et al 2016 (MOU box)
 Indo_shark.N.vessels=9  # 9 Type 2 vessels sampled over a period of 1 week (8th to 15th May 2015)
 Indo_shark.comp=data.frame(Species=c('Silvertip shark','Bignose shark','Grey reef shark','Pigeye shark',
-                                     'Spinner shark','Silky shark','Blacktips',
+                                     'Spinner shark','Silky shark','Bull shark','Blacktips',
                                      'Dusky shark','Sandbar shark','Spot tail shark',
-                                     'Tiger shark','Lemon shark','Whitetip reef shark',
-                                     'Scalloped hammerhead','Great hammerhead'),
-                           Proportion=c(0.0022,0.0058,0.0141,0.0033,
-                                        0.0822,0.0011,
+                                     'Tiger shark','Lemon shark',
+                                     'Scalloped hammerhead','Great hammerhead',
+                                     'Whitetip reef shark'),
+                           Proportion=c(0.0022,0.0058,0.0141,0.0033,  #by weight
+                                        0.0822,0.0011,0.0001,
                                         0.0259,0.0293,0.1524,
                                         0.001,0.665,0.0075,
-                                        0.0017,0.0029,0.0056))   #by weight
+                                        0.0029,0.0056,0.0017),
+                           Proportion.by.number=c(0.0066,0.0132,0.0526,
+                                                  0.0066,0.0724,0.0066,
+                                                  0.0132,0.0395,0.0132,
+                                                  0.4342,0.0132,0.2961,
+                                                  0.0066,0.0066,0.0066,
+                                                  0.0132))   
 Indo_shark.weight=10486  #kg  Total weight of the shark catch for the monitored period
 Indo_shark.TL.range=c(89,409)
 Indo_shark.mature=.586    #Tables 5 and 6 have species-specific size and maturity ranges
@@ -527,6 +534,10 @@ Indo_average.trip.length=23  #days
 #Assumptions
 Indo_assumed.n.trips.per.year=5  #assumed number of trips per vessel per year @ 23 days per trip
 Indo_assumed.missed.appr.rate=2  #assume rate of miss-apprehension
+
+
+#Vanesa Jaiteh's thesis
+Indo_MOU.Vanesa=read.csv('C:/Matias/Data/Catch and Effort/Indonesia_Shark Data MasteR_updated_09_Sept_15.csv',stringsAsFactors = F)
 
 
 
@@ -1363,6 +1374,44 @@ Whaler_SA=Whaler_SA[rep(1:N.SA,each=2),]%>%
 
 
 #-- 3.2.4 Indonesian illegal fishing in Australia waters              
+
+# Combine Vanesa's and Marshall et al data
+Indo_MOU.Vanesa=Indo_MOU.Vanesa%>%
+  filter(Location%in%c('MOU Box',"MoU Box"))%>%
+  rename(Species=Species.Ref_plus.Genetics)%>%
+  dplyr::select(Species)%>%
+  mutate(Species=paste(Species,"shark"),
+         Species=ifelse(Species=="Hammerhead_unsp shark","Hammerheads",
+                        ifelse(Species=="Guitarfish_unsp shark","Guitarfish",
+                               ifelse(Species=="Blacktip_unsp shark","Blacktips",Species))))
+Indo_MOU.Vanesa=table(Indo_MOU.Vanesa)   #DEJE ACA
+Indo_MOU.Vanesa=Indo_MOU.Vanesa/sum(Indo_MOU.Vanesa)
+Indo_MOU.Vanesa=data.frame(Species=names(Indo_MOU.Vanesa),
+                           Proportion.by.number=c(Indo_MOU.Vanesa))%>%
+  mutate(Species=as.character(Species))
+rownames(Indo_MOU.Vanesa)=NULL
+Indo.prop.ratio=Indo_shark.comp%>%
+            mutate(ratio=Proportion/Proportion.by.number,
+                   Species=as.character(Species))%>%
+            dplyr::select(Species,ratio)
+Indo_MOU.Vanesa=left_join(Indo_MOU.Vanesa,Indo.prop.ratio,by='Species')%>%
+                  mutate(ratio=ifelse(is.na(ratio),1,ratio),
+                         Proportion.Vanesa=ratio*Proportion.by.number)%>%
+                  dplyr::select(Species,Proportion.Vanesa)
+
+Indo_shark.comp=Indo_shark.comp%>%
+                dplyr::select(-Proportion.by.number)%>%
+                mutate(Species=as.character(Species))%>%
+                full_join(Indo_MOU.Vanesa,by='Species')%>%
+                mutate(Proportion=ifelse(is.na(Proportion),Proportion.Vanesa,
+                                         Proportion),
+                       Proportion.Vanesa=ifelse(is.na(Proportion.Vanesa),Proportion,
+                                          Proportion.Vanesa))
+Indo_shark.comp$Prop=rowMeans(Indo_shark.comp[,2:3])
+Indo_shark.comp=Indo_shark.comp%>%
+                  mutate(Prop=Prop/sum(Prop))%>%
+          dplyr::select(Species,Prop)%>%
+                  rename(Proportion=Prop)
                 
   #Catch per vessel-day
 Indo_avrg.ktch.per.vessel.day=Indo_shark.weight/(Indo_shark.N.vessels*7)
