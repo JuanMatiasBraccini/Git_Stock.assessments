@@ -193,10 +193,9 @@ Tag=fn.read('Tagging_conventional.data.csv')
 #---PARAMETERS SECTION-----
 Explor="NO"
 
-Min.max.ktch=20  #minimum maximum annual catch for a species to be analysed
-#Min.max.ktch=30
-Min.yrs=5        #minimum years with catch records for species to be included in analysis    
-Min.yr.ktch=10    #minimum tonnage per year for at least Min.yrs
+Min.yrs=5
+Min.ktch=5000 #in kg
+
 
 #Reference points
 B.threshold=0.5  #Bmys
@@ -853,8 +852,10 @@ a=Hist.expnd%>%
 Tot.ktch=rbind(Tot.ktch,a)
 
 
-#11. Remove blacktips and school shark because some were reapportioned but are not assessed here
-Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','spot tail shark','Spot tail shark',"School shark" ))
+#11. Remove blacktips & school shark because they are not assessed here. Ditto white sharks
+Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','spot tail shark',
+                                    'Spot tail shark',"School shark",
+                                    "white shark"))
 
 
 
@@ -892,10 +893,8 @@ names(Agg.PSA)[-(1:2)]=substr(names(Agg.PSA)[-(1:2)],2,5)
 
 
   #12.1 PSA  (aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
+#note: PSA used to determine which species to assess further
 Agg.sp=unique(Agg.PSA$Name)
-
-Min.yrs=5
-Min.ktch=5000 #in kg
 KIP=vector('list',length(Agg.sp))
 for(s in 1:length(Agg.sp))
 {
@@ -911,22 +910,40 @@ for(s in 1:length(Agg.sp))
       Keep=ifelse(Sum.yrs>=Min.yrs,"YES","NO"))
   KIP[[s]]=kip
 }
-KIP=do.call(rbind,KIP)
+KIP=do.call(rbind,KIP)%>%
+        filter(Keep=="YES")%>%
+        dplyr::select(Name,Gear)
 
 PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv',stringsAsFactors=F)
-PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)
+PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from Micheli et al 2014
 {
   PSA=data.frame(Species=d$Species,
                  Productivity=rep(NA,nrow(d)),
                  Susceptibility=rep(NA,nrow(d)),
                  Vulnerability=rep(NA,nrow(d)))
-  for(p in 1:nrow(d))
+  for(p in 1:nrow(d))    #ACA: adjust PSA of species given KIP
   {
-    PSA$Productivity[p]=mean(unlist(d[p,c('Max.age','Age.mat','Fecun','Max.size','Size.mat','Rep.strat','Troph.Lvl')]))
-    S1=1+((d$Net.avail[p]*d$Net.encoun[p]*d$Net.sel[p]*d$Net.PCM[p])-1)/40
-    S2=1+((d$Line.avail[p]*d$Line.encoun[p]*d$Line.sel[p]*d$Line.PCM[p])-1)/40
-    S3=1+((d$Trawl.avail[p]*d$Trawl.encoun[p]*d$Trawl.sel[p]*d$Trawl.PCM[p])-1)/40
-    S4=1+((d$Trap.avail[p]*d$Trap.encoun[p]*d$Trap.sel[p]*d$Trap.PCM[p])-1)/40
+    aa=d[p,]
+    if(!aa$Species%in%KIP$Name)
+    {
+      k=KIP%>%filter(Name==aa$Species)
+      aa=aa%>%
+        mutate(Net.avail=ifelse(!'net'%in%k$Gear,1,Net.avail),
+               Net.encoun=ifelse(!'net'%in%k$Gear,1,Net.encoun),
+               Line.avail=ifelse(!'line'%in%k$Gear,1,Line.avail),
+               Line.encoun=ifelse(!'line'%in%k$Gear,1,Line.encoun),
+               Trawl.avail=ifelse(!'trawl'%in%k$Gear,1,Trawl.avail),
+               Trawl.encoun=ifelse(!'trawl'%in%k$Gear,1,Trawl.encoun),
+               Trap.avail=ifelse(!'trap'%in%k$Gear,1,Trap.avail),
+               Trap.encoun=ifelse(!'trap'%in%k$Gear,1,Trap.encoun))
+    }
+      
+    PSA$Productivity[p]=mean(unlist(aa[,c('Max.age','Age.mat','Fecun',
+                                          'Max.size','Size.mat','Rep.strat','Troph.Lvl')]))
+    S1=1+((aa$Net.avail*aa$Net.encoun*aa$Net.sel*aa$Net.PCM)-1)/40
+    S2=1+((aa$Line.avail*aa$Line.encoun*aa$Line.sel*aa$Line.PCM)-1)/40
+    S3=1+((aa$Trawl.avail*aa$Trawl.encoun*aa$Trawl.sel*aa$Trawl.PCM)-1)/40
+    S4=1+((aa$Trap.avail*aa$Trap.encoun*aa$Trap.sel*aa$Trap.PCM)-1)/40
     Cum.susc=min(3,(1+((S1-1)^2+(S2-1)^2+(S3-1)^2+(S4-1)^2)^0.5))
     PSA$Susceptibility[p]=Cum.susc
     PSA$Vulnerability[p]=(PSA$Productivity[p]^2+Cum.susc^2)^0.5  #Euclidean distance
@@ -950,29 +967,14 @@ PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)
           axis.text=element_text(size=12),
           axis.title=element_text(size=14),
           panel.border = element_rect(colour = "black", fill=NA, size=1))
-  
   p
+  
   ggsave(Exprt, width = 8,height = 8, dpi = "retina")
   
   return(as.character(PSA%>%filter(Risk=="high")%>%pull(Species)))
 }
 Keep.species=PSA.fn(d=PSA.list,Exprt=paste(hNdl,"/Outputs/Figure. PSA.tiff",sep=''))
 
-
-#   #12.1 Total cumulative catch of at least Min.max.ktch (in tonnes)
-# MAX.ktch=apply(Agg.r[,2:ncol(Agg.r)],1,max,na.rm=T)/1000
-# names(MAX.ktch)=as.character(Agg.r$Name)
-# Keep.species=names(MAX.ktch[which(MAX.ktch>=Min.max.ktch)])
-# MAX.ktch=rev(sort(MAX.ktch))
-# 
-#   #12.2 with annual catches of Min.yr.ktch (in kg) for at least Min.yrs
-# Tab.sp=subset(Agg.r,Name%in%Keep.species)
-# rownames(Tab.sp)=Tab.sp$Name
-# Tab.sp=Tab.sp[,-1]
-# Tab.sp[Tab.sp<Min.yr.ktch*1000]=0
-# Tab.sp[Tab.sp>=Min.yr.ktch*1000]=1
-# Keep.species=rowSums(Tab.sp,na.rm=T)
-# Keep.species=names(Keep.species[Keep.species>=Min.yrs])
 
 Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)    
 
