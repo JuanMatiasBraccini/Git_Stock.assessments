@@ -28,6 +28,7 @@
 ### MISSING ### 
 #   Commonwealth (waiting from AFMA's Julie Cotsell/ Ryan Murpthy): 1.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)
 #   Whaler_SA (waiting to hear from SARDI's Angelo Tsolos, Paul Rogers)
+#   add MOU box catches, so far only reconstructed ILLEGAL!!
 ####
 
 library(tidyverse)
@@ -489,23 +490,26 @@ Indo_flesh=60 #flesh (kg)
 Indo_fins=63
 Indo_skins=16
 Indo_prop.shark=8/36   #proportion of apprehended vessels fishing for sharks
-Indo_apprehensions.2018=5  #number of apprehended vessels in 2018
 
 #source: Edyvane & Penny 2017 (using all vessels, including MOU because the MOU catch is not accounted for anywhere)
 Indo_sightings=data.frame(year=2000:2013,
                           Total.FFVs.inside.AEEZ=c(4867,5878,3047,9550,6638,9362,7378,4320,
                                                    6827,9117,9517,11822,13979,11455))
 #source: Stacey 2007 Boats to Burn: Bajo Fishing Activity in the Australian Fishing Zone. 
-Indo_apprehensions.Stacey=data.frame(year=1975:2002,
+Indo_apprehensions.Stacey=data.frame(year=1975:1999,
                                Apprehensions=c(3,rep(0,4),2,rep(0,4),5,0,1,46,29,43,38,15,
-                                               23,111,76,97,122,rep(NA,5)))
-#source: ANAO 2010
-Indo_apprehensions=data.frame(year=c(2003:2018),
-                              Apprehensions=c(134,203,367,216,156,27,rep(NA,9),Indo_apprehensions.2018))
-Indo_apprehensions=rbind(Indo_apprehensions.Stacey,Indo_apprehensions)
+                                               23,111,76,97,122,rep(NA,2)))
+#AFMA (sourced by Rik Buckworth)
+Indo_apprehensions=data.frame(year=c(2000:2019),
+                              Apprehensions=c(62,96,143,132,203,360,210,141,18,23,14,12,7,10,5,7,6,9,5,0))
+Indo.prop.apprehen.with.shark=data.frame(Year=2008:2019,
+                                         Total.appr=c(27,23,14,12,7,26,6,20,15,14,5,0),
+                                         With.shark=c(10,14,10,7,5,3,0,6,5,1,0,0))%>%
+                                mutate(prop=With.shark/Total.appr)
 
+# ANAO 2010
 Indo_jurisdiction.prop=data.frame(Jurisdiction=c('WA',"NT","QLD"),
-                                  prop=c(.33,.34,.33))   #arbitrary, from Figure 1.2
+                                  prop=c(.33,.34,.33))   #Figure 1.2 , equally split in 3 based on points scatter
 
 #source: Marshall et al 2016 (MOU box)
 Indo_shark.N.vessels=9  # 9 Type 2 vessels sampled over a period of 1 week (8th to 15th May 2015)
@@ -533,7 +537,7 @@ Indo_average.trip.length=23  #days
 
 #Assumptions
 Indo_assumed.n.trips.per.year=5  #assumed number of trips per vessel per year @ 23 days per trip
-Indo_assumed.missed.appr.rate=2  #assume rate of miss-apprehension
+Indo_assumed.missed.appr.rate=1.5  #assume 50% rate of miss-apprehension
 
 
 #Vanesa Jaiteh's thesis
@@ -1373,9 +1377,21 @@ Whaler_SA=Whaler_SA[rep(1:N.SA,each=2),]%>%
                          LIVEWT.c*Whaler_SA_bronzie.prop))
 
 
-#-- 3.2.4 Indonesian illegal fishing in Australia waters              
+#-- 3.2.4 Indonesian illegal fishing in Australia waters             
 
-# Combine Vanesa's and Marshall et al data
+# Effort
+Indo_prop.shark=mean(c(Indo_prop.shark,Indo.prop.apprehen.with.shark$prop),na.rm=T)
+
+Indo_apprehensions=rbind(Indo_apprehensions.Stacey,Indo_apprehensions)
+Missn.appr=which(is.na(Indo_apprehensions$Apprehensions))
+if(length(Missn.appr)>0)
+{
+  Miss.appr.yrs=Indo_apprehensions$year[Missn.appr]
+  Missing.appre=with(Indo_apprehensions,approx(year,Apprehensions,xout=Miss.appr.yrs))
+  Indo_apprehensions$Apprehensions[Missn.appr]=Missing.appre$y
+}
+ 
+# Combine Vanesa's and Marshall et al data on catch compo
 Indo_MOU.Vanesa=Indo_MOU.Vanesa%>%
   filter(Location%in%c('MOU Box',"MoU Box"))%>%
   rename(Species=Species.Ref_plus.Genetics)%>%
@@ -1384,7 +1400,7 @@ Indo_MOU.Vanesa=Indo_MOU.Vanesa%>%
          Species=ifelse(Species=="Hammerhead_unsp shark","Hammerheads",
                         ifelse(Species=="Guitarfish_unsp shark","Guitarfish",
                                ifelse(Species=="Blacktip_unsp shark","Blacktips",Species))))
-Indo_MOU.Vanesa=table(Indo_MOU.Vanesa)   #DEJE ACA
+Indo_MOU.Vanesa=table(Indo_MOU.Vanesa)   
 Indo_MOU.Vanesa=Indo_MOU.Vanesa/sum(Indo_MOU.Vanesa)
 Indo_MOU.Vanesa=data.frame(Species=names(Indo_MOU.Vanesa),
                            Proportion.by.number=c(Indo_MOU.Vanesa))%>%
@@ -1413,16 +1429,16 @@ Indo_shark.comp=Indo_shark.comp%>%
           dplyr::select(Species,Prop)%>%
                   rename(Proportion=Prop)
                 
-  #Catch per vessel-day
+  #Calculate catch per vessel-day
 Indo_avrg.ktch.per.vessel.day=Indo_shark.weight/(Indo_shark.N.vessels*7)
 Indo_avrg.ktch.per.vessel.day=Indo_shark.comp%>%
   mutate(kg.day.vessel=Proportion*Indo_avrg.ktch.per.vessel.day)
 
-  #Catch per vessel-year
+  #Calculate catch per vessel-year
 Indo_avrg.ktch.per.vessel.year=Indo_avrg.ktch.per.vessel.day%>%
   mutate(kg.year.vessel=kg.day.vessel*Indo_average.trip.length*Indo_assumed.n.trips.per.year)
 
-  #Total catch per year
+  #Calculate Total catch per year
 Indo_total.annual.ktch=Indo_avrg.ktch.per.vessel.year[rep(1:nrow(Indo_avrg.ktch.per.vessel.year),nrow(Indo_apprehensions)),]%>%
   mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_avrg.ktch.per.vessel.year)))%>%
   left_join(Indo_apprehensions,by='year')%>%
@@ -1435,6 +1451,7 @@ Indo_total.annual.ktch=Indo_total.annual.ktch%>%
                         left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Species'='Name'))%>%
                     dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
 
+#MISSING: add MOU box catches, so far only reconstructed ILLEGAL!!
 
 
 # 4 -------------------EXPORT CATCH DATA------------------------------------

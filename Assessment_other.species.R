@@ -46,6 +46,8 @@ library(Biobase)
 library(numDeriv)
 library(spatstat.utils)
 library(Hmisc)
+library(ggplot2)
+library(ggrepel)
 
 Asses.year=2020    #enter year of assessment
 Last.yr.ktch="2017-18"
@@ -112,6 +114,8 @@ All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for c
 #list of life history param for demography
 LH.par=read.csv("C:/Matias/Data/Life history parameters/Life_History_other_sharks.csv",stringsAsFactors=F)
 
+#PSA scores
+PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv',stringsAsFactors=F)
 
 #Temperature
 #TEMP=read.csv("C:/Matias/Data/Oceanography/SST.csv")
@@ -306,7 +310,7 @@ Relevant.yrs=paste(seq(as.numeric(substr(min(Hist.expnd$FINYEAR),1,4)),
                    substr(seq(as.numeric(substr(min(Hist.expnd$FINYEAR),1,4))+1,
                        as.numeric(substr(Last.yr.ktch,1,4))+1),3,4),sep='-')
 
-#Select relevant effort vars  ACA
+#Select relevant effort vars  
 Effort.monthly_blocks=Effort.monthly_blocks%>%
         filter(FINYEAR%in%Relevant.yrs)%>%
         count(FINYEAR,BLOCKX)%>%
@@ -914,14 +918,13 @@ KIP=do.call(rbind,KIP)%>%
         filter(Keep=="YES")%>%
         dplyr::select(Name,Gear)
 
-PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv',stringsAsFactors=F)
 PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from Micheli et al 2014
 {
   PSA=data.frame(Species=d$Species,
                  Productivity=rep(NA,nrow(d)),
                  Susceptibility=rep(NA,nrow(d)),
                  Vulnerability=rep(NA,nrow(d)))
-  for(p in 1:nrow(d))    #ACA: adjust PSA of species given KIP
+  for(p in 1:nrow(d))    
   {
     aa=d[p,]
     if(!aa$Species%in%KIP$Name)
@@ -974,11 +977,11 @@ PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from M
   return(as.character(PSA%>%filter(Risk=="high")%>%pull(Species)))
 }
 Keep.species=PSA.fn(d=PSA.list,Exprt=paste(hNdl,"/Outputs/Figure. PSA.tiff",sep=''))
-
+Keep.species=tolower(Keep.species)
 
 Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)    
 
-#DEJE ACA 
+
 #13. Species grouping   
 Tot.ktch$SP.group=Tot.ktch$Name
 
@@ -1029,8 +1032,6 @@ for(i in 1:N.sp)
 
 setwd(paste(hNdl,'/Outputs',sep=''))
 
-#export proportion of unreapportioned catch
-write.csv(Percent.ktc.not.reapp,"Percent.ktc.not.reapp.csv",row.names=F)
 
 #export Life history table
 #LH.par=subset(LH.par,!SP.group=="Blacktips")
@@ -1049,22 +1050,28 @@ fn.word.table(WD=getwd(),TBL=TabL,Doc.nm="Life history pars",caption=NA,paragph=
 #9. RESILIENCE list                 
 RESILIENCE=vector('list',N.sp)
 names(RESILIENCE)=TabL$Name
-#RESILIENCE$`Very.low`="Very low"
-#RESILIENCE$Low="Low"
-RESILIENCE$`Wobbegongs`="Low"
-#RESILIENCE$`Blacktips`="Low"
-RESILIENCE$`Tiger shark`="Low"
-RESILIENCE$`Spinner shark`="Low"
-RESILIENCE$`Bull shark`="Very low"
+RESILIENCE$`copper shark`="Very low"
+RESILIENCE$`great hammerhead`="Very low"
+RESILIENCE$`grey nurse shark`= "Very low" 
 RESILIENCE$`Lemon shark`="Very low"
-RESILIENCE$`Pigeye shark`="Very low"
+RESILIENCE$`milk shark`="Medium"
+RESILIENCE$`sawsharks`="Low"
 RESILIENCE$`Scalloped hammerhead`="Low"
+RESILIENCE$`shortfin mako`="Very low"
 RESILIENCE$`Smooth hammerhead`="Low"
+RESILIENCE$`Spinner shark`="Low"
 RESILIENCE$`Spurdogs`="Very low"
+RESILIENCE$`Tiger shark`="Low"
+RESILIENCE$`Wobbegongs`="Low"
+
+
 
 #Convert catch from kg to tonnes
 Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
 
+#DEJE ACA:
+#MISSING: For scalloped HH and greynurse, have an if() option to output stuff if doing individual assessment
+#         for Tiger shark, add ASSUMED catch levels for WRL wetline for those years that operated...
 
 #Set catch of all species starting in 1940s
 TAB.dummy=with(Tot.ktch,table(FINYEAR,SP.group))
