@@ -20,7 +20,9 @@
 # 2.For SRA, could try Dan Ovando's approach, once it is installed, but will need cpue index or FMI
 #   rather than standard SPM, try JABBA: Just Another Bayesian Biomass Assessment (can be 
 #   run from R..see Winker et al 2018; it's what IUCN uses)
-# 3.Include ALL species in final risk scoring
+# 3.include mean size of selected species as another line of evidence
+# 4.Include ALL species in final risk scoring
+
 
 rm(list=ls(all=TRUE))
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
@@ -426,79 +428,7 @@ YEARS=sort(as.numeric(substr(unique(Data.monthly$FINYEAR),1,4)))
 Current=YEARS[length(YEARS)]   
 
 
-#Check what tagging data are available
-FL.sp=c('Bull shark','Great hammerhead','Lemon shark','Pigeye shark','Scalloped hammerhead',
-        'Smooth hammerhead','Spinner shark','Spurdogs','Tiger shark',' Wobbegong (general)')
-if(use.tags)
-{
-  Tag=Tag%>%filter(COMMON_NAME%in%FL.sp & Recaptured=="Yes")
-  table(Tag$COMMON_NAME)
-}
-
-
-#Check what catch length frequency data are availabe
-if(Explor=="YES") 
-{
-  Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
-             "RV GANNET","RV SNIPE 2")
-  fun.check.LFQ=function(a,area)
-  {
-    a=a%>%
-      dplyr::select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,
-                      Method,FL,Mid.Lat,Mid.Long,
-                      MESH_SIZE))%>%
-      filter(!is.na(FL))%>%
-      mutate(MESH_SIZE=sub("\"","",MESH_SIZE))
-    Unik.sp=unique(a$COMMON_NAME)
-    
-    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-    b1=table(a$SEX,a$COMMON_NAME)
-    for(u in 1:length(Unik.sp))
-    {
-      bb=b1[,match(Unik.sp[u],colnames(b1))]
-      Xsq <- chisq.test(bb)
-      barplot(bb,main=paste(Unik.sp[u],"(F:M=",round(bb[1]/bb[2],2),":1",", X2, p=",
-                            round(Xsq$p.value,2),")"),cex.main=.9)
-    } 
-    mtext(area,1,outer = T,cex=1.5)
-    
-    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-    b1=table(10*(round(a$FL/10)),a$COMMON_NAME)
-    for(u in 1:length(Unik.sp))
-    {
-      barplot(b1[,match(Unik.sp[u],colnames(b1))],main=Unik.sp[u])
-    }
-    mtext(area,1,outer = T,cex=1.5)
-    
-    
-    for(u in 1:length(Unik.sp))
-    {
-      b1=with(subset(a,COMMON_NAME==Unik.sp[u]),table(10*(round(FL/10)),year))
-      yrs=colnames(b1)
-      smart.par(n.plots=ncol(b1),MAR=c(2,2,1,1),OMA=c(1.75,2,2,.1),MGP=c(1,.5,0))
-      for(s in 1:ncol(b1))
-      {
-        barplot(b1[,match(yrs[s],colnames(b1))],main=paste(yrs[s],"n=",
-                                                           sum(b1[,match(yrs[s],colnames(b1))])))
-      }
-      mtext(paste(area,"-",unique(a$Method),"-",Unik.sp[u]),3,outer=T)
-    }
-    
-    return(a)
-  }
-  PATH=paste(hNdl,"Outputs/Size.frequency",sep='/')
-  if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
-  pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data.pdf",sep=""))
-  LFQ.north=fun.check.LFQ(a=DATA%>%filter(Mid.Lat>(-26) & COMMON_NAME%in%FL.sp &
-                                            Method%in%c('LL')  & !BOAT%in%Res.vess),
-                          area="North")
-  LFQ.south=fun.check.LFQ(a=DATA%>%filter(Mid.Lat<(-26) & COMMON_NAME%in%FL.sp &
-                                            Method%in%c('GN') &!BOAT%in%Res.vess),
-                          area="South")
-  dev.off()
-}
-
-#Explore spatial catch distribution to check if species reporting issues
+#Explore spatial catch distribution to check species reporting issues
 if(Explor=="YES")    
 {
   fn.expl.sp.ktch=function(d1)
@@ -1064,11 +994,158 @@ RESILIENCE$`Wobbegongs`="Low"
 #16. Convert catch from kg to tonnes
 Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
 
+
+#17. Check available tagging and size data
+
+  # tagging data
+FL.sp=c('Bull shark','Great hammerhead','Lemon shark','Pigeye shark','Scalloped hammerhead',
+        'Smooth hammerhead','Spinner shark','Spurdogs','Tiger shark',' Wobbegong (general)',
+        "Grey nurse shark","Hammerheads","Shortfin mako ","Pencil shark",
+        "Lemon shark","Milk shark","Bronze whaler","Common sawshark")
+if(use.tags)
+{
+  Tag=Tag%>%filter(COMMON_NAME%in%FL.sp & Recaptured=="Yes")
+  table(Tag$COMMON_NAME)
+}
+
+  # length frequency data & derive age from size
+if(Explor=="YES") 
+{
+  User="Matias"
+  source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R')
+  Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
+             "RV GANNET","RV SNIPE 2")
+  fun.check.LFQ=function(a,area)
+  {
+    a=a%>%
+      dplyr::select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,
+                      Method,FL,Mid.Lat,Mid.Long,
+                      MESH_SIZE))%>%
+      filter(!is.na(FL))%>%
+      mutate(MESH_SIZE=sub("\"","",MESH_SIZE))
+    Unik.sp=unique(a$COMMON_NAME)
+    
+    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+    b1=table(a$SEX,a$COMMON_NAME)
+    for(u in 1:length(Unik.sp))
+    {
+      bb=b1[,match(Unik.sp[u],colnames(b1))]
+      if(sum(bb)>2)
+      {
+        Xsq <- chisq.test(bb)
+        barplot(bb,main=paste(Unik.sp[u],"(F:M=",round(bb[1]/bb[2],2),":1",", X2, p=",
+                              round(Xsq$p.value,2),")"),cex.main=.9)
+      }
+    } 
+    mtext(area,1,outer = T,cex=1.5)
+    
+    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+    b1=table(10*(round(a$FL/10)),a$COMMON_NAME)
+    for(u in 1:length(Unik.sp))
+    {
+      barplot(b1[,match(Unik.sp[u],colnames(b1))],
+              main=paste(Unik.sp[u]," (n= ",sum(b1[,match(Unik.sp[u],colnames(b1))]),")",sep=""))
+    }
+    mtext(area,1,outer = T,cex=1.5)
+    
+    
+    for(u in 1:length(Unik.sp))
+    {
+      b1=with(subset(a,COMMON_NAME==Unik.sp[u]),table(10*(round(FL/10)),year))
+      yrs=colnames(b1)
+      smart.par(n.plots=ncol(b1),MAR=c(2,2,1,1),OMA=c(1.75,2,2,.1),MGP=c(1,.5,0))
+      for(s in 1:ncol(b1))
+      {
+        barplot(b1[,match(yrs[s],colnames(b1))],main=paste(yrs[s],"n=",
+                                                           sum(b1[,match(yrs[s],colnames(b1))])))
+      }
+      mtext(paste(area,"-",unique(a$Method),"-",Unik.sp[u]),3,outer=T)
+    }
+    
+    return(a)
+  }
+  PATH=paste(hNdl,"Outputs/Size.frequency",sep='/')
+  if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
+  
+  pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data_north.pdf",sep=""))
+  LFQ.north=fun.check.LFQ(a=DATA%>%filter(Mid.Lat>(-26) & COMMON_NAME%in%FL.sp &
+                                            Method%in%c('LL')  & !BOAT%in%Res.vess),
+                          area="North")
+  dev.off()
+  
+  pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data_south.pdf",sep=""))  
+  LFQ.south=fun.check.LFQ(a=DATA%>%filter(Mid.Lat<(-26) & COMMON_NAME%in%FL.sp &
+                                            Method%in%c('GN') &!BOAT%in%Res.vess),
+                          area="South")
+  dev.off()
+  
+  #Get age from size using age-length-key constructed based on assumed variability
+  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Age.length.key.R")  
+  Conversion=data.frame(Name=c("copper shark","great hammerhead","grey nurse shark","lemon shark",
+                               "milk shark","sawsharks","scalloped hammerhead","shortfin mako",
+                               "smooth hammerhead","spinner shark","spurdogs",
+                               "tiger shark","wobbegongs"),
+                        FL.sp=c("Bronze whaler","Great hammerhead","Grey nurse shark","Lemon shark",
+                                "Milk shark","Common sawshark","Scalloped hammerhead","Shortfin mako ",
+                                "Smooth hammerhead","Spinner shark","Spurdogs",
+                                "Tiger shark"," Wobbegong (general)"))
+  Store.age.comp=vector('list',nrow(LH.par))
+  names(Store.age.comp)=LH.par$SPECIES
+  for(l in 1:nrow(LH.par))
+  {
+    NM=as.character(Conversion%>%filter(Name==LH.par$Name[l])%>%pull(FL.sp))
+    Linf=LH.par$FL_inf[l] 
+    Lo=LH.par$LF_o[l] 
+    k=LH.par$K[l] 
+    AMAX=LH.par$Max_Age[l] 
+    
+    mn.len=Lo+(Linf-Lo)*(1-exp(-k*(0:AMAX)))
+    
+    GN=get.prop.at.age.from.length(
+                age=0:AMAX,
+                mn.len=mn.len,
+                SD=mn.len*seq(.15,.025,length.out = AMAX+1),
+                N=100,
+                int=10,
+                Obs.len=DATA%>%
+                          filter(Method=='GN'& 
+                                 COMMON_NAME==NM & 
+                                 !BOAT%in%Res.vess & 
+                                 !is.na(FL))%>%
+                          pull(FL)
+                )
+    
+    LL=get.prop.at.age.from.length(
+                age=0:AMAX,
+                mn.len=mn.len,
+                SD=mn.len*seq(.15,.025,length.out = AMAX+1),
+                N=100,
+                int=10,
+                Obs.len=DATA%>%
+                          filter(Method=='LL'& 
+                                   COMMON_NAME==NM & 
+                                   !BOAT%in%Res.vess & 
+                                   !is.na(FL))%>%
+                          pull(FL)
+                  )
+    Store.age.comp[[l]]=list(GN=GN,LL=LL)
+  }
+   
+  # with(Store.age.comp$`19001`$GN$dat,
+  #      {
+  #        plot(age,Mean.len,type='l')
+  #        points(age,len)
+  #      })
+  # with(Store.age.comp$`19001`$GN$pred.age,points(age,len,pch=19,col="orange"))
+}
+
+
+
 #DEJE ACA:
 #MISSING: For scalloped HH and greynurse, have an if() option to output stuff if doing individual assessment
 #         for Tiger shark, add ASSUMED catch levels for WRL wetline for those years that operated...
 
-#17. Set catch of all species starting in 1940s
+#18. Set catch of all species starting in 1940s
 TAB.dummy=with(Tot.ktch,table(FINYEAR,SP.group))
 Add.yrs=paste(seq(1941,1974),substr(seq(1942,1975),3,4),sep="-")
 id.dummy=match(Add.yrs[1],rownames(TAB.dummy)):match(Add.yrs[length(Add.yrs)],rownames(TAB.dummy))
@@ -1097,7 +1174,7 @@ list.dummy=do.call(rbind,list.dummy)
 Tot.ktch=rbind(Tot.ktch,list.dummy)%>%arrange(SP.group,finyear)
 
 
-#18. Export total catch of each species
+#19. Export total catch of each species
 for(s in 1: N.sp)
 {
   ddd=subset(Tot.ktch,SP.group==Specs$SP.group[s])
@@ -1107,7 +1184,7 @@ for(s in 1: N.sp)
 }
 
 
-#19. Displayed catches for analysed species
+#20. Displayed catches for analysed species
 all.yrs=min(Tot.ktch$finyear):max(Tot.ktch$finyear)
 COLs.type=c("black","grey60","white")
 names(COLs.type)=c("Commercial","Recreational","Taiwan")

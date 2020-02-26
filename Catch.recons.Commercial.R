@@ -533,17 +533,26 @@ Indo_shark.comp=data.frame(Species=c('Silvertip shark','Bignose shark','Grey ree
 Indo_shark.weight=10486  #kg  Total weight of the shark catch for the monitored period
 Indo_shark.TL.range=c(89,409)
 Indo_shark.mature=.586    #Tables 5 and 6 have species-specific size and maturity ranges
-Indo_average.trip.length=23  #days
+#Indo_average.trip.length=23  #days for fishers fishing in MOU box
+
 
 #Assumptions
-Indo_assumed.n.trips.per.year=5  #assumed number of trips per vessel per year @ 23 days per trip
-Indo_assumed.missed.appr.rate=1.5  #assume 50% rate of miss-apprehension
+Indo_assumed.n.trips.per.year=10  #assumed number of trips per vessel per year 
 
 
 #Vanesa Jaiteh's thesis
 Indo_MOU.Vanesa=read.csv('C:/Matias/Data/Catch and Effort/Indonesia_Shark Data MasteR_updated_09_Sept_15.csv',stringsAsFactors = F)
+#Indo_average.trip.length_MOU=mean(c(3*7,8*7))  #days 
+#Indo_assumed.n.trips.per.year_MOU=round(28*365/639) #number of trips between March 2012 and November 2013
+#Indo_average.shark.per.day_MOU=7 # 4 +/- 3 reported
 
-
+#OECD
+Indo_average.shark.per.trip_MOU=2600  #kg
+Indo_trips.per.year_MOU=round(160/3)  #160 reported between 1992 and 1994
+Indo_average.trip.length=4            #days (days in AFZ before being apprehended)
+Indo_MOU.annual.trips.prop=data.frame(year=c(1975:2019),
+                                      trips.prop=rep(1,length(1975:2019)))
+Indo_missed.appr.rate=1.75  
 
 # 3 -------------------PROCEDURE SECTION------------------------------------
 
@@ -1428,21 +1437,29 @@ Indo_shark.comp=Indo_shark.comp%>%
                   mutate(Prop=Prop/sum(Prop))%>%
           dplyr::select(Species,Prop)%>%
                   rename(Proportion=Prop)
-                
-  #Calculate catch per vessel-day
+#reapportion 'hammerhead'               
+Indo_shark.comp=Indo_shark.comp%>%
+                mutate(Proportion=ifelse(Species=='Great hammerhead',
+                                         5.659801e-03+1.295742e-02+0.05597481,
+                                   ifelse(Species=='Scalloped hammerhead',
+                                          2.930968e-03+0.00881229,
+                                      Proportion)))%>%
+                filter(!Species%in%c('Great hammerhead shark','Hammerheads'))
+
+  #IFF. Calculate catch per vessel-day
 Indo_avrg.ktch.per.vessel.day=Indo_shark.weight/(Indo_shark.N.vessels*7)
 Indo_avrg.ktch.per.vessel.day=Indo_shark.comp%>%
   mutate(kg.day.vessel=Proportion*Indo_avrg.ktch.per.vessel.day)
 
-  #Calculate catch per vessel-year
+  #IFF. Calculate catch per vessel-year
 Indo_avrg.ktch.per.vessel.year=Indo_avrg.ktch.per.vessel.day%>%
   mutate(kg.year.vessel=kg.day.vessel*Indo_average.trip.length*Indo_assumed.n.trips.per.year)
 
-  #Calculate Total catch per year
+  #IFF. Calculate Total catch by year
 Indo_total.annual.ktch=Indo_avrg.ktch.per.vessel.year[rep(1:nrow(Indo_avrg.ktch.per.vessel.year),nrow(Indo_apprehensions)),]%>%
   mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_avrg.ktch.per.vessel.year)))%>%
   left_join(Indo_apprehensions,by='year')%>%
-  mutate(kg.year=kg.year.vessel*Apprehensions*Indo_prop.shark*Indo_assumed.missed.appr.rate,
+  mutate(kg.year=kg.year.vessel*Apprehensions*Indo_prop.shark*Indo_missed.appr.rate,
          LIVEWT.c=kg.year*Indo_jurisdiction.prop%>%filter(Jurisdiction=="WA")%>%pull(prop))  #keep WA component
 
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%
@@ -1451,7 +1468,31 @@ Indo_total.annual.ktch=Indo_total.annual.ktch%>%
                         left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Species'='Name'))%>%
                     dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
 
-#MISSING: add MOU box catches, so far only reconstructed ILLEGAL!!
+  #MOU box. Calculate Total catch by year
+Indo_total.annual.ktch_MOU=Indo_average.shark.per.trip_MOU*Indo_trips.per.year_MOU
+Indo_total.annual.ktch_MOU=Indo_shark.comp%>%
+  mutate(kg.year=Proportion*Indo_total.annual.ktch_MOU)
+
+  #MOU box. Calculate Total catch by year
+Indo_total.annual.ktch_MOU=Indo_total.annual.ktch_MOU%>%
+          left_join(All.species.names%>%
+          dplyr::select(-Scien.nm),by=c('Species'='Name'))
+Indo_total.annual.ktch_MOU=Indo_total.annual.ktch_MOU[rep(1:nrow(Indo_total.annual.ktch_MOU),nrow(Indo_MOU.annual.trips.prop)),]%>%
+          mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_total.annual.ktch_MOU)))%>%
+          left_join(Indo_MOU.annual.trips.prop,by='year')%>%
+          mutate(LIVEWT.c=kg.year*trips.prop,
+                 Species=as.character(Species),
+                 FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
+  dplyr::select(colnames(Indo_total.annual.ktch))
+
+
+  #Combine IFF and Mou box
+Indo_total.annual.ktch=rbind(Indo_total.annual.ktch,Indo_total.annual.ktch_MOU)%>%
+              group_by(FINYEAR,SPECIES)%>%
+              summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+              data.frame
+
+
 
 
 # 4 -------------------EXPORT CATCH DATA------------------------------------
