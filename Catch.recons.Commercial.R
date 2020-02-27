@@ -172,13 +172,11 @@ names(Catch_1952_1975)=c("year","LIVEWT.c")
 
 
   #-- 2.1.3 Wetline in the Western Rock lobster fishery
-do.WRL=FALSE
-if(do.WRL)
-{
-  WRL=read.csv(fn.hndl("WRL/Number-of-vessels.csv"))
-  WRL.Wann=read.csv(fn.hndl("WRL/Wann_catch.csv"))
-}
+WRL=read.csv(fn.hndl("WRL/Number-of-vessels.csv"))
+WRL.Wann=read.csv(fn.hndl("WRL/Wann_catch.csv"))
 
+WRL.prop=0.1  #small number of operators used the gear (Taylor et al 2015)   
+WRL.assumed.weight=100  #assumed weight of sharks in kg
 
   #-- 2.1.4 TEPS   
 
@@ -192,6 +190,14 @@ bwt=3.47e-06   #dusky
 awt=3.10038
 bwt.grey=5.4511   #greynurse Otway et al "Documentation of depth-related..."
 awt.grey=3.1716
+Weight=data.frame(Species=c('BT','BW','CP','GB','HZ',
+                            'LG','MS','TG','WP'),    #FishBASE
+                  CAES_Code=c(18014,18003,18001,18004,19004,
+                              18023,10001,18022,10003),
+                  awt=c(2.90,3.10038,2.9,3.24,2.86,
+                        3.07,3.12,3.25,3.04),
+                  bwt=c(0.0107,3.47e-06,0.01040,0.0046,0.0083,
+                        0.0037,0.0054,0.0028,0.01))
 
 
   #-- 2.1.5 Pilbara trawl shark species composition (go to scientist: Corey W.) 
@@ -1239,34 +1245,29 @@ Greynurse.ktch=TEPS%>%filter(SPECIES==8001)
 TEPS_dusky=TEPS%>%filter(SPECIES==18003)
 
 
-  # 3.1.7 Wetline catches of dusky and tiger sharks in  western rock lobster
-if(do.WRL)
-{
-  #note: extrapolate Wann's catch (for one season) to the entire fishery as a proportion of the number of boats
-  WRL.Wann=WRL.Wann%>%mutate(TL=TL_metres*100,
-                             TL=ifelse(is.na(TL),TL_feet*30.48,TL))   #convert to cm
-  fn.weight=function(TL,bwt,awt) bwt*TL^awt
-  WRL.prop=0.1  #small number of operators used the gear (Taylor et al 2015)     
-  Dusky.WRL=WRL.Wann%>%
-    filter(Species=="DW")%>%
-    mutate(LiveWt=fn.weight(TL,bwt,awt))%>%   #in kg
-    group_by(Species)%>%summarise(LiveWt=sum(LiveWt,na.rm=T))
-  Dusky.Tot.Ktch.WRL=WRL%>%
-    mutate(LIVEWT.c=WRL.prop*Dusky.WRL$LiveWt*Number.of.vessels,
-           SPECIES=18003,
-           FINYEAR=Finyear)%>%
-    dplyr::select(SPECIES,FINYEAR,LIVEWT.c)
-  
-  Tiger.WRL=WRL.Wann%>%
-    filter(Species=="TG")%>%
-    mutate(LiveWt=fn.weight(TL,bwt,awt))%>%   #in kg
-    group_by(Species)%>%summarise(LiveWt=sum(LiveWt,na.rm=T))
-  Tiger.Tot.Ktch.WRL=WRL%>%
-    mutate(LIVEWT.c=WRL.prop*Tiger.WRL$LiveWt*Number.of.vessels,
-           SPECIES=18022,
-           FINYEAR=Finyear)%>%
-    dplyr::select(SPECIES,FINYEAR,LIVEWT.c)
-}
+  # 3.1.7 Wetline in the Western Rock lobster fishery
+#note: extrapolate Wann's catch (for one season) to the entire fishery as a proportion of the number of boats
+WRL.Wann1=WRL.Wann%>%
+    mutate(TL=TL_metres*100,
+           TL=ifelse(is.na(TL),TL_feet*30.48,TL),
+           Species=ifelse(Species=="DW",
+                         sample(c("CP","BW"),55,prob=c(0.2,0.8), replace = TRUE),
+                         Species))%>%   #convert to cm
+    left_join(Weight,by="Species")%>%
+    mutate(N=1,
+           LIVEWT.c=(bwt*TL^awt),
+           LIVEWT.c=ifelse(!Species=='BW',LIVEWT.c/1000,LIVEWT.c))%>%
+    group_by(Species,CAES_Code)%>%
+    summarise(N=sum(N,na.rm=T))
+
+WRL.total.ktch=WRL[rep(1:nrow(WRL),each=nrow(WRL.Wann1)),]%>%
+                mutate(Species=rep(WRL.Wann1$Species,nrow(WRL)))%>%
+                left_join(WRL.Wann1,by="Species")%>%
+                mutate(LIVEWT.c=N*WRL.assumed.weight*Number.of.vessels*WRL.prop)%>%
+                dplyr::select(Finyear,CAES_Code,LIVEWT.c)%>%
+                rename(FINYEAR=Finyear,
+                       SPECIES=CAES_Code)
+
 
 
 ## 3.2. Catch of non WA Fisheries
@@ -1524,6 +1525,9 @@ fn.out(d=Data.monthly.north%>%filter(FINYEAR%in%This.fin.yr)%>%
 fn.out(d=Greynurse.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Greynurse.ktch.csv')
 fn.out(d=TEPS_dusky%>%filter(FINYEAR%in%This.fin.yr),NM='recons_TEPS_dusky.csv')
 
+  #Wetline in the Western Rock lobster fishery
+fn.out(d=WRL.total.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='Wetline_rocklobster.csv')
+
 
 #4.2. Catch of non WA Fisheries
  
@@ -1551,6 +1555,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   Hist.expnd$TYPE="Historic"
   Greynurse.ktch$TYPE="Protected"
   TEPS_dusky$TYPE="Protected"
+  WRL.total.ktch$TYPE="WRL"
   Taiwan.gillnet.ktch$TYPE="Taiwanese"
   Taiwan.longline.ktch$TYPE="Taiwanese"
   
@@ -1566,7 +1571,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
                     mutate(TYPE="WA.north")%>%
                     data.frame
   
-  Unified=rbind(Hist.expnd,Greynurse.ktch,TEPS_dusky,Indo_total.annual.ktch,
+  Unified=rbind(Hist.expnd,Greynurse.ktch,TEPS_dusky,WRL.total.ktch,Indo_total.annual.ktch,
                 Taiwan.gillnet.ktch,Taiwan.longline.ktch,
                 Data.monthly.agg,Data.monthly.north.agg)%>%
               left_join(All.species.names,by='SPECIES')%>%
@@ -1578,7 +1583,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
             summarise(Total=round(sum(LIVEWT.c)/1000,1))%>%
             spread(TYPE,Total,fill=0)%>%
             data.frame%>%
-            mutate(Total=Historic+WA.south+WA.north+Protected+Taiwanese+IFF)%>%
+            mutate(Total=Historic+WA.south+WA.north+Protected+Taiwanese+IFF+WRL)%>%
             arrange(-Total)%>%
             left_join(All.species.names%>%dplyr::select(-SPECIES),by="Name")%>%
             rename(Common.name=Name,
@@ -1602,10 +1607,10 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   ID=which.min(abs(Cum.ktch-0.99))
   these.sp=Table1[1:ID,]%>%pull(Common.name)
   
-  LWD=1.75
-  CLs=data.frame(TYPE=c("Historic","South","North","Protected","Taiwanese","IFI"),
-                 CL=c("black","deepskyblue2","coral2","forestgreen","dodgerblue4","darkorange2"),
-                 LT=c(1,1,1,1,3,3))
+  LWD=1.8
+  CLs=data.frame(TYPE=c("Historic","South","North","Protected","Taiwanese","IFI","WRL"),
+                 CL=c("black","deepskyblue2","coral2","forestgreen","dodgerblue4","darkorange2","green"),
+                 LT=c(1,1,1,1,3,3,1))
   fun.plt.Fig1=function(SP)
   {
     d=Unified%>%filter(Name==SP)%>%
@@ -1622,7 +1627,8 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
            if("WA.north"%in%names(d)) lines(yr,d$WA.north,lwd=LWD,col=CL[3],lty=LT[3])
            if("Protected"%in%names(d)) lines(yr,d$Protected,lwd=LWD,col=CL[4],lty=LT[4])
            if("Taiwanese"%in%names(d)) lines(yr,d$Taiwanese,lwd=LWD,col=CL[5],lty=LT[5])
-           if("IFF"%in%names(d)) lines(yr,d$IFF,lwd=LWD,col=CL[6],lty=LT[6]) 
+           if("IFF"%in%names(d)) lines(yr,d$IFF,lwd=LWD,col=CL[6],lty=LT[6])
+           if("WRL"%in%names(d)) lines(yr,d$WRL,lwd=LWD,col=CL[7],lty=LT[7])
          })
 
     mtext(SP,3,cex=.85)
@@ -1632,7 +1638,9 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   smart.par(n.plots=length(these.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
   for(s in 1:length(these.sp)) fun.plt.Fig1(SP=these.sp[s])
   plot.new()
-  legend("center",CLs$TYPE,col=CLs$CL,lty=CLs$LT,lwd=LWD*1.5,bty='n',cex=1.2)
+  legend("center",CLs$TYPE[1:4],col=CLs$CL[1:4],lty=CLs$LT[1:4],lwd=LWD*1.5,bty='n',cex=1.2)
+  plot.new()
+  legend("center",CLs$TYPE[5:7],col=CLs$CL[5:7],lty=CLs$LT[5:7],lwd=LWD*1.5,bty='n',cex=1.2)
   mtext("Financial year",1,outer=T,cex=1.15)
   mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.15)
   dev.off()

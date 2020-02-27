@@ -1,5 +1,5 @@
 library(FSA)
-get.prop.at.age.from.length=function(age,mn.len,SD,N,int,Obs.len)
+get.prop.at.age.from.length=function(age,mn.len,SD,N,int,Obs.len,min.obs)
 {
   #create sample of random lengths  
   Key=data.frame(age=rep(age,each=N),
@@ -12,13 +12,24 @@ get.prop.at.age.from.length=function(age,mn.len,SD,N,int,Obs.len)
   raw <- table(Key$LCat, Key$age)
   WR.key <- prop.table(raw, margin=1)
   
-  #Get age from size sample
-  if(length(Obs.len)>0)
+  #Get age from size sample and selectivity at age
+  if(length(Obs.len)>=min.obs)
   {
+    #age from size
     WR1.len=data.frame(age=as.integer(NA),len=Obs.len)
     suppressWarnings(WR1.len <- alkIndivAge(WR.key,age~len,data=WR1.len))
     
-    return(list(dat=Key,age.len.key=WR.key,pred.age=WR1.len))
+    #selectivity at age
+    fg=fitdist(WR1.len$age, "gamma")
+    #fln <- fitdist(WR1.len, "lnorm")
+    Min.age=min(WR1.len$age)
+    Mx.age=max(WR1.len$age)
+    n.class=ceiling(Mx.age)
+    #Sel=curve(dlnorm(x,meanlog = fln$estimate[1], sdlog = fln$estimate[2] ),from=Min.age,to=Mx.age,n=n.class)
+    Sel=curve(dgamma(x,shape = fg$estimate[1], rate = fg$estimate[2] ),from=Min.age,to=Mx.age,n=n.class)
+    Sel$y=Sel$y/max(Sel$y)
+    
+    return(list(dat=Key,age.len.key=WR.key,pred.age=WR1.len,Selectivity=Sel))
   }
 
 }

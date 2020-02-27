@@ -12,16 +12,11 @@
 #       years of reported catch data
 
 #missing:
-# 1.For the size data, use catch curve for size
-#   (or convert size to age, using 'convert_length_to_age_samples')
-#   with dome shaped selectivity (as other methods, like Adrian Hordyk's
-#   and CCSRA assume logistic selectivity)
-#   and SPR to calculate F (need Alex's help)
-# 2.For SRA, could try Dan Ovando's approach, once it is installed, but will need cpue index or FMI
-#   rather than standard SPM, try JABBA: Just Another Bayesian Biomass Assessment (can be 
+# Rather than standard SPM, try JABBA: Just Another Bayesian Biomass Assessment (can be 
 #   run from R..see Winker et al 2018; it's what IUCN uses)
-# 3.include mean size of selected species as another line of evidence
-# 4.Include ALL species in final risk scoring
+# Try Haddon's aspm for species with enough selectivity at age data (need steepness)
+# Include ALL species in final risk scoring
+
 
 
 rm(list=ls(all=TRUE))
@@ -92,6 +87,8 @@ Data.monthly.north=fn.in(NM='recons_Data.monthly.north.csv')
 #TEPS
 Greynurse.ktch=fn.in(NM='recons_Greynurse.ktch.csv')
 TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
+
+WRL.ktch=fn.in(NM='Wetline_rocklobster.csv')
 
 
   #1.2. Catch of non WA Fisheries
@@ -199,6 +196,7 @@ Tag=fn.read('Tagging_conventional.data.csv')
 #---PARAMETERS SECTION-----
 Explor="NO"
 
+#Criteria for selecting species for quantitative analyses
 Min.yrs=5
 Min.ktch=5000 #in kg
 
@@ -218,19 +216,21 @@ SPR.tar=0.4                # Population Ecology 42, 19–27
 
 #Life history parameters for selected species  
 pup.sx.ratio=.5
+Mn.conv.Fl.Tl=.85  #average convertion (over gummy, dusky, whiskery, sandbar) from FL to TL
+
 
 #Gillnet selectivity from different nets
 Estim.sel.exp='NO'  #not enough observations from different mesh sizes
 
-#Mean weight-based Mortality estimation
-do.Gedamke_Hoenig="NO"     #not used due to knife-edge sel. assumption 
-# and data are in weights, not length
 
-#Do we use conventional tagging data?
-#note: too few recaptures...do not proceed 
-use.tags=F
+#Use conventional tagging data?
+use.tags=F      #too few recaptures...do not use 
 
-Mn.conv.Fl.Tl=.85  #average convertion (over gummy, dusky, whiskery, sandbar) from FL to TL
+
+#Use size composition?
+use.size.comp=F
+Min.obs=50  #minimum number of size observations to derive selectivity curve
+
 
 
 #... Surplus production arguments
@@ -305,11 +305,13 @@ Do.sim.test="NO"
 
 
 #... Control which assessment methods to implement
-do.length.based='NO'
-do.mean.weight.based="NO"
-do.length.based.SPR="NO"
+do.length.based='NO'        #not used due to knife-edge sel. assumption 
+do.mean.weight.based="NO"   #not used due to knife-edge sel. assumption 
+do.length.based.SPR="NO"   #not used due to knife-edge sel. assumption 
 Do.SPM="YES"
 Do.Ktch.MSY="YES"
+do.Gedamke_Hoenig="NO"     #not used due to knife-edge sel. assumption 
+                           # and data are in weights, not length
 
 
 #---PROCEDURE SECTION-----
@@ -402,6 +404,7 @@ Data.monthly=Data.monthly%>%left_join(All.species.names,by='SPECIES')
 Data.monthly.north=Data.monthly.north%>%left_join(All.species.names,by='SPECIES')
 Greynurse.ktch=Greynurse.ktch%>%left_join(All.species.names,by='SPECIES')
 TEPS_dusky=TEPS_dusky%>%left_join(All.species.names,by='SPECIES')
+WRL.ktch=WRL.ktch%>%left_join(All.species.names,by='SPECIES')
 Taiwan.gillnet.ktch=Taiwan.gillnet.ktch%>%left_join(All.species.names,by='SPECIES')
 Taiwan.longline.ktch=Taiwan.longline.ktch%>%left_join(All.species.names,by='SPECIES')
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%left_join(All.species.names,by='SPECIES')
@@ -489,10 +492,12 @@ Tot.ktch=rbind(subset(Data.monthly,SPECIES%in%ThIs,select=c(FishCubeCode,FINYEAR
         mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
                LIVEWT.c=LIVEWT.c/1000,        #in tonnes
                Name=ifelse(SPECIES%in%c(22999,31000),"unidentified sharks",SNAME))%>%
-        group_by(Name,finyear,Region)%>%
+        group_by(Name,FishCubeCode,finyear,Region)%>%
         summarise(LIVEWT.c=sum(LIVEWT.c))
 
 Agg.r=Tot.ktch%>%
+        group_by(Name,finyear,Region)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c))%>%
         spread(finyear,LIVEWT.c)%>%
         data.frame%>%
         arrange(Name)
@@ -618,8 +623,8 @@ blacktips=subset(Scien.nm,Scien.nm%in%c('C. limbatus & C. tilstoni','Carcharhinu
 Shark.species=subset(Shark.species,!Shark.species%in%c(blacktips,School.shark))
   
   #2.3 Remove indicator species, blacktips  and school sharks
-Data.monthly=subset(Data.monthly,SPECIES%in%Shark.species,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX,METHOD))
-Data.monthly.north=subset(Data.monthly.north,SPECIES%in%Shark.species,select=c(SPECIES,SNAME,FINYEAR,LIVEWT.c,BLOCKX,METHOD))
+Data.monthly=subset(Data.monthly,SPECIES%in%Shark.species,select=c(SPECIES,FishCubeCode,SNAME,FINYEAR,LIVEWT.c,BLOCKX,METHOD))
+Data.monthly.north=subset(Data.monthly.north,SPECIES%in%Shark.species,select=c(SPECIES,FishCubeCode,SNAME,FINYEAR,LIVEWT.c,BLOCKX,METHOD))
 
 Data.monthly$Region="South"
 Data.monthly.north$Region="North"
@@ -654,7 +659,8 @@ Rec.ktch=Rec.ktch%>%
               left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Common.Name'='SNAME'))%>%
               mutate(SNAME=Common.Name,
                      Name=Common.Name,
-                     METHOD='Rec.line')%>%
+                     METHOD='Rec.line',
+                     FishCubeCode="Recreational")%>%
               dplyr::select(names(Tot.ktch))
 Rec.ktch$Type="Recreational"
 Tot.ktch$Type="Commercial"
@@ -667,7 +673,8 @@ Taiwan=Taiwan%>%
           mutate(BLOCKX=NA,
                  Name=SNAME,
                  Type="Taiwan",
-                 METHOD=Method)%>%
+                 METHOD=Method,
+                 FishCubeCode="Taiwan")%>%
           dplyr::select(names(Tot.ktch))%>%
           filter(SPECIES%in%unique(Tot.ktch$SPECIES))
 Tot.ktch=rbind(Tot.ktch,Taiwan)
@@ -680,7 +687,8 @@ Indo=Indo_total.annual.ktch%>%
                finyear=as.numeric(substr(FINYEAR,1,4)),
                Name=SNAME,
                Type="IFF",
-               METHOD=NA)%>%
+               METHOD=NA,
+               FishCubeCode="Indo")%>%
         dplyr::select(names(Tot.ktch))%>%
         filter(SPECIES%in%unique(Tot.ktch$SPECIES))
 Tot.ktch=rbind(Tot.ktch,Indo)
@@ -769,18 +777,32 @@ Greynurse.ktch=Greynurse.ktch%>%
                        finyear=as.numeric(substr(FINYEAR,1,4)),
                        Name=SNAME,
                        Type="TEP",
-                       METHOD=NA)%>%
+                       METHOD='GN',
+                       FishCubeCode="TEP")%>%
                 dplyr::select(names(Tot.ktch))
 Tot.ktch=rbind(Tot.ktch,Greynurse.ktch)
 
 
-#10. Add historic  
+#10. add WRL        
+WRL.ktch=WRL.ktch%>%
+                mutate(BLOCKX=NA,
+                       Region="South",
+                       finyear=as.numeric(substr(FINYEAR,1,4)),
+                       Name=SNAME,
+                       Type="WRL.ktch",
+                       METHOD='LL',
+                       FishCubeCode="WRL")%>%
+                dplyr::select(names(Tot.ktch))
+Tot.ktch=rbind(Tot.ktch,WRL.ktch)
+
+#11. Add historic  
 a=Hist.expnd%>%
             mutate(BLOCKX=NA,
                    Region="South",
                    finyear=as.numeric(substr(FINYEAR,1,4)),
                    Type="Commercial",
                    METHOD=NA,
+                   FishCubeCode="Historic",
                    SNAME=ifelse(SNAME%in%c('southern sawshark','common sawshark'),'sawsharks',SNAME),
                    SPECIES=ifelse(SPECIES%in%c(23001,23002),23900,SPECIES),
                    Name=SNAME)%>%
@@ -789,13 +811,13 @@ a=Hist.expnd%>%
 Tot.ktch=rbind(Tot.ktch,a)
 
 
-#11. Remove blacktips & school shark because they are not assessed here. Ditto white sharks
+#12. Remove blacktips & school shark because they are not assessed here. Ditto white sharks
 Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','spot tail shark',
                                     'Spot tail shark',"School shark",
                                     "white shark"))
 
 
-#12. Select species with enough data  
+#13. Select species with enough data  
 Agg=Tot.ktch%>%
   mutate(Gear=ifelse(METHOD%in%c("BS","BH","GN","HN","Pelagic.gillnet"),"net",
               ifelse(METHOD%in%c("DL","DV","EL","GL","HL","HR","HY",
@@ -1009,7 +1031,7 @@ if(use.tags)
 }
 
   # length frequency data & derive age from size
-if(Explor=="YES") 
+if(use.size.comp) 
 {
   User="Matias"
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R')
@@ -1097,14 +1119,14 @@ if(Explor=="YES")
     Linf=LH.par$FL_inf[l] 
     Lo=LH.par$LF_o[l] 
     k=LH.par$K[l] 
-    AMAX=LH.par$Max_Age[l] 
+    AMAX=LH.par$Max_Age[l] +0.5
     
-    mn.len=Lo+(Linf-Lo)*(1-exp(-k*(0:AMAX)))
+    mn.len=Lo+(Linf-Lo)*(1-exp(-k*(0.5:AMAX)))
     
     GN=get.prop.at.age.from.length(
-                age=0:AMAX,
+                age=0.5:AMAX,
                 mn.len=mn.len,
-                SD=mn.len*seq(.15,.025,length.out = AMAX+1),
+                SD=mn.len*seq(.15,.025,length.out = AMAX),
                 N=100,
                 int=10,
                 Obs.len=DATA%>%
@@ -1112,13 +1134,14 @@ if(Explor=="YES")
                                  COMMON_NAME==NM & 
                                  !BOAT%in%Res.vess & 
                                  !is.na(FL))%>%
-                          pull(FL)
+                          pull(FL),
+                min.obs=Min.obs
                 )
     
     LL=get.prop.at.age.from.length(
-                age=0:AMAX,
+                age=0.5:AMAX,
                 mn.len=mn.len,
-                SD=mn.len*seq(.15,.025,length.out = AMAX+1),
+                SD=mn.len*seq(.15,.025,length.out = AMAX),
                 N=100,
                 int=10,
                 Obs.len=DATA%>%
@@ -1126,24 +1149,79 @@ if(Explor=="YES")
                                    COMMON_NAME==NM & 
                                    !BOAT%in%Res.vess & 
                                    !is.na(FL))%>%
-                          pull(FL)
+                          pull(FL),
+                min.obs=Min.obs
                   )
     Store.age.comp[[l]]=list(GN=GN,LL=LL)
   }
    
-  # with(Store.age.comp$`19001`$GN$dat,
-  #      {
-  #        plot(age,Mean.len,type='l')
-  #        points(age,len)
-  #      })
-  # with(Store.age.comp$`19001`$GN$pred.age,points(age,len,pch=19,col="orange"))
-}
+  
+  fn.plt.age.comp=function(sim,obs,sel,Title)
+  {
+    if(!is.null(sim))
+    {
+      with(sim,
+           {
+             plot(age,Mean.len,type='l',lwd=3,xlab="Age",ylab="Length",
+                  main=Title,ylim=c(0,max(len)))
+             points(age,len)
+           })
+      with(obs,points(age,len,pch=19,col="orange"))
+      par(fig = c(0.4,0.95, 0.05, .6), new = T,mgp=c(2,.5,0),las=1)  
+      aa=prop.table(table(obs$age))
+      plot(aa/max(aa),cex.axis=.75,
+           main=paste("Age composition (n=",nrow(obs),")",sep=''),xlab="",ylab="Proportion")
+      lines(sel$x,sel$y,col="forestgreen",lwd=3)
+      legend("topright","Selectivity",bty='n',text.col="forestgreen")
+    }
+  }
+  
+  pdf(paste(hNdl,"/Outputs/Size.frequency/Inferred.age.comp.and.selectivity.pdf",sep=""))
+  for(l in 1:nrow(LH.par))
+  {
+    par(mfcol=c(1,1))
+    fn.plt.age.comp(sim=Store.age.comp[[l]]$GN$dat,
+                    obs=Store.age.comp[[l]]$GN$pred.age,
+                    sel=Store.age.comp[[l]]$GN$Selectivity,
+                    Title=paste(LH.par$Name[l],"(gillnet)"))
+    par(mfcol=c(1,1))
+    fn.plt.age.comp(sim=Store.age.comp[[l]]$LL$dat,
+                    obs=Store.age.comp[[l]]$LL$pred.age,
+                    sel=Store.age.comp[[l]]$LL$Selectivity,
+                    Title=paste(LH.par$Name[l],"(longline)"))
+  }
+  dev.off()
+  
+  #combine selectivities of gillnets and longlines
+  Selectivity.at.age=vector('list',nrow(LH.par))
+  names(Selectivity.at.age)=LH.par$SPECIES
+  for(l in 1:length(Selectivity.at.age))
+  {
+    dummy.GN=dummy.LL=NULL
+    L=Store.age.comp[[l]]$GN$Selectivity
+    if(!is.null(L))dummy.GN=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
+    L=Store.age.comp[[l]]$LL$Selectivity
+    if(!is.null(L))dummy.LL=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
+    dummy=rbind(dummy.GN,dummy.LL)  
+    if(!is.null(dummy))
+    {
+      names(dummy)=c('age','relative.sel')
+      dummy=dummy%>%
+        group_by(age)%>%
+        mutate(relative.sel=mean(relative.sel))
+      dummy$relative.sel=dummy$relative.sel/max(dummy$relative.sel)
+      Selectivity.at.age[[l]]=dummy
+    }
+  }
+ }
 
 
+# Scalloped Hammerhead Scenarios
+Discarding.fisheries=c("C019","C066", "C070","CSLP","EGBS","EGP","KP","KTR","NBP","NDS","OANCGCWC",
+                       "OASC","OP","PFT","SBP","SBS","SBSC","SCT","SWT","WCDS")   
 
 #DEJE ACA:
 #MISSING: For scalloped HH and greynurse, have an if() option to output stuff if doing individual assessment
-#         for Tiger shark, add ASSUMED catch levels for WRL wetline for those years that operated...
 
 #18. Set catch of all species starting in 1940s
 TAB.dummy=with(Tot.ktch,table(FINYEAR,SP.group))
@@ -1455,8 +1533,8 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
 
 #---Length-based Spawning potential ratio------------------------------------------------------
 #note: based on Hordyk et al 2016. Assumptions:
-#      asymptotic selectivity (overestimates F and underestimates SPR if dome-shape) PROBLEM...
-#      length-at-age is normally distributed
+#      asymptotic selectivity (overestimates F and underestimates SPR if dome-shape) so it
+#      cannot be used because length-at-age is normally distributed
 #      constant M at age and growth rates
 if(do.length.based.SPR=="YES")
 {
