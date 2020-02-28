@@ -177,6 +177,7 @@ WRL.Wann=read.csv(fn.hndl("WRL/Wann_catch.csv"))
 
 WRL.prop=0.1  #small number of operators used the gear (Taylor et al 2015)   
 WRL.assumed.weight=100  #assumed weight of sharks in kg
+WRL.copper.dusky.prop=0.1  #average proportion copper sharks
 
   #-- 2.1.4 TEPS   
 
@@ -1251,7 +1252,8 @@ WRL.Wann1=WRL.Wann%>%
     mutate(TL=TL_metres*100,
            TL=ifelse(is.na(TL),TL_feet*30.48,TL),
            Species=ifelse(Species=="DW",
-                         sample(c("CP","BW"),55,prob=c(0.2,0.8), replace = TRUE),
+                         sample(c("CP","BW"),55,
+                                prob=c(WRL.copper.dusky.prop,1-WRL.copper.dusky.prop), replace = TRUE),
                          Species))%>%   #convert to cm
     left_join(Weight,by="Species")%>%
     mutate(N=1,
@@ -1611,7 +1613,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   CLs=data.frame(TYPE=c("Historic","South","North","Protected","Taiwanese","IFI","WRL"),
                  CL=c("black","deepskyblue2","coral2","forestgreen","dodgerblue4","darkorange2","green"),
                  LT=c(1,1,1,1,3,3,1))
-  fun.plt.Fig1=function(SP)
+  fun.plt.Fig2=function(SP)
   {
     d=Unified%>%filter(Name==SP)%>%
                 group_by(FINYEAR,TYPE)%>%
@@ -1633,10 +1635,10 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
 
     mtext(SP,3,cex=.85)
   }
-  tiff(file=fn.hnd.out("Figure1_reconstructed.catch.by.species.tiff"),2400,2400,
+  tiff(file=fn.hnd.out("Figure2_reconstructed.catch.by.species.tiff"),2400,2400,
        units="px",res=300,compression="lzw")
   smart.par(n.plots=length(these.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-  for(s in 1:length(these.sp)) fun.plt.Fig1(SP=these.sp[s])
+  for(s in 1:length(these.sp)) fun.plt.Fig2(SP=these.sp[s])
   plot.new()
   legend("center",CLs$TYPE[1:4],col=CLs$CL[1:4],lty=CLs$LT[1:4],lwd=LWD*1.5,bty='n',cex=1.2)
   plot.new()
@@ -1674,7 +1676,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
                    "Hammerheads",these.sp2))
 
   
-  fun.plt.Fig2=function(SP)
+  fun.plt.Fig1=function(SP)
   {
     d=Unified2%>%filter(Name==SP)%>%
       group_by(FINYEAR)%>%
@@ -1693,10 +1695,10 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
     lines(yr1,d1$Total,lwd=LWD,col='red',lty=3)
     mtext(SP,3,cex=.85)
   }
-  tiff(file=fn.hnd.out("Figure2_reconstructed.vs.original.tiff"),2400,2400,
+  tiff(file=fn.hnd.out("Figure1_reconstructed.vs.original.tiff"),2400,2400,
        units="px",res=300,compression="lzw")
   smart.par(n.plots=length(these.sp2),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-  for(s in 1:length(these.sp2)) fun.plt.Fig2(SP=these.sp2[s])
+  for(s in 1:length(these.sp2)) fun.plt.Fig1(SP=these.sp2[s])
   plot.new()
   legend("right",c("Reconstructed","Original"),col=c('deepskyblue4','red'),lty=c(1,3),lwd=LWD*1.5,bty='n',cex=1.2)
   mtext("Financial year",1,outer=T,cex=1.15)

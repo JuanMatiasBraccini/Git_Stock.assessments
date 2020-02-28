@@ -97,9 +97,9 @@ WRL.ktch=fn.in(NM='Wetline_rocklobster.csv')
 Taiwan.gillnet.ktch=fn.in(NM='recons_Taiwan.gillnet.ktch.csv')
 Taiwan.longline.ktch=fn.in(NM='recons_Taiwan.longline.ktch.csv')
 
+
 #Indonesian illegal fishing in Australia waters
 Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv') 
-
 
 
   #2. WA Recreational catch
@@ -228,7 +228,7 @@ use.tags=F      #too few recaptures...do not use
 
 
 #Use size composition?
-use.size.comp=F
+use.size.comp=T
 Min.obs=50  #minimum number of size observations to derive selectivity curve
 
 
@@ -506,8 +506,11 @@ PCH=rep(19,nrow(Agg.r))
 COL=rep(1,nrow(Agg.r))
 Sp.fig.1=unique(Agg.r$Name)
 
+HnDL=paste(hNdl,"/Outputs/Catch_by.sector/",sep="")
+fnkr8t(HnDL)
+
   #Commercial
-fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_commercial',sep=''),2400,2400) 
+fn.fig(paste(HnDL,'commercial',sep=''),2400,2400) 
 smart.par(n.plots=length(Sp.fig.1),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(i in 1:length(Sp.fig.1))
 {
@@ -531,7 +534,7 @@ Rec.ktch=Rec.ktch%>%mutate(Region=ifelse(zone%in%c('Gascoyne','North Coast'),'No
                            year=as.numeric(substr(FINYEAR,1,4)),
                            Common.Name=tolower(Common.Name))
 Rec.sp=unique(Rec.ktch$Common.Name)
-fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_recreational',sep=''),2400,2400) 
+fn.fig(paste(HnDL,'recreational',sep=''),2400,2400) 
 smart.par(n.plots=length(Rec.sp)+1,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(i in 1:length(Rec.sp))
 {
@@ -565,7 +568,8 @@ Taiwan=rbind(Taiwan.longline.ktch,Taiwan.gillnet.ktch)%>%
               mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
               arrange(SNAME,year)
 sp.taiwan=unique(Taiwan$SNAME)
-fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_Taiwan',sep=''),2400,2400) 
+sp.taiwan=sp.taiwan[!is.na(sp.taiwan)]
+fn.fig(paste(HnDL,'taiwan',sep=''),2400,2400) 
 smart.par(n.plots=length(sp.taiwan),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(i in 1:length(sp.taiwan))
 {
@@ -593,7 +597,7 @@ dev.off()
   #Indonesian IFF catch              
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%filter(!is.na(SPECIES))
 sp.indo=unique(Indo_total.annual.ktch$SNAME)
-fn.fig(paste(hNdl,'/Outputs/Reported_catch_all_species_Indo',sep=''),2400,2400) 
+fn.fig(paste(HnDL,'indo',sep=''),2400,2400) 
 smart.par(n.plots=length(sp.indo),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(i in 1:length(sp.indo))
 {
@@ -674,6 +678,7 @@ Taiwan=Taiwan%>%
                  Name=SNAME,
                  Type="Taiwan",
                  METHOD=Method,
+                 LIVEWT.c=LIVEWT.c*1000,   #back in kg to match other fisheries
                  FishCubeCode="Taiwan")%>%
           dplyr::select(names(Tot.ktch))%>%
           filter(SPECIES%in%unique(Tot.ktch$SPECIES))
@@ -763,7 +768,7 @@ HnDl=paste(hNdl,"/Outputs/Catch_all_sp/",sep="")
 fnkr8t(HnDl)
 for(i in 1:length(Uni.sp))
 {
-  fn.fig(paste(HnDl,"Used.total.ktch_",names(Uni.sp)[i],sep=""),2400,2400) 
+  fn.fig(paste(HnDl,names(Uni.sp)[i],sep=""),2400,2400) 
   par(las=1,mgp=c(1,.8,0),mai=c(.8,1,.3,.1))
   Pt.ktch.sp(sp=Uni.sp[i],SP=names(Uni.sp)[i],LWD=3)
   dev.off()
@@ -789,7 +794,7 @@ WRL.ktch=WRL.ktch%>%
                        Region="South",
                        finyear=as.numeric(substr(FINYEAR,1,4)),
                        Name=SNAME,
-                       Type="WRL.ktch",
+                       Type="WRL",
                        METHOD='LL',
                        FishCubeCode="WRL")%>%
                 dplyr::select(names(Tot.ktch))
@@ -870,6 +875,9 @@ KIP=do.call(rbind,KIP)%>%
         filter(Keep=="YES")%>%
         dplyr::select(Name,Gear)
 
+Tot.ktch=Tot.ktch%>%filter(!Name%in%c("blacktips","dusky shark"))
+
+PSA.list=PSA.list%>%filter(Species%in%unique(Tot.ktch$Name))
 PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from Micheli et al 2014
 {
   PSA=data.frame(Species=d$Species,
@@ -931,6 +939,51 @@ PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from M
 Keep.species=PSA.fn(d=PSA.list,Exprt=paste(hNdl,"/Outputs/Figure. PSA.tiff",sep=''))
 Keep.species=tolower(Keep.species)
 
+#Plot catches of all species
+all.yrs=min(Tot.ktch$finyear):max(Tot.ktch$finyear)
+Fishry.type=sort(unique(Tot.ktch$Type))
+colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
+COLs.type=colfunc(length(Fishry.type))
+names(COLs.type)=Fishry.type
+#ACA
+All.N.sp=sort(unique(Tot.ktch$Name))
+fn.fig(paste(hNdl,'/Outputs/Figure 1_catch_all_species',sep=''),2400,2000) 
+smart.par(n.plots=length(All.N.sp),MAR=c(1,1,.85,.25),OMA=c(2,2.25,.05,.05),MGP=c(1,.5,0))
+par(cex.main=1,cex.axis=.85)
+for(s in 1:length(All.N.sp))
+{
+  ddd=subset(Tot.ktch,Name==All.N.sp[s])%>%
+    group_by(Type,finyear)%>%
+    summarise(Tot=sum(LIVEWT.c,na.rm=T)/1000)%>%
+    filter(!is.na(Tot))
+  plot(all.yrs,all.yrs,col="transparent",ylab="",xlab="",main=capitalize(All.N.sp[s]),
+       ylim=c(0,max(ddd$Tot)),xaxt='n',yaxt='n')
+  unik.T=unique(ddd$Type)
+  for(u in 1:length(unik.T))
+  {
+    cl=COLs.type[match(unik.T[u],names(COLs.type))]
+    with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=.85,pch=21,bg=cl,col="grey10"))
+  }
+  Yrss=seq(all.yrs[1]-1,all.yrs[length(all.yrs)],5)
+  axis(1,Yrss,F,tck=-.035)
+  Yrss=seq(all.yrs[1]-1,all.yrs[length(all.yrs)],10)
+  axis(1,Yrss,F,tck=-.07)
+  if(s%in%26:31)axis(1,Yrss,Yrss,tck=-.07)
+  Yax=pretty(seq(0,max(ddd$Tot),length.out = 4))
+  axis(2,Yax,Yax, cex.axis=.85,padj =0.75,tck=.07,las=3)
+  
+}
+plot.new()
+legend('topleft',names(COLs.type)[1:4],pt.bg=COLs.type[1:4],bty='n',pch=21,cex=1.15,pt.cex=2)
+plot.new()
+legend('topleft',names(COLs.type)[5:length(COLs.type)],pt.bg=COLs.type[5:length(COLs.type)],
+       bty='n',pch=21,cex=1.15,pt.cex=2)
+
+mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
+mtext("Total catch (tonnes)",2,las=3,line=0.65,cex=1.5,outer=T)
+dev.off()
+
+#Analysed selected species
 Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)    
 
 
@@ -1031,6 +1084,7 @@ if(use.tags)
 }
 
   # length frequency data & derive age from size
+WD=getwd()
 if(use.size.comp) 
 {
   User="Matias"
@@ -1214,14 +1268,8 @@ if(use.size.comp)
     }
   }
  }
+setwd(WD)
 
-
-# Scalloped Hammerhead Scenarios
-Discarding.fisheries=c("C019","C066", "C070","CSLP","EGBS","EGP","KP","KTR","NBP","NDS","OANCGCWC",
-                       "OASC","OP","PFT","SBP","SBS","SBSC","SCT","SWT","WCDS")   
-
-#DEJE ACA:
-#MISSING: For scalloped HH and greynurse, have an if() option to output stuff if doing individual assessment
 
 #18. Set catch of all species starting in 1940s
 TAB.dummy=with(Tot.ktch,table(FINYEAR,SP.group))
@@ -1229,45 +1277,46 @@ Add.yrs=paste(seq(1941,1974),substr(seq(1942,1975),3,4),sep="-")
 id.dummy=match(Add.yrs[1],rownames(TAB.dummy)):match(Add.yrs[length(Add.yrs)],rownames(TAB.dummy))
 TAB.dummy=TAB.dummy[id.dummy,]
 Nms.dummy=names(which(colSums(TAB.dummy)<=1))
-Add.dummy=Tot.ktch[id.dummy,]%>%
-                replace(.,,NA)%>%
-                mutate(Type='Commercial',
-                       LIVEWT.c=0,
-                       FINYEAR=Add.yrs,
-                       finyear=as.numeric(substr(FINYEAR,1,4)))
-
-list.dummy=vector('list',length(Nms.dummy))
-for(l in 1:length(Nms.dummy))
+if(length(Nms.dummy)>0)
 {
-  ss=Add.dummy
-  dd=Tot.ktch%>%filter(SP.group==Nms.dummy[l])%>%slice(1)
-  ss=ss%>%mutate(SPECIES=dd$SPECIES,
-                 SNAME=dd$SNAME,
-                 Name=dd$Name,
-                 SP.group=dd$SP.group)
-  if(Nms.dummy[l]=="Scalloped hammerhead") ss=ss%>%filter(!FINYEAR=="1974-75")
-  list.dummy[[l]]=ss
+  Add.dummy=Tot.ktch[id.dummy,]%>%
+    replace(.,,NA)%>%
+    mutate(Type='Commercial',
+           LIVEWT.c=0,
+           FINYEAR=Add.yrs,
+           finyear=as.numeric(substr(FINYEAR,1,4)))
+  
+  list.dummy=vector('list',length(Nms.dummy))
+  for(l in 1:length(Nms.dummy))
+  {
+    ss=Add.dummy
+    dd=Tot.ktch%>%filter(SP.group==Nms.dummy[l])%>%slice(1)
+    ss=ss%>%mutate(SPECIES=dd$SPECIES,
+                   SNAME=dd$SNAME,
+                   Name=dd$Name,
+                   SP.group=dd$SP.group)
+    if(Nms.dummy[l]=="Scalloped hammerhead") ss=ss%>%filter(!FINYEAR=="1974-75")
+    list.dummy[[l]]=ss
+  }
+  list.dummy=do.call(rbind,list.dummy)
+  Tot.ktch=rbind(Tot.ktch,list.dummy)%>%arrange(SP.group,finyear)  
 }
-list.dummy=do.call(rbind,list.dummy)
-Tot.ktch=rbind(Tot.ktch,list.dummy)%>%arrange(SP.group,finyear)
 
 
 #19. Export total catch of each species
+hn.ktch.sp=paste(hNdl,"/Outputs/Catch_assessed_sp/",sep="")
+fnkr8t(hn.ktch.sp)
 for(s in 1: N.sp)
 {
   ddd=subset(Tot.ktch,SP.group==Specs$SP.group[s])
   ddd=aggregate(LIVEWT.c~finyear,ddd,sum)  
-  write.csv(ddd,paste('Catch_all_sp/Total.annual.catch_',Specs$SP.group[s],
+  write.csv(ddd,paste(hn.ktch.sp,'Total.annual.catch_',Specs$SP.group[s],
                       '.csv',sep=""),row.names = F)
 }
 
 
 #20. Displayed catches for analysed species
-all.yrs=min(Tot.ktch$finyear):max(Tot.ktch$finyear)
-COLs.type=c("black","grey60","white")
-names(COLs.type)=c("Commercial","Recreational","Taiwan")
-
-fn.fig(paste(hNdl,'/Outputs/Figure 1_catch_analysed_species',sep=''),2400,2400) 
+fn.fig(paste(hNdl,'/Outputs/Figure 2_catch_analysed_species',sep=''),2400,2400) 
 smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(s in 1: N.sp)
 {
@@ -1275,16 +1324,16 @@ for(s in 1: N.sp)
             group_by(Type,finyear)%>%
             summarise(Tot=sum(LIVEWT.c,na.rm=T))%>%
             filter(!is.na(Tot))
-  plot(all.yrs,all.yrs,col="transparent",ylab="",xlab="",main=Specs$SP.group[s],
+  plot(all.yrs,all.yrs,col="transparent",ylab="",xlab="",main=capitalize(Specs$SP.group[s]),
        ylim=c(0,max(ddd$Tot)),xaxt='n')
   unik.T=unique(ddd$Type)
   for(u in 1:length(unik.T))
   {
        cl=COLs.type[match(unik.T[u],names(COLs.type))]
-      with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=.8,pch=21,bg=cl))
+      with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=1.1,pch=21,bg=cl))
   }
-  if(s==1)legend('topleft',c("WA commercial","WA recreational","Taiwanese"),pt.bg=COLs.type,
-                 bty='n',pch=21,cex=1.25,pt.cex=2)
+  if(s==1)legend('topleft',names(COLs.type),pt.bg=COLs.type,
+                 bty='n',pch=21,cex=1.15,pt.cex=2)
   axis(1,all.yrs,F,tck=-.015)
   axis(1,seq(all.yrs[1],all.yrs[length(all.yrs)],10),
        seq(all.yrs[1],all.yrs[length(all.yrs)],10),tck=-.03)
@@ -1404,6 +1453,8 @@ if(do.mean.weight.based=="YES")
   }
 }
 
+#DEJE ACA:
+#MISSING: For scalloped HH and greynurse, have an if() option to output stuff if doing individual assessment
 
 #---Build r prior -----------------------------------------------------------------------
 fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle)
@@ -1521,7 +1572,7 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
   Age.50.mat=AGE.50.mat[[s]]
   Fecundity=FECU[[s]]
   Breed.cycle=Repro_cycle[[s]]  #years
-  print(names(store.species)[s])
+  print(paste(s,"--",names(store.species)[s]))
   #Get r prior
   r.prior.dist=fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf,Temp=TEMP,Amax=Max.age.F,
                                MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle)
@@ -1530,6 +1581,182 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
   store.species.M[[s]]=r.prior.dist$M
 })
 
+
+#---Calculate steepness -----------------------------------------------------------------------
+fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,FecunditY,Cycle,sexratio,spawn.time)
+{
+  Fecu=unlist(FecunditY)
+  fn.draw.samples=function(A=Amax,RangeMat=MAT,Rangefec=Fecu,Reprod_cycle=Breed.cycle)
+  {
+    #Max Age
+    if(length(A)==1) Max.A=A
+    if(length(A)>1)if(A[1]==A[2]) Max.A=A[1]
+    if(length(A)>1)if(A[1]<A[2]) Max.A=ceiling(rtriangle(1,a=A[1],b=A[2],c=ceiling((A[1]+A[2])/2)))
+    
+    #Age vector
+    age=first.age:Max.A
+    
+    #fecundity at age
+    if(Rangefec[1]==Rangefec[2]) Meanfec.sim=rep(Rangefec[1],length(age))
+    if(Rangefec[1]<Rangefec[2]) Meanfec.sim=rep(ceiling(rtriangle(1,a=Rangefec[1],b=Rangefec[2],
+                                                                  c=ceiling((Rangefec[1]+Rangefec[2])/2))),length(age)) 
+    
+    #Age at 50% maturity
+    if(RangeMat[1]==RangeMat[2]) age.mat.sim=ceiling(RangeMat[1])
+    if(RangeMat[1]<RangeMat[2]) age.mat.sim=ceiling(runif(1,RangeMat[1],RangeMat[2]))  
+    
+    #Reproductive cycle
+    if(length(Reprod_cycle)==1) Rep_cycle.sim=Reprod_cycle else
+    {
+      if(Reprod_cycle[1]==Reprod_cycle[2]) Rep_cycle.sim=round(Reprod_cycle[1])
+      if(Reprod_cycle[1]<Reprod_cycle[2]) Rep_cycle.sim=round(runif(1,Reprod_cycle[1],Reprod_cycle[2]))    
+    }
+    
+    return(list(Max.A=Max.A,age.mat=age.mat.sim,Meanfec=Meanfec.sim,Rep_cycle=Rep_cycle.sim))    
+  }
+  
+  M.fun=function(Amax,age.mat,Hoenig.only="NO")
+  {
+    m.Jensen.2=1.65/age.mat
+    m.Jensen.2=rep(m.Jensen.2,length(age))
+    
+    #Pauly (1980)  
+    #m.Pauly=10^(-0.0066-0.279*log10(Linf)+0.6543*log10(k)+0.4634*log10(Aver.T))
+    #m.Pauly=rep(m.Pauly,length(age))
+    
+    #Hoenig (1983), combined teleost and cetaceans    
+    m.Hoenig=exp(1.44-0.982*log(Amax))      
+    m.Hoenig=rep(m.Hoenig,length(age))
+    
+    #Then et al (2015)
+    m.Then.1=4.899*Amax^(-0.916)
+    m.Then.1=rep(m.Then.1,length(age))
+    
+    
+    #STEP 2. get mean at age
+    if(Hoenig.only=="NO")nat.mort=data.frame(m.Jensen.2,m.Hoenig,m.Then.1)  
+    if(Hoenig.only=="YES")nat.mort=data.frame(m.Hoenig)
+    
+    return(rowMeans(nat.mort))
+    apply(nat.mort, 1, function(x) weighted.mean(x, c(1,1.5,1.5)))
+  }
+  
+  Stipns=function(max.age,M,age.mat,Meanfec,CyclE,Sel)
+  {  
+    #survivorship
+    surv=exp(-M)
+    
+    #fecundity  
+    fecundity=Meanfec*sexratio/CyclE
+    
+    #maturity
+    #maturity=ifelse(age>=age.mat,1,0)   #knife edge
+    maturity=plogis(age,age.mat,1)      #ogive
+    
+    # maximum age is plus group
+    phi.o=0.0
+    cum.survive=1.0
+    z=0.0
+    for (i in 2:(max.age)  )
+    {
+      z=M[i] + F.mult*Sel[i]
+      z.ts=(M[i]+F.mult*Sel[i])*spawn.time
+      phi.o=phi.o+cum.survive*fecundity[i]*maturity[i]*exp(-z.ts)
+      cum.survive=cum.survive*exp(-z )
+    }
+    #plus group  
+    z= M[max.age+1] + F.mult*Sel[max.age+1]
+    z.ts=(M[max.age+1]+F.mult*Sel[max.age+1])*spawn.time
+    phi.o=phi.o + fecundity[max.age+1]*maturity[max.age+1]*cum.survive*exp(-z.ts)/( 1- exp(-z ) )
+    
+    #maximum lifetime reproductive rate at low density
+    alpha=phi.o*surv[1]
+    
+    #steepness
+    h=alpha/(4+alpha)
+    
+    #spawning potential ratio at maximum excess recruitment (MER) (Beverton-Holt relationship)
+    SPR.mer=1/alpha^0.5
+    
+    #optimal depletionlevel (i.e.depletion at MER, the proportional reduction from unexploited level)
+    Dep.MER=((alpha^0.5)-1)/(alpha-1) 
+    
+    return(steepness=h)  
+  }
+  
+  Store=rep(NA,Nsims)
+  for(i in 1:Nsims)
+  {
+    a=fn.draw.samples()
+    A.sim=a$Max.A
+    age=first.age:A.sim
+    Age.mat.sim=a$age.mat
+    Meanfec.sim=a$Meanfec
+    Reprod_cycle.sim=a$Rep_cycle
+    M.sim=M.fun(Amax=A.sim,age.mat=Age.mat.sim)
+    Sel=sel.age
+    if(length(Sel)<length(age))
+    {
+      Sel=c(Sel,rep(Sel[length(Sel)],length(age)-length(Sel)))
+    }
+    Store[i]=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
+                    Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
+                    Sel)
+    #avoid non-sense h
+    if(Store[i]<0.2)repeat 
+    {
+      a=fn.draw.samples()
+      A.sim=a$Max.A
+      age=first.age:A.sim
+      Age.mat.sim=a$age.mat
+      Meanfec.sim=a$Meanfec
+      Reprod_cycle.sim=a$Rep_cycle
+      M.sim=M.fun(Amax=A.sim,age.mat=Age.mat.sim)
+      Sel=sel.age
+      if(length(Sel)<length(age))
+      {
+        Sel=c(Sel,rep(Sel[length(Sel)],length(age)-length(Sel)))
+      }
+      Store[i]=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
+                      Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
+                      Sel)
+      if(Store[i]>0)break
+    }
+    
+  }
+  
+  #get mean and sd from lognormal distribution
+  normal.pars=suppressWarnings(fitdistr(Store, "normal"))
+  gamma.pars=suppressWarnings(fitdistr(Store, "gamma"))  
+  shape=gamma.pars$estimate[1]        
+  rate=gamma.pars$estimate[2]  
+  
+  return(list(shape=shape,rate=rate,
+              mean=normal.pars$estimate[1],
+              sd=normal.pars$estimate[2]))
+}
+
+store.species.steepness=vector('list',N.sp)
+names(store.species.steepness)=Specs$SP.group
+system.time(for(s in 1: N.sp) 
+{
+  #life history
+  Growth.F=GROWTH.F[[s]]
+  TEMP=AVER.T[[s]]
+  Max.age.F=MAX.age.F[[s]]
+  Age.50.mat=AGE.50.mat[[s]]
+  Fecundity=FECU[[s]]
+  Breed.cycle=Repro_cycle[[s]]  #years
+  SEL=Selectivity.at.age[[s]]$relative.sel
+  
+  print(paste(s,"--",names(store.species)[s]))
+  store.species.steepness[[s]]=fun.steepness(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf,
+                                             first.age=0,sel.age=SEL,F.mult=0,Temp=TEMP,
+                                             Amax=Max.age.F,MAT=unlist(Age.50.mat),
+                                             FecunditY=Fecundity,Cycle=Breed.cycle,
+                                             sexratio=0.5,spawn.time = 0)
+  
+})  #Deje aca, error in s=13
 
 #---Length-based Spawning potential ratio------------------------------------------------------
 #note: based on Hordyk et al 2016. Assumptions:
