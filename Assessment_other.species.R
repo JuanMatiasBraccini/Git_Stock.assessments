@@ -945,7 +945,6 @@ Fishry.type=sort(unique(Tot.ktch$Type))
 colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
 COLs.type=colfunc(length(Fishry.type))
 names(COLs.type)=Fishry.type
-#ACA
 All.N.sp=sort(unique(Tot.ktch$Name))
 fn.fig(paste(hNdl,'/Outputs/Figure 1_catch_all_species',sep=''),2400,2000) 
 smart.par(n.plots=length(All.N.sp),MAR=c(1,1,.85,.25),OMA=c(2,2.25,.05,.05),MGP=c(1,.5,0))
@@ -1164,7 +1163,7 @@ if(use.size.comp)
                         FL.sp=c("Bronze whaler","Great hammerhead","Grey nurse shark","Lemon shark",
                                 "Milk shark","Common sawshark","Scalloped hammerhead","Shortfin mako ",
                                 "Smooth hammerhead","Spinner shark","Spurdogs",
-                                "Tiger shark"," Wobbegong (general)"))
+                                "Tiger shark","Wobbegong (general)"))
   Store.age.comp=vector('list',nrow(LH.par))
   names(Store.age.comp)=LH.par$SPECIES
   for(l in 1:nrow(LH.par))
@@ -1186,8 +1185,9 @@ if(use.size.comp)
                 Obs.len=DATA%>%
                           filter(Method=='GN'& 
                                  COMMON_NAME==NM & 
-                                 !BOAT%in%Res.vess & 
-                                 !is.na(FL))%>%
+                                 !BOAT%in%Res.vess)%>%
+                          mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
+                          filter(!is.na(FL))%>%
                           pull(FL),
                 min.obs=Min.obs
                 )
@@ -1199,11 +1199,12 @@ if(use.size.comp)
                 N=100,
                 int=10,
                 Obs.len=DATA%>%
-                          filter(Method=='LL'& 
-                                   COMMON_NAME==NM & 
-                                   !BOAT%in%Res.vess & 
-                                   !is.na(FL))%>%
-                          pull(FL),
+                        filter(Method=='LL'& 
+                                 COMMON_NAME==NM & 
+                                 !BOAT%in%Res.vess)%>%
+                        mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
+                        filter(!is.na(FL))%>%
+                        pull(FL),
                 min.obs=Min.obs
                   )
     Store.age.comp[[l]]=list(GN=GN,LL=LL)
@@ -1453,8 +1454,6 @@ if(do.mean.weight.based=="YES")
   }
 }
 
-#DEJE ACA:
-#MISSING: For scalloped HH and greynurse, have an if() option to output stuff if doing individual assessment
 
 #---Build r prior -----------------------------------------------------------------------
 fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle)
@@ -1699,11 +1698,11 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
     {
       Sel=c(Sel,rep(Sel[length(Sel)],length(age)-length(Sel)))
     }
-    Store[i]=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
+    hh=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
                     Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
                     Sel)
     #avoid non-sense h
-    if(Store[i]<0.2)repeat 
+    if(hh<0.22)repeat 
     {
       a=fn.draw.samples()
       A.sim=a$Max.A
@@ -1717,12 +1716,12 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
       {
         Sel=c(Sel,rep(Sel[length(Sel)],length(age)-length(Sel)))
       }
-      Store[i]=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
+      hh=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
                       Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
                       Sel)
-      if(Store[i]>0)break
+      if(hh>0.22)break
     }
-    
+    Store[i]=hh
   }
   
   #get mean and sd from lognormal distribution
@@ -1750,14 +1749,30 @@ system.time(for(s in 1: N.sp)
   SEL=Selectivity.at.age[[s]]$relative.sel
   
   print(paste(s,"--",names(store.species)[s]))
-  store.species.steepness[[s]]=fun.steepness(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf,
+  store.species.steepness[[s]]=fun.steepness(Nsims=2*NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf,
                                              first.age=0,sel.age=SEL,F.mult=0,Temp=TEMP,
                                              Amax=Max.age.F,MAT=unlist(Age.50.mat),
                                              FecunditY=Fecundity,Cycle=Breed.cycle,
                                              sexratio=0.5,spawn.time = 0)
   
-})  #Deje aca, error in s=13
+})  
 
+#show steepness
+COl.all.sp=colfunc(length(store.species.steepness))
+names(COl.all.sp)=names(store.species.steepness)  
+
+fn.fig(paste(hNdl,'/Outputs/Steepness',sep=''),2400,2400) 
+plot(1:10,xlim=c(0,1),ylim=c(0,20),col='transparent',xlab="Steepness",yaxt='n',ylab="Density")
+for(s in 1:length(store.species.steepness))
+{
+  dist=with(store.species.steepness[[s]],density(rnorm(100000,mean,sd),adjust = 2))
+  dist=with(store.species.steepness[[s]],density(rgamma(10000,shape,rate),adjust = 2))
+  lines(dist,col=COl.all.sp[s],lwd=2)
+}
+legend('topright',names(COl.all.sp),lty=1,lwd=2,col=COl.all.sp,bty='n')
+dev.off()
+
+#Deje aca
 #---Length-based Spawning potential ratio------------------------------------------------------
 #note: based on Hordyk et al 2016. Assumptions:
 #      asymptotic selectivity (overestimates F and underestimates SPR if dome-shape) so it
