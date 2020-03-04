@@ -1,4 +1,5 @@
 library(FSA)
+library(fitdistrplus)
 get.prop.at.age.from.length=function(age,mn.len,SD,N,int,Obs.len,min.obs)
 {
   #create sample of random lengths  
@@ -24,9 +25,10 @@ get.prop.at.age.from.length=function(age,mn.len,SD,N,int,Obs.len,min.obs)
     #fln <- fitdist(WR1.len, "lnorm")
     Min.age=min(WR1.len$age)
     Mx.age=max(WR1.len$age)
-    n.class=ceiling(Mx.age)
-    #Sel=curve(dlnorm(x,meanlog = fln$estimate[1], sdlog = fln$estimate[2] ),from=Min.age,to=Mx.age,n=n.class)
-    Sel=curve(dgamma(x,shape = fg$estimate[1], rate = fg$estimate[2] ),from=Min.age,to=Mx.age,n=n.class)
+    #n.class=ceiling(Mx.age)
+    n.class=length(age)
+    #Sel=curve(dlnorm(x,meanlog = fln$estimate[1], sdlog = fln$estimate[2] ),from=age[1],to=age[length(age)],n=n.class)
+    Sel=curve(dgamma(x,shape = fg$estimate[1], rate = fg$estimate[2] ),from=age[1],to=age[length(age)],n=n.class)
     Sel$y=Sel$y/max(Sel$y)
     
     return(list(dat=Key,age.len.key=WR.key,pred.age=WR1.len,Selectivity=Sel))

@@ -14,9 +14,8 @@
 #missing:
 # Rather than standard SPM, try JABBA: Just Another Bayesian Biomass Assessment (can be 
 #   run from R..see Winker et al 2018; it's what IUCN uses)
-# Try Haddon's aspm for species with enough selectivity at age data (need steepness)
 # Include ALL species in final risk scoring
-
+# Need CPUE for Copper sharks (run SPM and aSPM...)
 
 
 rm(list=ls(all=TRUE))
@@ -230,7 +229,7 @@ use.tags=F      #too few recaptures...do not use
 #Use size composition?
 use.size.comp=T
 Min.obs=50  #minimum number of size observations to derive selectivity curve
-
+Min.len=25  #minimum length of sharks
 
 
 #... Surplus production arguments
@@ -254,11 +253,12 @@ B.init=0.99 #(fixed)
 estim.q="YES"
 
     #Initial estimated par value
-Init.r=list("Bull shark"=.15,"Great hammerhead"=.15,
-            "Lemon shark"=.15,"Pigeye shark"=.15,
-            "Scalloped hammerhead"=.15,"Smooth hammerhead"=.2,
-            "Spinner shark"=.15,"Spurdogs"=.15,
-            "Tiger shark"=.15,"Wobbegongs"=.15)
+Init.r=list("copper shark"=.15,"great hammerhead"=.15,
+            "grey nurse shark"=0.1,
+            "lemon shark"=.15,"milk shark"=.2,"sawsharks"=.15,
+            "scalloped hammerhead"=.15,"smooth hammerhead"=.2,
+            "spinner shark"=.15,"shortfin mako"=.1,"spurdogs"=.15,
+            "tiger shark"=.15,"wobbegongs"=.15)
 
 N.monte=1000
 
@@ -310,6 +310,7 @@ do.mean.weight.based="NO"   #not used due to knife-edge sel. assumption
 do.length.based.SPR="NO"   #not used due to knife-edge sel. assumption 
 Do.SPM="YES"
 Do.Ktch.MSY="YES"
+Do.aSPM="NO"
 do.Gedamke_Hoenig="NO"     #not used due to knife-edge sel. assumption 
                            # and data are in weights, not length
 
@@ -1053,17 +1054,17 @@ names(RESILIENCE)=TabL$Name
 RESILIENCE$`copper shark`="Very low"
 RESILIENCE$`great hammerhead`="Very low"
 RESILIENCE$`grey nurse shark`= "Very low" 
-RESILIENCE$`Lemon shark`="Very low"
+RESILIENCE$`lemon shark`="Very low"
 RESILIENCE$`milk shark`="Medium"
 RESILIENCE$`sawsharks`="Low"
-RESILIENCE$`Scalloped hammerhead`="Low"
+RESILIENCE$`scalloped hammerhead`="Low"
 RESILIENCE$`shortfin mako`="Very low"
-RESILIENCE$`Smooth hammerhead`="Low"
-RESILIENCE$`Spinner shark`="Low"
-RESILIENCE$`Spurdogs`="Very low"
-RESILIENCE$`Tiger shark`="Low"
-RESILIENCE$`Wobbegongs`="Low"
-
+RESILIENCE$`smooth hammerhead`="Low"
+RESILIENCE$`spinner shark`="Low"
+RESILIENCE$`spurdogs`="Very low"
+RESILIENCE$`tiger shark`="Low"
+RESILIENCE$`wobbegongs`="Low"
+RESILIENCE=RESILIENCE[match(LH.par$Name,names(RESILIENCE))]
 
 #16. Convert catch from kg to tonnes
 Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
@@ -1173,6 +1174,8 @@ if(use.size.comp)
     Lo=LH.par$LF_o[l] 
     k=LH.par$K[l] 
     AMAX=LH.par$Max_Age[l] +0.5
+    b_w8t=LH.par$b_w8t[l]
+    a_w8t=LH.par$a_w8t[l]
     
     mn.len=Lo+(Linf-Lo)*(1-exp(-k*(0.5:AMAX)))
     
@@ -1188,6 +1191,7 @@ if(use.size.comp)
                                  !BOAT%in%Res.vess)%>%
                           mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
                           filter(!is.na(FL))%>%
+                          filter(FL>=Min.len)%>%
                           pull(FL),
                 min.obs=Min.obs
                 )
@@ -1204,14 +1208,45 @@ if(use.size.comp)
                                  !BOAT%in%Res.vess)%>%
                         mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
                         filter(!is.na(FL))%>%
+                        filter(FL>=Min.len)%>%
                         pull(FL),
                 min.obs=Min.obs
                   )
-    Store.age.comp[[l]]=list(GN=GN,LL=LL)
+    
+    #fill in objects for aSPM
+    props=data.frame(age=floor(0.5:AMAX),
+                     laa=mn.len,
+                     waa= a_w8t*mn.len^b_w8t,  #catch in tonnes; waa in kgs 
+                     maa=plogis(floor(0.5:AMAX),
+                                floor(mean(unlist(LH.par[l,c('Age_50_Mat_min','Age_50_Mat_max')]))),
+                                1),
+                     sela=NA,
+                     feca=NA)    
+    
+    glb=list(maxage=AMAX,
+             M=NA,
+             Linf=Linf,
+             K=k,
+             t0=NA,
+             Waa=NA,
+             Wab=NA,
+             M50a=floor(mean(unlist(LH.par[l,c('Age_50_Mat_min','Age_50_Mat_max')]))),
+             deltaM=NA,
+             steep=NA,
+             R0=NA,
+             sela50=NA,
+             deltaS=NA,
+             resilience=RESILIENCE[[l]],
+             nages=length(floor(0.5:AMAX)),
+             ages=floor(0.5:AMAX),
+             nyrs=NA,
+             spsname=names(RESILIENCE)[l]
+            )
+    Store.age.comp[[l]]=list(GN=GN,LL=LL,props=props,glb=glb)
   }
    
   
-  fn.plt.age.comp=function(sim,obs,sel,Title)
+  fn.plt.age.comp=function(sim,obs,sel,Title)   
   {
     if(!is.null(sim))
     {
@@ -1263,7 +1298,7 @@ if(use.size.comp)
       names(dummy)=c('age','relative.sel')
       dummy=dummy%>%
         group_by(age)%>%
-        mutate(relative.sel=mean(relative.sel))
+        summarise(relative.sel=mean(relative.sel))
       dummy$relative.sel=dummy$relative.sel/max(dummy$relative.sel)
       Selectivity.at.age[[l]]=dummy
     }
@@ -1343,6 +1378,37 @@ for(s in 1: N.sp)
 mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
+
+
+#21. Collate available abundance data
+cpue.list=list(
+  "copper shark"=NULL,
+  "grey nurse shark"=list(Nat=NULL,
+                          TDGDLF.mon=Greynurse.tdgdlf_mon,
+                          TDGDLF.day=NULL),
+  "lemon shark"=NULL,
+  "great hammerhead"=NULL,
+  "milk shark"=list(Nat=Mil.nat,
+                    TDGDLF.mon=NULL,
+                    TDGDLF.day=NULL),
+  "sawsharks"=NULL,
+  "scalloped hammerhead"=list(Nat=Scal.hh.nat,
+                              TDGDLF.mon=NULL,
+                              TDGDLF.day=NULL),
+  "smooth hammerhead"=list(Nat=NULL,
+                           TDGDLF.mon=Smuz.hh.tdgdlf_mon,
+                           TDGDLF.day=Smuz.hh.tdgdlf_daily), 
+  "spinner shark"=list(Nat=NULL,
+                       TDGDLF.mon=Spinr.tdgdlf_mon,
+                       TDGDLF.day=Spinr.tdgdlf_daily),
+  "shortfin mako"=list(Nat=NULL,
+                       TDGDLF.mon=Mako.tdgdlf_mon,
+                       TDGDLF.day=Mako.tdgdlf_daily),
+  "spurdogs"=NULL,
+  "tiger shark"=list(Nat=Tiger.nat,
+                     TDGDLF.mon=Tiger.tdgdlf_mon,
+                     TDGDLF.day=Tiger.tdgdlf_daily),         
+  "wobbegongs"=NULL) 
 
 
 #---Length-based Mortality estimation------------------------------------------------------
@@ -1772,12 +1838,11 @@ for(s in 1:length(store.species.steepness))
 legend('topright',names(COl.all.sp),lty=1,lwd=2,col=COl.all.sp,bty='n')
 dev.off()
 
-#Deje aca
+
 #---Length-based Spawning potential ratio------------------------------------------------------
 #note: based on Hordyk et al 2016. Assumptions:
 #      asymptotic selectivity (overestimates F and underestimates SPR if dome-shape) so it
-#      cannot be used because length-at-age is normally distributed
-#      constant M at age and growth rates
+#      cannot be used because selectivity-at-age is normally distributed
 if(do.length.based.SPR=="YES")
 {
   library(LBSPR)
@@ -1843,42 +1908,24 @@ if(do.length.based.SPR=="YES")
   }
 }
 
-
+#Deje aca
 #---Single-species SPM -----------------------------------------------------------------------
 if(Do.SPM=="YES")
 {
-  #get abundance data    
-  cpue.list=list(
-    "Bull shark"=NULL,
-    "Great hammerhead"=NULL,
-    "Lemon shark"=NULL,
-    "Pigeye shark"=NULL,
-    "Scalloped hammerhead"=list(Nat=Scal.hh.nat,
-                                TDGDLF.mon=NULL,
-                                TDGDLF.day=NULL),
-    "Smooth hammerhead"=list(Nat=NULL,
-                             TDGDLF.mon=Smuz.hh.tdgdlf_mon,
-                             TDGDLF.day=Smuz.hh.tdgdlf_daily), 
-    "Spinner shark"=list(Nat=NULL,
-                         TDGDLF.mon=Spinr.tdgdlf_mon,
-                         TDGDLF.day=Spinr.tdgdlf_daily),
-    "Spurdogs"=NULL,
-    "Tiger shark"=list(Nat=Tiger.nat,
-                       TDGDLF.mon=Tiger.tdgdlf_mon,
-                       TDGDLF.day=Tiger.tdgdlf_daily),         
-    "Wobbegongs"=NULL) 
-  
   Estimable.qs=list(
-    "Bull shark"=NULL,
-    "Great hammerhead"=NULL,
-    "Lemon shark"=NULL,
-    "Pigeye shark"=NULL,
-    "Scalloped hammerhead"=c(q1=.005,NA,NA),
-    "Smooth hammerhead"=c(NA,q2=.005,q3=.001), 
-    "Spinner shark"=c(NA,q2=.005,q3=.001),
-    "Spurdogs"=NULL,
-    "Tiger shark"=c(q1=.005,q2=.005,q3=.001),         
-    "Wobbegongs"=NULL) 
+    "copper shark"=NULL,
+    "grey nurse shark"=c(NA,q2=.005,NA),
+    "lemon shark"=NULL,
+    "great hammerhead"=NULL,
+    "milk shark"=c(q1=.005,NA,NA),
+    "sawsharks"=NULL,
+    "scalloped hammerhead"=c(q1=.005,NA,NA),
+    "smooth hammerhead"=c(NA,q2=.005,q3=.001), 
+    "spinner shark"=c(NA,q2=.005,q3=.001),
+    "shortfin mako"=c(NA,q2=.005,q3=.001),
+    "spurdogs"=NULL,
+    "tiger shark"=c(q1=.005,q2=.005,q3=.001),         
+    "wobbegongs"=NULL) 
   
   
   #Loop over all species
@@ -2003,8 +2050,9 @@ if(Do.SPM=="YES")
     
     
     #r prior
-    r.prior=store.species[[Id]]$r.prior.normal$mean
-    r.prior.sd=store.species[[Id]]$r.prior.normal$sd
+    Idd=match(Specs$SP.group[s],names(store.species))
+    r.prior=store.species[[Idd]]$r.prior.normal$mean
+    r.prior.sd=store.species[[Idd]]$r.prior.normal$sd
     
     Store.CPUE.eff.dummy=NULL
     QS.dummy=NULL
@@ -2046,11 +2094,11 @@ if(Do.SPM=="YES")
       Mx.ktch=max(ct$LIVEWT.c,na.rm=T)
       AVrg.ktch=mean(ct$LIVEWT.c,na.rm=T)
       K.init=50*AVrg.ktch
-      r.init=Init.r[[Id]]
-      QS=Estimable.qs[[Id]]
+      r.init=Init.r[[match(Specs$SP.group[s],names(Init.r))]]
+      QS=Estimable.qs[[match(Specs$SP.group[s],names(Estimable.qs))]]
       
       #loop over scenarios
-      HR.o.scens=Mx.init.harv[Id]
+      HR.o.scens=Mx.init.harv[match(Specs$SP.group[s],names(Mx.init.harv))]
       dummy=vector('list',length(HR.o.scens))
       names(dummy)=HR.o.scens
       for(h in 1:length(HR.o.scens))
@@ -2213,10 +2261,8 @@ if(Do.SPM=="YES")
   
 }
 
-
-
 #---Catch-MSY ---------------------------------------------------------------
-#note: uses SPM inputs (alreadyy done r prior, ct, etc)
+#note: uses SPM inputs (already done r prior, ct, etc)
 
 rm(DATA.bio,DATA,DATA.ecosystems,Boat_bio,TDGDLF.other.gears,Scalefish,Boat_bio_header_sp)
 if(Do.Ktch.MSY=="YES")
@@ -2480,177 +2526,381 @@ if(Do.Ktch.MSY=="YES")
 }
 
 
+
+
+#---Single-species aSPM -----------------------------------------------------------------------
+if(Do.aSPM=="YES")
+{
+  library(datalowSA)
+  
+  #Tweak dynamics functions to allow 2 Qs
+  dynamics= function (pars, infish, inglb, inprops) 
+  {
+    waa <- inprops$waa
+    maa <- inprops$maa
+    sela <- inprops$sela
+    R0 <- exp(pars[1])
+    B0 <- getB0(R0, inglb, inprops)
+    if (length(pars) == 3)
+    {
+      dep <- doDepletion(pars[1], indepl = pars[3], inprops, 
+                         inglb, inc = 0.02)
+      spb <- SpB(dep$Ndepl, maa, waa)
+      Rinit <- bh(spb, inglb$steep, R0, B0)
+    }else
+    {
+      Rinit <- R0
+    }
+    nyrs <- length(infish[, "year"])
+    nages <- inglb$nages
+    maxage <- inglb$maxage
+    Nt <- matrix(0, nrow = nages, ncol = (nyrs + 1), dimnames = list(0:(nages - 
+                                                                          1), 0:nyrs))
+    columns <- c("Year", "Catch", "PredC", 
+                 "SpawnB", "ExploitB", "FullH", "CPUE", 
+                 "PredCE", "Deplete")
+    fishery <- matrix(NA, nrow = (nyrs + 1), ncol = length(columns), 
+                      dimnames = list(0:nyrs, columns))
+    fishery[, "Year"] <- c((infish$year[1] - 1), infish$year)
+    fishery[, "Catch"] <- c(NA, infish$catch)
+    fishery[, "CPUE"] <- c(NA, infish$cpue)
+    hS <- exp(-inglb$M/2)
+    surv <- exp(-inglb$M)
+    if (length(pars) == 3)
+    {
+      Nt[, 1] <- dep$Ndepl
+    }else
+    {
+      Nt[, 1] <- Rinit
+      for (age in 1:(maxage - 1)) Nt[age + 1, 1] <- Nt[age, 
+                                                       1] * surv
+      Nt[maxage + 1, 1] <- (Nt[maxage, 1] * surv)/(1 - surv)
+    }
+    for (yr in 2:(nyrs + 1)) {
+      spb <- SpB(Nt[, (yr - 1)], maa, waa)
+      exb <- ExB(Nt[, (yr - 1)] * hS, sela, waa)
+      Nt[1, yr] <- bh(spb, inglb$steep, R0, B0)
+      harvest <- min((fishery[yr, "Catch"]/exb), 0.85)
+      hrate <- sela * harvest
+      Ct <- (Nt[, (yr - 1)] * hS) * hrate
+      Nt[2:nages, yr] <- ((Nt[1:(nages - 1), (yr - 1)] * hS) - 
+                            Ct[1:(nages - 1)]) * hS
+      Nt[nages, yr] <- Nt[nages, yr] + ((Nt[nages, yr - 1] * 
+                                           hS) - Ct[nages]) * hS
+      fishery[(yr - 1), 4:5] <- c(spb, exb)
+      fishery[yr, c(3, 6)] <- c(sum(Ct * waa)/1000, hrate[nages])
+    }
+    spb <- SpB(Nt[, yr], maa, waa)
+    exb <- ExB(Nt[, yr] * hS, sela, waa)
+    fishery[yr, 4:5] <- c(spb, exb)
+    fishery[, "Deplete"] <- fishery[, "SpawnB"]/B0
+    ExpB <- fishery[1:nyrs, "ExploitB"]
+    
+    #catchability
+    if(!exists(c('q1.yrs','q2.yrs')))
+    {
+      avq <- exp(mean(log(infish$cpue/fishery[1:nyrs, "ExploitB"]), 
+                      na.rm = TRUE))
+      fishery[2:(nyrs + 1), "PredCE"] <- ExpB * avq
+    }
+    if(exists(c('q1.yrs','q2.yrs')))
+    {
+      id=match(q1.yrs,infish$year)
+      avq1 <- exp(mean(log(infish$cpue[id]/fishery[id+1, "ExploitB"]), 
+                       na.rm = TRUE))
+      fishery[id+1, "PredCE"] <- ExpB[id] * avq1
+      
+      id=match(q2.yrs,infish$year)
+      avq2 <- exp(mean(log(infish$cpue[id]/fishery[id+1, "ExploitB"]), 
+                       na.rm = TRUE))
+      fishery[id+1, "PredCE"] <- ExpB[id] * avq2
+    }
+    return(as.data.frame(fishery))
+  }
+  
+  #fill in objects required for aSPM
+  for(l in 1:nrow(LH.par))   
+  {
+    #selectivity at age
+    sel=Selectivity.at.age[[l]]$relative.sel
+    sel1=Store.age.comp[[l]]$props$sela
+    delta=length(sel1)-length(sel)
+    if(delta>0)sel=c(sel,rep(sel[length(sel)],delta))
+    if(delta<0)sel=sel[1:length(sel1)]
+    Store.age.comp[[l]]$props$sela=sel
+    
+    #Mortality
+    Store.age.comp[[l]]$glb$M=mean(unlist(lapply(store.species.M[[l]], mean)))
+    
+    #steepness
+    Store.age.comp[[l]]$glb$steep=store.species.steepness[[l]]$mean
+  }
+  
+  #init par values
+  aSPM.init=list(
+    "copper shark"=NULL,
+    "grey nurse shark"=NULL,
+    "lemon shark"=NULL,
+    "great hammerhead"=NULL,
+    "milk shark"=NULL,
+    "sawsharks"=NULL,
+    "scalloped hammerhead"=c(logR0=10,sigCE=0.3),
+    "smooth hammerhead"=c(logR0=10,sigCE=0.3), 
+    "spinner shark"=c(logR0=10,sigCE=0.3),
+    "shortfin mako"=NULL,
+    "spurdogs"=NULL,
+    "tiger shark"=c(logR0=10,sigCE=0.3),         
+    "wobbegongs"=NULL)    
+  
+  #run aspm
+  Store.aSPM=vector('list',N.sp)
+  names(Store.aSPM)=Specs$SP.group
+  
+  for(l in 1:nrow(LH.par))
+  {
+    if(!is.null(cpue.list[[l]]))
+    {
+      #catch
+      fish=Tot.ktch%>%
+        filter(SP.group==Specs$SP.group[l])%>%
+        group_by(finyear)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+        data.frame%>%
+        rename(year=finyear,
+               catch=LIVEWT.c)
+      
+      #cpue
+      Id=match(Specs$SP.group[l],names(cpue.list))
+      CPUE=compact(cpue.list[[Id]])
+      len.cpue=length(CPUE)
+      if(len.cpue>1)
+      {
+        a=CPUE[-match("Nat",names(CPUE))]
+        q1.yrs=as.numeric(substr(a$TDGDLF.mon$Finyear,1,4))
+        q2.yrs=as.numeric(substr(a$TDGDLF.day$Finyear,1,4))
+        CPUE=do.call(rbind,a)%>%
+          mutate(yr=as.numeric(substr(Finyear,1,4)),
+                 MeAn=Mean)
+      }
+      if(len.cpue==1)
+      {
+        CPUE=CPUE[[1]]
+        colnames(CPUE)[2]="MeAn"
+      }
+      CPUE=CPUE%>%    
+        dplyr::select(yr,MeAn,CV)%>%
+        rename(year=yr,cpue=MeAn,se=CV)
+      if(min(CPUE$se,na.rm=T)>1)  CPUE$se=CPUE$se/100
+      
+      fish=fish%>%left_join(CPUE,by='year')
+      fish0.ktch=fish[1:20,]%>%
+        mutate(year=year-20,
+               catch=0,
+               cpue=NA,
+               se=NA)
+      fish=rbind(fish0.ktch,fish)
+      
+      #init par values
+      Id=match(Specs$SP.group[l],names(aSPM.init))
+      
+      #global pars
+      glb=Store.age.comp[[l]]$glb
+      glb$nyrs=nrow(fish)
+      
+      #relations at age
+      props=Store.age.comp[[l]]$props
+      
+      #check model at init par values
+      #fishery=dynamics(pars=pars, infish=fish, inglb=glb, inprops=props) 
+      
+      #fit model
+      ans <- fitASPM(initpar=pars,infish=fish,inglb=glb,inprops=props)
+      fishery <- dynamics(ans$par,infish=fish,inglb=glb,inprops = props)
+      
+      rm(q1.yrs,q2.yrs)
+      
+      Store.aSPM[[l]]=list(fit=ans,quantities=fishery)
+    }
+  }
+}
+
+
 #---RESULTS SECTION------
 
 setwd(paste(hNdl,'/Outputs',sep=''))
 
 #Plot overall catch spatial distribution 
-data(worldLLhigh)
-xlm=c(112,130)
-ylm=c(-36,-10)
-Map.this=subset(Tot.ktch,Name%in%Keep.species)
-Map.sp=sort(unique(Map.this$SP.group))
-fn.sptial.ktch=function(d,NMs)
+plot.spatial.dist=FALSE
+if(plot.spatial.dist)
 {
-  D=d
-  D.agg=aggregate(LIVEWT.c~BLOCKX,D,sum)
-  D.agg$LAT.cen=-(as.numeric(substr(D.agg$BLOCKX,1,2))+.5)
-  D.agg$LONG.cen=100+as.numeric(substr(D.agg$BLOCKX,3,4))+.5
-  scaler=max(D.agg$LIVEWT.c)/3.5
+  data(worldLLhigh)
+  xlm=c(112,130)
+  ylm=c(-36,-10)
+  Map.this=subset(Tot.ktch,Name%in%Keep.species)
+  Map.sp=sort(unique(Map.this$SP.group))
+  fn.sptial.ktch=function(d,NMs)
+  {
+    D=d
+    D.agg=aggregate(LIVEWT.c~BLOCKX,D,sum)
+    D.agg$LAT.cen=-(as.numeric(substr(D.agg$BLOCKX,1,2))+.5)
+    D.agg$LONG.cen=100+as.numeric(substr(D.agg$BLOCKX,3,4))+.5
+    scaler=max(D.agg$LIVEWT.c)/3.5
+    
+    plotMap(worldLLhigh, xlim=xlm,ylim=ylm,plt = c(.001, 1, 0.075, 1),
+            col="grey90",tck = 0.025, tckMinor = 0.0125, xlab="",ylab="",axes=F)
+    points(D.agg$LONG.cen,D.agg$LAT.cen,cex=D.agg$LIVEWT.c/scaler,bg="grey50",pch=21)
+    axis(side = 1, at =round(xlm[1]):xlm[2], labels = F, tcl = .25)
+    axis(side = 2, at = round(ylm[1]):ylm[2], labels = F,tcl = .25)
+    box()
+    legend(111,-9.75,NMs,bty='n',cex=.925,xjust=0)
+    Lg=round(quantile(D.agg$LIVEWT.c,probs=c(.75,.95,1)),0)
+    legend('right',paste(Lg),pch=21,pt.bg="grey50",bty='n',pt.cex=Lg/scaler,title="Tonnes",cex=1.1)
+  }
+  fn.fig("Figure 1_Map", 1200, 2400)
+  smart.par(n.plots=length(Map.sp),MAR=c(.1,.1,.1,.1),OMA=c(2.5,2.5,1.5,.1),MGP=c(1,.5,0))
+  for(s in 1: length(Map.sp))
+  {
+    NMs=Map.sp[s]
+    if(NMs=="Low") NMs="Low resilience"
+    if(NMs=="Very.low") NMs="Very low resilience"
+    
+    fn.sptial.ktch(d=subset(Map.this,Name==Map.sp[s]),NMs=NMs)
+    if(s%in%8:10)axis(side = 1, at =seq(xlm[1],xlm[2],4), labels = seq(xlm[1],xlm[2],4), tcl = .5,las=1,cex.axis=1)
+    if(s%in%seq(1,10,3))axis(side = 2, at = seq(ylm[1],ylm[2],4), labels = -seq(ylm[1],ylm[2],4),tcl = .5,las=2,cex.axis=1)
+  }
+  mtext(expression(paste("Latitude ",degree,"S")),side=2,line=0.85,las=3,cex=1.2,outer=T)
+  mtext(expression(paste("Longitude ",degree,"E")),side=1,line=1.1,cex=1.2,outer=T)
+  dev.off()
   
-  plotMap(worldLLhigh, xlim=xlm,ylim=ylm,plt = c(.001, 1, 0.075, 1),
-          col="grey90",tck = 0.025, tckMinor = 0.0125, xlab="",ylab="",axes=F)
-  points(D.agg$LONG.cen,D.agg$LAT.cen,cex=D.agg$LIVEWT.c/scaler,bg="grey50",pch=21)
-  axis(side = 1, at =round(xlm[1]):xlm[2], labels = F, tcl = .25)
-  axis(side = 2, at = round(ylm[1]):ylm[2], labels = F,tcl = .25)
-  box()
-  legend(111,-9.75,NMs,bty='n',cex=.925,xjust=0)
-  Lg=round(quantile(D.agg$LIVEWT.c,probs=c(.75,.95,1)),0)
-  legend('right',paste(Lg),pch=21,pt.bg="grey50",bty='n',pt.cex=Lg/scaler,title="Tonnes",cex=1.1)
+  # Spatio-temporal catch
+  #note: bubble size is proportion of blocks fished out of maximum number of blocks fished for each species
+  fn.spatio.temp.catch.dist=function(d)
+  {
+    d1=d%>% filter(SNAME%in%Keep.species)%>%
+      count(FINYEAR,SPECIES,BLOCKX)%>%
+      group_by(FINYEAR,SPECIES)%>%
+      mutate(n=ifelse(n>0,1,0))%>%
+      group_by(FINYEAR,SPECIES)%>%
+      summarise(n=sum(n,na.rm=T))%>%
+      spread(FINYEAR,n,fill=0)
+    All.sp=d1$SPECIES 
+    d1=d1%>%dplyr::select(-SPECIES)%>%as.matrix
+    Mx=apply(d1,1,max)
+    d1=d1/Mx
+    
+    yrs=as.numeric(substr(colnames(d1),1,4))
+    Sp.nms=subset(All.species.names,SPECIES%in%All.sp)
+    
+    plot(1:nrow(d1),1:nrow(d1),col='transparent',ylab="",xlab="",yaxt='n',xlim=c(min(yrs),max(yrs)))
+    for(p in 1:length(All.sp)) points(yrs,rep(p,length(yrs)),col='steelblue',cex=2*d1[p,],pch=19)
+    axis(2,1:length(All.sp),capitalize(Sp.nms$SNAME),las=1)
+    mtext(side = 1, line = 2, 'Financial year',cex=1.5)
+    
+    par(new=T)
+    plot(yrs,Effort_blocks$Tot,type='l',col=rgb(0,0,1,alpha=.3),xlab="",ylab="",axes=F,lwd=5,lty=1)
+    axis(side = 4,las=1)
+    mtext(side = 4, line = 3, 'Number of blocks fished',las=3,cex=1.5)
+    
+    
+  }
+  fn.fig("Figure Spatio-temporal catch", 2400, 2400)
+  par(mar=c(2.5,4,.1,1),oma=c(.5,6,.1,3),mgp=c(1.5,.7,0))
+  fn.spatio.temp.catch.dist(d=rbind(Data.monthly%>%filter(!is.na(BLOCKX)),
+                                    Data.monthly.north%>%filter(!is.na(BLOCKX))))
+  dev.off()
 }
-fn.fig("Figure 1_Map", 1200, 2400)
-smart.par(n.plots=length(Map.sp),MAR=c(.1,.1,.1,.1),OMA=c(2.5,2.5,1.5,.1),MGP=c(1,.5,0))
-for(s in 1: length(Map.sp))
-{
-  NMs=Map.sp[s]
-  if(NMs=="Low") NMs="Low resilience"
-  if(NMs=="Very.low") NMs="Very low resilience"
-  
-  fn.sptial.ktch(d=subset(Map.this,Name==Map.sp[s]),NMs=NMs)
-  if(s%in%8:10)axis(side = 1, at =seq(xlm[1],xlm[2],4), labels = seq(xlm[1],xlm[2],4), tcl = .5,las=1,cex.axis=1)
-  if(s%in%seq(1,10,3))axis(side = 2, at = seq(ylm[1],ylm[2],4), labels = -seq(ylm[1],ylm[2],4),tcl = .5,las=2,cex.axis=1)
-}
-mtext(expression(paste("Latitude ",degree,"S")),side=2,line=0.85,las=3,cex=1.2,outer=T)
-mtext(expression(paste("Longitude ",degree,"E")),side=1,line=1.1,cex=1.2,outer=T)
-dev.off()
 
-# Spatio-temporal catch
-#note: bubble size is proportion of blocks fished out of maximum number of blocks fished for each species
-fn.spatio.temp.catch.dist=function(d)
-{
-  d1=d%>% filter(SNAME%in%Keep.species)%>%
-    count(FINYEAR,SPECIES,BLOCKX)%>%
-    group_by(FINYEAR,SPECIES)%>%
-    mutate(n=ifelse(n>0,1,0))%>%
-    group_by(FINYEAR,SPECIES)%>%
-    summarise(n=sum(n,na.rm=T))%>%
-    spread(FINYEAR,n,fill=0)
-  All.sp=d1$SPECIES 
-  d1=d1%>%dplyr::select(-SPECIES)%>%as.matrix
-  Mx=apply(d1,1,max)
-  d1=d1/Mx
-  
-  yrs=as.numeric(substr(colnames(d1),1,4))
-  Sp.nms=subset(All.species.names,SPECIES%in%All.sp)
-  
-  plot(1:nrow(d1),1:nrow(d1),col='transparent',ylab="",xlab="",yaxt='n',xlim=c(min(yrs),max(yrs)))
-  for(p in 1:length(All.sp)) points(yrs,rep(p,length(yrs)),col='steelblue',cex=2*d1[p,],pch=19)
-  axis(2,1:length(All.sp),capitalize(Sp.nms$SNAME),las=1)
-  mtext(side = 1, line = 2, 'Financial year',cex=1.5)
-  
-  par(new=T)
-  plot(yrs,Effort_blocks$Tot,type='l',col=rgb(0,0,1,alpha=.3),xlab="",ylab="",axes=F,lwd=5,lty=1)
-  axis(side = 4,las=1)
-  mtext(side = 4, line = 3, 'Number of blocks fished',las=3,cex=1.5)
-  
-  
-}
-fn.fig("Figure Spatio-temporal catch", 2400, 2400)
-par(mar=c(2.5,4,.1,1),oma=c(.5,6,.1,3),mgp=c(1.5,.7,0))
-fn.spatio.temp.catch.dist(d=rbind(Data.monthly%>%filter(!is.na(BLOCKX)),
-                                  Data.monthly.north%>%filter(!is.na(BLOCKX))))
-dev.off()
 
 #Catch by year
-South.WA.lat=c(-36,-25); South.WA.long=c(112,130)
-Long.seq=seq(South.WA.long[1]+1,South.WA.long[2]-1,by=3)
-Lat.seq=c(-26,-28,-30,-32,-34)
-
-PLATE=c(.01,.9,.075,.9)
-numInt=20
-Colfunc <- colorRampPalette(c("yellow","red"))
-Couleurs=c("white",Colfunc(numInt-1))
-
-fn.ctch.plot.all.yrs=function(DATA,tcl.1,tcl.2,numInt) 
-{
-  DATA$LAT=-as.numeric(substr(DATA$BLOCKX,1,2))
-  DATA$LONG=100+as.numeric(substr(DATA$BLOCKX,3,4))
-  DATA=subset(DATA,!is.na(LAT))
-  DATA=subset(DATA,LAT>(-40))
-  DATA$blk=substr(DATA$BLOCKX,1,4)
-  A=aggregate(LIVEWT.c~FINYEAR+blk,DATA,sum)
-  Ymax=max(A$LIVEWT.c)
-  Ymin=min(A$LIVEWT.c)
-  
-  Breaks=quantile(A$LIVEWT.c,probs=seq(0,1,1/numInt),na.rm=T)
-  a=South.WA.long[1]:South.WA.long[2]
-  b=seq(South.WA.lat[1],South.WA.lat[2],length.out=length(a))
-  DATA$BLOCKX.c=with(DATA,paste(LAT,LONG))
-  
-  FINYrS=table(DATA$FINYEAR)
-  FINYrS=FINYrS[FINYrS>20]
-  FINYrS=sort(names(FINYrS))
-  
-  smart.par(length(FINYrS)+1,MAR=c(1,2.5,1.5,.1),OMA=c(2,2,.1,.1),MGP=c(.1,.7,0))
-  for(y in 1:length(FINYrS))
-  {
-    A=subset(DATA,FINYEAR==FINYrS[y])
-    MapCatch=with(A,aggregate(LIVEWT.c,list(BLOCKX.c),FUN=sum,na.rm=T))
-    colnames(MapCatch)=c("BLOCKX.c","Total Catch")
-    id=unique(match(MapCatch$BLOCKX.c,DATA$BLOCKX.c))
-    MapCatch$LAT=DATA$LAT[id]
-    MapCatch$LONG=DATA$LONG[id]
-    msn.lat=seq(min(MapCatch$LAT),max(MapCatch$LAT))
-    msn.lat=msn.lat[which(!msn.lat%in%MapCatch$LAT)]
-    if(length(msn.lat)>0)
-    {
-      dummy=MapCatch[1:length(msn.lat),]
-      dummy$`Total Catch`=0
-      dummy$LAT=msn.lat
-      dummy$BLOCKX.c=with(dummy,paste(LAT,LONG))
-      MapCatch=rbind(MapCatch,dummy)
-    }
-    
-    MapCatch$LAT.cen=MapCatch$LAT-.5
-    MapCatch$LONG.cen=MapCatch$LONG+.5  
-    MapCatch=MapCatch[order(MapCatch$LAT.cen,MapCatch$LONG.cen),]
-    MapCatch=subset(MapCatch,LONG.cen<=South.WA.long[2])
-    long=sort(unique(MapCatch$LONG.cen))
-    lat=sort(unique(MapCatch$LAT.cen))      #latitude vector for image  
-    MapCatch=MapCatch[,match(c("LONG.cen","LAT.cen","Total Catch"),names(MapCatch))]  
-    Reshaped=as.matrix(reshape(MapCatch,idvar="LONG.cen",  	#transposed as matrix 	
-                               timevar="LAT.cen",v.names="Total Catch", direction="wide"))	
-    Reshaped=Reshaped[order(Reshaped[,1]),]
-    Reshaped=Reshaped[,-1]	
-    numberLab=10
-    colLeg=(rep(c("black",rep("transparent",numberLab-1)),(numInt+1)/numberLab))
-    
-    plotmap(a,b,PLATE,"dark grey",South.WA.long,South.WA.lat)
-    image(long,lat,z=Reshaped,xlab="",ylab="",col =Couleurs,breaks=Breaks,axes = FALSE,add=T)			
-    axis(side = 1, at =South.WA.long[1]:South.WA.long[2], labels = F, tcl = tcl.1)
-    axis(side = 4, at = South.WA.lat[2]:South.WA.lat[1], labels = F,tcl =tcl.2)
-    par(new=T)
-    plotmap(a,b,PLATE,"dark grey",South.WA.long,South.WA.lat)
-    legend('top',FINYrS[y],bty='n',cex=1.2)
-    axis(side = 1, at =Long.seq, labels = Long.seq, tcl = .35,las=1,cex.axis=1,padj=-.15)
-    axis(side = 2, at = Lat.seq, labels = -Lat.seq,tcl = .35,las=2,cex.axis=1,hadj=1.1)
-  }
-  plot(a,b,ann=F,axes=F,col='transparent')
-  color.legend(quantile(a,probs=.25),quantile(b,probs=.75),quantile(a,probs=.4),quantile(b,probs=.25),
-               paste(round(Breaks,0),"kg"),rect.col=Couleurs,gradient="y",col=colLeg,cex=.5)
-}
-Spatial.ktch.sp=c(19000,18023,20000,18022,13000)
-names(Spatial.ktch.sp)=c("Smooth hammerhead","Spinner shark","Spurdogs",
-                  "Tiger shark","Wobbegongs")
-pdf("Appendix1_Spatial catch by year.pdf")
-for(s in 1: length(Spatial.ktch.sp))
-{
-  fn.ctch.plot.all.yrs(DATA=subset(Data.monthly,SPECIES==Spatial.ktch.sp[s]),tcl.1=.1,tcl.2=.1,numInt=20)
-  legend("bottom",names(Spatial.ktch.sp)[s],bty='n',cex=.9)
-  mtext("Longitude (E)",1,outer=T,line=1,cex=1.25)
-  mtext("Latitude (S)",2,outer=T,line=0,cex=1.25,las=3)
-}
-dev.off()
+# South.WA.lat=c(-36,-25); South.WA.long=c(112,130)
+# Long.seq=seq(South.WA.long[1]+1,South.WA.long[2]-1,by=3)
+# Lat.seq=c(-26,-28,-30,-32,-34)
+# 
+# PLATE=c(.01,.9,.075,.9)
+# numInt=20
+# Colfunc <- colorRampPalette(c("yellow","red"))
+# Couleurs=c("white",Colfunc(numInt-1))
+# 
+# fn.ctch.plot.all.yrs=function(DATA,tcl.1,tcl.2,numInt) 
+# {
+#   DATA$LAT=-as.numeric(substr(DATA$BLOCKX,1,2))
+#   DATA$LONG=100+as.numeric(substr(DATA$BLOCKX,3,4))
+#   DATA=subset(DATA,!is.na(LAT))
+#   DATA=subset(DATA,LAT>(-40))
+#   DATA$blk=substr(DATA$BLOCKX,1,4)
+#   A=aggregate(LIVEWT.c~FINYEAR+blk,DATA,sum)
+#   Ymax=max(A$LIVEWT.c)
+#   Ymin=min(A$LIVEWT.c)
+#   
+#   Breaks=quantile(A$LIVEWT.c,probs=seq(0,1,1/numInt),na.rm=T)
+#   a=South.WA.long[1]:South.WA.long[2]
+#   b=seq(South.WA.lat[1],South.WA.lat[2],length.out=length(a))
+#   DATA$BLOCKX.c=with(DATA,paste(LAT,LONG))
+#   
+#   FINYrS=table(DATA$FINYEAR)
+#   FINYrS=FINYrS[FINYrS>20]
+#   FINYrS=sort(names(FINYrS))
+#   
+#   smart.par(length(FINYrS)+1,MAR=c(1,2.5,1.5,.1),OMA=c(2,2,.1,.1),MGP=c(.1,.7,0))
+#   for(y in 1:length(FINYrS))
+#   {
+#     A=subset(DATA,FINYEAR==FINYrS[y])
+#     MapCatch=with(A,aggregate(LIVEWT.c,list(BLOCKX.c),FUN=sum,na.rm=T))
+#     colnames(MapCatch)=c("BLOCKX.c","Total Catch")
+#     id=unique(match(MapCatch$BLOCKX.c,DATA$BLOCKX.c))
+#     MapCatch$LAT=DATA$LAT[id]
+#     MapCatch$LONG=DATA$LONG[id]
+#     msn.lat=seq(min(MapCatch$LAT),max(MapCatch$LAT))
+#     msn.lat=msn.lat[which(!msn.lat%in%MapCatch$LAT)]
+#     if(length(msn.lat)>0)
+#     {
+#       dummy=MapCatch[1:length(msn.lat),]
+#       dummy$`Total Catch`=0
+#       dummy$LAT=msn.lat
+#       dummy$BLOCKX.c=with(dummy,paste(LAT,LONG))
+#       MapCatch=rbind(MapCatch,dummy)
+#     }
+#     
+#     MapCatch$LAT.cen=MapCatch$LAT-.5
+#     MapCatch$LONG.cen=MapCatch$LONG+.5  
+#     MapCatch=MapCatch[order(MapCatch$LAT.cen,MapCatch$LONG.cen),]
+#     MapCatch=subset(MapCatch,LONG.cen<=South.WA.long[2])
+#     long=sort(unique(MapCatch$LONG.cen))
+#     lat=sort(unique(MapCatch$LAT.cen))      #latitude vector for image  
+#     MapCatch=MapCatch[,match(c("LONG.cen","LAT.cen","Total Catch"),names(MapCatch))]  
+#     Reshaped=as.matrix(reshape(MapCatch,idvar="LONG.cen",  	#transposed as matrix 	
+#                                timevar="LAT.cen",v.names="Total Catch", direction="wide"))	
+#     Reshaped=Reshaped[order(Reshaped[,1]),]
+#     Reshaped=Reshaped[,-1]	
+#     numberLab=10
+#     colLeg=(rep(c("black",rep("transparent",numberLab-1)),(numInt+1)/numberLab))
+#     
+#     plotmap(a,b,PLATE,"dark grey",South.WA.long,South.WA.lat)
+#     image(long,lat,z=Reshaped,xlab="",ylab="",col =Couleurs,breaks=Breaks,axes = FALSE,add=T)			
+#     axis(side = 1, at =South.WA.long[1]:South.WA.long[2], labels = F, tcl = tcl.1)
+#     axis(side = 4, at = South.WA.lat[2]:South.WA.lat[1], labels = F,tcl =tcl.2)
+#     par(new=T)
+#     plotmap(a,b,PLATE,"dark grey",South.WA.long,South.WA.lat)
+#     legend('top',FINYrS[y],bty='n',cex=1.2)
+#     axis(side = 1, at =Long.seq, labels = Long.seq, tcl = .35,las=1,cex.axis=1,padj=-.15)
+#     axis(side = 2, at = Lat.seq, labels = -Lat.seq,tcl = .35,las=2,cex.axis=1,hadj=1.1)
+#   }
+#   plot(a,b,ann=F,axes=F,col='transparent')
+#   color.legend(quantile(a,probs=.25),quantile(b,probs=.75),quantile(a,probs=.4),quantile(b,probs=.25),
+#                paste(round(Breaks,0),"kg"),rect.col=Couleurs,gradient="y",col=colLeg,cex=.5)
+# }
+# Spatial.ktch.sp=c(19000,18023,20000,18022,13000)
+# names(Spatial.ktch.sp)=c("Smooth hammerhead","Spinner shark","Spurdogs",
+#                   "Tiger shark","Wobbegongs")
+# pdf("Appendix1_Spatial catch by year.pdf")
+# for(s in 1: length(Spatial.ktch.sp))
+# {
+#   fn.ctch.plot.all.yrs(DATA=subset(Data.monthly,SPECIES==Spatial.ktch.sp[s]),tcl.1=.1,tcl.2=.1,numInt=20)
+#   legend("bottom",names(Spatial.ktch.sp)[s],bty='n',cex=.9)
+#   mtext("Longitude (E)",1,outer=T,line=1,cex=1.25)
+#   mtext("Latitude (S)",2,outer=T,line=0,cex=1.25,las=3)
+# }
+# dev.off()
 
 #Plot total catch and effort
 ktch.s=subset(Data.monthly,SPECIES%in%c(19000,Specs$SPECIES))%>%
@@ -2914,11 +3164,9 @@ Store.cons.Like.SRM=Store.cons.Like.SPM
 
 fn.fig(paste(hNdl,"/Outputs/Figure 2_Biomass_SPM",sep=""),2400,2400)
 HR.o.scens=Mx.init.harv[1]
-#nrw=length(HR.o.scens)*length(Efficien.scens)
-#ncl=sum(sapply(SPM.preds,function(x) !is.null(x)))
-nrw=2
-ncl=2
-par(mfcol=c(nrw,ncl),mar=c(1.2,2,1.5,1.25),oma=c(2,1.75,.2,2.1),las=1,cex.axis=.8,mgp=c(1,.62,0))
+smart.par(n.plots=length(compact(SPM.preds)),MAR=c(1.2,2,1.5,1.25),
+          OMA=c(2,1.75,.2,2.1),MGP=c(1,.62,0))
+par(las=1,cex.axis=.8)
 for(s in 1: N.sp)
 {
   if(!is.null(SPM.preds[[s]]))
@@ -2981,9 +3229,11 @@ rm(HR.o.scens)
 
 
 #Plot MSY  
-fn.fig(paste(hNdl,"/Outputs/Figure 2_MSY_SPM",sep=""), 2400, 1200)
+fn.fig(paste(hNdl,"/Outputs/Figure 2_MSY_SPM",sep=""), 2400, 2400)
 HR.o.scens=Mx.init.harv[1]
-par(mfcol=c(nrw,ncl),mar=c(1.2,2,1.5,1.25),oma=c(2,1.75,.2,2.1),las=1,cex.axis=.8,mgp=c(1,.62,0))
+smart.par(n.plots=length(compact(SPM.preds)),MAR=c(1.2,2,1.5,1.25),
+          OMA=c(2,1.75,.2,2.1),MGP=c(1,.62,0))
+par(las=1,cex.axis=.8)
 for(s in 1: N.sp)
 {
   if(!is.null(SPM.preds[[s]]))
@@ -3117,9 +3367,10 @@ if(Do.Ktch.MSY)
   }
   
   
-  fn.fig("Figure 3_Biomass_Catch_MSY", 2000, 2000)
-  par(mfcol=c(5,2),mar=c(1.2,2,1.5,1.75),oma=c(2,1.75,.2,2.1),las=1,cex.axis=1.1,mgp=c(1,.5,0))
-  
+  fn.fig("Figure 3_Biomass_Catch_MSY", 2400, 1800)
+  smart.par(n.plots=length(compact(store.species)),MAR=c(1.2,2,1.5,1.75),
+            OMA=c(2,1.75,.2,2.1),MGP=c(1,.5,0))
+  par(las=1,cex.axis=1.1)
   for(s in 1: N.sp)
   {
     Yrs=Store.stuff[[s]]$yrs
