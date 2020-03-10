@@ -296,7 +296,7 @@ ERROR=0   #is default.
 
 
     #depletion level at start of catch series
-STARTBIO=c(B.init*.99,B.init)   #low depletion because starting time series prior to any fishing
+STARTBIO=c(B.init*.95,B.init)   #low depletion because starting time series prior to any fishing
 FINALBIO=c(.2,.9)       #very uncertain
 
 
@@ -609,7 +609,7 @@ mtext("Calendar year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
-  #Indonesian IFF catch              
+  #Indonesian fishing incursions (IFI) catch              
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%filter(!is.na(SPECIES))
 sp.indo=unique(Indo_total.annual.ktch$SNAME)
 fn.fig(paste(HnDL,'indo',sep=''),2400,2400) 
@@ -700,13 +700,13 @@ Taiwan=Taiwan%>%
 Tot.ktch=rbind(Tot.ktch,Taiwan)
 
 
-#7. Add Indonesia IFF
+#7. Add Indonesian fishing incursions (IFI)
 Indo=Indo_total.annual.ktch%>%
         mutate(BLOCKX=NA,
                Region="North",
                finyear=as.numeric(substr(FINYEAR,1,4)),
                Name=SNAME,
-               Type="IFF",
+               Type="IFI",
                METHOD=NA,
                FishCubeCode="Indo")%>%
         dplyr::select(names(Tot.ktch))%>%
@@ -3978,7 +3978,7 @@ if(Asses.Scalloped.HH)
   hNdl.HH=paste(hNdl,'Outputs/each_species/scalloped hammerhead/National assessment/',sep='/')
   
   fn.fig(paste(hNdl.HH,'Figure 1_catches',sep=''),2400,2400) 
-  par(mar=c(3.5,3.25,1.5,1),las=1,mgp=c(1,.75,0))
+  par(mar=c(3.5,3.25,1.5,1),las=1,mgp=c(1,.75,0),cex.axis=1.25)
   for(s in s)
   {
     ddd=subset(Tot.ktch,SP.group==Specs$SP.group[s])%>%
@@ -3991,7 +3991,7 @@ if(Asses.Scalloped.HH)
     for(u in 1:length(unik.T))
     {
       cl=COLs.type[match(unik.T[u],names(COLs.type))]
-      with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=1.5,lwd=2,pch=21,bg=cl))
+      with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=1.75,lwd=2,pch=21,bg=cl))
     }
     legend('topleft',names(COLs.type)[1:4],pt.bg=COLs.type[1:4],
            bty='n',pch=21,cex=1.15,pt.cex=2)
@@ -4000,7 +4000,7 @@ if(Asses.Scalloped.HH)
     axis(1,Yrs.lab,Yrs.lab,tck=-.02)
     
   }
-  mtext("Financial year",1,line=-1,cex=1.5,outer=T)
+  mtext("Financial year",1,line=-1.2,cex=1.5,outer=T)
   mtext("Total catch (tonnes)",2,las=3,line=-1.2,cex=1.5,outer=T)
   dev.off()
   
@@ -4040,7 +4040,7 @@ if(Asses.Scalloped.HH)
               }
           }
         }
-         mtext("year",1,outer=T)
+         mtext("Financial year",1,line=.6,outer=T)
         mtext("lncpue",2,outer=T,las=3)
         rm(HR.o.scens)
         
