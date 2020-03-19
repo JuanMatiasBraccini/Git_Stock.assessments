@@ -249,7 +249,7 @@ Efficien.scens=c(0)
 #Efficien.scens=c(.01)
 
     #Proportional biomass (as proportion of K) at start of catch time series
-B.init=1 #(fixed)
+B.init=1 #(fixed)  Starting @ virgin level
 
     #Estimate q
 estim.q="NO"   #use Haddon's q MLE calculation
@@ -272,12 +272,14 @@ N.monte=1000
 MAX.CV=1.1
 
     #Define which optimisation method to use
-minimizer='nlminb'
-#minimizer='optim'
+#minimizer='nlminb'
+minimizer='optim'
+
+Remove.bounds=FALSE
 
     #K bounds
 Low.bound.K=10  #times the maximum catch
-Up.bound.K=100 
+Up.bound.K=50 
 
     #K init times max ktch
 k.times.mx.ktch=mean(c(Low.bound.K,Up.bound.K))
@@ -306,10 +308,23 @@ r.prior="USER"  #demography
 r.prior2=NA    #uniform
 
     #Scenarios  
-Nscen=1
-SCENARIOS=vector('list',Nscen)
-names(SCENARIOS)=c('BaseCase')
-SCENARIOS$BaseCase=list(Error=ERROR,R.prior=r.prior,Initial.dep=STARTBIO)
+Modl.rn="standard"   #for annual assessments
+#Modl.rn='first'       #for paper
+if(Modl.rn=="first")
+{
+  Nscen=2
+  SCENARIOS=vector('list',Nscen)
+  names(SCENARIOS)=c('BaseCase','WorstCase')
+  SCENARIOS$BaseCase=list(Error=ERROR,R.prior=r.prior,Initial.dep=STARTBIO)
+  SCENARIOS$WorstCase=list(Error=ERROR,R.prior=r.prior2,Initial.dep=STARTBIO)
+}else
+{
+  Nscen=1
+  SCENARIOS=vector('list',Nscen)
+  names(SCENARIOS)=c('BaseCase')
+  SCENARIOS$BaseCase=list(Error=ERROR,R.prior=r.prior,Initial.dep=STARTBIO)
+}  
+
 
     #Future projections
 years.futures=5
@@ -609,7 +624,7 @@ mtext("Calendar year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
-  #Indonesian fishing incursions (IFI) catch              
+  #Indonesian fishing incursions catch              
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%filter(!is.na(SPECIES))
 sp.indo=unique(Indo_total.annual.ktch$SNAME)
 fn.fig(paste(HnDL,'indo',sep=''),2400,2400) 
@@ -700,13 +715,13 @@ Taiwan=Taiwan%>%
 Tot.ktch=rbind(Tot.ktch,Taiwan)
 
 
-#7. Add Indonesian fishing incursions (IFI)
+#7. Add Indonesian fishing incursions
 Indo=Indo_total.annual.ktch%>%
         mutate(BLOCKX=NA,
                Region="North",
                finyear=as.numeric(substr(FINYEAR,1,4)),
                Name=SNAME,
-               Type="IFI",
+               Type="Indonesia",
                METHOD=NA,
                FishCubeCode="Indo")%>%
         dplyr::select(names(Tot.ktch))%>%
@@ -1062,29 +1077,11 @@ fn.word.table(WD=getwd(),TBL=TabL,Doc.nm="Table 1. Life history pars",caption=NA
               Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
 
 
-#15. RESILIENCE list                 
-RESILIENCE=vector('list',N.sp)
-names(RESILIENCE)=TabL$Name
-RESILIENCE$`copper shark`="Very low"
-RESILIENCE$`great hammerhead`="Very low"
-RESILIENCE$`grey nurse shark`= "Very low" 
-RESILIENCE$`lemon shark`="Very low"
-RESILIENCE$`milk shark`="Medium"
-RESILIENCE$`sawsharks`="Low"
-RESILIENCE$`scalloped hammerhead`="Low"
-RESILIENCE$`shortfin mako`="Very low"
-RESILIENCE$`smooth hammerhead`="Low"
-RESILIENCE$`spinner shark`="Low"
-RESILIENCE$`spurdogs`="Very low"
-RESILIENCE$`tiger shark`="Low"
-RESILIENCE$`wobbegongs`="Low"
-RESILIENCE=RESILIENCE[match(LH.par$Name,names(RESILIENCE))]
-
-#16. Convert catch from kg to tonnes
+#15. Convert catch from kg to tonnes
 Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
 
 
-#17. Check available tagging and size data
+#16. Check available tagging data
 
   # tagging data
 FL.sp=c('Bull shark','Great hammerhead','Lemon shark','Pigeye shark','Scalloped hammerhead',
@@ -1097,231 +1094,8 @@ if(use.tags)
   table(Tag$COMMON_NAME)
 }
 
-  # length frequency data & derive age from size
-WD=getwd()
-if(use.size.comp) 
-{
-  User="Matias"
-  source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R')
-  Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
-             "RV GANNET","RV SNIPE 2")
-  fun.check.LFQ=function(a,area)
-  {
-    a=a%>%
-      dplyr::select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,
-                      Method,FL,Mid.Lat,Mid.Long,
-                      MESH_SIZE))%>%
-      filter(!is.na(FL))%>%
-      mutate(MESH_SIZE=sub("\"","",MESH_SIZE))
-    Unik.sp=unique(a$COMMON_NAME)
-    
-    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-    b1=table(a$SEX,a$COMMON_NAME)
-    for(u in 1:length(Unik.sp))
-    {
-      bb=b1[,match(Unik.sp[u],colnames(b1))]
-      if(sum(bb)>2)
-      {
-        Xsq <- chisq.test(bb)
-        barplot(bb,main=paste(Unik.sp[u],"(F:M=",round(bb[1]/bb[2],2),":1",", X2, p=",
-                              round(Xsq$p.value,2),")"),cex.main=.9)
-      }
-    } 
-    mtext(area,1,outer = T,cex=1.5)
-    
-    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
-    b1=table(10*(round(a$FL/10)),a$COMMON_NAME)
-    for(u in 1:length(Unik.sp))
-    {
-      barplot(b1[,match(Unik.sp[u],colnames(b1))],
-              main=paste(Unik.sp[u]," (n= ",sum(b1[,match(Unik.sp[u],colnames(b1))]),")",sep=""))
-    }
-    mtext(area,1,outer = T,cex=1.5)
-    
-    
-    for(u in 1:length(Unik.sp))
-    {
-      b1=with(subset(a,COMMON_NAME==Unik.sp[u]),table(10*(round(FL/10)),year))
-      yrs=colnames(b1)
-      smart.par(n.plots=ncol(b1),MAR=c(2,2,1,1),OMA=c(1.75,2,2,.1),MGP=c(1,.5,0))
-      for(s in 1:ncol(b1))
-      {
-        barplot(b1[,match(yrs[s],colnames(b1))],main=paste(yrs[s],"n=",
-                                                           sum(b1[,match(yrs[s],colnames(b1))])))
-      }
-      mtext(paste(area,"-",unique(a$Method),"-",Unik.sp[u]),3,outer=T)
-    }
-    
-    return(a)
-  }
-  PATH=paste(hNdl,"Outputs/Size.frequency",sep='/')
-  if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
-  
-  pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data_north.pdf",sep=""))
-  LFQ.north=fun.check.LFQ(a=DATA%>%filter(Mid.Lat>(-26) & COMMON_NAME%in%FL.sp &
-                                            Method%in%c('LL')  & !BOAT%in%Res.vess),
-                          area="North")
-  dev.off()
-  
-  pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data_south.pdf",sep=""))  
-  LFQ.south=fun.check.LFQ(a=DATA%>%filter(Mid.Lat<(-26) & COMMON_NAME%in%FL.sp &
-                                            Method%in%c('GN') &!BOAT%in%Res.vess),
-                          area="South")
-  dev.off()
-  
-  #Get age from size using age-length-key constructed based on assumed variability
-  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Age.length.key.R")  
-  Conversion=data.frame(Name=c("copper shark","great hammerhead","grey nurse shark","lemon shark",
-                               "milk shark","sawsharks","scalloped hammerhead","shortfin mako",
-                               "smooth hammerhead","spinner shark","spurdogs",
-                               "tiger shark","wobbegongs"),
-                        FL.sp=c("Bronze whaler","Great hammerhead","Grey nurse shark","Lemon shark",
-                                "Milk shark","Common sawshark","Scalloped hammerhead","Shortfin mako ",
-                                "Smooth hammerhead","Spinner shark","Spurdogs",
-                                "Tiger shark","Wobbegong (general)"))
-  Store.age.comp=vector('list',nrow(LH.par))
-  names(Store.age.comp)=LH.par$SPECIES
-  for(l in 1:nrow(LH.par))
-  {
-    NM=as.character(Conversion%>%filter(Name==LH.par$Name[l])%>%pull(FL.sp))
-    Linf=LH.par$FL_inf[l] 
-    Lo=LH.par$LF_o[l] 
-    k=LH.par$K[l] 
-    AMAX=LH.par$Max_Age[l] +0.5
-    b_w8t=LH.par$b_w8t[l]
-    a_w8t=LH.par$a_w8t[l]
-    
-    mn.len=Lo+(Linf-Lo)*(1-exp(-k*(0.5:AMAX)))
-    
-    GN=get.prop.at.age.from.length(
-                age=0.5:AMAX,
-                mn.len=mn.len,
-                SD=mn.len*seq(.15,.025,length.out = AMAX),
-                N=100,
-                int=10,
-                Obs.len=DATA%>%
-                          filter(Method=='GN'& 
-                                 COMMON_NAME==NM & 
-                                 !BOAT%in%Res.vess)%>%
-                          mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
-                          filter(!is.na(FL))%>%
-                          filter(FL>=Min.len)%>%
-                          pull(FL),
-                min.obs=Min.obs
-                )
-    
-    LL=get.prop.at.age.from.length(
-                age=0.5:AMAX,
-                mn.len=mn.len,
-                SD=mn.len*seq(.15,.025,length.out = AMAX),
-                N=100,
-                int=10,
-                Obs.len=DATA%>%
-                        filter(Method=='LL'& 
-                                 COMMON_NAME==NM & 
-                                 !BOAT%in%Res.vess)%>%
-                        mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
-                        filter(!is.na(FL))%>%
-                        filter(FL>=Min.len)%>%
-                        pull(FL),
-                min.obs=Min.obs
-                  )
-    
-    #fill in objects for aSPM
-    props=data.frame(age=floor(0.5:AMAX),
-                     laa=mn.len,
-                     waa= a_w8t*mn.len^b_w8t,  #catch in tonnes; waa in kgs 
-                     maa=plogis(floor(0.5:AMAX),
-                                floor(mean(unlist(LH.par[l,c('Age_50_Mat_min','Age_50_Mat_max')]))),
-                                1),
-                     sela=NA,
-                     feca=NA)    
-    
-    glb=list(maxage=AMAX,
-             M=NA,
-             Linf=Linf,
-             K=k,
-             t0=NA,
-             Waa=NA,
-             Wab=NA,
-             M50a=floor(mean(unlist(LH.par[l,c('Age_50_Mat_min','Age_50_Mat_max')]))),
-             deltaM=NA,
-             steep=NA,
-             R0=NA,
-             sela50=NA,
-             deltaS=NA,
-             resilience=RESILIENCE[[l]],
-             nages=length(floor(0.5:AMAX)),
-             ages=floor(0.5:AMAX),
-             nyrs=NA,
-             spsname=names(RESILIENCE)[l]
-            )
-    Store.age.comp[[l]]=list(GN=GN,LL=LL,props=props,glb=glb)
-  }
-   
-  
-  fn.plt.age.comp=function(sim,obs,sel,Title)   
-  {
-    if(!is.null(sim))
-    {
-      with(sim,
-           {
-             plot(age,Mean.len,type='l',lwd=3,xlab="Age",ylab="Length",
-                  main=Title,ylim=c(0,max(len)))
-             points(age,len)
-           })
-      with(obs,points(age,len,pch=19,col="orange"))
-      par(fig = c(0.4,0.95, 0.05, .6), new = T,mgp=c(2,.5,0),las=1)  
-      aa=prop.table(table(obs$age))
-      plot(aa/max(aa),cex.axis=.75,
-           main=paste("Age composition (n=",nrow(obs),")",sep=''),xlab="",ylab="Proportion")
-      lines(sel$x,sel$y,col="forestgreen",lwd=3)
-      legend("topright","Selectivity",bty='n',text.col="forestgreen")
-    }
-  }
-  
-  pdf(paste(hNdl,"/Outputs/Size.frequency/Inferred.age.comp.and.selectivity.pdf",sep=""))
-  for(l in 1:nrow(LH.par))
-  {
-    par(mfcol=c(1,1))
-    fn.plt.age.comp(sim=Store.age.comp[[l]]$GN$dat,
-                    obs=Store.age.comp[[l]]$GN$pred.age,
-                    sel=Store.age.comp[[l]]$GN$Selectivity,
-                    Title=paste(LH.par$Name[l],"(gillnet)"))
-    par(mfcol=c(1,1))
-    fn.plt.age.comp(sim=Store.age.comp[[l]]$LL$dat,
-                    obs=Store.age.comp[[l]]$LL$pred.age,
-                    sel=Store.age.comp[[l]]$LL$Selectivity,
-                    Title=paste(LH.par$Name[l],"(longline)"))
-  }
-  dev.off()
-  
-  #combine selectivities of gillnets and longlines
-  Selectivity.at.age=vector('list',nrow(LH.par))
-  names(Selectivity.at.age)=LH.par$SPECIES
-  for(l in 1:length(Selectivity.at.age))
-  {
-    dummy.GN=dummy.LL=NULL
-    L=Store.age.comp[[l]]$GN$Selectivity
-    if(!is.null(L))dummy.GN=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
-    L=Store.age.comp[[l]]$LL$Selectivity
-    if(!is.null(L))dummy.LL=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
-    dummy=rbind(dummy.GN,dummy.LL)  
-    if(!is.null(dummy))
-    {
-      names(dummy)=c('age','relative.sel')
-      dummy=dummy%>%
-        group_by(age)%>%
-        summarise(relative.sel=mean(relative.sel))
-      dummy$relative.sel=dummy$relative.sel/max(dummy$relative.sel)
-      Selectivity.at.age[[l]]=dummy
-    }
-  }
- }
-setwd(WD)
 
-
-#18. Set catch of all species starting in 1940s
+#17. Set catch of all species starting in 1940s
 TAB.dummy=with(Tot.ktch,table(FINYEAR,SP.group))
 Add.yrs=paste(seq(1941,1974),substr(seq(1942,1975),3,4),sep="-")
 id.dummy=match(Add.yrs[1],rownames(TAB.dummy)):match(Add.yrs[length(Add.yrs)],rownames(TAB.dummy))
@@ -1353,7 +1127,7 @@ if(length(Nms.dummy)>0)
 }
 
 
-#19. Export total catch of each species
+#18. Export total catch of each species
 hn.ktch.sp=paste(hNdl,"/Outputs/Catch_assessed_sp/",sep="")
 fnkr8t(hn.ktch.sp)
 for(s in 1: N.sp)
@@ -1365,7 +1139,7 @@ for(s in 1: N.sp)
 }
 
 
-#20. Displayed catches for analysed species
+#19. Displayed catches for analysed species
 fn.fig(paste(hNdl,'/Outputs/Figure 2_catch_analysed_species',sep=''),2400,2400) 
 smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(s in 1: N.sp)
@@ -1394,7 +1168,7 @@ mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
 dev.off()
 
 
-#21. Collate available abundance data
+#20. Collate available abundance data
 Scal.hh.nat$CV=Scal.hh.nat$CV/100
 Tiger.nat$CV=Tiger.nat$CV/100
 Mil.nat$CV=Mil.nat$CV/100
@@ -1406,9 +1180,10 @@ cpue.list=list(
                           TDGDLF.day=NULL),
   "lemon shark"=NULL,
   "great hammerhead"=NULL,
-  "milk shark"=list(Nat=Mil.nat,
-                    TDGDLF.mon=NULL,
-                    TDGDLF.day=NULL),
+  "milk shark"=NULL,     #flat cpue, no signal, error in estimation
+  # "milk shark"=list(Nat=Mil.nat,
+  #                   TDGDLF.mon=NULL,
+  #                   TDGDLF.day=NULL),
   "sawsharks"=NULL,
   "scalloped hammerhead"=list(Nat=Scal.hh.nat,
                               TDGDLF.mon=NULL,
@@ -1655,7 +1430,7 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
   Age.50.mat=AGE.50.mat[[s]]
   Fecundity=FECU[[s]]
   Breed.cycle=Repro_cycle[[s]]  #years
-  print(paste(s,"--",names(store.species)[s]))
+  print(paste("r prior ",s,"--",names(store.species)[s]))
   #Get r prior
   r.prior.dist=fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf,Temp=TEMP,Amax=Max.age.F,
                                MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle)
@@ -1664,6 +1439,240 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
   store.species.M[[s]]=r.prior.dist$M
 })
 
+#---Assign Resilience -----------------------------------------------------------------------
+RESILIENCE=store.species
+for(r in 1:length(RESILIENCE))
+{
+  RESILIENCE[[r]]=with(store.species[[r]]$r.prior.normal,
+                                ifelse(mean>=0.6,"High",
+                                ifelse(mean<0.6 & mean>=0.2,'Medium',
+                                ifelse(mean<0.2 & mean>=0.1,'Low',
+                                      'Very low'))))
+}
+
+# ---Derive age frequency from length frequency -----------------------------------------------------------------------
+WD=getwd()
+if(use.size.comp) 
+{
+  User="Matias"
+  source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R')
+  Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
+             "RV GANNET","RV SNIPE 2")
+  fun.check.LFQ=function(a,area)
+  {
+    a=a%>%
+      dplyr::select(c(SPECIES,COMMON_NAME,SEX,year,BOAT,
+                      Method,FL,Mid.Lat,Mid.Long,
+                      MESH_SIZE))%>%
+      filter(!is.na(FL))%>%
+      mutate(MESH_SIZE=sub("\"","",MESH_SIZE))
+    Unik.sp=unique(a$COMMON_NAME)
+    
+    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+    b1=table(a$SEX,a$COMMON_NAME)
+    for(u in 1:length(Unik.sp))
+    {
+      bb=b1[,match(Unik.sp[u],colnames(b1))]
+      if(sum(bb)>2)
+      {
+        Xsq <- chisq.test(bb)
+        barplot(bb,main=paste(Unik.sp[u],"(F:M=",round(bb[1]/bb[2],2),":1",", X2, p=",
+                              round(Xsq$p.value,2),")"),cex.main=.9)
+      }
+    } 
+    mtext(area,1,outer = T,cex=1.5)
+    
+    smart.par(n.plots=length(Unik.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+    b1=table(10*(round(a$FL/10)),a$COMMON_NAME)
+    for(u in 1:length(Unik.sp))
+    {
+      barplot(b1[,match(Unik.sp[u],colnames(b1))],
+              main=paste(Unik.sp[u]," (n= ",sum(b1[,match(Unik.sp[u],colnames(b1))]),")",sep=""))
+    }
+    mtext(area,1,outer = T,cex=1.5)
+    
+    
+    for(u in 1:length(Unik.sp))
+    {
+      b1=with(subset(a,COMMON_NAME==Unik.sp[u]),table(10*(round(FL/10)),year))
+      yrs=colnames(b1)
+      smart.par(n.plots=ncol(b1),MAR=c(2,2,1,1),OMA=c(1.75,2,2,.1),MGP=c(1,.5,0))
+      for(s in 1:ncol(b1))
+      {
+        barplot(b1[,match(yrs[s],colnames(b1))],main=paste(yrs[s],"n=",
+                                                           sum(b1[,match(yrs[s],colnames(b1))])))
+      }
+      mtext(paste(area,"-",unique(a$Method),"-",Unik.sp[u]),3,outer=T)
+    }
+    
+    return(a)
+  }
+  PATH=paste(hNdl,"Outputs/Size.frequency",sep='/')
+  if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
+  
+  pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data_north.pdf",sep=""))
+  LFQ.north=fun.check.LFQ(a=DATA%>%filter(Mid.Lat>(-26) & COMMON_NAME%in%FL.sp &
+                                            Method%in%c('LL')  & !BOAT%in%Res.vess),
+                          area="North")
+  dev.off()
+  
+  pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data_south.pdf",sep=""))  
+  LFQ.south=fun.check.LFQ(a=DATA%>%filter(Mid.Lat<(-26) & COMMON_NAME%in%FL.sp &
+                                            Method%in%c('GN') &!BOAT%in%Res.vess),
+                          area="South")
+  dev.off()
+  
+  #Get age from size using age-length-key constructed based on assumed variability
+  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Age.length.key.R")  
+  Conversion=data.frame(Name=c("copper shark","great hammerhead","grey nurse shark","lemon shark",
+                               "milk shark","sawsharks","scalloped hammerhead","shortfin mako",
+                               "smooth hammerhead","spinner shark","spurdogs",
+                               "tiger shark","wobbegongs"),
+                        FL.sp=c("Bronze whaler","Great hammerhead","Grey nurse shark","Lemon shark",
+                                "Milk shark","Common sawshark","Scalloped hammerhead","Shortfin mako ",
+                                "Smooth hammerhead","Spinner shark","Spurdogs",
+                                "Tiger shark","Wobbegong (general)"))
+  Store.age.comp=vector('list',nrow(LH.par))
+  names(Store.age.comp)=LH.par$SPECIES
+  for(l in 1:nrow(LH.par))
+  {
+    NM=as.character(Conversion%>%filter(Name==LH.par$Name[l])%>%pull(FL.sp))
+    Linf=LH.par$FL_inf[l] 
+    Lo=LH.par$LF_o[l] 
+    k=LH.par$K[l] 
+    AMAX=LH.par$Max_Age[l] +0.5
+    b_w8t=LH.par$b_w8t[l]
+    a_w8t=LH.par$a_w8t[l]
+    
+    mn.len=Lo+(Linf-Lo)*(1-exp(-k*(0.5:AMAX)))
+    
+    GN=get.prop.at.age.from.length(
+      age=0.5:AMAX,
+      mn.len=mn.len,
+      SD=mn.len*seq(.15,.025,length.out = AMAX),
+      N=100,
+      int=10,
+      Obs.len=DATA%>%
+        filter(Method=='GN'& 
+                 COMMON_NAME==NM & 
+                 !BOAT%in%Res.vess)%>%
+        mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
+        filter(!is.na(FL))%>%
+        filter(FL>=Min.len)%>%
+        pull(FL),
+      min.obs=Min.obs
+    )
+    
+    LL=get.prop.at.age.from.length(
+      age=0.5:AMAX,
+      mn.len=mn.len,
+      SD=mn.len*seq(.15,.025,length.out = AMAX),
+      N=100,
+      int=10,
+      Obs.len=DATA%>%
+        filter(Method=='LL'& 
+                 COMMON_NAME==NM & 
+                 !BOAT%in%Res.vess)%>%
+        mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
+        filter(!is.na(FL))%>%
+        filter(FL>=Min.len)%>%
+        pull(FL),
+      min.obs=Min.obs
+    )
+    
+    #fill in objects for aSPM
+    props=data.frame(age=floor(0.5:AMAX),
+                     laa=mn.len,
+                     waa= a_w8t*mn.len^b_w8t,  #catch in tonnes; waa in kgs 
+                     maa=plogis(floor(0.5:AMAX),
+                                floor(mean(unlist(LH.par[l,c('Age_50_Mat_min','Age_50_Mat_max')]))),
+                                1),
+                     sela=NA,
+                     feca=NA)    
+    
+    glb=list(maxage=AMAX,
+             M=NA,
+             Linf=Linf,
+             K=k,
+             t0=NA,
+             Waa=NA,
+             Wab=NA,
+             M50a=floor(mean(unlist(LH.par[l,c('Age_50_Mat_min','Age_50_Mat_max')]))),
+             deltaM=NA,
+             steep=NA,
+             R0=NA,
+             sela50=NA,
+             deltaS=NA,
+             resilience=RESILIENCE[[l]],
+             nages=length(floor(0.5:AMAX)),
+             ages=floor(0.5:AMAX),
+             nyrs=NA,
+             spsname=names(RESILIENCE)[l]
+    )
+    Store.age.comp[[l]]=list(GN=GN,LL=LL,props=props,glb=glb)
+  }
+  
+  
+  fn.plt.age.comp=function(sim,obs,sel,Title)   
+  {
+    if(!is.null(sim))
+    {
+      with(sim,
+           {
+             plot(age,Mean.len,type='l',lwd=3,xlab="Age",ylab="Length",
+                  main=Title,ylim=c(0,max(len)))
+             points(age,len)
+           })
+      with(obs,points(age,len,pch=19,col="orange"))
+      par(fig = c(0.4,0.95, 0.05, .6), new = T,mgp=c(2,.5,0),las=1)  
+      aa=prop.table(table(obs$age))
+      plot(aa/max(aa),cex.axis=.75,
+           main=paste("Age composition (n=",nrow(obs),")",sep=''),xlab="",ylab="Proportion")
+      lines(sel$x,sel$y,col="forestgreen",lwd=3)
+      legend("topright","Selectivity",bty='n',text.col="forestgreen")
+    }
+  }
+  
+  pdf(paste(hNdl,"/Outputs/Size.frequency/Inferred.age.comp.and.selectivity.pdf",sep=""))
+  for(l in 1:nrow(LH.par))
+  {
+    par(mfcol=c(1,1))
+    fn.plt.age.comp(sim=Store.age.comp[[l]]$GN$dat,
+                    obs=Store.age.comp[[l]]$GN$pred.age,
+                    sel=Store.age.comp[[l]]$GN$Selectivity,
+                    Title=paste(LH.par$Name[l],"(gillnet)"))
+    par(mfcol=c(1,1))
+    fn.plt.age.comp(sim=Store.age.comp[[l]]$LL$dat,
+                    obs=Store.age.comp[[l]]$LL$pred.age,
+                    sel=Store.age.comp[[l]]$LL$Selectivity,
+                    Title=paste(LH.par$Name[l],"(longline)"))
+  }
+  dev.off()
+  
+  #combine selectivities of gillnets and longlines
+  Selectivity.at.age=vector('list',nrow(LH.par))
+  names(Selectivity.at.age)=LH.par$SPECIES
+  for(l in 1:length(Selectivity.at.age))
+  {
+    dummy.GN=dummy.LL=NULL
+    L=Store.age.comp[[l]]$GN$Selectivity
+    if(!is.null(L))dummy.GN=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
+    L=Store.age.comp[[l]]$LL$Selectivity
+    if(!is.null(L))dummy.LL=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
+    dummy=rbind(dummy.GN,dummy.LL)  
+    if(!is.null(dummy))
+    {
+      names(dummy)=c('age','relative.sel')
+      dummy=dummy%>%
+        group_by(age)%>%
+        summarise(relative.sel=mean(relative.sel))
+      dummy$relative.sel=dummy$relative.sel/max(dummy$relative.sel)
+      Selectivity.at.age[[l]]=dummy
+    }
+    print(paste("selectivity ",l,"--",names(Selectivity.at.age)[l]))
+  }
+}
+setwd(WD)
 
 #---Calculate steepness -----------------------------------------------------------------------
 fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,FecunditY,Cycle,sexratio,spawn.time)
@@ -1832,7 +1841,7 @@ system.time(for(s in 1: N.sp)
   Breed.cycle=Repro_cycle[[s]]  #years
   SEL=Selectivity.at.age[[s]]$relative.sel
   
-  print(paste(s,"--",names(store.species)[s]))
+  print(paste("steepness ",s,"--",names(store.species)[s]))
   store.species.steepness[[s]]=fun.steepness(Nsims=2*NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf,
                                              first.age=0,sel.age=SEL,F.mult=0,Temp=TEMP,
                                              Amax=Max.age.F,MAT=unlist(Age.50.mat),
@@ -1980,7 +1989,8 @@ if(Do.SPM=="YES")
     
     #Loglikelihoods
         #Initial harvest rate
-    HR.init.negLL=-log(dnorm(H[1],HR_init,HR_init.sd))
+    HR.init.negLL=0
+    #HR.init.negLL=-log(dnorm(H[1],HR_init,HR_init.sd))
     
         #r
     r.negLL=0
@@ -2053,17 +2063,23 @@ if(Do.SPM=="YES")
   names(Mx.init.harv)=Specs$SP.group
   for(s in 1: N.sp)
   {
-    Id=match(Specs$SP.group[s],names(cpue.list))
-    ct=Tot.ktch%>%filter(SP.group==Specs$SP.group[s])%>%
-      group_by(finyear)%>%
-      summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
-    Mx.init.harv[s]=max(0.001,round(ct$LIVEWT.c[1]/max(ct$LIVEWT.c),3))
+    if(B.init==1)   
+    {
+      Mx.init.harv[s]=0
+    }else
+    {
+      Id=match(Specs$SP.group[s],names(cpue.list))
+      ct=Tot.ktch%>%filter(SP.group==Specs$SP.group[s])%>%
+        group_by(finyear)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
+      Mx.init.harv[s]=ct$LIVEWT.c[1]/max(ct$LIVEWT.c)
+    }
   }
   
   #Estimate parameters
   Store.SPM=vector('list',N.sp)
   names(Store.SPM)=Specs$SP.group
-  Store.stuff=Store.SPM
+  Store.stuff=Theta=Store.SPM
   for(s in 1: N.sp)
   {
     Id=match(Specs$SP.group[s],names(cpue.list))
@@ -2196,14 +2212,23 @@ if(Do.SPM=="YES")
           
           if(minimizer=='optim')
           {
-            dummy.eff[[e]]=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,
-                                 upper = Up.bound,hessian=T)
+            OptiM=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,upper = Up.bound,hessian=T)
+            if(Remove.bounds)
+            {
+              paramscale = magnitude(theta)
+              OptiM=optim(jitter(OptiM$par),fn_ob,method="Nelder-Mead",hessian=T,
+                          control = list(maxit = 1000, parscale = paramscale))
+            }
+
+            dummy.eff[[e]]=OptiM
           }
           if(minimizer=='nlminb')
           {
-            nlmb <- nlminb(theta, fn_ob, gradient = NULL,
-                           lower =Lw.bound,upper = Up.bound)
+            nlmb <- nlminb(theta, fn_ob, gradient = NULL,lower =Lw.bound,upper = Up.bound)
+            if(Remove.bounds) nlmb <- nlminb(jitter(nlmb$par), fn_ob, gradient = NULL)
+            
             nlmb$hessian=hessian(fn_ob,nlmb$par)
+            
             dummy.eff[[e]]=nlmb
           }
           Store.CPUE.eff[[e]]=CPUE.eff.scen
@@ -2211,6 +2236,7 @@ if(Do.SPM=="YES")
         dummy[[h]]=dummy.eff
       }
       Store.SPM[[s]]=dummy
+      Theta[[s]]=list(theta=theta,Lw.bound=Lw.bound,Up.bound=Up.bound)
       rm(HR.o.scens)
       Store.CPUE.eff.dummy=Store.CPUE.eff
       QS.dummy=QS
@@ -2317,7 +2343,7 @@ if(Do.SPM=="YES")
       }
       SPM.preds_uncertainty[[s]]=dumy.pred
       rm(HR.o.scens)
-      print(paste(s,"--",names(store.species)[s]))
+      print(paste("SPM  ",s,"--",names(store.species)[s]))
     }
   }
   
@@ -2517,19 +2543,30 @@ if(Do.Ktch.MSY=="YES")
     names(ktch_msy_scen)=names(SCENARIOS)
     for(sc in 1:length(ktch_msy_scen))
     {
-      if(is.na(SCENARIOS[[sc]]$R.prior[1])) USR="No" else
-        if(SCENARIOS[[sc]]$R.prior[1]=="USER")USR= "Yes"
-        Scen.start.bio=SCENARIOS[[sc]]$Initial.dep       
-        ktch_msy_scen[[sc]]=list(r.prior=SCENARIOS[[sc]]$R.prior,
-                                 user=USR,
-                                 k.lower=Low.bound.K,k.upper=Up.bound.K, 
-                                 startbio=Scen.start.bio,finalbio=FINALBIO,res=RESILIENCE[[s]],
-                                 niter=SIMS,sigR=SCENARIOS[[sc]]$Error)
+      if(is.na(SCENARIOS[[sc]]$R.prior[1]))
+      {
+        USR="No"
+        ReS=RESILIENCE[[s]]
+      }else
+      {
+        if(!is.na(SCENARIOS[[sc]]$R.prior[1]))USR= "Yes"
+        ReS=NA
+        Scen.start.bio=SCENARIOS[[sc]]$Initial.dep   
+      }
+    
+      ktch_msy_scen[[sc]]=list(r.prior=SCENARIOS[[sc]]$R.prior,
+                               user=USR,
+                               k.lower=Low.bound.K,k.upper=Up.bound.K, 
+                               startbio=Scen.start.bio,finalbio=FINALBIO,
+                               res=ReS,
+                               niter=SIMS,
+                               sigR=SCENARIOS[[sc]]$Error)
         if(!is.na(ktch_msy_scen[[sc]]$r.prior[1])) ktch_msy_scen[[sc]]$r.prior=unlist(store.species[[s]]$r.prior)
+      rm(USR,ReS)
     }
     
     #Execute Catch-MSY  
-    print(paste("-------------","i=",sc,names(store.species)[s]))
+    print(paste("CMSY------","s=",s,names(store.species)[s]))
     
     PATH=paste(PHat,Specs$SP.group[s],sep='/')
     if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
@@ -2545,6 +2582,7 @@ if(Do.Ktch.MSY=="YES")
     for(sc in 1:length(ktch_msy_scen))
     {
       Folder=names(ktch_msy_scen)[sc]
+      print(paste("-----------------------------------","scenario=",Folder))
       if(!file.exists(paste(PATH,Folder,sep="/"))) dir.create(paste(PATH,Folder,sep="/"))
       setwd(paste(PATH,Folder,sep="/"))
       
@@ -2581,9 +2619,9 @@ if(Do.Ktch.MSY=="YES")
     }
     Tabl.scen.Ktch.MSY=do.call(rbind,Tabl.scen.Ktch.MSY)
     row.names(Tabl.scen.Ktch.MSY)=names(ktch_msy_scen)
-    write.csv(Tabl.scen.Ktch.MSY,"Scenarios.csv")
-    
-    
+    if(nrow(Tabl.scen.Ktch.MSY)>1)Tabl.scen.Ktch.MSY[1,'res']=""
+    setwd(file.path(PATH))
+    write.csv(Tabl.scen.Ktch.MSY,paste('Scenarios.csv',sep=''))
   })
 }
 
@@ -3035,7 +3073,7 @@ mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.5)
 dev.off()
 
 
-#---Spatio-temporal catch------
+#---Spatio-temporal catch------  
 #note: bubble size is proportion of blocks fished out of maximum number of blocks fished for each species
 fn.spatio.temp.catch.dist=function(d)
 {
@@ -3068,8 +3106,12 @@ fn.spatio.temp.catch.dist=function(d)
 }
 fn.fig("Figure Spatio-temporal catch", 2400, 2400)
 par(mar=c(2.5,4,.1,1),oma=c(.5,6,.1,3),mgp=c(1.5,.7,0))
-fn.spatio.temp.catch.dist(d=rbind(Data.monthly%>%filter(!is.na(BLOCKX)),
-                                  Data.monthly.north%>%filter(!is.na(BLOCKX))))
+fn.spatio.temp.catch.dist(d=rbind(Data.monthly%>%
+                                        filter(!is.na(BLOCKX))%>%
+                                        dplyr::select(SNAME,FINYEAR,SPECIES,BLOCKX),
+                                  Data.monthly.north%>%
+                                    filter(!is.na(BLOCKX))%>%
+                                    dplyr::select(SNAME,FINYEAR,SPECIES,BLOCKX)))
 dev.off()
 
 
@@ -3160,7 +3202,7 @@ if(Do.SPM=="YES")
   
   
   #probability of above and below reference points     
-  add.probs=function(id.yr,YR,DAT,UP.100,LOW.100,SRT,CEX)
+  add.probs=function(id.yr,YR,DAT,UP,LOW,SRT,CEX)
   {
     f=ecdf(DAT[id.yr,])
     P.below.target=f(B.target)
@@ -3173,22 +3215,26 @@ if(Do.SPM=="YES")
     P.between.lim.thre=P.below.threshold-P.below.limit
     if(P.above.target>0)
     {
-      segments(YR[id.yr],B.target,YR[id.yr],UP.100[id.yr],col=CL.ref.pt[1],lwd=8,lend="butt")  
-      text(YR[id.yr],mean(c(B.target,UP.100[id.yr])),paste(round(100*P.above.target),"%",sep=""),
+      segments(YR[id.yr],B.target,YR[id.yr],1,col=CL.ref.pt[1],lwd=8,lend="butt")  
+      Legn=round(100*P.above.target)
+      if(Legn==0)Legn="<1"
+      text(YR[id.yr],mean(c(B.target,UP[id.yr])),paste(Legn,"%",sep=""),
            col="black",cex=CEX,srt=SRT,pos=2,font=2)
     }
     if(P.between.thre.tar>0)
     {
-      Upseg=min(B.target,UP.100[id.yr])
-      Lwseg=max(B.threshold,LOW.100[id.yr])
+      Upseg=B.target
+      Lwseg=B.threshold
       segments(YR[id.yr],Upseg,YR[id.yr],Lwseg,col=CL.ref.pt[2],lwd=8,lend="butt")  
-      text(YR[id.yr],mean(c(Upseg,Lwseg))*1.025,paste(round(100*P.between.thre.tar),"%",sep=""),
+      Legn=round(100*P.between.thre.tar)
+      if(Legn==0)Legn="<1"
+      text(YR[id.yr],mean(c(Upseg,Lwseg))*1.025,paste(Legn,"%",sep=""),
            col="black",cex=CEX,srt=SRT,pos=2,font=2)
     }
     if(P.between.lim.thre>0)
     {
-      Upseg=min(B.threshold,UP.100[id.yr])
-      Lowseg=max(B.limit,LOW.100[id.yr])
+      Upseg=B.threshold
+      Lowseg=B.limit
       segments(YR[id.yr],Upseg,YR[id.yr],Lowseg,col=CL.ref.pt[3],lwd=8,lend="butt")
       Legn=round(100*P.between.lim.thre)
       if(Legn==0)Legn="<1"
@@ -3199,26 +3245,22 @@ if(Do.SPM=="YES")
     }
     if(P.below.limit>0)
     {
-      segments(YR[id.yr],B.limit,YR[id.yr],LOW.100[id.yr],col=CL.ref.pt[4],lwd=8,lend="butt")
+      segments(YR[id.yr],B.limit,YR[id.yr],0,col=CL.ref.pt[4],lwd=8,lend="butt")
       Legn=round(100*P.below.limit)
       if(Legn==0)Legn="<1"
       
       text(YR[id.yr],B.limit*0.85,paste(Legn,"%",sep=""),
            col="black",cex=CEX,srt=SRT,pos=2,font=2)
     }
-    # if(P.below.limit==0)
-    # {
-    #   segments(YR[id.yr],B.limit,YR[id.yr],LOW.100[id.yr],col=CL.ref.pt[4],lwd=8,lend="butt")
-    #   text(YR[id.yr],B.limit*0.8,paste(0,"%",sep=""),
-    #        col="black",cex=CEX,srt=SRT,pos=2,font=2)
-    # }
+    
     return(list(C1=P.above.target, C2=P.between.thre.tar,
                 C3=P.between.lim.thre, C4=P.below.limit))
   }
   
   #Plot biomass  
+  Ktch.CL=rgb(0.1,0.1,0.8,alpha=0.4)
   Col.RP=c("red","orange","forestgreen")
-  fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch,CX.AX,CX,DAT)
+  fn.plt.bio.ktch=function(Yr,Bt,Bmsy,Ktch,CX.AX,CX,DAT,Add.ktch)
   {
     Year.Vec <-  fn.cons.po(Yr,Yr)
     Biom.Vec <- fn.cons.po(Bt[match("0%",row.names(Bt)),],
@@ -3235,15 +3277,18 @@ if(Do.SPM=="YES")
     
     #add probs
     Store.probs=add.probs(id.yr=match(Current,Yr),YR=Yr,DAT=DAT,
-                          UP.100=Bt[match("100%",row.names(Bt)),],
-                          LOW.100=Bt[match("0%",row.names(Bt)),],
+                          UP=Bt[match("100%",row.names(Bt)),],
+                          LOW=Bt[match("0%",row.names(Bt)),],
                           SRT=0,CEX=CX)
     
     #add catch
-    par(new=T)
-    plot(Yr,Ktch,type='l',col=rgb(0.1,0.1,0.8,alpha=0.6),xlab="",ylab="",
-         axes=F,lwd=1.5,xaxs="i")
-    axis(side = 4)
+    if(Add.ktch=="YES")
+    {
+      par(new=T)
+      plot(Yr,Ktch,type='l',col=Ktch.CL,xlab="",ylab="",axes=F,lwd=1.5,xaxs="i")
+      axis(side = 4)
+    }
+
     
     return(Store.probs)
   }
@@ -3322,7 +3367,8 @@ if(Do.SPM=="YES")
                                                      Ktch=Store.stuff[[s]]$Ktch,
                                                      CX.AX=1,
                                                      CX=1,
-                                                     DAT=DAT)
+                                                     DAT=DAT,
+                                                     Add.ktch="YES")
             if(e==1&h==1)mtext(capitalize(names(SPM.preds)[s]),3,cex=1) 
             Crip=Efficien.scens[e]
             
@@ -3441,20 +3487,19 @@ if(Do.Ktch.MSY=="YES")
   High.percentile=function(Nper,DAT) apply(DAT, 1, function(x) quantile(x, (100-Nper)/100))
 
   COLS=colfunc(3)
-  fn.plot.percentile=function(DAT,YR,ADD.prob,add.RP.txt,CEX,CX.AX,Ktch)
+  fn.plot.percentile=function(DAT,YR,ADD.prob,add.RP.txt,CEX,CX.AX,Ktch,PERCENTIL,Add.ktch)
   {
-
+    
     # data percentile
     #Nper=(100-60)/2 # %60%
-    #Nper=(100-50)/2 # %50%
-    Nper=(100-100)/2 # %100%
-    LOW.100=Low.percentile(Nper,DAT)
-    UP.100=High.percentile(Nper,DAT)
+    Nper=(100-PERCENTIL)/2 
+    LOW=Low.percentile(Nper,DAT)
+    UP=High.percentile(Nper,DAT)
     
-
+    
     #construct polygons
     Year.Vec <-  fn.cons.po(YR,YR)
-    Biom.Vec <-fn.cons.po(LOW.100,UP.100)
+    Biom.Vec <-fn.cons.po(LOW,UP)
     
     #plot
     MED=apply(DAT, 1, function(x) quantile(x, .5))
@@ -3477,17 +3522,19 @@ if(Do.Ktch.MSY=="YES")
     #add probs
     if(ADD.prob=="YES")
     {
-      store.cons.like=add.probs(id.yr=match(Current,YR),YR,DAT,UP.100,LOW.100,SRT=0,CEX)
+      store.cons.like=add.probs(id.yr=match(Current,YR),YR,DAT,UP,LOW,SRT=0,CEX)
     }
-    
-    #add catch
-    par(new=T)
-    plot(YR,Ktch,type='l',col=rgb(0.1,0.1,0.8,alpha=0.6),xlab="",ylab="",
-         axes=F,lwd=1.5)
-    axis(side = 4)
-    
     axis(1,at=YR,labels=F,tck=-0.015)
     axis(1,at=seq(YR[1],YR[length(YR)],5),labels=seq(YR[1],YR[length(YR)],5),tck=-0.03,cex.axis=CX.AX)
+    
+    #add catch
+    if(Add.ktch=="YES")
+    {
+      par(new=T)
+      plot(YR,Ktch,type='l',col=Ktch.CL,xlab="",ylab="",
+           axes=F,lwd=1.5)
+      axis(side = 4)
+    }
     
     if(ADD.prob=="YES") return(store.cons.like)
   }
@@ -3504,16 +3551,41 @@ if(Do.Ktch.MSY=="YES")
 
     #Percentile   
     Store.cons.Like.SRM[[s]]=fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES",add.RP.txt="NO",
-                                         CEX=1,CX.AX=1.1,Ktch=Store.stuff[[s]]$Ktch)
+                                         CEX=1,CX.AX=1.1,Ktch=Store.stuff[[s]]$Ktch,
+                                         PERCENTIL=100,Add.ktch="YES")
     NMs=capitalize(names(store.species)[s])
     mtext(NMs,3,0)
   }
   mtext("Financial year",1,cex=1.2,line=0.75,outer=T)
   mtext("Relative biomass",2,cex=1.2,outer=T,las=3)
   mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
-        col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
+        col=Ktch.CL,cex=1.2)
   dev.off()
   
+  if(Modl.rn=='first')  
+  {
+    fn.fig("Figure 3_Biomass_Catch_MSY_WorstCase", 2400, 1800)
+    smart.par(n.plots=length(compact(store.species)),MAR=c(1.2,2,1.5,1.75),
+              OMA=c(2,1.75,.2,2.1),MGP=c(1,.5,0))
+    par(las=1,cex.axis=1.1)
+    for(s in 1: N.sp)
+    {
+      Yrs=Store.stuff[[s]]$yrs
+      Ktch_MSY_Rel.bio=with(store.species[[s]]$KTCH.MSY$WorstCase,sweep(bt, 2, k, `/`))
+      
+      #Percentile   
+      Store.cons.Like.SRM[[s]]=fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES",add.RP.txt="NO",
+                                                  CEX=1,CX.AX=1.1,Ktch=Store.stuff[[s]]$Ktch,
+                                                  PERCENTIL=100,Add.ktch="YES")
+      NMs=capitalize(names(store.species)[s])
+      mtext(NMs,3,0)
+    }
+    mtext("Financial year",1,cex=1.2,line=0.75,outer=T)
+    mtext("Relative biomass",2,cex=1.2,outer=T,las=3)
+    mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
+          col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
+    dev.off()
+  }
   
   fn.fig("Figure MSY_Catch.MSY", 2400, 2400)
   smart.par(n.plots=length(compact(store.species)),MAR=c(1.2,2,1.5,1.75),
@@ -3807,14 +3879,23 @@ if(Asses.Scalloped.HH)
             
             if(minimizer=='optim')
             {
-              dummy.eff[[e]]=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,
-                                   upper = Up.bound,hessian=T)
+              OptiM=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,upper = Up.bound,hessian=T)
+              if(Remove.bounds)
+              {
+                paramscale = magnitude(theta)
+                OptiM=optim(jitter(OptiM$par),fn_ob,method="Nelder-Mead",hessian=T,
+                            control = list(maxit = 1000, parscale = paramscale))
+              }
+              
+              dummy.eff[[e]]=OptiM
             }
             if(minimizer=='nlminb')
             {
-              nlmb <- nlminb(theta, fn_ob, gradient = NULL,
-                             lower =Lw.bound,upper = Up.bound)
+              nlmb <- nlminb(theta, fn_ob, gradient = NULL,lower =Lw.bound,upper = Up.bound)
+              if(Remove.bounds) nlmb <- nlminb(jitter(nlmb$par), fn_ob, gradient = NULL)
+              
               nlmb$hessian=hessian(fn_ob,nlmb$par)
+              
               dummy.eff[[e]]=nlmb
             }
             Store.CPUE.eff[[e]]=CPUE.eff.scen
@@ -4123,7 +4204,8 @@ if(Asses.Scalloped.HH)
                               Ktch=Store.stuff.scallopedHH[[sc]]$Ktch,
                               CX.AX=1,
                               CX=1,
-                              DAT=DAT)
+                              DAT=DAT,
+                              Add.ktch="NO")
               if(e==1&h==1)mtext(Scens[sc],3,bty='n',cex=1.25) 
               Crip=Efficien.scens[e]
               
@@ -4135,8 +4217,8 @@ if(Asses.Scalloped.HH)
     }
     mtext("Financial year",1,cex=1.2,line=0.75,outer=T)
     mtext("Relative biomass",2,cex=1.2,outer=T,las=3)
-    mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
-          col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
+    #mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
+    #      col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
     dev.off()
     rm(HR.o.scens)
     
@@ -4231,6 +4313,7 @@ if(Asses.Scalloped.HH)
     
     YrS=sort(unique(Tot.ktch$finyear))
     
+
     #Relative biomass
     fn.fig(paste(hNdl.HH,"Figure 2_Biomass_Catch_MSY",sep=""), 1600, 2400)
     smart.par(n.plots=length(compact(SPM.preds.scallopedHH)),MAR=c(1.2,2,2,1.25),
@@ -4243,13 +4326,14 @@ if(Asses.Scalloped.HH)
       
       #Percentile   
       fn.plot.percentile(DAT=Ktch_MSY_Rel.bio,YR=Yrs,ADD.prob="YES",add.RP.txt="NO",
-                         CEX=1,CX.AX=1.1,Ktch=Store.stuff.scallopedHH[[sc]]$Ktch)
+                         CEX=1,CX.AX=1.1,Ktch=Store.stuff.scallopedHH[[sc]]$Ktch,
+                         PERCENTIL=95,Add.ktch="NO")
       mtext(Scens[sc],3,0)
     }
     mtext("Financial year",1,cex=1.2,line=0.75,outer=T)
     mtext("Relative biomass",2,cex=1.2,outer=T,las=3)
-    mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
-          col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
+    #mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
+    #      col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
     dev.off()
     
     #MSY

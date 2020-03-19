@@ -97,7 +97,7 @@ PCM=data.frame(Group=c("Sawfish","Sawsharks","Wobbegongs","Mackerel","Greynurse"
                        .519,.98,.3,.6,.21,.14,.185,.4,.24,.25,.42,.56),
                GN=c(assumed.sawfish.gn,.31,0,.66,.41,.59,.47,.94,.68,.34,.133,.28,assumed.guitarfish.gn,NA,
                     .06,.13,.5,.07),
-               LL=c(NA,NA,0,.28,assumed.greynurse.ll,NA,.21,.61,0,rep(NA,8),.12))%>%
+               LL=c(NA,NA,0,.28,assumed.greynurse.ll,NA,.21,1,0,rep(NA,8),.12))%>%
       mutate(Trawl=sapply(Trawl,function(x)min(x*Inc.AVM,1)),
              GN=sapply(GN,function(x)min(x*Inc.AVM,1)),
              LL=sapply(LL,function(x)min(x*Inc.AVM,1)))
@@ -542,6 +542,10 @@ Indo_shark.TL.range=c(89,409)
 Indo_shark.mature=.586    #Tables 5 and 6 have species-specific size and maturity ranges
 #Indo_average.trip.length=23  #days for fishers fishing in MOU box
 
+
+# Salini et al 2007
+Indo_FFV_vessel.days.2005=sum(c(65,147,250,227,250,413,166,450,694,639,465,464)) #Table 7.2, zone 6
+Indo_Prop.Shark.vesl.Salini=350/(350+75+10+30) #Figure 6-4 
 
 #Assumptions
 Indo_assumed.n.trips.per.year=10  #assumed number of trips per vessel per year 
@@ -1391,9 +1395,6 @@ Whaler_SA=Whaler_SA[rep(1:N.SA,each=2),]%>%
 
 #-- 3.2.4 Indonesian illegal fishing in Australia waters             
 
-# Effort
-Indo_prop.shark=mean(c(Indo_prop.shark,Indo.prop.apprehen.with.shark$prop),na.rm=T)
-
 Indo_apprehensions=rbind(Indo_apprehensions.Stacey,Indo_apprehensions)
 Missn.appr=which(is.na(Indo_apprehensions$Apprehensions))
 if(length(Missn.appr)>0)
@@ -1449,27 +1450,29 @@ Indo_shark.comp=Indo_shark.comp%>%
                                       Proportion)))%>%
                 filter(!Species%in%c('Great hammerhead shark','Hammerheads'))
 
-  #IFF. Calculate catch per vessel-day
+
+#Indonesian. Calculate catch per vessel-day
 Indo_avrg.ktch.per.vessel.day=Indo_shark.weight/(Indo_shark.N.vessels*7)
 Indo_avrg.ktch.per.vessel.day=Indo_shark.comp%>%
   mutate(kg.day.vessel=Proportion*Indo_avrg.ktch.per.vessel.day)
 
-  #IFF. Calculate catch per vessel-year
-Indo_avrg.ktch.per.vessel.year=Indo_avrg.ktch.per.vessel.day%>%
-  mutate(kg.year.vessel=kg.day.vessel*Indo_average.trip.length*Indo_assumed.n.trips.per.year)
+#Indonesian. Calculate total catch for 2005
+Indo_avrg.ktch.per.year=Indo_avrg.ktch.per.vessel.day%>%
+  mutate(kg.year=kg.day.vessel*Indo_FFV_vessel.days.2005*Indo_Prop.Shark.vesl.Salini)
 
-  #IFF. Calculate Total catch by year
-Indo_total.annual.ktch=Indo_avrg.ktch.per.vessel.year[rep(1:nrow(Indo_avrg.ktch.per.vessel.year),nrow(Indo_apprehensions)),]%>%
-  mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_avrg.ktch.per.vessel.year)))%>%
+#Indonesian. Calculate Total catch by year
+Indo_total.annual.ktch=Indo_avrg.ktch.per.year[rep(1:nrow(Indo_avrg.ktch.per.year),nrow(Indo_apprehensions)),]%>%
+  mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_avrg.ktch.per.year)))%>%
   left_join(Indo_apprehensions,by='year')%>%
-  mutate(kg.year=kg.year.vessel*Apprehensions*Indo_prop.shark*Indo_missed.appr.rate,
-         LIVEWT.c=kg.year*Indo_jurisdiction.prop%>%filter(Jurisdiction=="WA")%>%pull(prop))  #keep WA component
+  mutate(Ap.prop.2005=Apprehensions/Indo_apprehensions$Apprehensions[which.max(Indo_apprehensions$Apprehensions)],
+         LIVEWT.c=kg.year*Ap.prop.2005)  
 
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%
-                        mutate(Species=as.character(Species),
-                               FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
-                        left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Species'='Name'))%>%
-                    dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
+  mutate(Species=as.character(Species),
+         FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
+  left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Species'='Name'))%>%
+  dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
+
 
   #MOU box. Calculate Total catch by year
 Indo_total.annual.ktch_MOU=Indo_average.shark.per.trip_MOU*Indo_trips.per.year_MOU
@@ -1489,7 +1492,7 @@ Indo_total.annual.ktch_MOU=Indo_total.annual.ktch_MOU[rep(1:nrow(Indo_total.annu
   dplyr::select(colnames(Indo_total.annual.ktch))
 
 
-  #Combine IFF and Mou box
+  #Combine Indonesian illegal and legal Mou box
 Indo_total.annual.ktch=rbind(Indo_total.annual.ktch,Indo_total.annual.ktch_MOU)%>%
               group_by(FINYEAR,SPECIES)%>%
               summarise(LIVEWT.c=sum(LIVEWT.c))%>%
@@ -1561,7 +1564,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   Taiwan.gillnet.ktch$TYPE="Taiwanese"
   Taiwan.longline.ktch$TYPE="Taiwanese"
   
-  Indo_total.annual.ktch$TYPE="IFF"
+  Indo_total.annual.ktch$TYPE="Indonesian"
   Data.monthly.agg=Data.monthly%>%
                     group_by(FINYEAR,SPECIES)%>%
                     summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
@@ -1585,7 +1588,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
             summarise(Total=round(sum(LIVEWT.c)/1000,1))%>%
             spread(TYPE,Total,fill=0)%>%
             data.frame%>%
-            mutate(Total=Historic+WA.south+WA.north+Protected+Taiwanese+IFF+WRL)%>%
+            mutate(Total=Historic+WA.south+WA.north+Protected+Taiwanese+Indonesian+WRL)%>%
             arrange(-Total)%>%
             left_join(All.species.names%>%dplyr::select(-SPECIES),by="Name")%>%
             rename(Common.name=Name,
@@ -1596,7 +1599,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   
   source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")  
   setwd('C:/Matias/Analyses/Reconstruction_catch_commercial')
-  fn.word.table(WD=getwd(),TBL=Table1%>%dplyr::select(Common.name,Scientific.name,Historic,South,North,Protected,Taiwanese,IFF),
+  fn.word.table(WD=getwd(),TBL=Table1%>%dplyr::select(Common.name,Scientific.name,Historic,South,North,Protected,Taiwanese,Indonesian),
                 Doc.nm="Table1",caption=NA,paragph=NA,
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                 Zebra='NO',Zebra.col='grey60',Grid.col='black',
@@ -1610,8 +1613,10 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   these.sp=Table1[1:ID,]%>%pull(Common.name)
   
   LWD=1.8
-  CLs=data.frame(TYPE=c("Historic","South","North","Protected","Taiwanese","IFI","WRL"),
-                 CL=c("black","deepskyblue2","coral2","forestgreen","dodgerblue4","darkorange2","green"),
+  CLs=data.frame(TYPE=c("Historic","South","North","Protected",
+                        "Taiwanese","Indonesian","WRL"),
+                 CL=c("black","deepskyblue2","coral3","green",
+                      "dodgerblue4","darkorange","forestgreen"),
                  LT=c(1,1,1,1,3,3,1))
   fun.plt.Fig2=function(SP)
   {
@@ -1629,7 +1634,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
            if("WA.north"%in%names(d)) lines(yr,d$WA.north,lwd=LWD,col=CL[3],lty=LT[3])
            if("Protected"%in%names(d)) lines(yr,d$Protected,lwd=LWD,col=CL[4],lty=LT[4])
            if("Taiwanese"%in%names(d)) lines(yr,d$Taiwanese,lwd=LWD,col=CL[5],lty=LT[5])
-           if("IFF"%in%names(d)) lines(yr,d$IFF,lwd=LWD,col=CL[6],lty=LT[6])
+           if("Indonesian"%in%names(d)) lines(yr,d$Indonesian,lwd=LWD,col=CL[6],lty=LT[6])
            if("WRL"%in%names(d)) lines(yr,d$WRL,lwd=LWD,col=CL[7],lty=LT[7])
          })
 
