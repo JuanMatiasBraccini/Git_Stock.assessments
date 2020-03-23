@@ -197,6 +197,8 @@ Tag=fn.read('Tagging_conventional.data.csv')
 
 #---PARAMETERS SECTION-----
 Explor="NO"
+Asses.Scalloped.HH=FALSE  #2020 scalloped HH assessment
+
 
 #Criteria for selecting species for quantitative analyses
 Min.yrs=5
@@ -1620,7 +1622,7 @@ if(use.size.comp)
     {
       with(sim,
            {
-             plot(age,Mean.len,type='l',lwd=3,xlab="Age",ylab="Length",
+             plot(age,Mean.len,type='l',lwd=3,xlab="Age",ylab="Length (cm)",
                   main=Title,ylim=c(0,max(len)))
              points(age,len)
            })
@@ -1630,7 +1632,7 @@ if(use.size.comp)
       plot(aa/max(aa),cex.axis=.75,
            main=paste("Age composition (n=",nrow(obs),")",sep=''),xlab="",ylab="Proportion")
       lines(sel$x,sel$y,col="forestgreen",lwd=3)
-      legend("topright","Selectivity",bty='n',text.col="forestgreen")
+      legend("topright","Vulnerability",bty='n',text.col="forestgreen")
     }
   }
   
@@ -1674,6 +1676,7 @@ if(use.size.comp)
   }
 }
 setwd(WD)
+
 
 #---Calculate steepness -----------------------------------------------------------------------
 fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,FecunditY,Cycle,sexratio,spawn.time)
@@ -3756,7 +3759,6 @@ dev.off()
 
 
 #---National Scalloped HH Assessment -----------------------------------------------------------------------
-Asses.Scalloped.HH=FALSE
 if(Asses.Scalloped.HH)
 {
   SP="scalloped hammerhead"
@@ -4237,27 +4239,33 @@ if(Asses.Scalloped.HH)
     Store.aSPM.scallopedHH=list(fit=ans,quantities=fishery,fish=fish,quantities.MC=fishery.MC)
   }
   
-  # Display catches
+  #Display catches
   hNdl.HH=paste(hNdl,'Outputs/each_species/scalloped hammerhead/National assessment/',sep='/')
   
   fn.fig(paste(hNdl.HH,'Figure 1_catches',sep=''),2400,2400) 
   par(mar=c(3.5,3.25,1.5,1),las=1,mgp=c(1,.75,0),cex.axis=1.25)
+  
+  Tot.col=rgb(.1,.1,1,alpha=.4)
   for(s in s)
   {
     ddd=subset(Tot.ktch,SP.group==Specs$SP.group[s])%>%
       group_by(Type,finyear)%>%
       summarise(Tot=sum(LIVEWT.c,na.rm=T))%>%
       filter(!is.na(Tot))
-    plot(all.yrs,all.yrs,col="transparent",ylab="",xlab="",
-         ylim=c(0,max(ddd$Tot)),xaxt='n')
+    
+    ddd.all=ddd%>%
+            group_by(finyear)%>%
+            summarise(Tot=sum(Tot,na.rm=T))
+    plot(all.yrs,ddd.all$Tot,col=Tot.col,ylab="",xlab="",type='o',cex=1.5,lwd=2,pch=21,bg="white",
+         ylim=c(0,max(ddd.all$Tot)),xaxt='n')
     unik.T=unique(ddd$Type)
     for(u in 1:length(unik.T))
     {
       cl=COLs.type[match(unik.T[u],names(COLs.type))]
       with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=1.75,lwd=2,pch=21,bg=cl))
     }
-    legend('topleft',names(COLs.type)[1:4],pt.bg=COLs.type[1:4],
-           bty='n',pch=21,cex=1.15,pt.cex=2)
+    legend('topleft',c(names(COLs.type)[1:4],"Total"),pt.bg=c(COLs.type[1:4],"white"),
+           bty='n',pch=21,cex=1.15,pt.cex=2,lwd=2,col=c(rep('black',4),Tot.col))
     axis(1,all.yrs,F,tck=-.01)
     Yrs.lab=round(seq(all.yrs[1],all.yrs[length(all.yrs)],10)/10)*10
     axis(1,Yrs.lab,Yrs.lab,tck=-.02)
@@ -4266,6 +4274,32 @@ if(Asses.Scalloped.HH)
   mtext("Financial year",1,line=-1.2,cex=1.5,outer=T)
   mtext("Total catch (tonnes)",2,las=3,line=-1.2,cex=1.5,outer=T)
   dev.off()
+  
+  #Display vulnerability at age
+  fn.fig(paste(hNdl.HH,'Figure 1_selectivity_gillnet',sep=''),2400,2400) 
+  par(mar=c(3.5,3.5,1.5,1),mgp=c(2,.75,0),cex.axis=1.25,cex.lab=1.5)
+  fn.plt.age.comp(sim=Store.age.comp$`19001`$GN$dat,
+                  obs=Store.age.comp$`19001`$GN$pred.age,
+                  sel=Store.age.comp$`19001`$GN$Selectivity,
+                  Title="Gillnet")
+  dev.off()
+  
+  fn.fig(paste(hNdl.HH,'Figure 1_selectivity_longline',sep=''),2400,2400) 
+  par(mar=c(3.5,3.5,1.5,1),mgp=c(2,.75,0),cex.axis=1.25,cex.lab=1.5)
+  fn.plt.age.comp(sim=Store.age.comp$`19001`$LL$dat,
+                  obs=Store.age.comp$`19001`$LL$pred.age,
+                  sel=Store.age.comp$`19001`$LL$Selectivity,
+                  Title="Longline")
+  dev.off()
+
+  
+  #Display Steepness  
+  fn.fig(paste(hNdl.HH,'Figure 1_steepness',sep=''),2400,2400) 
+  dist=with(store.species.steepness$`scalloped hammerhead`,density(rgamma(10000,shape,rate),adjust = 2))
+  plot(dist,xlim=c(0,1),col='red',xlab="Steepness",yaxt='n',ylab="Density",lwd=2,
+       main=paste("mean=",round(mean(mean(dist$x)),2)))
+  dev.off()
+  
   
   #Display SPM
   if(Do.SPM=="YES")
@@ -4464,7 +4498,7 @@ if(Asses.Scalloped.HH)
     }
     Tab.par.estim.SPM.scallopedHH=do.call(rbind,Tab.par.estim.SPM.scallopedHH)
     setwd(hNdl.HH)
-    fn.word.table(WD=getwd(),TBL=Tab.par.estim.SPM.scallopedHH,Doc.nm="SPM estimates",caption=NA,paragph=NA,
+    fn.word.table(WD=getwd(),TBL=Tab.par.estim.SPM.scallopedHH,Doc.nm="estimates_SPM",caption=NA,paragph=NA,
                   HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                   Zebra='NO',Zebra.col='grey60',Grid.col='black',
                   Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
@@ -4596,7 +4630,7 @@ if(Asses.Scalloped.HH)
     Tab=as.data.frame(matrix(paste(MLE," (",std,")",sep=''),nrow=1))
     names(Tab)=Nms
     setwd(hNdl.HH)
-    fn.word.table(WD=getwd(),TBL=Tab,Doc.nm="aSPM estimates",caption=NA,paragph=NA,
+    fn.word.table(WD=getwd(),TBL=Tab,Doc.nm="estimates_aSPM",caption=NA,paragph=NA,
                   HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                   Zebra='NO',Zebra.col='grey60',Grid.col='black',
                   Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
