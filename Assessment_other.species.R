@@ -876,6 +876,10 @@ names(id)=Agg.r$Name
 id=rev(sort(id))
 Agg.r=Agg.r[match(names(id),Agg.r$Name),]
 
+
+#---PSA to determine which species to assess further------------------------------------------------------  
+#note: aggregates the susceptibilities of multiple fleets (Micheli et al 2014)
+
 Agg.PSA=Agg%>%
   filter(!is.na(Gear))%>%
   group_by(Name,Gear,FINYEAR)%>%
@@ -884,8 +888,6 @@ Agg.PSA=Agg%>%
   data.frame
 names(Agg.PSA)[-(1:2)]=substr(names(Agg.PSA)[-(1:2)],2,5)
 
-  #PSA  (aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
-#use PSA to determine which species to assess further
 Agg.sp=unique(Agg.PSA$Name)
 KIP=vector('list',length(Agg.sp))
 for(s in 1:length(Agg.sp))
