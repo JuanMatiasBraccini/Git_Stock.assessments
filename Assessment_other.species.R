@@ -4245,7 +4245,8 @@ if(Asses.Scalloped.HH)
   fn.fig(paste(hNdl.HH,'Figure 1_catches',sep=''),2400,2400) 
   par(mar=c(3.5,3.25,1.5,1),las=1,mgp=c(1,.75,0),cex.axis=1.25)
   
-  Tot.col=rgb(.1,.1,1,alpha=.4)
+  Tot.col.bg=rgb(.1,.5,1,alpha=.75)
+  Tot.col=rgb(.1,.5,1,alpha=.3)
   for(s in s)
   {
     ddd=subset(Tot.ktch,SP.group==Specs$SP.group[s])%>%
@@ -4256,16 +4257,16 @@ if(Asses.Scalloped.HH)
     ddd.all=ddd%>%
             group_by(finyear)%>%
             summarise(Tot=sum(Tot,na.rm=T))
-    plot(all.yrs,ddd.all$Tot,col=Tot.col,ylab="",xlab="",type='o',cex=1.5,lwd=2,pch=21,bg="white",
-         ylim=c(0,max(ddd.all$Tot)),xaxt='n')
+    plot(all.yrs,ddd.all$Tot,col=Tot.col,ylab="",xlab="",type='o',cex=1.25,
+         lwd=2,pch=21,bg=Tot.col.bg,ylim=c(0,max(ddd.all$Tot)),xaxt='n')
     unik.T=unique(ddd$Type)
     for(u in 1:length(unik.T))
     {
       cl=COLs.type[match(unik.T[u],names(COLs.type))]
       with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=1.75,lwd=2,pch=21,bg=cl))
     }
-    legend('topleft',c(names(COLs.type)[1:4],"Total"),pt.bg=c(COLs.type[1:4],"white"),
-           bty='n',pch=21,cex=1.15,pt.cex=2,lwd=2,col=c(rep('black',4),Tot.col))
+    legend('topleft',c(names(COLs.type)[1:4],"Total"),pt.bg=c(COLs.type[1:4],Tot.col.bg),
+           bty='n',pch=21,cex=1.15,pt.cex=c(rep(2,4),1.5),lwd=2,col=c(rep('black',4),Tot.col))
     axis(1,all.yrs,F,tck=-.01)
     Yrs.lab=round(seq(all.yrs[1],all.yrs[length(all.yrs)],10)/10)*10
     axis(1,Yrs.lab,Yrs.lab,tck=-.02)
@@ -4601,7 +4602,7 @@ if(Asses.Scalloped.HH)
     Bt=apply(Med.biom.scallopedHH_aSPM,2,function(x) quantile(x,probs=c(.025,0.5,.975)))  
     
     #2. Plot
-    fn.fig(paste(hNdl.HH,"Figure 3_Biomass_aSPM",sep=""),2400,2000)
+    fn.fig(paste(hNdl.HH,"Figure 2_Biomass_aSPM",sep=""),2400,2000)
     smart.par(n.plots=1,MAR=c(1.2,2,2,1.25),OMA=c(2,1.75,.2,2.1),MGP=c(1,.62,0))
     par(las=1,cex.axis=1)
     DAT=t(Med.biom.scallopedHH_aSPM)
