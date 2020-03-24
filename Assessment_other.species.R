@@ -280,6 +280,8 @@ minimizer='optim'
 
 Remove.bounds=FALSE
 
+usePen=TRUE  
+
     #K bounds
 Low.bound.K=10  #times the maximum catch
 Up.bound.K=100 
@@ -1200,7 +1202,7 @@ cpue.list=list(
                        TDGDLF.mon=Spinr.tdgdlf_mon,
                        TDGDLF.day=Spinr.tdgdlf_daily),
   "shortfin mako"=list(Nat=NULL,
-                       TDGDLF.mon=Mako.tdgdlf_mon,
+                       TDGDLF.mon=Mako.tdgdlf_mon,  
                        TDGDLF.day=Mako.tdgdlf_daily),
   "spurdogs"=NULL,
   "tiger shark"=list(Nat=Tiger.nat,
@@ -1952,7 +1954,7 @@ if(Do.SPM=="YES")
     "scalloped hammerhead"=c(q1=.005,NA,NA),
     "smooth hammerhead"=c(NA,q2=.005,q3=.001), 
     "spinner shark"=c(NA,q2=.005,q3=.001),
-    "shortfin mako"=c(NA,q2=.005,q3=.001),
+    "shortfin mako"=c(NA,q2=NA,q3=.001),    #CV for q2 too high for all years
     "spurdogs"=NULL,
     "tiger shark"=c(q1=.005,q2=.005,q3=.001),         
     "wobbegongs"=NULL) 
@@ -2151,7 +2153,7 @@ if(Do.SPM=="YES")
           CPUE.CV[[ci]]=x$CV
           CPUE[[ci]]=x$MeAn
           
-          too.large=which(CPUE.CV[[ci]]>.6) #drop observation with too large CVs
+          too.large=which(CPUE.CV[[ci]]>MAX.CV) #drop observation with too large CVs
           CPUE[[ci]][too.large]=NA
           CPUE.CV[[ci]][too.large]=NA
           
@@ -2192,7 +2194,7 @@ if(Do.SPM=="YES")
             if(!is.null(CPUE.eff.scen[[ss]])) CPUE.eff.scen[[ss]]=CPUE.eff.scen[[ss]]*Add.eff$Efficiency
           }
           
-          #objfun to minimize 
+          #objfun to minimize #ACA
           fn_ob=function(theta)SPM(Init.propK=B.init,
                                    cpue=CPUE.eff.scen,
                                    cpue.CV=CPUE.CV,
@@ -2203,7 +2205,7 @@ if(Do.SPM=="YES")
                                    HR_init.sd=HR_o.sd,
                                    r.mean=r.prior,
                                    r.sd=r.prior.sd,
-                                   usePenalties=TRUE)$negLL
+                                   usePenalties=usePen)$negLL
           #fit model
           if(estim.q=="YES")theta= c(k=log(K.init),log(QS[which(!is.na(QS))]))
           if(estim.q=="NO")theta= c(k=log(K.init))
@@ -2288,7 +2290,7 @@ if(Do.SPM=="YES")
                              HR_init.sd=HR_o.sd,
                              r.mean=Store.stuff[[s]]$r.mean,
                              r.sd=Store.stuff[[s]]$r.sd,
-                             usePenalties=TRUE)
+                             usePenalties=usePen)
         }
         dumy.pred[[h]]=dummy.eff
       }
@@ -2350,7 +2352,7 @@ if(Do.SPM=="YES")
                          HR_init.sd=HR_o.sd,
                          r.mean=Store.stuff[[s]]$r.mean,
                          r.sd=Store.stuff[[s]]$r.sd,
-                         usePenalties=TRUE)
+                         usePenalties=usePen)
           }
           dummy.eff[[e]]=dum
         }
@@ -3525,7 +3527,7 @@ if(Do.Ktch.MSY=="YES")
 {
   
   #r priors   
-  fn.fig("Figure 1_Prior_r", 2000, 2000)
+  fn.fig(paste(hNdl,"/Outputs/Figure 1_Prior_r",sep=""), 2000, 2000)
   smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
   for(s in 1: N.sp)
   {
@@ -3602,7 +3604,7 @@ if(Do.Ktch.MSY=="YES")
   }
   
   
-  fn.fig("Figure 3_Biomass_Catch_MSY", 2400, 1800)
+  fn.fig(paste(hNdl,"/Outputs/Figure 3_Biomass_Catch_MSY",sep=""), 2400, 1800)
   smart.par(n.plots=length(compact(store.species)),MAR=c(1.2,2,1.5,1.75),
             OMA=c(2,1.75,.2,2.1),MGP=c(1,.5,0))
   par(las=1,cex.axis=1.1)
@@ -3649,7 +3651,7 @@ if(Do.Ktch.MSY=="YES")
     dev.off()
   }
   
-  fn.fig("Figure MSY_Catch.MSY", 2400, 2400)
+  fn.fig(paste(hNdl,"/Outputs/Figure MSY_Catch.MSY",sep=""), 2400, 2400)
   smart.par(n.plots=length(compact(store.species)),MAR=c(1.2,2,1.5,1.75),
             OMA=c(2,3,.2,2.1),MGP=c(1,.5,0))
   par(las=1,cex.axis=1.1)
@@ -3764,7 +3766,7 @@ if(Asses.Scalloped.HH)
   SP="scalloped hammerhead"
   
   #Scenarios
-  Scen.HH=data.frame(Scenario=c("Base case", "Double illegal","Double discards and rec"),
+  Scen.HH=data.frame(Scenario=c("Base case", "Double Indonesian catch","Double discards and rec"),
                      stringsAsFactors=F)
   
   #select scalloped HH index
@@ -3797,7 +3799,7 @@ if(Asses.Scalloped.HH)
       
       #catch
       ct=Tot.ktch%>%filter(SP.group==Specs$SP.group[s])
-      if(Scens[sc]=="Double illegal")
+      if(Scens[sc]=="Double Indonesian catch")
       {
         ct=ct%>%mutate(LIVEWT.c=ifelse(FishCubeCode=="Indo",2*LIVEWT.c,LIVEWT.c))
       }
@@ -3915,7 +3917,7 @@ if(Asses.Scalloped.HH)
                                      HR_init.sd=HR_o.sd,
                                      r.mean=r.prior,
                                      r.sd=r.prior.sd,
-                                     usePenalties=TRUE)$negLL
+                                     usePenalties=usePen)$negLL
 
             #fit model
             if(estim.q=="YES")theta= c(k=log(K.init),log(QS[which(!is.na(QS))]))
@@ -3995,7 +3997,7 @@ if(Asses.Scalloped.HH)
                              HR_init.sd=HR_o.sd,
                              r.mean=Store.stuff.scallopedHH[[sc]]$r.mean,
                              r.sd=Store.stuff.scallopedHH[[sc]]$r.sd,
-                             usePenalties=FALSE)
+                             usePenalties=usePen)
         }
         dumy.pred[[h]]=dummy.eff
       }
@@ -4040,7 +4042,7 @@ if(Asses.Scalloped.HH)
                          HR_init.sd=HR_o.sd,
                          r.mean=Store.stuff.scallopedHH[[sc]]$r.mean,
                          r.sd=Store.stuff.scallopedHH[[sc]]$r.sd,
-                         usePenalties=FALSE)
+                         usePenalties=usePen)
           }
           dummy.eff[[e]]=dum
         }
@@ -4071,8 +4073,6 @@ if(Asses.Scalloped.HH)
     }
     
     #Execute Catch-MSY  
-    print(paste("-------------",Scen.HH$Scenario[sc],"scenario"))
-    
     PATH=paste(PHat,Specs$SP.group[s],"National assessment",sep='/')
     if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
     setwd(file.path(PATH))
@@ -4080,6 +4080,7 @@ if(Asses.Scalloped.HH)
     Ktch_MSY.scallopedHH=ktch_msy_scen
     for(sc in 1:length(ktch_msy_scen))
     {
+      print(paste("-------------",Scen.HH$Scenario[sc],"scenario"))
       Yrs=Store.stuff.scallopedHH[[sc]]$yrs   
       Tot.Ktch=Store.stuff.scallopedHH[[sc]]$Ktch  
       yr.future=Current+(1:years.futures)
@@ -4119,7 +4120,7 @@ if(Asses.Scalloped.HH)
     }
   }
   
-  #aSPM
+  #aSPM 
   if(Do.aSPM=="YES")
   {
     l=match("scalloped hammerhead",names(cpue.list))
