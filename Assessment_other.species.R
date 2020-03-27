@@ -3764,6 +3764,9 @@ dev.off()
 if(Asses.Scalloped.HH)
 {
   SP="scalloped hammerhead"
+  B.target=.6
+  B.threshold=.4
+  B.limit=.2
   
   #Scenarios
   Scen.HH=data.frame(Scenario=c("Base case", "Double Indonesian catch","Double discards and rec"),
