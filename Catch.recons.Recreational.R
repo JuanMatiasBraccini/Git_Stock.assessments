@@ -465,6 +465,14 @@ if(Do.recons.rec.fishn.paper=="YES")
 {
   hndl.out="C:\\Matias\\Analyses\\Reconstruction_catch_recreational\\"
   
+  #export summarised ISurvey and Charter logbooks
+  Tab.2=Rec.fish.catch%>%
+          group_by(Common.Name)%>%
+          summarise(Kept=round(sum(Kept.Number)),
+                     Rel=round(sum(Rel.Number)))%>%
+          data.frame
+  write.csv(Tab.2,paste(hndl.out,"Appendix2.Table.Kept.Rel.csv",sep=''),row.names = FALSE)
+  
   #export weight and PCS table
   Tab.1=AVG.WT%>%
     filter(Common.Name%in%unique(Rec.fish.catch$Common.Name))%>%
