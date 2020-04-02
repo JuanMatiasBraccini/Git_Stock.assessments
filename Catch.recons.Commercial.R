@@ -28,7 +28,6 @@
 ### MISSING ### 
 #   Commonwealth (waiting from AFMA's Julie Cotsell/ Ryan Murpthy): 1.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)
 #   Whaler_SA (waiting to hear from SARDI's Angelo Tsolos, Paul Rogers)
-#   add MOU box catches, so far only reconstructed ILLEGAL!!
 ####
 
 library(tidyverse)
@@ -123,8 +122,9 @@ Calculate.discarding_catch=read_excel(fn.hndl('Calculate.discarding.xlsx'), shee
 
   #Non-WA fisheries
 Whaler_SA=read.csv(fn.hndl("SA_marine_scalefish_whaler_ktch.csv"))  #catch in tonnes; source SARDI's Angelo Tsolos, Paul Rogers
-WTBF_catch=read.csv(fn.hndl("WTBF_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
-GAB.trawl_catch=read.csv(fn.hndl("Gab.trawl_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
+AFMA_GAB_WTB= read.csv(fn.hndl('AFMA_GAB.trawl_WTB.csv'))  #catch in kg; source: AFMA data request; Kehani Manson
+#WTBF_catch=read.csv(fn.hndl("WTBF_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
+#GAB.trawl_catch=read.csv(fn.hndl("Gab.trawl_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
 
 
 ## Species codes
@@ -469,7 +469,7 @@ Taiwan.longline.sp.comp=data.frame(
 
 
   #-- 2.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)   
-if(!exists('WTBF_catch'))
+if(!exists('AFMA_GAB_WTB'))
 {
   #Bensely et al 2010. Table 2 in Appendix A
   WTBF_effort=read.csv(fn.hndl("WTBF_effort_Benseley.et.al.2010.csv"))  #hook numbers
@@ -1342,42 +1342,21 @@ Taiwan.gillnet.ktch=fn.reap.hh.Taiwan(d=Taiwan.gillnet.ktch,Survey=Comp.hh.north
 Taiwan.longline.ktch=fn.reap.hh.Taiwan(d=Taiwan.longline.ktch,Survey=Comp.hh.north)
 
 
-  #-- 3.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)  
-#WTBF_catch GAB.trawl_catch     #by species, add SPECIES, etc
-WTBF_catch=WTBF_catch%>%
-         rename(LIVEWT.c=Catch_kg,
-               FINYEAR=Year)%>%
-         mutate(SPECIES=
-                 ifelse(Species=="Blacktip sharks",18014,
-                 ifelse(Species=="Blue shark",18004,
-                 ifelse(Species=="Hammerheads",19000,
-                 ifelse(Species=="Tiger shark",18022,
-                 ifelse(Species=="Bronze whaler",18001,
-                 ifelse(Species=="Dusky shark",18003,
-                 ifelse(Species=="Scalloped hammerhead",19001,
-                 ifelse(Species=="Sandbar shark",18007,
-                 ifelse(Species=="Shortfin mako",10001,
-                 22999))))))))))%>%
-  dplyr::select(-Species)
-GAB.trawl_catch=GAB.trawl_catch%>%
-          rename(LIVEWT.c=Catch_kg,
-                 FINYEAR=Finyear)%>%
-          mutate(SPECIES=
-           ifelse(Species%in%c("Broadnose sevengill shark","Sevengilled shark"),5001,
-           ifelse(Species=="Blue shark",18004,
-           ifelse(Species=="Common saw shark",23002,
-           ifelse(Species=="Saw sharks",23900,
-           ifelse(Species=="Bronze whaler",18001,
-           ifelse(Species=="Greynurse shark",8001,
-           ifelse(Species=="Scalloped hammerhead",19001,
-           ifelse(Species=="Gummy shark",17001,
-           ifelse(Species=="Shortfin mako",10001,
-           ifelse(Species=="School shark",17008,
-           ifelse(Species=="Wobbegong sharks",13000,
-           ifelse(Species=="Smooth hammerhead",19004,
-           ifelse(Species=="Whiskery shark",17003,
-           22999))))))))))))))%>%
-  dplyr::select(-Species)
+  #-- 3.2.2 Commonwealth GAB trawl and Western Tuna and Billfish (WTB)  
+AFMA_GAB_WTB=AFMA_GAB_WTB%>%
+        mutate(LIVEWT.c=as.numeric(gsub(",","",Catch.Wt)),
+               FINYEAR=paste(substr(Fin.Year,1,4),substr(Fin.Year,8,9),sep='-'),
+               SPECIES=as.numeric(substr(gsub(",","",Caab.Code),4,10)))
+  
+WTBF_catch=AFMA_GAB_WTB%>%
+         filter(Crnt.Fshy.Code=="WTB" & SPECIES<35000)%>%
+         dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
+
+GAB.trawl_catch=AFMA_GAB_WTB%>%
+        filter(Crnt.Fshy.Code=="GAB" & SPECIES<35000)%>%
+        dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
+  
+
 
 
   #-- 3.2.3 SA Marine Scalefish fishery     
@@ -1499,8 +1478,6 @@ Indo_total.annual.ktch=rbind(Indo_total.annual.ktch,Indo_total.annual.ktch_MOU)%
               data.frame
 
 
-
-
 # 4 -------------------EXPORT CATCH DATA------------------------------------
 fn.out=function(d,NM)
 {
@@ -1563,7 +1540,8 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   WRL.total.ktch$TYPE="WRL"
   Taiwan.gillnet.ktch$TYPE="Taiwanese"
   Taiwan.longline.ktch$TYPE="Taiwanese"
-  
+  GAB.trawl_catch$TYPE="GAB"
+  WTBF_catch$TYPE="WTB"
   Indo_total.annual.ktch$TYPE="Indonesian"
   Data.monthly.agg=Data.monthly%>%
                     group_by(FINYEAR,SPECIES)%>%
@@ -1577,7 +1555,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
                     data.frame
   
   Unified=rbind(Hist.expnd,Greynurse.ktch,TEPS_dusky,WRL.total.ktch,Indo_total.annual.ktch,
-                Taiwan.gillnet.ktch,Taiwan.longline.ktch,
+                Taiwan.gillnet.ktch,Taiwan.longline.ktch,GAB.trawl_catch,WTBF_catch,
                 Data.monthly.agg,Data.monthly.north.agg)%>%
               left_join(All.species.names,by='SPECIES')%>%
               filter(!is.na(Name) & FINYEAR%in%This.fin.yr) #report only complete years
@@ -1588,18 +1566,23 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
             summarise(Total=round(sum(LIVEWT.c)/1000,1))%>%
             spread(TYPE,Total,fill=0)%>%
             data.frame%>%
-            mutate(Total=Historic+WA.south+WA.north+Protected+Taiwanese+Indonesian+WRL)%>%
-            arrange(-Total)%>%
+            mutate(Total=Historic+WA.south+WA.north+Protected+Taiwanese+Indonesian+WRL+WTB+GAB)%>%
             left_join(All.species.names%>%dplyr::select(-SPECIES),by="Name")%>%
             rename(Common.name=Name,
                    South=WA.south,
                    North=WA.north,
-                   Scientific.name=Scien.nm)
+                   Scientific.name=Scien.nm)%>%
+            arrange(-Total)
+  Cum.ktch=cumsum(Table1$Total)/sum(Table1$Total)
+  ID=which.min(abs(Cum.ktch-0.99))
+  
+  Table1=Table1%>%dplyr::select(Common.name,Scientific.name,
+                    Historic,North,South,WRL,Protected,Taiwanese,Indonesian,WTB,GAB)
     
   
   source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")  
   setwd('C:/Matias/Analyses/Reconstruction_catch_commercial')
-  fn.word.table(WD=getwd(),TBL=Table1%>%dplyr::select(Common.name,Scientific.name,Historic,South,North,Protected,Taiwanese,Indonesian),
+  fn.word.table(WD=getwd(),TBL=Table1,
                 Doc.nm="Table1",caption=NA,paragph=NA,
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                 Zebra='NO',Zebra.col='grey60',Grid.col='black',
@@ -1608,16 +1591,17 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   
   #Figure 1. species annual catch by fishery
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R')
-  Cum.ktch=cumsum(Table1$Total)/sum(Table1$Total)
-  ID=which.min(abs(Cum.ktch-0.99))
   these.sp=Table1[1:ID,]%>%pull(Common.name)
   
   LWD=1.8
-  CLs=data.frame(TYPE=c("Historic","South","North","Protected",
-                        "Taiwanese","Indonesian","WRL"),
-                 CL=c("black","deepskyblue2","coral3","green",
-                      "dodgerblue4","darkorange","forestgreen"),
-                 LT=c(1,1,1,1,3,3,1))
+  CLs=data.frame(TYPE=c("Historic","WA.south","WA.north","Protected","WRL",
+                        "Taiwanese","Indonesian","WTB","GAB"),
+                 Names=c("Historic","South","North","Protected","WRL",
+                        "Taiwanese","Indonesian","WTB","GAB"),
+                 CL=c("black","deepskyblue2","coral3","green","forestgreen",
+                      "dodgerblue4","darkorange","darkolivegreen3","grey30"),
+                 LT=c(1,1,1,1,1,3,3,3,3))
+  
   fun.plt.Fig2=function(SP)
   {
     d=Unified%>%filter(Name==SP)%>%
@@ -1627,17 +1611,11 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
                 data.frame
     yr=as.numeric(substr(d$FINYEAR,1,4))
     plot(yr,yr,xlim=Yr.lim,col='transparent',ylab="",xlab="",ylim=c(0,max(d[,-c(1)],na.rm=T)))
-    with(CLs,
-         {
-           if("Historic"%in%names(d)) lines(yr,d$Historic,lwd=LWD,col=CL[1],lty=LT[1])
-           if("WA.south"%in%names(d)) lines(yr,d$WA.south,lwd=LWD,col=CL[2],lty=LT[2])
-           if("WA.north"%in%names(d)) lines(yr,d$WA.north,lwd=LWD,col=CL[3],lty=LT[3])
-           if("Protected"%in%names(d)) lines(yr,d$Protected,lwd=LWD,col=CL[4],lty=LT[4])
-           if("Taiwanese"%in%names(d)) lines(yr,d$Taiwanese,lwd=LWD,col=CL[5],lty=LT[5])
-           if("Indonesian"%in%names(d)) lines(yr,d$Indonesian,lwd=LWD,col=CL[6],lty=LT[6])
-           if("WRL"%in%names(d)) lines(yr,d$WRL,lwd=LWD,col=CL[7],lty=LT[7])
-         })
-
+    for(x in 2:ncol(d))
+    {
+      ii=match(names(d)[x],CLs$TYPE)
+      lines(yr,d[,x],lwd=LWD,col=CLs$CL[ii],lty=CLs$LT[ii])
+    }
     mtext(SP,3,cex=.85)
   }
   tiff(file=fn.hnd.out("Figure2_reconstructed.catch.by.species.tiff"),2400,2400,
@@ -1645,9 +1623,15 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   smart.par(n.plots=length(these.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
   for(s in 1:length(these.sp)) fun.plt.Fig2(SP=these.sp[s])
   plot.new()
-  legend("center",CLs$TYPE[1:4],col=CLs$CL[1:4],lty=CLs$LT[1:4],lwd=LWD*1.5,bty='n',cex=1.2)
+  ii=1:3
+  legend("center",CLs$Names[ii],col=CLs$CL[ii],lty=CLs$LT[ii],lwd=LWD*1.5,bty='n',cex=1.2)
   plot.new()
-  legend("center",CLs$TYPE[5:7],col=CLs$CL[5:7],lty=CLs$LT[5:7],lwd=LWD*1.5,bty='n',cex=1.2)
+  ii=4:5
+  legend("center",CLs$Names[ii],col=CLs$CL[ii],lty=CLs$LT[ii],lwd=LWD*1.5,bty='n',cex=1.2)
+  plot.new()
+  ii=6:9
+  legend("center",CLs$Names[ii],col=CLs$CL[ii],lty=CLs$LT[ii],lwd=LWD*1.5,bty='n',cex=1.2)
+  
   mtext("Financial year",1,outer=T,cex=1.15)
   mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.15)
   dev.off()

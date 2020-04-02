@@ -103,6 +103,10 @@ Taiwan.longline.ktch=fn.in(NM='recons_Taiwan.longline.ktch.csv')
 #Indonesian illegal fishing in Australia waters
 Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv') 
 
+#AFMA's GAB & SBT fisheries
+GAB.trawl_catch=fn.in(NM='recons_GAB.trawl_catch.csv') 
+WTBF_catch=fn.in(NM='recons_WTBF_catch.csv') 
+
 
   #2. WA Recreational catch
 Rec.ktch=fn.in(NM='recons_recreational.csv')
@@ -443,6 +447,8 @@ WRL.ktch=WRL.ktch%>%left_join(All.species.names,by='SPECIES')
 Taiwan.gillnet.ktch=Taiwan.gillnet.ktch%>%left_join(All.species.names,by='SPECIES')
 Taiwan.longline.ktch=Taiwan.longline.ktch%>%left_join(All.species.names,by='SPECIES')
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%left_join(All.species.names,by='SPECIES')
+GAB.trawl_catch=GAB.trawl_catch%>%left_join(All.species.names,by='SPECIES')
+WTBF_catch=WTBF_catch%>%left_join(All.species.names,by='SPECIES')
 
 Average.Lat=rbind(subset(Data.monthly,select=c(SPECIES,LAT)),subset(Data.monthly.north,select=c(SPECIES,LAT)))
 do.sp.table.WoE.paper="NO"
@@ -851,13 +857,40 @@ a=Hist.expnd%>%
 Tot.ktch=rbind(Tot.ktch,a)
 
 
-#12. Remove blacktips & school shark because they are not assessed here. Ditto white sharks
+#12. Add GAB
+GAB=GAB.trawl_catch%>%
+  mutate(BLOCKX=NA,
+         Region="South",
+         finyear=as.numeric(substr(FINYEAR,1,4)),
+         Name=SNAME,
+         Type="GAB",
+         METHOD="trawl",
+         FishCubeCode="GAB")%>%
+  dplyr::select(names(Tot.ktch))%>%
+  filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+Tot.ktch=rbind(Tot.ktch,GAB)
+
+
+#13. Add WTBF
+WTB=WTBF_catch%>%
+  mutate(BLOCKX=NA,
+         Region="South",
+         finyear=as.numeric(substr(FINYEAR,1,4)),
+         Name=SNAME,
+         Type="WTB",
+         METHOD="line",
+         FishCubeCode="WTB")%>%
+  dplyr::select(names(Tot.ktch))%>%
+  filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+Tot.ktch=rbind(Tot.ktch,WTB)
+
+#14. Remove blacktips & school shark because they are not assessed here. Ditto white sharks
 Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','spot tail shark',
                                     'Spot tail shark',"School shark",
                                     "white shark"))
 
 
-#13. Select species with enough data  
+#15. Select species with enough data  
 Agg=Tot.ktch%>%
   mutate(Gear=ifelse(METHOD%in%c("BS","BH","GN","HN","Pelagic.gillnet"),"net",
               ifelse(METHOD%in%c("DL","DV","EL","GL","HL","HR","HY",
@@ -1329,7 +1362,7 @@ fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle)
                     A=Amax,first.age=0,RangeMat=MAT,Rangefec=Fecu,
                     sexratio=0.5,Reprod_cycle=Breed.cycle,Hoenig.only="NO")  
   
-  #get mean and sd from lognormal distribution
+  #get mean and sd from gamma and normal distribution
   normal.pars=suppressWarnings(fitdistr(Rprior$r.prior, "normal"))
   gamma.pars=suppressWarnings(fitdistr(Rprior$r.prior, "gamma"))  
   shape=gamma.pars$estimate[1]        
@@ -1432,14 +1465,13 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
   #life history
   Growth.F=GROWTH.F[[s]]
   TEMP=AVER.T[[s]]
-  #TEMP=19
   Max.age.F=MAX.age.F[[s]]
   Age.50.mat=AGE.50.mat[[s]]
   Fecundity=FECU[[s]]
   Breed.cycle=Repro_cycle[[s]]  #years
   print(paste("r prior ",s,"--",names(store.species)[s]))
   #Get r prior
-  r.prior.dist=fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf,Temp=TEMP,Amax=Max.age.F,
+  r.prior.dist=fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf/.85,Temp=TEMP,Amax=Max.age.F,
                                MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle)
   store.species[[s]]$r.prior=list(shape=r.prior.dist$shape,rate=r.prior.dist$rate)
   store.species[[s]]$r.prior.normal=list(mean=r.prior.dist$mean,sd=r.prior.dist$sd)
@@ -1713,14 +1745,14 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
     return(list(Max.A=Max.A,age.mat=age.mat.sim,Meanfec=Meanfec.sim,Rep_cycle=Rep_cycle.sim))    
   }
   
-  M.fun=function(Amax,age.mat,Hoenig.only="NO")
+  M.fun=function(Amax,age.mat,Hoenig.only="NO",Linf=LINF,k=K,Aver.T=Temp)
   {
     m.Jensen.2=1.65/age.mat
     m.Jensen.2=rep(m.Jensen.2,length(age))
     
     #Pauly (1980)  
-    #m.Pauly=10^(-0.0066-0.279*log10(Linf)+0.6543*log10(k)+0.4634*log10(Aver.T))
-    #m.Pauly=rep(m.Pauly,length(age))
+    m.Pauly=10^(-0.0066-0.279*log10(Linf)+0.6543*log10(k)+0.4634*log10(Aver.T))
+    m.Pauly=rep(m.Pauly,length(age))
     
     #Hoenig (1983), combined teleost and cetaceans    
     m.Hoenig=exp(1.44-0.982*log(Amax))      
@@ -1732,11 +1764,11 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
     
     
     #STEP 2. get mean at age
-    if(Hoenig.only=="NO")nat.mort=data.frame(m.Jensen.2,m.Hoenig,m.Then.1)  
+    if(Hoenig.only=="NO")nat.mort=data.frame(m.Jensen.2,m.Pauly,m.Hoenig,m.Then.1)  
     if(Hoenig.only=="YES")nat.mort=data.frame(m.Hoenig)
     
     return(rowMeans(nat.mort))
-    apply(nat.mort, 1, function(x) weighted.mean(x, c(1,1.5,1.5)))
+    apply(nat.mort, 1, function(x) weighted.mean(x, c(1,1,1.5,1.5)))
   }
   
   Stipns=function(max.age,M,age.mat,Meanfec,CyclE,Sel)
@@ -1801,7 +1833,7 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
                     Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
                     Sel)
     #avoid non-sense h
-    if(hh<0.22)repeat 
+    if(hh<0.21)repeat 
     {
       a=fn.draw.samples()
       A.sim=a$Max.A
@@ -1848,7 +1880,7 @@ system.time(for(s in 1: N.sp)
   SEL=Selectivity.at.age[[s]]$relative.sel
   
   print(paste("steepness ",s,"--",names(store.species)[s]))
-  store.species.steepness[[s]]=fun.steepness(Nsims=2*NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf,
+  store.species.steepness[[s]]=fun.steepness(Nsims=2*NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf/.85,
                                              first.age=0,sel.age=SEL,F.mult=0,Temp=TEMP,
                                              Amax=Max.age.F,MAT=unlist(Age.50.mat),
                                              FecunditY=Fecundity,Cycle=Breed.cycle,
