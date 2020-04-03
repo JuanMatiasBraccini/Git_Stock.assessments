@@ -639,8 +639,26 @@ if(Do.recons.paper=="YES")
             arrange(-Total)%>%
             data.frame%>%
             rename(Total.catch=Total,
-                   Fishery=FishCubeName)%>%
-    dplyr::select(-FishCubeCode)
+                   Fishery=FishCubeName)
+  
+  dit.region=rbind(daily.other%>%
+                     mutate(LAT=-as.numeric(substr(block10,1,2)))%>%
+                     dplyr::select(FishCubeCode,FishCubeName,LAT),
+                   Data.monthly%>%
+                     mutate(LAT=-as.numeric(substr(BLOCKX,1,2)))%>%
+                     dplyr::select(FishCubeCode,FishCubeName,LAT),
+                   Data.monthly.north%>%
+                     mutate(LAT=-as.numeric(substr(BLOCKX,1,2)))%>%
+                     dplyr::select(FishCubeCode,FishCubeName,LAT))%>%
+          distinct(FishCubeName ,.keep_all = T)%>%
+          mutate(Region=ifelse(LAT>(-26),"North",
+                               ifelse(LAT<=(-26),"South",
+                                      NA)),
+                 Region=ifelse(FishCubeCode%in%c('C048','SBP','SBS','SBBS','SBSC'),"North",Region))
+        
+  dit=dit%>%left_join(dit.region,by='FishCubeCode')%>%
+    dplyr::select(-c(FishCubeCode,FishCubeName,LAT))
+  
   setwd('C:/Matias/Analyses/Reconstruction_catch_commercial')
   fn.word.table(WD=getwd(),TBL=dit,Doc.nm="Fisheries.reporting.shark_rays_tonnes",caption=NA,paragph=NA,
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
