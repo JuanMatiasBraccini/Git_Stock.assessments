@@ -1724,6 +1724,34 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   #   arrange(Tot)
   # barplot(D1$Tot/1000,horiz = T,xlab="Total catch (tonnes)",names.arg=D1$SPECIES,las=1)
   # dev.off()
+  
+  
+  #Catches by decade
+  library(fields)
+  
+  d=Unified%>%filter(Name%in%these.sp)%>%
+    mutate(Decade=10*floor(as.numeric(substr(FINYEAR,1,4))/10))%>%
+    group_by(Decade,Name)%>%
+    summarise(Total=sum(LIVEWT.c)/1000)%>%
+    mutate(Total=Total/sum(Total))%>%
+    spread(Decade,Total,fill=NA)%>%
+    data.frame%>%
+    mutate(dummy=rowMeans(select(., starts_with("X")), na.rm = TRUE) )%>%
+    arrange(-dummy)%>%
+    select(-dummy)
+  MAT=as.matrix(d[,-1])
+  BRKS=seq(0,max(MAT,na.rm = T),length.out = 20)
+  
+  tiff(file=fn.hnd.out("Figure3_catch.by.decade.tiff"),2400,2400,
+       units="px",res=300,compression="lzw")
+  colfunc <- colorRampPalette(c("khaki2", "darkred"))
+  par(mar=c(3,12,1,1))
+  image.plot(1:ncol(MAT),1:nrow(MAT),t(MAT),xaxt='n',yaxt='n',ylab="",xlab='',col=colfunc(length(BRKS)))
+  axis(1,1:ncol(MAT),substr(colnames(MAT),2,10))
+  axis(2,1:nrow(MAT),d$Name,las=1)
+  grid(nx=ncol(MAT),ny=nrow(MAT),col="black")
+  box()
+  dev.off()
 }
 
 
