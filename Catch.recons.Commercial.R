@@ -24,12 +24,6 @@
 #2. Annual effort for "Kimberley.GBF.annual.effort"
 
 
-
-### MISSING ### 
-#   Commonwealth (waiting from AFMA's Julie Cotsell/ Ryan Murpthy): 1.2.2 Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF)
-#   Whaler_SA (waiting to hear from SARDI's Angelo Tsolos, Paul Rogers)
-####
-
 library(tidyverse)
 library(readxl)
 library(lubridate)

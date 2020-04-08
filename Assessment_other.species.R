@@ -107,6 +107,9 @@ Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv')
 GAB.trawl_catch=fn.in(NM='recons_GAB.trawl_catch.csv') 
 WTBF_catch=fn.in(NM='recons_WTBF_catch.csv') 
 
+#SA Marine Scalefish fishery
+Whaler_SA=fn.in(NM='recons_Whaler_SA.csv') 
+
 
   #2. WA Recreational catch
 Rec.ktch=fn.in(NM='recons_recreational.csv')
@@ -449,6 +452,7 @@ Taiwan.longline.ktch=Taiwan.longline.ktch%>%left_join(All.species.names,by='SPEC
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%left_join(All.species.names,by='SPECIES')
 GAB.trawl_catch=GAB.trawl_catch%>%left_join(All.species.names,by='SPECIES')
 WTBF_catch=WTBF_catch%>%left_join(All.species.names,by='SPECIES')
+Whaler_SA=Whaler_SA%>%left_join(All.species.names,by='SPECIES')
 
 Average.Lat=rbind(subset(Data.monthly,select=c(SPECIES,LAT)),subset(Data.monthly.north,select=c(SPECIES,LAT)))
 do.sp.table.WoE.paper="NO"
@@ -870,7 +874,6 @@ GAB=GAB.trawl_catch%>%
   filter(SPECIES%in%unique(Tot.ktch$SPECIES))
 Tot.ktch=rbind(Tot.ktch,GAB)
 
-
 #13. Add WTBF
 WTB=WTBF_catch%>%
   mutate(BLOCKX=NA,
@@ -884,13 +887,28 @@ WTB=WTBF_catch%>%
   filter(SPECIES%in%unique(Tot.ktch$SPECIES))
 Tot.ktch=rbind(Tot.ktch,WTB)
 
-#14. Remove blacktips & school shark because they are not assessed here. Ditto white sharks
+
+#14. Add Whaler_SA (SA Marine Scalefish Fishery)
+Whaler_SA=Whaler_SA%>%
+  mutate(BLOCKX=NA,
+         Region="South",
+         finyear=as.numeric(substr(FINYEAR,1,4)),
+         Name=SNAME,
+         Type="SA MSF",
+         METHOD="line",
+         FishCubeCode="SA MSF")%>%
+  dplyr::select(names(Tot.ktch))%>%
+  filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+Tot.ktch=rbind(Tot.ktch,Whaler_SA)
+
+
+#15. Remove blacktips & school shark because they are not assessed here. Ditto white sharks
 Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','spot tail shark',
                                     'Spot tail shark',"School shark",
                                     "white shark"))
 
 
-#15. Select species with enough data  
+#16. Select species with enough data  
 Agg=Tot.ktch%>%
   mutate(Gear=ifelse(METHOD%in%c("BS","BH","GN","HN","Pelagic.gillnet"),"net",
               ifelse(METHOD%in%c("DL","DV","EL","GL","HL","HR","HY",
@@ -1056,7 +1074,7 @@ dev.off()
 Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)    
 
 
-#13. Species grouping   
+#Species grouping   
 Tot.ktch$SP.group=Tot.ktch$Name
 
 Specs=Tot.ktch[!duplicated(Tot.ktch$SP.group),match(c("SPECIES","SNAME","Name","SP.group"),names(Tot.ktch))]
@@ -1064,8 +1082,7 @@ Dis.sp=unique(Specs$SP.group)
 Specs=Specs[order(Specs$SP.group),]
 N.sp=nrow(Specs)
 
-
-#14. Life history parameters of selected species   
+#---Life history parameters of selected species------------------------------------------------------  
 LH.par=LH.par[order(LH.par$SPECIES),]
 LH.par=merge(Scien.nm,LH.par,by="SPECIES",all.y=T)
 LH.par.sawshars=subset(LH.par,SNAME=="shark, common saw")
@@ -1117,13 +1134,12 @@ fn.word.table(WD=getwd(),TBL=TabL,Doc.nm="Table 1. Life history pars",caption=NA
               Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
 
 
-#15. Convert catch from kg to tonnes
+#---Final manipulations------------------------------------------------------  
+
+#Catch in tonnes
 Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
 
-
-#16. Check available tagging data
-
-  # tagging data
+# Check available tagging data
 FL.sp=c('Bull shark','Great hammerhead','Lemon shark','Pigeye shark','Scalloped hammerhead',
         'Smooth hammerhead','Spinner shark','Spurdogs','Tiger shark',' Wobbegong (general)',
         "Grey nurse shark","Hammerheads","Shortfin mako ","Pencil shark",
@@ -1134,8 +1150,7 @@ if(use.tags)
   table(Tag$COMMON_NAME)
 }
 
-
-#17. Set catch of all species starting in 1940s
+# Set catch of all species starting in 1940s
 TAB.dummy=with(Tot.ktch,table(FINYEAR,SP.group))
 Add.yrs=paste(seq(1941,1974),substr(seq(1942,1975),3,4),sep="-")
 id.dummy=match(Add.yrs[1],rownames(TAB.dummy)):match(Add.yrs[length(Add.yrs)],rownames(TAB.dummy))
@@ -1166,8 +1181,7 @@ if(length(Nms.dummy)>0)
   Tot.ktch=rbind(Tot.ktch,list.dummy)%>%arrange(SP.group,finyear)  
 }
 
-
-#18. Export total catch of each species
+#Export total catch of each species
 hn.ktch.sp=paste(hNdl,"/Outputs/Catch_assessed_sp/",sep="")
 fnkr8t(hn.ktch.sp)
 for(s in 1: N.sp)
@@ -1178,8 +1192,7 @@ for(s in 1: N.sp)
                       '.csv',sep=""),row.names = F)
 }
 
-
-#19. Displayed catches for analysed species
+#Displayed catches for analysed species
 fn.fig(paste(hNdl,'/Outputs/Figure 2_catch_analysed_species',sep=''),2400,2400) 
 smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
 for(s in 1: N.sp)
@@ -1196,19 +1209,19 @@ for(s in 1: N.sp)
        cl=COLs.type[match(unik.T[u],names(COLs.type))]
       with(subset(ddd,Type==unik.T[u]),points(finyear,Tot,type='o',cex=1.1,pch=21,bg=cl))
   }
-  if(s==1)legend('topleft',names(COLs.type),pt.bg=COLs.type,
-                 bty='n',pch=21,cex=1.15,pt.cex=2)
   axis(1,all.yrs,F,tck=-.015)
   axis(1,seq(all.yrs[1],all.yrs[length(all.yrs)],10),
        seq(all.yrs[1],all.yrs[length(all.yrs)],10),tck=-.03)
-
 }
 mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
+plot.new()
+legend('top',names(COLs.type),pt.bg=COLs.type,
+               bty='n',pch=21,cex=1.1,pt.cex=2)
 dev.off()
 
 
-#20. Collate available abundance data
+#---Collate available abundance data------------------------------------------------------  
 Scal.hh.nat$CV=Scal.hh.nat$CV/100
 Tiger.nat$CV=Tiger.nat$CV/100
 Mil.nat$CV=Mil.nat$CV/100
@@ -2226,7 +2239,7 @@ if(Do.SPM=="YES")
             if(!is.null(CPUE.eff.scen[[ss]])) CPUE.eff.scen[[ss]]=CPUE.eff.scen[[ss]]*Add.eff$Efficiency
           }
           
-          #objfun to minimize #ACA
+          #objfun to minimize
           fn_ob=function(theta)SPM(Init.propK=B.init,
                                    cpue=CPUE.eff.scen,
                                    cpue.CV=CPUE.CV,
