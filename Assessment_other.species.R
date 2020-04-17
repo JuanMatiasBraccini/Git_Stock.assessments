@@ -186,7 +186,12 @@ Sawshrk.tdgdlf_daily=fn.read('Sawsharks.annual.abundance.basecase.daily_relative
 Mako.tdgdlf_mon=fn.read('Mako.annual.abundance.basecase.monthly_relative.csv')
 Mako.tdgdlf_daily=fn.read('Mako.annual.abundance.basecase.daily_relative.csv')
 
+  #Standardised NSF cpue
+Lemon.NSF=fn.read('Lemon shark.annual.abundance.NSF_relative.csv')
+Pigeye.NSF=fn.read('Pigeye shark.annual.abundance.NSF_relative.csv')
+Tiger.NSF=fn.read('Tiger shark.annual.abundance.NSF_relative.csv')
 
+   
 
 #Mean catch weight data
 
@@ -236,12 +241,6 @@ Estim.sel.exp='NO'  #not enough observations from different mesh sizes
 
 #Use conventional tagging data?
 use.tags=F      #too few recaptures...do not use 
-
-
-#Use size composition?
-use.size.comp=T
-Min.obs=50  #minimum number of size observations to derive selectivity curve
-Min.len=25  #minimum length of sharks
 
 
 #... Surplus production arguments
@@ -355,6 +354,10 @@ Do.aSPM="NO"
 do.Gedamke_Hoenig="NO"     #not used due to knife-edge sel. assumption 
                            # and available data in weights, not length
 
+use.size.comp=T   #Use size composition?
+Min.obs=100  #minimum number of size observations to derive selectivity curve
+Min.len=25  #minimum length of sharks
+Min.size.sample=150  #minimum number of observation to do size assessment
 
 #---PROCEDURE SECTION-----
 
@@ -1142,8 +1145,8 @@ Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
 # Check available tagging data
 FL.sp=c('Bull shark','Great hammerhead','Lemon shark','Pigeye shark','Scalloped hammerhead',
         'Smooth hammerhead','Spinner shark','Spurdogs','Tiger shark',' Wobbegong (general)',
-        "Grey nurse shark","Hammerheads","Shortfin mako ","Pencil shark",
-        "Lemon shark","Milk shark","Bronze whaler","Common sawshark")
+        "Grey nurse shark","Hammerheads","Shortfin mako","Pencil shark",
+        "Lemon shark","Milk shark","Copper shark","Common sawshark")
 if(use.tags)
 {
   Tag=Tag%>%filter(COMMON_NAME%in%FL.sp & Recaptured=="Yes")
@@ -1227,144 +1230,45 @@ Tiger.nat$CV=Tiger.nat$CV/100
 Mil.nat$CV=Mil.nat$CV/100
 
 cpue.list=list(
-  "copper shark"=NULL,
+  "copper shark"=list(Nat=NULL,
+                      TDGDLF.mon=NULL,
+                      TDGDLF.day=NULL,
+                      NSF=NULL),
   "grey nurse shark"=list(Nat=NULL,
                           TDGDLF.mon=Greynurse.tdgdlf_mon,
-                          TDGDLF.day=NULL),
-  "lemon shark"=NULL,
+                          TDGDLF.day=NULL,
+                          NSF=NULL),
+  "lemon shark"=list(Nat=NULL,
+                     TDGDLF.mon=NULL,
+                     TDGDLF.day=NULL,
+                     NSF=Lemon.NSF),
   "great hammerhead"=NULL,
-  "milk shark"=NULL,     #flat cpue, no signal, error in estimation
-  # "milk shark"=list(Nat=Mil.nat,
-  #                   TDGDLF.mon=NULL,
-  #                   TDGDLF.day=NULL),
+  "milk shark"=list(Nat=Mil.nat,     #flat cpue, no signal, error in estimation
+                    TDGDLF.mon=NULL,
+                    TDGDLF.day=NULL,
+                    NSF=NULL),
   "sawsharks"=NULL,
   "scalloped hammerhead"=list(Nat=Scal.hh.nat,
                               TDGDLF.mon=NULL,
-                              TDGDLF.day=NULL),
+                              TDGDLF.day=NULL,
+                              NSF=NULL),
   "smooth hammerhead"=list(Nat=NULL,
                            TDGDLF.mon=Smuz.hh.tdgdlf_mon,
-                           TDGDLF.day=Smuz.hh.tdgdlf_daily), 
+                           TDGDLF.day=Smuz.hh.tdgdlf_daily,
+                           NSF=NULL), 
   "spinner shark"=list(Nat=NULL,
                        TDGDLF.mon=Spinr.tdgdlf_mon,
                        TDGDLF.day=Spinr.tdgdlf_daily),
   "shortfin mako"=list(Nat=NULL,
                        TDGDLF.mon=Mako.tdgdlf_mon,  
-                       TDGDLF.day=Mako.tdgdlf_daily),
+                       TDGDLF.day=Mako.tdgdlf_daily,
+                       NSF=NULL),
   "spurdogs"=NULL,
   "tiger shark"=list(Nat=Tiger.nat,
                      TDGDLF.mon=Tiger.tdgdlf_mon,
-                     TDGDLF.day=Tiger.tdgdlf_daily),         
+                     TDGDLF.day=Tiger.tdgdlf_daily,
+                     NSF=Tiger.NSF),         
   "wobbegongs"=NULL) 
-
-
-#---Length-based Mortality estimation------------------------------------------------------
-if(do.length.based=="YES")
-{
-  library(TropFishR)
-  
-  #catch size frequency
-  ktch.size.fq=list("Smooth hammerhead"=LFQ.south%>%filter(COMMON_NAME=='Smooth hammerhead' &
-                                                             MESH_SIZE%in%c("6.5","7")),
-                    "Spinner shark"=LFQ.south%>%filter(COMMON_NAME=='Spinner shark'&
-                                                         MESH_SIZE%in%c("6.5","7")),
-                    "Tiger shark"=LFQ.south%>%filter(COMMON_NAME=='Tiger shark'&
-                                                       MESH_SIZE%in%c("6.5","7")))
-  
-  #get gillnet selectivity schedule from different experimental nets
-  Estim.sel.exp='NO'  #not enough observations from different mesh sizes
-  Size.sel=vector('list',length(ktch.size.fq))
-  names(Size.sel)=names(ktch.size.fq)
-  if(Estim.sel.exp=="YES")
-  {
-    fn.sel.stim=function(d,size.int)
-    {
-      #put data as a list
-      tab=d%>%mutate(Size.class=size.int*floor(FL/size.int)+size.int/2)%>%
-        group_by(MESH_SIZE,Size.class)%>%
-        summarise(n=n())%>%
-        spread(MESH_SIZE,n,fill=0)%>%
-        data.frame
-      colnames(tab)[-1]= substr(colnames(tab)[-1],2,100)
-      d.list=list(midLengths=tab$Size.class,
-                  type="gillnet",
-                  meshSizes=2.54*as.numeric(colnames(tab)[-1]),   #inches to cm
-                  CatchPerNet_mat=as.matrix(tab[,-1]))
-      #apply sel estim methods
-      out <- TropFishR::select(param = d.list) 
-      
-      #plot(out)
-      return(list(out=out))
-    }
-    for(s in 1:length(Size.sel)) Size.sel[[s]]=fn.sel.stim(d=ktch.size.fq[[s]],size.int=10)
-  }
-  
-  #Simple selectivity
-  if(Estim.sel.exp=="NO")
-  {
-    fn.sel.simple=function(d)
-    {
-      dist=fitdistr(d$FL, "normal")
-      FL=seq(min(d$FL),max(d$FL))
-      Sel=dnorm(FL, dist$estimate[1], dist$estimate[2])
-      
-      tab=d%>%mutate(Size.class=floor(FL))%>%
-        group_by(Size.class)%>%
-        summarise(n=n())
-      plot(tab$Size.class,tab$n,type='h',ylab="Frequency",xlab="FL (cm)",
-           main=names(ktch.size.fq)[s])
-      par(new=T)
-      plot(FL,Sel/max(Sel),ann=F,yaxt='n',type='l',col=2,lwd=2)
-      return(sel=data.frame(FL=FL,Sel=Sel/max(Sel)))
-    }
-    smart.par(length(Size.sel),c(3,3,4,2),c(1,1,1,1),c(2,.7,0))
-    for(s in 1:length(Size.sel)) Size.sel[[s]]=fn.sel.simple(d=ktch.size.fq[[s]])
-  }
-  
-  detach("package:TropFishR", unload=TRUE)  #remove after use because it causes conflicts with dplyr
-  
-}
-
-
-#---Mean weight-based Mortality estimation------------------------------------------------------
-if(do.mean.weight.based=="YES")
-{
-  library(fishmethods)
-  
-  # daily standardised mean weight of catch
-  Mn.weit.ktch=list("Smooth hammerhead"=Smuz.hh.tdgdlf.size,
-                    "Spinner shark"=Spinr.tdgdlf.size,
-                    "Tiger shark"=Tiger.tdgdlf.size)
-  
-  # Beverton-Holt Nonequilibrium Z Estimator based on mean size of catch
-  #note: based on Gedamke & Hoenig 2006. 
-  #      Knife-edge selectivity. Only provides Z estimate for a period
-  if(do.Gedamke_Hoenig=="YES")
-  {
-    #for dome-shape selectivity, select Lc as size of full vulnerability
-    #   (Gedamke & Hoenig 2006 page 484)
-    fn.bhnoneq=function(d,Lc,K,Linf,a,b)
-    {
-      d=d%>%mutate(year=as.numeric(substr(Finyear,1,4)),
-                   mean=(Pred.mean/a)^(1/b))
-      Z=bhnoneq(year=d$year,mlen=d$mean, ss=d$n,
-                K=K,Linf=Linf,Lc=Lc,nbreaks=0,stZ=0.2,
-                graph =F)
-      return(Z)
-    }
-    store.z.bhnoneq=vector('list',length(Mn.weit.ktch))
-    names(store.z.bhnoneq)=names(Mn.weit.ktch)
-    for(i in 1:length(Mn.weit.ktch))
-    {
-      this=match(names(Mn.weit.ktch)[i],names(Size.sel))
-      Lc=Size.sel[[this]]
-      Lc=Lc[which.max(Lc$Sel),1]
-      store.z.bhnoneq[[i]]=with(subset(LH.par,Name==names(Mn.weit.ktch)[i]),
-                                fn.bhnoneq(d=Mn.weit.ktch[[i]],Lc=Lc,
-                                           K=K,Linf=FL_inf*Mn.conv.Fl.Tl,  #convert TL_inf to FL_inf
-                                           a=a_w8t,b=b_w8t))
-    }
-  }
-}
 
 
 #---Build r prior -----------------------------------------------------------------------
@@ -1508,6 +1412,10 @@ if(use.size.comp)
 {
   User="Matias"
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R')
+  DATA=DATA%>%
+      mutate(COMMON_NAME=ifelse(COMMON_NAME=="Bronze whaler","Copper shark",
+                         ifelse(COMMON_NAME=="Shortfin mako ","Shortfin mako",COMMON_NAME)))
+  
   Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
              "RV GANNET","RV SNIPE 2")
   fun.check.LFQ=function(a,area)
@@ -1580,8 +1488,8 @@ if(use.size.comp)
                                "milk shark","sawsharks","scalloped hammerhead","shortfin mako",
                                "smooth hammerhead","spinner shark","spurdogs",
                                "tiger shark","wobbegongs"),
-                        FL.sp=c("Bronze whaler","Great hammerhead","Grey nurse shark","Lemon shark",
-                                "Milk shark","Common sawshark","Scalloped hammerhead","Shortfin mako ",
+                        FL.sp=c("Copper shark","Great hammerhead","Grey nurse shark","Lemon shark",
+                                "Milk shark","Common sawshark","Scalloped hammerhead","Shortfin mako",
                                 "Smooth hammerhead","Spinner shark","Spurdogs",
                                 "Tiger shark","Wobbegong (general)"))
   Store.age.comp=vector('list',nrow(LH.par))
@@ -1721,10 +1629,20 @@ if(use.size.comp)
     }
     print(paste("selectivity ",l,"--",names(Selectivity.at.age)[l]))
   }
+  
+  #Collate catch size frequency
+  LFQ.south$COMMON_NAME=tolower(LFQ.south$COMMON_NAME)
+  ktch.size.fq=vector('list',N.sp)
+  names(ktch.size.fq)=Specs$SP.group
+  for(k in 1:N.sp)
+  {
+    dd=LFQ.south%>%filter(COMMON_NAME==names(ktch.size.fq)[k] & MESH_SIZE%in%c("6.5","7"))
+    if(nrow(dd)>Min.size.sample) ktch.size.fq[[k]]=dd
+    rm(dd)
+  }
+
 }
 setwd(WD)
-
-
 #---Calculate steepness -----------------------------------------------------------------------
 fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,FecunditY,Cycle,sexratio,spawn.time)
 {
@@ -1843,8 +1761,8 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
       Sel=c(Sel,rep(Sel[length(Sel)],length(age)-length(Sel)))
     }
     hh=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
-                    Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
-                    Sel)
+              Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
+              Sel)
     #avoid non-sense h
     if(hh<0.21)repeat 
     {
@@ -1861,8 +1779,8 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
         Sel=c(Sel,rep(Sel[length(Sel)],length(age)-length(Sel)))
       }
       hh=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
-                      Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
-                      Sel)
+                Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
+                Sel)
       if(hh>0.22)break
     }
     Store[i]=hh
@@ -1917,7 +1835,107 @@ legend('topright',names(COl.all.sp),lty=1,lwd=2,col=COl.all.sp,bty='n')
 dev.off()
 
 
-#---Length-based Spawning potential ratio------------------------------------------------------
+#---Gear Selectivity estimation------------------------------------------------------
+if(do.length.based=="YES")
+{
+  library(TropFishR)
+
+  #get gillnet selectivity schedule from different experimental nets
+  Estim.sel.exp='NO'  #not enough observations from different mesh sizes
+  Size.sel=vector('list',length(ktch.size.fq))
+  names(Size.sel)=names(ktch.size.fq)
+  if(Estim.sel.exp=="YES")
+  {
+    fn.sel.stim=function(d,size.int)
+    {
+      #put data as a list
+      tab=d%>%mutate(Size.class=size.int*floor(FL/size.int)+size.int/2)%>%
+        group_by(MESH_SIZE,Size.class)%>%
+        summarise(n=n())%>%
+        spread(MESH_SIZE,n,fill=0)%>%
+        data.frame
+      colnames(tab)[-1]= substr(colnames(tab)[-1],2,100)
+      d.list=list(midLengths=tab$Size.class,
+                  type="gillnet",
+                  meshSizes=2.54*as.numeric(colnames(tab)[-1]),   #inches to cm
+                  CatchPerNet_mat=as.matrix(tab[,-1]))
+      #apply sel estim methods
+      out <- TropFishR::select(param = d.list) 
+      
+      #plot(out)
+      return(list(out=out))
+    }
+    for(s in 1:length(Size.sel)) Size.sel[[s]]=fn.sel.stim(d=ktch.size.fq[[s]],size.int=10)
+  }
+  
+  #Simple selectivity
+  if(Estim.sel.exp=="NO")
+  {
+    fn.sel.simple=function(d)
+    {
+      dist=fitdistr(d$FL, "normal")
+      FL=seq(min(d$FL),max(d$FL))
+      Sel=dnorm(FL, dist$estimate[1], dist$estimate[2])
+      
+      tab=d%>%mutate(Size.class=floor(FL))%>%
+        group_by(Size.class)%>%
+        summarise(n=n())
+      plot(tab$Size.class,tab$n,type='h',ylab="Frequency",xlab="FL (cm)",
+           main=names(ktch.size.fq)[s])
+      par(new=T)
+      plot(FL,Sel/max(Sel),ann=F,yaxt='n',type='l',col=2,lwd=2)
+      return(sel=data.frame(FL=FL,Sel=Sel/max(Sel)))
+    }
+    smart.par(length(Size.sel),c(3,3,4,2),c(1,1,1,1),c(2,.7,0))
+    for(s in 1:length(Size.sel)) Size.sel[[s]]=fn.sel.simple(d=ktch.size.fq[[s]])
+  }
+  
+  detach("package:TropFishR", unload=TRUE)  #remove after use because it causes conflicts with dplyr
+  
+}
+
+#---Mean weight-based Mortality estimation------------------------------------------------------
+if(do.mean.weight.based=="YES")
+{
+  library(fishmethods)
+  
+  # daily standardised mean weight of catch
+  Mn.weit.ktch=list("Smooth hammerhead"=Smuz.hh.tdgdlf.size,
+                    "Spinner shark"=Spinr.tdgdlf.size,
+                    "Tiger shark"=Tiger.tdgdlf.size)
+  
+  # Beverton-Holt Nonequilibrium Z Estimator based on mean size of catch
+  #note: based on Gedamke & Hoenig 2006. 
+  #      Knife-edge selectivity. Only provides Z estimate for a period
+  if(do.Gedamke_Hoenig=="YES")
+  {
+    #for dome-shape selectivity, select Lc as size of full vulnerability
+    #   (Gedamke & Hoenig 2006 page 484)
+    fn.bhnoneq=function(d,Lc,K,Linf,a,b)
+    {
+      d=d%>%mutate(year=as.numeric(substr(Finyear,1,4)),
+                   mean=(Pred.mean/a)^(1/b))
+      Z=bhnoneq(year=d$year,mlen=d$mean, ss=d$n,
+                K=K,Linf=Linf,Lc=Lc,nbreaks=0,stZ=0.2,
+                graph =F)
+      return(Z)
+    }
+    store.z.bhnoneq=vector('list',length(Mn.weit.ktch))
+    names(store.z.bhnoneq)=names(Mn.weit.ktch)
+    for(i in 1:length(Mn.weit.ktch))
+    {
+      this=match(names(Mn.weit.ktch)[i],names(Size.sel))
+      Lc=Size.sel[[this]]
+      Lc=Lc[which.max(Lc$Sel),1]
+      store.z.bhnoneq[[i]]=with(subset(LH.par,Name==names(Mn.weit.ktch)[i]),
+                                fn.bhnoneq(d=Mn.weit.ktch[[i]],Lc=Lc,
+                                           K=K,Linf=FL_inf*Mn.conv.Fl.Tl,  #convert TL_inf to FL_inf
+                                           a=a_w8t,b=b_w8t))
+    }
+  }
+}
+
+#---Length-based Spawning potential ratio------------------------------------------------------ ACA
 #note: based on Hordyk et al 2016. Assumptions:
 #      asymptotic selectivity (overestimates F and underestimates SPR if dome-shape) so it
 #      cannot be used because selectivity-at-age is normally distributed
