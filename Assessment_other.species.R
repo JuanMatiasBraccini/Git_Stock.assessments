@@ -1,11 +1,9 @@
-# ------ Script for running SPM and catch-MSY stock assessment on other shark species---- ###################
+# ------ Script for running Stock assessment on other shark species---- ###################
 
-#note: SPM and Catch-MSY implementation of Martell & Froese 2012.
-#       total catches must be used (i.e. all sources of F)
+#note: SPM, Catch-MSY (Martell & Froese 2012), aSPM(Haddon SimpleSA()), LBSPR (Hordyk et al 2015)
+#      Use Total catches (i.e. all sources of F), extracted from commercial and recreational catch reconstructions
 
-#       All sources of mortalities (commercial and recreational catches) considered thru catch reconstructions
-
-#       If catches have never been >1% carrying capacity, then unexploited status so catch series have
+#       If catches have never been >1% carrying capacity, then it's in unexploited status so catch series have
 #       no information on productivity.
 
 #missing:
@@ -15,9 +13,9 @@
 # aSPM: finish running for all species; issues with Tiger cpue fit...
 
 
-#consider:
-# Rather than standard SPM, try JABBA: Just Another Bayesian Biomass Assessment (can be 
-#   run from R..see Winker et al 2018; it's what IUCN uses)
+#Future considerations: rather than standard SPM, try JABBA (can be 
+#                        run from R..see Winker et al 2018; it's what IUCN uses); but does not
+#                        allow for multiple cpue series
 
 
 rm(list=ls(all=TRUE))
@@ -277,7 +275,7 @@ Init.r=list("copper shark"=.15,"great hammerhead"=.15,
 
 N.monte=1000
 
-MAX.CV=0.5    #maximum acceptable CV
+MAX.CV=0.5    #maximum acceptable CV for cpue series
 
 
     #Define which optimisation method to use
@@ -345,19 +343,18 @@ Do.sim.test="NO"
 
 
 #... Control which assessment methods to implement
-do.length.based='NO'        #not used due to knife-edge sel. assumption 
-do.mean.weight.based="NO"   #not used due to knife-edge sel. assumption 
-do.length.based.SPR="NO"   #not used due to knife-edge sel. assumption 
+use.size.comp="YES"        #is size catch comp used for anything?
+do.mean.weight.based="NO"   #not used due to logistic sel. assumption 
+                            #   and available data in length, not weight
+do.length.based.SPR="NO"   #not used due to logistic sel. assumption 
 Do.SPM="YES"
 Do.Ktch.MSY="YES"
 Do.aSPM="NO"
-do.Gedamke_Hoenig="NO"     #not used due to knife-edge sel. assumption 
-                           # and available data in weights, not length
 
-use.size.comp=T   #Use size composition?
-Min.obs=100  #minimum number of size observations to derive selectivity curve
 Min.len=25  #minimum length of sharks
-Min.size.sample=150  #minimum number of observation to do size assessment
+Min.size.sample=50  #minimum number of observations (all years combined) to derive selectivities
+Min.annual.size.samp=30  #minimum number of observations per year for LBSPR assessment
+
 
 #---PROCEDURE SECTION-----
 
@@ -910,8 +907,14 @@ Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','spot tail shark',
                                     'Spot tail shark',"School shark",
                                     "white shark"))
 
+#16. Change bull to pigeye shark as bull not likely to be taken (Heupel & McAuley 2007 page  84)
+Tot.ktch=Tot.ktch%>%
+          mutate(SPECIES=ifelse(SPECIES==18021,18026,SPECIES),
+                 SNAME=ifelse(SNAME=='bull shark','pigeye shark',SNAME),
+                 Name=ifelse(Name=='bull shark','pigeye shark',Name))
 
-#16. Select species with enough data  
+
+#17. Select species with enough data  
 Agg=Tot.ktch%>%
   mutate(Gear=ifelse(METHOD%in%c("BS","BH","GN","HN","Pelagic.gillnet"),"net",
               ifelse(METHOD%in%c("DL","DV","EL","GL","HL","HR","HY",
@@ -935,8 +938,8 @@ id=rev(sort(id))
 Agg.r=Agg.r[match(names(id),Agg.r$Name),]
 
 
-#---PSA to determine which species to assess further------------------------------------------------------  
-#note: aggregates the susceptibilities of multiple fleets (Micheli et al 2014)
+#---PSA to determine which species to assess ------------------------------------------------------  
+#note: PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
 
 Agg.PSA=Agg%>%
   filter(!is.na(Gear))%>%
@@ -978,7 +981,7 @@ PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from M
   for(p in 1:nrow(d))    
   {
     aa=d[p,]
-    if(!aa$Species%in%KIP$Name)
+    if(!aa$Species%in%KIP$Name)  #reset availability and encounterability if low catches for a given gear
     {
       k=KIP%>%filter(Name==aa$Species)
       aa=aa%>%
@@ -1038,7 +1041,7 @@ COLs.type=colfunc(length(Fishry.type))
 names(COLs.type)=Fishry.type
 All.N.sp=sort(unique(Tot.ktch$Name))
 fn.fig(paste(hNdl,'/Outputs/Figure 1_catch_all_species',sep=''),2400,2000) 
-smart.par(n.plots=length(All.N.sp),MAR=c(1,1,.85,.25),OMA=c(2,2.25,.05,.05),MGP=c(1,.5,0))
+smart.par(n.plots=length(All.N.sp),MAR=c(1,1,.8,.25),OMA=c(2.5,2.25,.05,.05),MGP=c(1,.5,0))
 par(cex.main=1,cex.axis=.85)
 for(s in 1:length(All.N.sp))
 {
@@ -1061,19 +1064,22 @@ for(s in 1:length(All.N.sp))
   if(s%in%26:31)axis(1,Yrss,Yrss,tck=-.07)
   Yax=pretty(seq(0,max(ddd$Tot),length.out = 4))
   axis(2,Yax,Yax, cex.axis=.85,padj =0.75,tck=.07,las=3)
-  
+  if(s==1)legend('topleft',names(COLs.type)[1:4],pt.bg=COLs.type[1:4],bty='n',pch=21,cex=1.05,pt.cex=1.5)
+  if(s==6) legend('topleft',names(COLs.type)[5:length(COLs.type)],pt.bg=COLs.type[5:length(COLs.type)],
+                 bty='n',pch=21,cex=1.05,pt.cex=1.5)
+    
 }
-plot.new()
-legend('topleft',names(COLs.type)[1:4],pt.bg=COLs.type[1:4],bty='n',pch=21,cex=1.15,pt.cex=2)
-plot.new()
-legend('topleft',names(COLs.type)[5:length(COLs.type)],pt.bg=COLs.type[5:length(COLs.type)],
-       bty='n',pch=21,cex=1.15,pt.cex=2)
+# plot.new()
+# legend('topleft',names(COLs.type)[1:4],pt.bg=COLs.type[1:4],bty='n',pch=21,cex=1.15,pt.cex=2)
+# plot.new()
+# legend('topleft',names(COLs.type)[5:length(COLs.type)],pt.bg=COLs.type[5:length(COLs.type)],
+#        bty='n',pch=21,cex=1.15,pt.cex=2)
 
-mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
+mtext("Financial year",1,line=1,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.65,cex=1.5,outer=T)
 dev.off()
 
-#Analysed selected species
+#Continue analyses with selected species
 Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)    
 
 
@@ -1115,7 +1121,7 @@ for(i in 1:N.sp)
 {
   dd=subset(LH.par,SP.group==SPLF[i])
   GROWTH.F[[i]]=data.frame(k=dd$K,FL_inf=dd$FL_inf)
-  MAX.age.F[[i]]=c(dd$Max_Age,round(dd$Max_Age*1.4))
+  MAX.age.F[[i]]=c(dd$Max_Age,round(dd$Max_Age*1.3))
   AGE.50.mat[[i]]=c(dd$Age_50_Mat_min,dd$Age_50_Mat_max)
   FECU[[i]]=c(dd$Fecu_min,dd$Fecu_max)
   Repro_cycle[[i]]=LH.par$Cycle[i]
@@ -1258,7 +1264,8 @@ cpue.list=list(
                            NSF=NULL), 
   "spinner shark"=list(Nat=NULL,
                        TDGDLF.mon=Spinr.tdgdlf_mon,
-                       TDGDLF.day=Spinr.tdgdlf_daily),
+                       TDGDLF.day=Spinr.tdgdlf_daily,
+                       NSF=NULL),
   "shortfin mako"=list(Nat=NULL,
                        TDGDLF.mon=Mako.tdgdlf_mon,  
                        TDGDLF.day=Mako.tdgdlf_daily,
@@ -1268,7 +1275,11 @@ cpue.list=list(
                      TDGDLF.mon=Tiger.tdgdlf_mon,
                      TDGDLF.day=Tiger.tdgdlf_daily,
                      NSF=Tiger.NSF),         
-  "wobbegongs"=NULL) 
+  "wobbegongs"=NULL,
+  "Pigeye shark"=list(Nat=NULL,     
+                    TDGDLF.mon=NULL,
+                    TDGDLF.day=NULL,
+                    NSF=Pigeye.NSF))   
 
 
 #---Build r prior -----------------------------------------------------------------------
@@ -1408,7 +1419,7 @@ for(r in 1:length(RESILIENCE))
 
 # ---Derive age frequency and selectivity from length frequency -----------------------------------------------------------------------
 WD=getwd()
-if(use.size.comp) 
+if(use.size.comp=="YES") 
 {
   User="Matias"
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R')
@@ -1472,26 +1483,24 @@ if(use.size.comp)
   
   pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data_north.pdf",sep=""))
   LFQ.north=fun.check.LFQ(a=DATA%>%filter(Mid.Lat>(-26) & COMMON_NAME%in%FL.sp &
-                                            Method%in%c('LL')  & !BOAT%in%Res.vess),
-                          area="North")
+                            Method%in%c('LL')  & !BOAT%in%Res.vess),area="North")
   dev.off()
   
   pdf(paste(hNdl,"/Outputs/Size.frequency/Available_data_south.pdf",sep=""))  
   LFQ.south=fun.check.LFQ(a=DATA%>%filter(Mid.Lat<(-26) & COMMON_NAME%in%FL.sp &
-                                            Method%in%c('GN') &!BOAT%in%Res.vess),
-                          area="South")
+                            Method%in%c('GN') &!BOAT%in%Res.vess),area="South")
   dev.off()
   
-  #Get age from size using age-length-key constructed based on assumed variability
+  #Get age from size using age-length-key constructed based on assumed size variability at age
   source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Age.length.key.R")  
   Conversion=data.frame(Name=c("copper shark","great hammerhead","grey nurse shark","lemon shark",
                                "milk shark","sawsharks","scalloped hammerhead","shortfin mako",
                                "smooth hammerhead","spinner shark","spurdogs",
-                               "tiger shark","wobbegongs"),
+                               "tiger shark","wobbegongs","pigeye shark"),
                         FL.sp=c("Copper shark","Great hammerhead","Grey nurse shark","Lemon shark",
                                 "Milk shark","Common sawshark","Scalloped hammerhead","Shortfin mako",
                                 "Smooth hammerhead","Spinner shark","Spurdogs",
-                                "Tiger shark","Wobbegong (general)"))
+                                "Tiger shark","Wobbegong (general)","Pigeye shark"))
   Store.age.comp=vector('list',nrow(LH.par))
   names(Store.age.comp)=LH.par$SPECIES
   for(l in 1:nrow(LH.par))
@@ -1520,7 +1529,7 @@ if(use.size.comp)
               filter(!is.na(FL))%>%
               filter(FL>=Min.len)%>%
               pull(FL),
-            min.obs=Min.obs)
+            min.obs=Min.size.sample)
     
     LL=get.prop.at.age.from.length(
             age=0:AMAX,
@@ -1536,7 +1545,7 @@ if(use.size.comp)
               filter(!is.na(FL))%>%
               filter(FL>=Min.len)%>%
               pull(FL),
-            min.obs=Min.obs)
+            min.obs=Min.size.sample)
     
     #fill in objects for aSPM
     props=data.frame(age=floor(0:AMAX),
@@ -1568,9 +1577,10 @@ if(use.size.comp)
              spsname=names(RESILIENCE)[l])
     Store.age.comp[[l]]=list(GN=GN,LL=LL,props=props,glb=glb)
     rm(GN,LL)
+    print(paste("selectivity ",l,"--",names(Store.age.comp)[l]))
   }
-  
-  
+
+      #show derived selectivity at age
   fn.plt.age.comp=function(sim,obs,sel,Title)   
   {
     if(!is.null(sim))
@@ -1590,7 +1600,6 @@ if(use.size.comp)
       legend("topright","Vulnerability",bty='n',text.col="forestgreen")
     }
   }
-  
   pdf(paste(hNdl,"/Outputs/Size.frequency/Inferred.age.comp.and.selectivity.pdf",sep=""))
   for(l in 1:nrow(LH.par))
   {
@@ -1607,7 +1616,7 @@ if(use.size.comp)
   }
   dev.off()
   
-  #combine selectivities of gillnets and longlines
+      #combine selectivities-at-age of gillnets and longlines
   Selectivity.at.age=vector('list',nrow(LH.par))
   names(Selectivity.at.age)=LH.par$SPECIES
   for(l in 1:length(Selectivity.at.age))
@@ -1627,8 +1636,8 @@ if(use.size.comp)
       dummy$relative.sel=dummy$relative.sel/max(dummy$relative.sel)
       Selectivity.at.age[[l]]=dummy
     }
-    print(paste("selectivity ",l,"--",names(Selectivity.at.age)[l]))
   }
+  
   
   #Collate catch size frequency
   LFQ.south$COMMON_NAME=tolower(LFQ.south$COMMON_NAME)
@@ -1640,7 +1649,9 @@ if(use.size.comp)
     if(nrow(dd)>Min.size.sample) ktch.size.fq[[k]]=dd
     rm(dd)
   }
-
+  
+    #remove species with no size frequency data
+  ktch.size.fq=ktch.size.fq[!sapply(ktch.size.fq, is.null)]
 }
 setwd(WD)
 #---Calculate steepness -----------------------------------------------------------------------
@@ -1835,8 +1846,8 @@ legend('topright',names(COl.all.sp),lty=1,lwd=2,col=COl.all.sp,bty='n')
 dev.off()
 
 
-#---Gear Selectivity estimation------------------------------------------------------
-if(do.length.based=="YES")
+#---Gear Size selectivity estimation------------------------------------------------------
+if(do.length.based.SPR=="YES")
 {
   library(TropFishR)
 
@@ -1900,45 +1911,41 @@ if(do.mean.weight.based=="YES")
   library(fishmethods)
   
   # daily standardised mean weight of catch
-  Mn.weit.ktch=list("Smooth hammerhead"=Smuz.hh.tdgdlf.size,
-                    "Spinner shark"=Spinr.tdgdlf.size,
-                    "Tiger shark"=Tiger.tdgdlf.size)
+  Mn.weit.ktch=list("smooth hammerhead"=Smuz.hh.tdgdlf.size,
+                    "spinner shark"=Spinr.tdgdlf.size,
+                    "tiger shark"=Tiger.tdgdlf.size)
   
-  # Beverton-Holt Nonequilibrium Z Estimator based on mean size of catch
+  # Beverton-Holt Nonequilibrium Z Estimator based on mean size of catch in weight
   #note: based on Gedamke & Hoenig 2006. 
-  #      Knife-edge selectivity. Only provides Z estimate for a period
-  if(do.Gedamke_Hoenig=="YES")
+  #      Logistic selectivity. Only provides Z estimate for a period
+  fn.bhnoneq=function(d,Lc,K,Linf,a,b)
   {
-    #for dome-shape selectivity, select Lc as size of full vulnerability
-    #   (Gedamke & Hoenig 2006 page 484)
-    fn.bhnoneq=function(d,Lc,K,Linf,a,b)
-    {
-      d=d%>%mutate(year=as.numeric(substr(Finyear,1,4)),
-                   mean=(Pred.mean/a)^(1/b))
-      Z=bhnoneq(year=d$year,mlen=d$mean, ss=d$n,
-                K=K,Linf=Linf,Lc=Lc,nbreaks=0,stZ=0.2,
-                graph =F)
-      return(Z)
-    }
-    store.z.bhnoneq=vector('list',length(Mn.weit.ktch))
-    names(store.z.bhnoneq)=names(Mn.weit.ktch)
-    for(i in 1:length(Mn.weit.ktch))
-    {
-      this=match(names(Mn.weit.ktch)[i],names(Size.sel))
-      Lc=Size.sel[[this]]
-      Lc=Lc[which.max(Lc$Sel),1]
-      store.z.bhnoneq[[i]]=with(subset(LH.par,Name==names(Mn.weit.ktch)[i]),
-                                fn.bhnoneq(d=Mn.weit.ktch[[i]],Lc=Lc,
-                                           K=K,Linf=FL_inf*Mn.conv.Fl.Tl,  #convert TL_inf to FL_inf
-                                           a=a_w8t,b=b_w8t))
-    }
+    d=d%>%mutate(year=as.numeric(substr(Finyear,1,4)),
+                 mean=(Pred.mean/a)^(1/b))
+    Z=bhnoneq(year=d$year,mlen=d$mean, ss=d$n,
+              K=K,Linf=Linf,Lc=Lc,nbreaks=0,stZ=0.2,
+              graph =F)
+    return(Z)
+  }
+  store.z.bhnoneq=vector('list',length(Mn.weit.ktch))
+  names(store.z.bhnoneq)=names(Mn.weit.ktch)
+  for(i in 1:length(Mn.weit.ktch))
+  {
+    this=match(names(Mn.weit.ktch)[i],names(Size.sel))
+    Lc=Size.sel[[this]]
+    Lc=Lc[which.max(Lc$Sel),1]
+    store.z.bhnoneq[[i]]=with(subset(LH.par,Name==names(Mn.weit.ktch)[i]),
+                              fn.bhnoneq(d=Mn.weit.ktch[[i]],Lc=Lc,
+                                         K=K,Linf=FL_inf*Mn.conv.Fl.Tl,  #convert TL_inf to FL_inf
+                                         a=a_w8t,b=b_w8t))
   }
 }
 
-#---Length-based Spawning potential ratio------------------------------------------------------ ACA
-#note: based on Hordyk et al 2016. Assumptions:
-#      asymptotic selectivity (overestimates F and underestimates SPR if dome-shape) so it
-#      cannot be used because selectivity-at-age is normally distributed
+
+#---Length-based Spawning potential ratio------------------------------------------------------ 
+#note: based on Hordyk et al 2015. Assumptions:
+#      asumes Logisitc selectivity so it cannot be used because selectivity is 
+#      dome-shaped distributed so this method will overestimate F and underestimate SPR
 if(do.length.based.SPR=="YES")
 {
   library(LBSPR)
@@ -1973,17 +1980,21 @@ if(do.length.based.SPR=="YES")
     tab=tab[,-1]
     colnames(tab)=substr(colnames(tab),2,100)
     tab=tab[,colSums(tab) > min.samp.size] 
+    Fit="not enough size observations"
     
-    MyLengths <- new("LB_lengths", LB_pars=MyPars)
-    MyLengths@LMids<-LMids
-    MyLengths@LData<-as.matrix(tab)
-    MyLengths@L_units<- "cm"
-    MyLengths@Years<-as.numeric(colnames(tab))
-    MyLengths@NYears<-length(MyLengths@Years)
-    
-    #fit model
-    Fit <- LBSPRfit(MyPars, MyLengths)
-    
+    if(is.matrix(tab)|is.data.frame(tab))
+    {
+      MyLengths <- new("LB_lengths", LB_pars=MyPars)
+      MyLengths@LMids<-LMids
+      MyLengths@LData<-as.matrix(tab)
+      MyLengths@L_units<- "cm"
+      MyLengths@Years<-as.numeric(colnames(tab))
+      MyLengths@NYears<-length(MyLengths@Years)
+      
+      #fit model                  #ACA, impose dome-shape selectivty from Size.sel
+      Fit <- LBSPRfit(MyPars, MyLengths)
+    }
+     
     return(Fit)
   }
   for(s in 1:length(LBSPR.assmnt))
@@ -1993,7 +2004,7 @@ if(do.length.based.SPR=="YES")
                                      M=M,
                                      d=ktch.size.fq[[s]],
                                      BinWidth=10,
-                                     min.samp.size=40)
+                                     min.samp.size=Min.annual.size.samp)
   }
   
   for(s in 1:length(LBSPR.assmnt))
@@ -2005,21 +2016,21 @@ if(do.length.based.SPR=="YES")
 }
 
 #---Single-species SPM -----------------------------------------------------------------------
-if(Do.SPM=="YES")
+if(Do.SPM=="YES")                        #ACA
 {
   Estimable.qs=list(
     "copper shark"=NULL,
-    "grey nurse shark"=c(NA,q2=.005,NA),
-    "lemon shark"=NULL,
+    "grey nurse shark"=c(NA,q2=.005,NA,NA),
+    "lemon shark"=c(NA,NA,NA,q4=.001),
     "great hammerhead"=NULL,
-    "milk shark"=c(q1=.005,NA,NA),
+    "milk shark"=c(q1=.005,NA,NA,NA),
     "sawsharks"=NULL,
-    "scalloped hammerhead"=c(q1=.005,NA,NA),
-    "smooth hammerhead"=c(NA,q2=.005,q3=.001), 
-    "spinner shark"=c(NA,q2=.005,q3=.001),
-    "shortfin mako"=c(NA,q2=NA,q3=.001),    #CV for q2 too high for all years
+    "scalloped hammerhead"=c(q1=.005,NA,NA,NA),
+    "smooth hammerhead"=c(NA,q2=.005,q3=.001,NA), 
+    "spinner shark"=c(NA,q2=.005,q3=.001,NA),
+    "shortfin mako"=NULL,    #CVs too high for all years so not used
     "spurdogs"=NULL,
-    "tiger shark"=c(q1=.005,q2=.005,q3=.001),         
+    "tiger shark"=c(q1=.005,q2=.005,q3=.001,q4=.001),         
     "wobbegongs"=NULL) 
   
   
