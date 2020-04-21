@@ -165,6 +165,7 @@ non.commercial.sharks=c("Brown-banded catshark","Cobbler Wobbegong",
 
 #Abundance data
 fn.read=function(x) read.csv(paste('C:/Matias/Analyses/Data_outs',x,sep='/'),stringsAsFactors = F)
+
   #Naturalist abundance survey
 Scal.hh.nat=fn.read('Scalloped hammerhead.Srvy.FixSt.csv')
 Tiger.nat=fn.read('Tiger shark.Srvy.FixSt.csv')
@@ -177,7 +178,7 @@ Spinr.tdgdlf_mon=fn.read('Spinner Shark.annual.abundance.basecase.monthly_relati
 Spinr.tdgdlf_daily=fn.read('Spinner Shark.annual.abundance.basecase.daily_relative.csv')
 Tiger.tdgdlf_mon=fn.read('Tiger Shark.annual.abundance.basecase.monthly_relative.csv')
 Tiger.tdgdlf_daily=fn.read('Tiger Shark.annual.abundance.basecase.daily_relative.csv')
-Greynurse.tdgdlf_mon=fn.read('Greynurse Shark.annual.abundance.basecase.monthly._relative.csv')
+Greynurse.tdgdlf_mon=fn.read('Greynurse Shark.annual.abundance.basecase.monthly_relative.csv')
 Pencil.tdgdlf_mon=fn.read('Pencil Shark.annual.abundance.basecase.monthly_relative.csv')
 Pencil.tdgdlf_daily=fn.read('Pencil Shark.annual.abundance.basecase.daily_relative.csv')
 Sawshrk.tdgdlf_daily=fn.read('Sawsharks.annual.abundance.basecase.daily_relative.csv')
@@ -188,7 +189,7 @@ Mako.tdgdlf_daily=fn.read('Mako.annual.abundance.basecase.daily_relative.csv')
 Lemon.NSF=fn.read('Lemon shark.annual.abundance.NSF_relative.csv')
 Pigeye.NSF=fn.read('Pigeye shark.annual.abundance.NSF_relative.csv')
 Tiger.NSF=fn.read('Tiger shark.annual.abundance.NSF_relative.csv')
-
+HH.NSF=fn.read('Hammerheads.annual.abundance.NSF_relative.csv')
    
 
 #Mean catch weight data
@@ -922,12 +923,28 @@ Agg=Tot.ktch%>%
               ifelse(METHOD%in%c("FG","TW"),'trawl',
               ifelse(METHOD%in%c("FT","PT"),'trap',
                      NA)))))
+
+    #replace missing gear info with most common value
+Mode <- function(x)
+{
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+Agg=Agg%>%
+  group_by(FishCubeCode) %>%
+  arrange(FishCubeCode, is.na(Gear)) %>% # in case to keep non- NA elements for a tie
+  mutate(Gear = ifelse(is.na(Gear),Mode(Gear),Gear),
+         Gear=ifelse(is.na(Gear) & FishCubeCode %in% c('Historic','Indo','WTB','SA MSF'),'line',
+              ifelse(is.na(Gear) & FishCubeCode %in% c('GAB','PFT','SBSC'),'trawl',
+              Gear)))
+
 Agg.r=Agg%>%
   group_by(Name,FINYEAR)%>%
   summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
   spread(FINYEAR,LIVEWT.c,fill=0)%>%
   data.frame
-names(Agg.r)[-(1:2)]=substr(names(Agg.r)[-(1:2)],1,4)
+names(Agg.r)[-1]=substr(names(Agg.r)[-1],2,5)
 
 PCH=rep(19,length(unique(Agg.r$Name)))
 COL=rep(1,length(unique(Agg.r$Name)))
@@ -1074,7 +1091,6 @@ for(s in 1:length(All.N.sp))
 # plot.new()
 # legend('topleft',names(COLs.type)[5:length(COLs.type)],pt.bg=COLs.type[5:length(COLs.type)],
 #        bty='n',pch=21,cex=1.15,pt.cex=2)
-
 mtext("Financial year",1,line=1,cex=1.5,outer=T)
 mtext("Total catch (tonnes)",2,las=3,line=0.65,cex=1.5,outer=T)
 dev.off()
@@ -1085,10 +1101,10 @@ Tot.ktch=subset(Tot.ktch,Name%in%Keep.species)
 
 #Species grouping   
 Tot.ktch$SP.group=Tot.ktch$Name
-
-Specs=Tot.ktch[!duplicated(Tot.ktch$SP.group),match(c("SPECIES","SNAME","Name","SP.group"),names(Tot.ktch))]
-Dis.sp=unique(Specs$SP.group)
-Specs=Specs[order(Specs$SP.group),]
+Specs=Tot.ktch%>%
+        distinct(SP.group,.keep_all = T)%>%
+        dplyr::select(SPECIES,SNAME,Name,SP.group)%>%
+        arrange(SP.group)
 N.sp=nrow(Specs)
 
 #---Life history parameters of selected species------------------------------------------------------  
@@ -1236,10 +1252,11 @@ Tiger.nat$CV=Tiger.nat$CV/100
 Mil.nat$CV=Mil.nat$CV/100
 
 cpue.list=list(
-  "copper shark"=list(Nat=NULL,
-                      TDGDLF.mon=NULL,
-                      TDGDLF.day=NULL,
-                      NSF=NULL),
+  "copper shark"=NULL,                          #ACA, update, also Estim.q
+  "great hammerhead"=list(Nat=NULL,
+                          TDGDLF.mon=NULL,
+                          TDGDLF.day=NULL,
+                          NSF=HH.NSF),
   "grey nurse shark"=list(Nat=NULL,
                           TDGDLF.mon=Greynurse.tdgdlf_mon,
                           TDGDLF.day=NULL,
@@ -1248,39 +1265,37 @@ cpue.list=list(
                      TDGDLF.mon=NULL,
                      TDGDLF.day=NULL,
                      NSF=Lemon.NSF),
-  "great hammerhead"=NULL,
+
   "milk shark"=list(Nat=Mil.nat,     #flat cpue, no signal, error in estimation
                     TDGDLF.mon=NULL,
                     TDGDLF.day=NULL,
                     NSF=NULL),
+  "pigeye shark"=list(Nat=NULL,     
+                      TDGDLF.mon=NULL,
+                      TDGDLF.day=NULL,
+                      NSF=Pigeye.NSF),
   "sawsharks"=NULL,
   "scalloped hammerhead"=list(Nat=Scal.hh.nat,
                               TDGDLF.mon=NULL,
                               TDGDLF.day=NULL,
-                              NSF=NULL),
+                              NSF=HH.NSF),
+  "shortfin mako"=NULL,  #CVs too high for all years so not used
   "smooth hammerhead"=list(Nat=NULL,
                            TDGDLF.mon=Smuz.hh.tdgdlf_mon,
                            TDGDLF.day=Smuz.hh.tdgdlf_daily,
-                           NSF=NULL), 
+                           NSF=NULL),
   "spinner shark"=list(Nat=NULL,
                        TDGDLF.mon=Spinr.tdgdlf_mon,
                        TDGDLF.day=Spinr.tdgdlf_daily,
-                       NSF=NULL),
-  "shortfin mako"=list(Nat=NULL,
-                       TDGDLF.mon=Mako.tdgdlf_mon,  
-                       TDGDLF.day=Mako.tdgdlf_daily,
                        NSF=NULL),
   "spurdogs"=NULL,
   "tiger shark"=list(Nat=Tiger.nat,
                      TDGDLF.mon=Tiger.tdgdlf_mon,
                      TDGDLF.day=Tiger.tdgdlf_daily,
                      NSF=Tiger.NSF),         
-  "wobbegongs"=NULL,
-  "Pigeye shark"=list(Nat=NULL,     
-                    TDGDLF.mon=NULL,
-                    TDGDLF.day=NULL,
-                    NSF=Pigeye.NSF))   
+  "wobbegongs"=NULL)   
 
+cpue.list=cpue.list[Specs$Name]
 
 #---Build r prior -----------------------------------------------------------------------
 fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle)
@@ -1722,8 +1737,8 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
     fecundity=Meanfec*sexratio/CyclE
     
     #maturity
-    #maturity=ifelse(age>=age.mat,1,0)   #knife edge
-    maturity=plogis(age,age.mat,1)      #ogive
+    maturity=ifelse(age>=age.mat,1,0)   #knife edge
+    #maturity=plogis(age,age.mat,1)      #ogive
     
     # maximum age is plus group
     phi.o=0.0
@@ -1822,6 +1837,8 @@ system.time(for(s in 1: N.sp)
   SEL=Selectivity.at.age[[s]]$relative.sel
   
   print(paste("steepness ",s,"--",names(store.species)[s]))
+  
+  #Fishing mortality set at 0 so selectivity has no effect
   store.species.steepness[[s]]=fun.steepness(Nsims=2*NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf/.85,
                                              first.age=0,sel.age=SEL,F.mult=0,Temp=TEMP,
                                              Amax=Max.age.F,MAT=unlist(Age.50.mat),
@@ -1844,6 +1861,36 @@ for(s in 1:length(store.species.steepness))
 }
 legend('topright',names(COl.all.sp),lty=1,lwd=2,col=COl.all.sp,bty='n')
 dev.off()
+
+
+#---Compare steepness and r-----------------------------------------------------------------------
+CompR=data.frame(Name=rep(NA,14),r=rep(NA,14),h=rep(NA,14),M=rep(NA,14))
+for(r in 1:14)
+{
+  CompR$Name[r]=names(store.species)[r]
+  CompR$r[r]=store.species[[r]]$r.prior.normal$mean
+  CompR$h[r]=store.species.steepness[[r]]$mean
+  CompR$r.sd[r]=store.species[[r]]$r.prior.normal$sd
+  CompR$h.sd[r]=store.species.steepness[[r]]$sd
+  
+  CompR$M[r]=mean(unique(unlist(store.species.M[[r]])))
+}
+COL=rgb(.1,.1,1,alpha=.6)
+p=ggplot(CompR,
+         aes(r, h, label = paste(Name," (M=",round(M,2),")",sep=""))) +
+  geom_point(shape = 21, size = 6,fill=COL) + 
+  geom_text_repel(segment.colour='black',col='black',box.padding = 0.5) + 
+  scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        panel.border = element_rect(colour = "black", fill=NA, size=1))+
+  geom_errorbar(aes(ymin=h-h.sd, ymax=h+h.sd),colour=COL)+
+  geom_errorbarh(aes(xmin=r-r.sd, xmax=r+r.sd),colour=COL)
+p
+ggsave(paste(hNdl,'/Outputs/Steepness_vs_r.png',sep=''), width = 6,
+       height = 6, dpi = "screen")
 
 
 #---Gear Size selectivity estimation------------------------------------------------------
@@ -1991,7 +2038,7 @@ if(do.length.based.SPR=="YES")
       MyLengths@Years<-as.numeric(colnames(tab))
       MyLengths@NYears<-length(MyLengths@Years)
       
-      #fit model                  #ACA, impose dome-shape selectivty from Size.sel
+      #fit model                  
       Fit <- LBSPRfit(MyPars, MyLengths)
     }
      
@@ -2016,23 +2063,24 @@ if(do.length.based.SPR=="YES")
 }
 
 #---Single-species SPM -----------------------------------------------------------------------
-if(Do.SPM=="YES")                        #ACA
+if(Do.SPM=="YES")                        
 {
   Estimable.qs=list(
     "copper shark"=NULL,
     "grey nurse shark"=c(NA,q2=.005,NA,NA),
     "lemon shark"=c(NA,NA,NA,q4=.001),
-    "great hammerhead"=NULL,
+    "great hammerhead"=c(NA,NA,NA,q4=.001),
     "milk shark"=c(q1=.005,NA,NA,NA),
     "sawsharks"=NULL,
-    "scalloped hammerhead"=c(q1=.005,NA,NA,NA),
+    "scalloped hammerhead"=c(q1=.005,NA,NA,q4=.001),
     "smooth hammerhead"=c(NA,q2=.005,q3=.001,NA), 
     "spinner shark"=c(NA,q2=.005,q3=.001,NA),
-    "shortfin mako"=NULL,    #CVs too high for all years so not used
+    "shortfin mako"=NULL,    
     "spurdogs"=NULL,
     "tiger shark"=c(q1=.005,q2=.005,q3=.001,q4=.001),         
-    "wobbegongs"=NULL) 
-  
+    "wobbegongs"=NULL,
+    "pigeye shark"=c(NA,NA,NA,q4=.001)) 
+  Estimable.qs=Estimable.qs[Specs$Name]
   
   #Loop over all species
   posfun=function(x,eps,pen)  #penalty for keeping biomass positive
@@ -2146,7 +2194,7 @@ if(Do.SPM=="YES")                        #ACA
     return(x)
   }
   
-  #Check max possible initial harvest rate
+  #Check max possible initial harvest rate  
   Mx.init.harv=rep(NA,N.sp)
   names(Mx.init.harv)=Specs$SP.group
   for(s in 1: N.sp)
@@ -2164,7 +2212,7 @@ if(Do.SPM=="YES")                        #ACA
     }
   }
   
-  #Estimate parameters
+  #Estimate parameters                              # ACA, S==4 (lemon) fitting issues, check if worth it
   Store.SPM=vector('list',N.sp)
   names(Store.SPM)=Specs$SP.group
   Store.stuff=Theta=Store.SPM
@@ -2215,9 +2263,15 @@ if(Do.SPM=="YES")                        #ACA
         mutate(yr=as.numeric(substr(Finyear,1,4)),
                MeAn=Mean)%>%
         filter(CV<MAX.CV)
+      CPUE.4=cpue.list[[Id]]$NSF                    
+      if(!is.null(CPUE.4))CPUE.4=CPUE.4%>%
+        mutate(yr=as.numeric(substr(FINYEAR,1,4)),
+               MeAn=Mean)%>%
+        filter(CV<MAX.CV)
+      
       
         #fill in missing cpue
-      CPUE=list(CPUE.1,CPUE.2,CPUE.3)
+      CPUE=list(CPUE.1,CPUE.2,CPUE.3,CPUE.4)
       CPUE.CV=CPUE.yr=CPUE
       for(ci in 1:length(CPUE))
       {
