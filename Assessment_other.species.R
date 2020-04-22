@@ -267,12 +267,12 @@ what.like='kernel'
 
 
     #Initial estimated par value
-Init.r=list("copper shark"=.15,"great hammerhead"=.15,
-            "grey nurse shark"=0.1,
-            "lemon shark"=.15,"milk shark"=.2,"sawsharks"=.15,
-            "scalloped hammerhead"=.15,"smooth hammerhead"=.2,
-            "spinner shark"=.15,"shortfin mako"=.1,"spurdogs"=.15,
-            "tiger shark"=.15,"wobbegongs"=.15)
+Init.r=list("copper shark"=.05,"great hammerhead"=.1,
+            "grey nurse shark"=0.05,
+            "lemon shark"=.1,"milk shark"=.2,"pigeye shark"=0.1,"sawsharks"=.1,
+            "scalloped hammerhead"=.1,"smooth hammerhead"=.1,
+            "spinner shark"=.1,"shortfin mako"=.05,"spurdogs"=.05,
+            "tiger shark"=.1,"wobbegongs"=.1)
 
 N.monte=1000
 
@@ -288,7 +288,7 @@ Remove.bounds=FALSE
 usePen=TRUE  
 
     #K bounds
-Low.bound.K=10  #times the maximum catch
+Low.bound.K=1  #times the maximum catch
 Up.bound.K=100 
 
     #K init times max ktch
@@ -1132,7 +1132,7 @@ LH.par=LH.par[order(LH.par$SP.group),]
 SPLF=LH.par$SP.group
 GROWTH.F=vector('list',N.sp)
 names(GROWTH.F)=SPLF
-MAX.age.F=AGE.50.mat=FECU=Repro_cycle=Aver.Lat=AVER.T=GROWTH.F
+MAX.age.F=AGE.50.mat=FECU=Repro_cycle=Aver.Lat=AVER.T=BwT=AwT=Lzero=GROWTH.F
 for(i in 1:N.sp)
 {
   dd=subset(LH.par,SP.group==SPLF[i])
@@ -1142,6 +1142,9 @@ for(i in 1:N.sp)
   FECU[[i]]=c(dd$Fecu_min,dd$Fecu_max)
   Repro_cycle[[i]]=LH.par$Cycle[i]
   AVER.T[[i]]=LH.par$Temperature[i]
+  BwT[[i]]=LH.par$b_w8t[i]
+  AwT[[i]]=LH.par$a_w8t[i]
+  Lzero[[i]]=LH.par$LF_o[i]
 }
 
 #Export Life history table
@@ -1253,57 +1256,47 @@ Mil.nat$CV=Mil.nat$CV/100
 
 cpue.list=list(
   "copper shark"=NULL,                          #ACA, update, also Estim.q
-  "great hammerhead"=list(Nat=NULL,
-                          TDGDLF.mon=NULL,
-                          TDGDLF.day=NULL,
-                          NSF=HH.NSF),
-  "grey nurse shark"=list(Nat=NULL,
+  "great hammerhead"=NULL,            #NSF not used because it's for 'hammerhead spp'       
+  "grey nurse shark"=list(Survey=NULL,
                           TDGDLF.mon=Greynurse.tdgdlf_mon,
                           TDGDLF.day=NULL,
                           NSF=NULL),
-  "lemon shark"=list(Nat=NULL,
-                     TDGDLF.mon=NULL,
-                     TDGDLF.day=NULL,
-                     NSF=Lemon.NSF),
+  "lemon shark"=NULL,     #NSF not used to uncertain index and only few years
 
-  "milk shark"=list(Nat=Mil.nat,     #flat cpue, no signal, error in estimation
+  "milk shark"=list(Survey=Mil.nat,     
                     TDGDLF.mon=NULL,
                     TDGDLF.day=NULL,
                     NSF=NULL),
-  "pigeye shark"=list(Nat=NULL,     
-                      TDGDLF.mon=NULL,
-                      TDGDLF.day=NULL,
-                      NSF=Pigeye.NSF),
+  "pigeye shark"=NULL,         #only 3 years with CV<.5, and for NSF
   "sawsharks"=NULL,
-  "scalloped hammerhead"=list(Nat=Scal.hh.nat,
-                              TDGDLF.mon=NULL,
-                              TDGDLF.day=NULL,
-                              NSF=HH.NSF),
-  "shortfin mako"=NULL,  #CVs too high for all years so not used
-  "smooth hammerhead"=list(Nat=NULL,
+  "scalloped hammerhead"=NULL,    #Naturaliste not used due to no trend and high 0s; NSF not used because it's for 'hammerhead spp'
+  "shortfin mako"=NULL,           #CVs too high for all years so not used
+  "smooth hammerhead"=list(Survey=NULL,
                            TDGDLF.mon=Smuz.hh.tdgdlf_mon,
                            TDGDLF.day=Smuz.hh.tdgdlf_daily,
                            NSF=NULL),
-  "spinner shark"=list(Nat=NULL,
+  "spinner shark"=list(Survey=NULL,
                        TDGDLF.mon=Spinr.tdgdlf_mon,
                        TDGDLF.day=Spinr.tdgdlf_daily,
                        NSF=NULL),
   "spurdogs"=NULL,
-  "tiger shark"=list(Nat=Tiger.nat,
+  "tiger shark"=list(Survey=Tiger.nat,
                      TDGDLF.mon=Tiger.tdgdlf_mon,
                      TDGDLF.day=Tiger.tdgdlf_daily,
-                     NSF=Tiger.NSF),         
+                     NSF=NULL),         
   "wobbegongs"=NULL)   
 
 cpue.list=cpue.list[Specs$Name]
+Init.r=Init.r[names(cpue.list)]
 
 #---Build r prior -----------------------------------------------------------------------
-fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle)
+fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle,BWT,AWT,LO)
 {
   Fecu=unlist(FecunditY)
   Rprior=fun.Leslie(N.sims=Nsims,k=K,Linf=LINF,Aver.T=Temp,
                     A=Amax,first.age=0,RangeMat=MAT,Rangefec=Fecu,
-                    sexratio=0.5,Reprod_cycle=Breed.cycle,Hoenig.only="NO")  
+                    sexratio=0.5,Reprod_cycle=Breed.cycle,
+                    bwt=BWT,awt=AWT,Lo=LO)  
   
   #get mean and sd from gamma and normal distribution
   normal.pars=suppressWarnings(fitdistr(Rprior$r.prior, "normal"))
@@ -1415,7 +1408,8 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
   print(paste("r prior ",s,"--",names(store.species)[s]))
   #Get r prior
   r.prior.dist=fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf/.85,Temp=TEMP,Amax=Max.age.F,
-                               MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle)
+                               MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle,
+                               BWT=BwT[[s]],AWT=AwT[[s]],LO=Lzero[[s]]/.85)    
   store.species[[s]]$r.prior=list(shape=r.prior.dist$shape,rate=r.prior.dist$rate)
   store.species[[s]]$r.prior.normal=list(mean=r.prior.dist$mean,sd=r.prior.dist$sd)
   store.species.M[[s]]=r.prior.dist$M
@@ -1670,7 +1664,8 @@ if(use.size.comp=="YES")
 }
 setwd(WD)
 #---Calculate steepness -----------------------------------------------------------------------
-fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,FecunditY,Cycle,sexratio,spawn.time)
+fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,FecunditY,Cycle,sexratio,
+                       spawn.time,AWT,BWT,LO)
 {
   Fecu=unlist(FecunditY)
   fn.draw.samples=function(A=Amax,RangeMat=MAT,Rangefec=Fecu,Reprod_cycle=Breed.cycle)
@@ -1701,9 +1696,13 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
     
     return(list(Max.A=Max.A,age.mat=age.mat.sim,Meanfec=Meanfec.sim,Rep_cycle=Rep_cycle.sim))    
   }
-  
-  M.fun=function(Amax,age.mat,Hoenig.only="NO",Linf=LINF,k=K,Aver.T=Temp)
+
+  M.fun=function(Amax,age.mat,Linf=LINF,k=K,Aver.T=Temp,awt=AWT,bwt=BWT,Lo=LO)
   {
+    #STEP 1. calculate M from different methods (see Kenchington 2013)
+    
+    #1.1. Age-independent
+    #Jensen (1996)
     m.Jensen.2=1.65/age.mat
     m.Jensen.2=rep(m.Jensen.2,length(age))
     
@@ -1719,15 +1718,39 @@ fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,Fecun
     m.Then.1=4.899*Amax^(-0.916)
     m.Then.1=rep(m.Then.1,length(age))
     
+    #1.2. Age-dependent
+    #Peterson and Wroblewski 1984 (dry weight in grams, length in cm)
+    Dry.w=0.2   # Cortes (2002)
+    TL=Lo+(Linf-Lo)*(1-exp(-k*age))
+    wet.weight=1000*awt*TL^bwt
+    m.PetWro=1.92*(wet.weight*Dry.w)^-0.25
+    m.PetWro[m.PetWro>1]=NA
+    
+    #Lorenzen 1996 (weight in grams)
+    m.Lorenzen=3*wet.weight^-0.288
+    m.Lorenzen[m.Lorenzen>1]=NA
+    
+    #Gislason et al (2010) (weight in grams, length in cm)
+    m.Gislason=1.73*(TL^-1.61)*(Linf^1.44)*k
+    m.Gislason[m.Gislason>1]=NA
+    
     
     #STEP 2. get mean at age
-    if(Hoenig.only=="NO")nat.mort=data.frame(m.Jensen.2,m.Pauly,m.Hoenig,m.Then.1)  
-    if(Hoenig.only=="YES")nat.mort=data.frame(m.Hoenig)
+    nat.mort=data.frame(m.Jensen.2,m.Pauly,m.Hoenig,m.Then.1,
+                        m.PetWro,m.Lorenzen,m.Gislason)  
+    #for dogfish, due to their small size, weight-based M estimators highly overestimate M
+    if(mean(m.PetWro/m.Gislason,na.rm=T)>5)  nat.mort=data.frame(m.Jensen.2,m.Pauly,m.Hoenig,m.Then.1,
+                                                                 m.Gislason)  
     
-    return(rowMeans(nat.mort))
-    apply(nat.mort, 1, function(x) weighted.mean(x, c(1,1,1.5,1.5)))
+    #STEP 3. Calculate mean
+    MoRt=rowMeans(nat.mort,na.rm=T)
+    #MoRt=apply(nat.mort, 1, function(x) weighted.mean(x, c(1,1,1.5,1.5,1,1,1)))
+    
+    if(MoRt[1]<MoRt[2]) MoRt[1]=MoRt[2]
+    
+    return(MoRt)
   }
-  
+ 
   Stipns=function(max.age,M,age.mat,Meanfec,CyclE,Sel)
   {  
     #survivorship
@@ -1843,7 +1866,8 @@ system.time(for(s in 1: N.sp)
                                              first.age=0,sel.age=SEL,F.mult=0,Temp=TEMP,
                                              Amax=Max.age.F,MAT=unlist(Age.50.mat),
                                              FecunditY=Fecundity,Cycle=Breed.cycle,
-                                             sexratio=0.5,spawn.time = 0)
+                                             sexratio=0.5,spawn.time = 0,
+                                             AWT=AwT[[s]],BWT=BwT[[s]],LO=Lzero[[s]]/.85)
   
 })  
 
@@ -2068,18 +2092,18 @@ if(Do.SPM=="YES")
   Estimable.qs=list(
     "copper shark"=NULL,
     "grey nurse shark"=c(NA,q2=.005,NA,NA),
-    "lemon shark"=c(NA,NA,NA,q4=.001),
-    "great hammerhead"=c(NA,NA,NA,q4=.001),
+    "lemon shark"=NULL,
+    "great hammerhead"=NULL,
     "milk shark"=c(q1=.005,NA,NA,NA),
     "sawsharks"=NULL,
-    "scalloped hammerhead"=c(q1=.005,NA,NA,q4=.001),
+    "scalloped hammerhead"=NULL,
     "smooth hammerhead"=c(NA,q2=.005,q3=.001,NA), 
     "spinner shark"=c(NA,q2=.005,q3=.001,NA),
     "shortfin mako"=NULL,    
     "spurdogs"=NULL,
-    "tiger shark"=c(q1=.005,q2=.005,q3=.001,q4=.001),         
+    "tiger shark"=c(q1=.005,q2=.005,q3=.001,NA),         
     "wobbegongs"=NULL,
-    "pigeye shark"=c(NA,NA,NA,q4=.001)) 
+    "pigeye shark"=NULL) 
   Estimable.qs=Estimable.qs[Specs$Name]
   
   #Loop over all species
@@ -2212,7 +2236,7 @@ if(Do.SPM=="YES")
     }
   }
   
-  #Estimate parameters                              # ACA, S==4 (lemon) fitting issues, check if worth it
+  #Estimate parameters                              
   Store.SPM=vector('list',N.sp)
   names(Store.SPM)=Specs$SP.group
   Store.stuff=Theta=Store.SPM
@@ -2236,7 +2260,6 @@ if(Do.SPM=="YES")
       ct=rbind(ct,aa1)%>%arrange(finyear)
     }
     
-    
     #r prior
     Idd=match(Specs$SP.group[s],names(store.species))
     r.prior=store.species[[Idd]]$r.prior.normal$mean
@@ -2250,7 +2273,7 @@ if(Do.SPM=="YES")
     if(!is.null(cpue.list[[Id]]))
     {
       #Get cpues
-      CPUE.1=cpue.list[[Id]]$Nat
+      CPUE.1=cpue.list[[Id]]$Survey
       if(!is.null(CPUE.1))CPUE.1=CPUE.1%>%
           filter(CV<MAX.CV)
       CPUE.2=cpue.list[[Id]]$TDGDLF.mon
@@ -2302,7 +2325,7 @@ if(Do.SPM=="YES")
       names(dummy)=HR.o.scens
       for(h in 1:length(HR.o.scens))
       {
-        #Initial harvest rate prior
+        #. initial harvest rate prior
         HR_o=HR.o.scens[h]
         
         dummy.eff=vector('list',length(Efficien.scens))
@@ -2312,7 +2335,7 @@ if(Do.SPM=="YES")
         id.eff.yrs=which(Eff.yrs>1994)
         for(e in 1:length(Efficien.scens))
         {
-          #Apply assumed efficiency to TDGDLF
+          #. apply assumed efficiency to TDGDLF
           Add.eff=data.frame(yr=Eff.yrs,Efficiency=1)
           Add.eff$Efficiency[id.eff.yrs]=Add.eff$Efficiency[id.eff.yrs]-
             cumsum(rep(Efficien.scens[e],length(id.eff.yrs)))
@@ -2322,7 +2345,7 @@ if(Do.SPM=="YES")
             if(!is.null(CPUE.eff.scen[[ss]])) CPUE.eff.scen[[ss]]=CPUE.eff.scen[[ss]]*Add.eff$Efficiency
           }
           
-          #objfun to minimize
+          #. objfun to minimize
           fn_ob=function(theta)SPM(Init.propK=B.init,
                                    cpue=CPUE.eff.scen,
                                    cpue.CV=CPUE.CV,
@@ -2334,7 +2357,7 @@ if(Do.SPM=="YES")
                                    r.mean=r.prior,
                                    r.sd=r.prior.sd,
                                    usePenalties=usePen)$negLL
-          #fit model
+          #. fit model
           if(estim.q=="YES")theta= c(k=log(K.init),log(QS[which(!is.na(QS))]))
           if(estim.q=="NO")theta= c(k=log(K.init))
           Lw.bound=log(c(Low.bound.K*Mx.ktch,rep(1e-6,length(theta)-1)))
@@ -2353,6 +2376,10 @@ if(Do.SPM=="YES")
             Up.bound=c(Up.bound,log(1))
           }
           
+              #1st estimation round
+          theta=nlminb(theta, fn_ob, gradient = NULL,lower =Lw.bound,upper = Up.bound)$par
+          
+              #2nd estimation round
           if(minimizer=='optim')
           {
             OptiM=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,upper = Up.bound,hessian=T)
@@ -2362,13 +2389,16 @@ if(Do.SPM=="YES")
               OptiM=optim(jitter(OptiM$par),fn_ob,method="L-BFGS-B",hessian=T,
                           control = list(maxit = 1000, parscale = paramscale))
             }
-
+            OptiM$hit.upper.boundary=names(which(round(1-exp(OptiM$par)/exp(Up.bound),1)==0))
+            OptiM$hit.lower.boundary=names(which(round(1-exp(OptiM$par)/exp(Lw.bound),1)==0))
             dummy.eff[[e]]=OptiM
           }
           if(minimizer=='nlminb')
           {
             nlmb <- nlminb(theta, fn_ob, gradient = NULL,lower =Lw.bound,upper = Up.bound)
             if(Remove.bounds) nlmb <- nlminb(jitter(nlmb$par), fn_ob, gradient = NULL)
+            nlmb$hit.upper.boundary=names(which(round(1-exp(nlmb$par)/exp(Up.bound),1)==0))
+            nlmb$hit.lower.boundary=names(which(round(1-exp(nlmb$par)/exp(Lw.bound),1)==0))
             
             nlmb$hessian=hessian(fn_ob,nlmb$par)
             
@@ -2427,7 +2457,7 @@ if(Do.SPM=="YES")
     }
   }
   
-  #Get uncertainty  
+  #Get uncertainty 
   fn.un=function(fit,n)
   {
     SIGMA=solve(fit$hessian)	#getting the variance covariance matrix
@@ -2679,7 +2709,7 @@ if(Do.Ktch.MSY=="YES")
     dev.off()
   }
   
-  # - Run CMSY for each species    takes 0.002 sec per iteration  
+  # - Run CMSY for each species    takes 0.03 sec per iteration per species 
   system.time(for(s in 1: N.sp)
   {
  
@@ -2770,7 +2800,7 @@ if(Do.Ktch.MSY=="YES")
   })
 }
 
-
+#ACA
 #---Single-species age-structured aSPM (aSPM) -----------------------------------------------------------------------
 #Haddon datalowSA package (https://rdrr.io/github/haddonm/datalowSA/f/vignettes/aspm.md)
 if(Do.aSPM=="YES")
@@ -2958,11 +2988,11 @@ if(Do.aSPM=="YES")
       len.cpue=length(CPUE)
       if(len.cpue>1)
       {
-        if("Nat"%in%names(CPUE))
+        if("Survey"%in%names(CPUE))
         {
-          a=CPUE[-match("Nat",names(CPUE))]
+          a=CPUE[-match("Survey",names(CPUE))]
           
-          CPUE2=CPUE[[match("Nat",names(CPUE))]]%>%    
+          CPUE2=CPUE[[match("Survey",names(CPUE))]]%>%    
             dplyr::select(yr,MeAn,CV)%>%
             rename(year=yr,cpue2=MeAn,se2=CV)
           
@@ -3069,7 +3099,7 @@ if(Do.aSPM=="YES")
 
 setwd(paste(hNdl,'/Outputs',sep=''))
 
-#Plot overall catch spatial distribution 
+#---Plot overall catch spatial distribution-----
 plot.spatial.dist=FALSE
 if(plot.spatial.dist)
 {
@@ -3282,16 +3312,15 @@ fn.spatio.temp.catch.dist=function(d)
   Sp.nms=subset(All.species.names,SPECIES%in%All.sp)
   
   plot(1:nrow(d1),1:nrow(d1),col='transparent',ylab="",xlab="",yaxt='n',xlim=c(min(yrs),max(yrs)))
-  for(p in 1:length(All.sp)) points(yrs,rep(p,length(yrs)),col='steelblue',cex=2*d1[p,],pch=19)
+  for(p in 1:length(All.sp)) points(yrs,rep(p,length(yrs)),col='grey50',cex=2*d1[p,],pch=19)
   axis(2,1:length(All.sp),capitalize(Sp.nms$SNAME),las=1)
   mtext(side = 1, line = 2, 'Financial year',cex=1.5)
   
   par(new=T)
-  plot(yrs,Effort_blocks$Tot,type='l',col=rgb(0,0,1,alpha=.3),xlab="",ylab="",axes=F,lwd=5,lty=1)
+  CL=rgb(.1,.1,1,alpha=.8)
+  plot(yrs,Effort_blocks$Tot,type='l',col=CL,xlab="",ylab="",axes=F,lwd=3,lty=1)
   axis(side = 4,las=1)
-  mtext(side = 4, line = 3, 'Number of blocks fished',las=3,cex=1.5)
-  
-  
+  mtext(side = 4, line = 3, 'Number of blocks fished',las=3,cex=1.5,col=CL)
 }
 fn.fig("Figure Spatio-temporal catch", 2400, 2400)
 par(mar=c(2.5,4,.1,1),oma=c(.5,6,.1,3),mgp=c(1.5,.7,0))
@@ -3333,6 +3362,31 @@ if(Do.SPM=="YES")
 {
   fn.cons.po=function(low,up) c(low, tail(up, 1), rev(up), low[1])  #construct polygon
   
+  #Check which sp hit boundaries
+  Hit.Bounds=data.frame(Name=names(SPM.preds),Hits.upper.bound=NA,Hits.lower.bound=NA)
+  for(s in 1: N.sp)
+  {
+    HR.o.scens=Mx.init.harv[s]
+    if(!is.null(SPM.preds[[s]]))
+    {
+      for(h in 1:length(HR.o.scens))
+        for(e in 1:length(Efficien.scens))
+        {
+          Hit=Store.SPM[[s]][[h]][[e]]$hit.lower.boundary
+          if(length(Hit)>0)Hit.Bounds$Hits.lower.bound[s]=Hit
+          Hit=Store.SPM[[s]][[h]][[e]]$hit.upper.boundary
+          if(length(Hit)>0)Hit.Bounds$Hits.upper.bound[s]=Hit
+        }
+    } 
+  }
+  Hit.Bounds=Hit.Bounds%>%
+          filter(Name%in%names(SPM.preds[!sapply(SPM.preds, is.null)]))
+  write.csv(Hit.Bounds,paste(hNdl,"/Outputs/SPM_Hitting boundaries.csv",sep=""),row.names = F)  
+  
+  Species.not.hitting.bounds=Hit.Bounds%>%
+                      filter(is.na(Hits.upper.bound) & is.na(Hits.lower.bound))%>%
+                      mutate(Name=as.character(Name))%>%                  
+                      pull(Name)
   
   #Plot obs VS pred cpues  
   fn.plt.cpue=function(ob,ob.CV,pred,Convergence,pred.fit)
@@ -3340,18 +3394,19 @@ if(Do.SPM=="YES")
     iid=match(pred.fit,pred)
     Yr=all.iers
     ob.CV=ob.CV[iid]
-    plot(Yr,pred,pch=19,cex=1.5,ylab="",xlab="",
+    plot(Yr,pred,pch=19,type='l',lwd=2,ylab="",xlab="",
          ylim=c(min(c(ob-ob.CV,pred),na.rm=T),max(c(ob+ob.CV,pred),na.rm=T)))
-    points(Yr[iid],ob,col="orange",pch=19,cex=1.25)
+    points(Yr[iid],ob,col="orange",pch=19,cex=1)
     segments(Yr[iid],ob,Yr[iid],ob+ob.CV,col="orange")
     segments(Yr[iid],ob,Yr[iid],ob-ob.CV,col="orange")
-    legend("bottomright",paste("convergence=",Convergence),bty='n')
+    #legend("bottomright",paste("convergence=",Convergence),bty='n')
   }
+    #by species
   Paz=paste(hNdl,"/Outputs/SPM.fit/",sep="")
   if(!file.exists(file.path(Paz))) dir.create(file.path(Paz))
   for(s in 1: N.sp)
   {
-    if(!is.null(SPM.preds[[s]]))
+    if(!is.null(SPM.preds[[s]]))    
     {
       fn.fig(paste(Paz,names(SPM.preds)[s],sep=""),2400,2400)
       
@@ -3365,6 +3420,7 @@ if(Do.SPM=="YES")
         for(e in 1:length(Efficien.scens))
         {
           for(x in 1:Store.stuff[[s]]$n.cpues)
+          {
             if(!is.null(SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]]))
             {
               fn.plt.cpue(ob=SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]],
@@ -3372,12 +3428,16 @@ if(Do.SPM=="YES")
                           pred=SPM.preds[[s]][[h]][[e]]$ln.cpue.hat.full[[x]],
                           Convergence=Store.SPM[[s]][[h]][[e]]$convergence,
                           pred.fit=SPM.preds[[s]][[h]][[e]]$ln.cpue.hat[[x]])
-              Crip=Efficien.scens[e]
-              if(x==1) Crip=0
-              par(font=2)
+              #Crip=Efficien.scens[e]
+              #if(x==1) Crip=0
+              #par(font=2)
               #  legend("bottomleft",paste("HR=",HR.o.scens[h],", Creep=",Crip,
               #                            ", CPUE.",x,sep=""),bty='n',cex=.85)
+              legend('topleft',names(cpue.list[[s]])[x],bty='n')
             }
+            
+          }
+
         }
       }
       legend("bottomleft",c("observed","predicted"),pch=19,cex=1.25,col=c("orange","black"),bty='n')
@@ -3390,8 +3450,49 @@ if(Do.SPM=="YES")
     }
   }  
   
+    #All species together
+  nRows=length(Species.not.hitting.bounds)
+  nCols=length(cpue.list$`tiger shark`)
+  Shwed=which(names(SPM.preds)%in%Species.not.hitting.bounds)
+  fn.fig(paste(Paz,"All.species_not.hitting.boundaries",sep=""),2400,1800)
+  par(mfrow=c(nRows,nCols),mar=c(1,1,1,1),oma=c(1.8,2,.5,.1),mgp=c(1,.5,0))
+  for(s in 1: N.sp)
+  {
+    if(names(SPM.preds[s])%in%Species.not.hitting.bounds)    
+    {
+      HR.o.scens=Mx.init.harv[s]
+      for(h in 1:length(HR.o.scens))
+      {
+        for(e in 1:length(Efficien.scens))
+        {
+          for(x in 1:Store.stuff[[s]]$n.cpues)
+          {
+            if(!is.null(SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]]))
+            {
+              fn.plt.cpue(ob=SPM.preds[[s]][[h]][[e]]$ln.cpue[[x]],
+                          ob.CV=Store.stuff[[s]]$CPUE.CV[[x]],
+                          pred=SPM.preds[[s]][[h]][[e]]$ln.cpue.hat.full[[x]],
+                          Convergence=Store.SPM[[s]][[h]][[e]]$convergence,
+                          pred.fit=SPM.preds[[s]][[h]][[e]]$ln.cpue.hat[[x]])
+            }else
+            {
+              plot.new()
+            }
+            if(x==1) legend("bottomleft",capitalize(names(SPM.preds)[s]),bty='n',cex=1,text.font=2)
+            if(s==Shwed[1])mtext(names(cpue.list[[s]])[x],3,line=0.2)
+          }
+        }
+      }
+      rm(HR.o.scens)
+    }
+  }  
+  legend("left",c("observed","predicted"),pch=19,cex=1.25,col=c("orange","black"),bty='n')
+  mtext("Financial year",1,.7,outer=T)
+  mtext("lncpue",2,1,outer=T,las=3)
+  dev.off()
   
-  #probability of above and below reference points     
+  
+  #Probability of above and below reference points     
   add.probs=function(id.yr,YR,DAT,UP,LOW,SRT,CEX)
   {
     f=ecdf(DAT[id.yr,])
@@ -3483,7 +3584,7 @@ if(Do.SPM=="YES")
     return(Store.probs)
   }
   
-  #1. Get median and percentiles
+    #1. Get median and percentiles
   Med.biom=vector('list',length(Store.SPM))
   names(Med.biom)=names(Store.SPM)
   for(s in 1: N.sp)
@@ -3522,7 +3623,7 @@ if(Do.SPM=="YES")
     }
   }
   
-  #2. Plot
+    #2. Plot
   do.col="NO"
   if(do.col=="NO") colfunc <- colorRampPalette(c("grey95","grey60"))
   if(do.col=="YES") colfunc <- colorRampPalette(c("aliceblue","lightblue3"))
@@ -3575,7 +3676,53 @@ if(Do.SPM=="YES")
   mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
         col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
   dev.off()
+  
+  
+  fn.fig(paste(hNdl,"/Outputs/Figure 3_Biomass_SPM_species.not.hitting.boundaries",sep=""),2000,2400)
+  smart.par(n.plots=length(Species.not.hitting.bounds),MAR=c(1.2,2,1.5,1.25),
+            OMA=c(2,1.75,.2,2.1),MGP=c(1,.62,0))
+  par(las=1,cex.axis=.8)
+  for(s in 1: N.sp)
+  {
+    if(names(SPM.preds[s])%in%Species.not.hitting.bounds)
+    {
+      HR.o.scens=Mx.init.harv[s]
+      for(h in 1:length(HR.o.scens))
+      {
+        nne=length(Efficien.scens)
+        for(e in 1:nne)
+        {
+          if(!is.null(SPM.preds[[s]][[h]][[e]]))
+          {
+            DAT=t(Med.biom[[s]][[h]][[e]]$Bt.all)
+            Store.cons.Like.SPM[[s]]=fn.plt.bio.ktch(Yr=Store.stuff[[s]]$yrs,
+                                                     Bt=Med.biom[[s]][[h]][[e]]$Bt,
+                                                     Bmsy=Med.biom[[s]][[h]][[e]]$Bmsy,
+                                                     Ktch=Store.stuff[[s]]$Ktch,
+                                                     CX.AX=1,
+                                                     CX=1,
+                                                     DAT=DAT,
+                                                     Add.ktch="YES",
+                                                     LOW="0%",
+                                                     HIGH="100%")
+            if(e==1&h==1)mtext(capitalize(names(SPM.preds)[s]),3,cex=1) 
+            Crip=Efficien.scens[e]
+            
+          }
+        }
+        
+      }
+    }
+  }
+  mtext("Financial year",1,cex=1.5,line=0.75,outer=T)
+  mtext("Relative biomass",2,cex=1.5,outer=T,las=3)
+  mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
+        col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.5)
+  dev.off()
+  
   rm(HR.o.scens)
+  
+  
   
   
   #Plot MSY  
@@ -3647,9 +3794,6 @@ if(Do.SPM=="YES")
   rm(HR.o.scens)
   
 }
-
-
-
 #---Catch-MSY RESULTS------
 if(Do.Ktch.MSY=="YES")
 {
@@ -3670,6 +3814,12 @@ if(Do.Ktch.MSY=="YES")
   dev.off()
   
   YrS=sort(unique(Tot.ktch$finyear))
+  
+  #Percentage of simulations accepted
+  Per.accepted=data.frame(Species=capitalize(names(store.species)),
+                          Percent.accepted=NA)
+  for(s in 1: N.sp) Per.accepted$Percent.accepted[s]=100*ncol(store.species[[s]]$KTCH.MSY$BaseCase$bt)/SIMS
+  write.csv(Per.accepted,paste(hNdl,"/Outputs/Per.accepted.CMSY.simulations.csv",sep=""),row.names = F)
   
   #Relative biomass
   CL="grey55"
@@ -3731,8 +3881,7 @@ if(Do.Ktch.MSY=="YES")
     if(ADD.prob=="YES") return(store.cons.like)
   }
   
-  
-  fn.fig(paste(hNdl,"/Outputs/Figure 3_Biomass_Catch_MSY",sep=""), 2400, 1800)
+  fn.fig(paste(hNdl,"/Outputs/Figure 3_Biomass_Catch_MSY",sep=""), 2400, 2000)
   smart.par(n.plots=length(compact(store.species)),MAR=c(1.2,2,1.5,1.75),
             OMA=c(2,1.75,.2,2.1),MGP=c(1,.5,0))
   par(las=1,cex.axis=1.1)
@@ -3779,6 +3928,7 @@ if(Do.Ktch.MSY=="YES")
     dev.off()
   }
   
+    #MSY
   fn.fig(paste(hNdl,"/Outputs/Figure MSY_Catch.MSY",sep=""), 2400, 2400)
   smart.par(n.plots=length(compact(store.species)),MAR=c(1.2,2,1.5,1.75),
             OMA=c(2,3,.2,2.1),MGP=c(1,.5,0))
@@ -3971,7 +4121,7 @@ if(Asses.Scalloped.HH)
       if(!is.null(cpue.list[[Id]]))
       {
         #Get cpues
-        CPUE.1=cpue.list[[Id]]$Nat
+        CPUE.1=cpue.list[[Id]]$Survey
         if(!is.null(CPUE.1))CPUE.1=CPUE.1%>%
             filter(CV<MAX.CV)
         CPUE.2=cpue.list[[Id]]$TDGDLF.mon
@@ -4062,16 +4212,15 @@ if(Asses.Scalloped.HH)
               Lw.bound=c(Lw.bound,log(0.01))
               Up.bound=c(Up.bound,log(0.75))
             }
-              
-
-
+ 
             if(what.like=='kernel')
             {
               theta=c(theta,sigma=log(0.2))
               Lw.bound=c(Lw.bound,log(1e-2))
               Up.bound=c(Up.bound,log(1))
             }
-            
+      
+
             if(minimizer=='optim')
             {
               OptiM=optim(theta,fn_ob,method="L-BFGS-B",lower =Lw.bound,upper = Up.bound,hessian=T)
@@ -4271,11 +4420,11 @@ if(Asses.Scalloped.HH)
     len.cpue=length(CPUE)
     if(len.cpue>1)
     {
-      if("Nat"%in%names(CPUE))
+      if("Survey"%in%names(CPUE))
       {
-        a=CPUE[-match("Nat",names(CPUE))]
+        a=CPUE[-match("Survey",names(CPUE))]
         
-        CPUE2=CPUE[[match("Nat",names(CPUE))]]%>%    
+        CPUE2=CPUE[[match("Survey",names(CPUE))]]%>%    
           dplyr::select(yr,MeAn,CV)%>%
           rename(year=yr,cpue2=MeAn,se2=CV)
         
@@ -4464,11 +4613,12 @@ if(Asses.Scalloped.HH)
                             pred=SPM.preds.scallopedHH[[sc]][[h]][[e]]$ln.cpue.hat.full[[x]],
                             Convergence=Store.SPM.scallopedHH[[sc]][[h]][[e]]$convergence,
                             pred.fit=SPM.preds.scallopedHH[[sc]][[h]][[e]]$ln.cpue.hat[[x]])
-                Crip=Efficien.scens[e]
-                if(x==1) Crip=0
-                par(font=2)
-                legend("bottomleft",Scens[sc],bty='n',cex=1.15)
+                #Crip=Efficien.scens[e]
+                #if(x==1) Crip=0
+                #par(font=2)
+                #legend("bottomleft",Scens[sc],bty='n',cex=1.15)
               }
+            legend('topleft',names(cpue.list[[s]])[x],bty='n')
           }
         }
          mtext("Financial year",1,line=.6,outer=T)
