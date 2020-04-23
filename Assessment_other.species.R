@@ -24,6 +24,7 @@ source.hnld="C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/"
 fn.source=function(script)source(paste(source.hnld,script,sep=""))
 fn.source("fn.fig.R")
 fn.source("Leslie.matrix.R") 
+fn.source("Steepness.R") 
 fn.source("Catch_MSY.R")
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 Do.jpeg="NO" 
@@ -45,6 +46,7 @@ library(Hmisc)
 library(ggplot2)
 library(ggrepel)
 library(datalowSA)
+
 
 Asses.year=2020    #enter year of assessment
 Last.yr.ktch="2017-18"
@@ -312,12 +314,13 @@ STARTBIO=c(B.init*.95,B.init)   #low depletion because starting time series prio
 FINALBIO=c(.2,.9)       #very uncertain
 
 
-    #r priors
+#... Demography
 NsimSS=1000
 r.prior="USER"  #demography
 r.prior2=NA    #uniform
+k.Linf.cor=-0.99    #assumed correlation between growth parameters
 
-    #Scenarios  
+#... Scenarios  
 Modl.rn="standard"   #for annual assessments
 #Modl.rn='first'       #for paper
 if(Modl.rn=="first")
@@ -336,7 +339,7 @@ if(Modl.rn=="first")
 }  
 
 
-    #Future projections
+#... Future projections
 years.futures=5
 
     #simulation test Catch-MSY for small and large catches
@@ -1136,7 +1139,7 @@ MAX.age.F=AGE.50.mat=FECU=Repro_cycle=Aver.Lat=AVER.T=BwT=AwT=Lzero=GROWTH.F
 for(i in 1:N.sp)
 {
   dd=subset(LH.par,SP.group==SPLF[i])
-  GROWTH.F[[i]]=data.frame(k=dd$K,FL_inf=dd$FL_inf)
+  GROWTH.F[[i]]=data.frame(k=dd$K,FL_inf=dd$FL_inf,k.sd=dd$k.sd,FL_inf.sd=dd$FL_inf.sd)
   MAX.age.F[[i]]=c(dd$Max_Age,round(dd$Max_Age*1.3))
   AGE.50.mat[[i]]=c(dd$Age_50_Mat_min,dd$Age_50_Mat_max)
   FECU[[i]]=c(dd$Fecu_min,dd$Fecu_max)
@@ -1290,10 +1293,11 @@ cpue.list=cpue.list[Specs$Name]
 Init.r=Init.r[names(cpue.list)]
 
 #---Build r prior -----------------------------------------------------------------------
-fun.rprior.dist=function(Nsims,K,LINF,Temp,Amax,MAT,FecunditY,Cycle,BWT,AWT,LO)
+M.averaging="min"   #this yields rmax
+fun.rprior.dist=function(Nsims,K,LINF,K.sd,LINF.sd,Amax,MAT,FecunditY,Cycle,BWT,AWT,LO)
 {
   Fecu=unlist(FecunditY)
-  Rprior=fun.Leslie(N.sims=Nsims,k=K,Linf=LINF,Aver.T=Temp,
+  Rprior=fun.Leslie(N.sims=Nsims,k=K,Linf=LINF,k.sd=K.sd,Linf.sd=LINF.sd,
                     A=Amax,first.age=0,RangeMat=MAT,Rangefec=Fecu,
                     sexratio=0.5,Reprod_cycle=Breed.cycle,
                     bwt=BWT,awt=AWT,Lo=LO)  
@@ -1406,8 +1410,16 @@ system.time(for(s in 1: N.sp) #get r prior    #takes 0.013 sec per iteration
   Fecundity=FECU[[s]]
   Breed.cycle=Repro_cycle[[s]]  #years
   print(paste("r prior ",s,"--",names(store.species)[s]))
+  
+    #if no sd, replace with mean from those with sd
+  if(is.na(Growth.F$FL_inf.sd)) Growth.F$FL_inf.sd=0.038*Growth.F$FL_inf  
+  if(is.na(Growth.F$k.sd)) Growth.F$k.sd=0.088*Growth.F$k
+
+  
   #Get r prior
-  r.prior.dist=fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf/.85,Temp=TEMP,Amax=Max.age.F,
+  r.prior.dist=fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf/.85,
+                               K.sd=Growth.F$k.sd,LINF.sd=Growth.F$FL_inf.sd/.85,
+                               Amax=Max.age.F,
                                MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle,
                                BWT=BwT[[s]],AWT=AwT[[s]],LO=Lzero[[s]]/.85)    
   store.species[[s]]$r.prior=list(shape=r.prior.dist$shape,rate=r.prior.dist$rate)
@@ -1664,188 +1676,7 @@ if(use.size.comp=="YES")
 }
 setwd(WD)
 #---Calculate steepness -----------------------------------------------------------------------
-fun.steepness=function(Nsims,K,LINF,first.age,sel.age,F.mult,Temp,Amax,MAT,FecunditY,Cycle,sexratio,
-                       spawn.time,AWT,BWT,LO)
-{
-  Fecu=unlist(FecunditY)
-  fn.draw.samples=function(A=Amax,RangeMat=MAT,Rangefec=Fecu,Reprod_cycle=Breed.cycle)
-  {
-    #Max Age
-    if(length(A)==1) Max.A=A
-    if(length(A)>1)if(A[1]==A[2]) Max.A=A[1]
-    if(length(A)>1)if(A[1]<A[2]) Max.A=ceiling(rtriangle(1,a=A[1],b=A[2],c=ceiling((A[1]+A[2])/2)))
-    
-    #Age vector
-    age=first.age:Max.A
-    
-    #fecundity at age
-    if(Rangefec[1]==Rangefec[2]) Meanfec.sim=rep(Rangefec[1],length(age))
-    if(Rangefec[1]<Rangefec[2]) Meanfec.sim=rep(ceiling(rtriangle(1,a=Rangefec[1],b=Rangefec[2],
-                                                                  c=ceiling((Rangefec[1]+Rangefec[2])/2))),length(age)) 
-    
-    #Age at 50% maturity
-    if(RangeMat[1]==RangeMat[2]) age.mat.sim=ceiling(RangeMat[1])
-    if(RangeMat[1]<RangeMat[2]) age.mat.sim=ceiling(runif(1,RangeMat[1],RangeMat[2]))  
-    
-    #Reproductive cycle
-    if(length(Reprod_cycle)==1) Rep_cycle.sim=Reprod_cycle else
-    {
-      if(Reprod_cycle[1]==Reprod_cycle[2]) Rep_cycle.sim=round(Reprod_cycle[1])
-      if(Reprod_cycle[1]<Reprod_cycle[2]) Rep_cycle.sim=round(runif(1,Reprod_cycle[1],Reprod_cycle[2]))    
-    }
-    
-    return(list(Max.A=Max.A,age.mat=age.mat.sim,Meanfec=Meanfec.sim,Rep_cycle=Rep_cycle.sim))    
-  }
-
-  M.fun=function(Amax,age.mat,Linf=LINF,k=K,Aver.T=Temp,awt=AWT,bwt=BWT,Lo=LO)
-  {
-    #STEP 1. calculate M from different methods (see Kenchington 2013)
-    
-    #1.1. Age-independent
-    #Jensen (1996)
-    m.Jensen.2=1.65/age.mat
-    m.Jensen.2=rep(m.Jensen.2,length(age))
-    
-    #Pauly (1980)  
-    m.Pauly=10^(-0.0066-0.279*log10(Linf)+0.6543*log10(k)+0.4634*log10(Aver.T))
-    m.Pauly=rep(m.Pauly,length(age))
-    
-    #Hoenig (1983), combined teleost and cetaceans    
-    m.Hoenig=exp(1.44-0.982*log(Amax))      
-    m.Hoenig=rep(m.Hoenig,length(age))
-    
-    #Then et al (2015)
-    m.Then.1=4.899*Amax^(-0.916)
-    m.Then.1=rep(m.Then.1,length(age))
-    
-    #1.2. Age-dependent
-    #Peterson and Wroblewski 1984 (dry weight in grams, length in cm)
-    Dry.w=0.2   # Cortes (2002)
-    TL=Lo+(Linf-Lo)*(1-exp(-k*age))
-    wet.weight=1000*awt*TL^bwt
-    m.PetWro=1.92*(wet.weight*Dry.w)^-0.25
-    m.PetWro[m.PetWro>1]=NA
-    
-    #Lorenzen 1996 (weight in grams)
-    m.Lorenzen=3*wet.weight^-0.288
-    m.Lorenzen[m.Lorenzen>1]=NA
-    
-    #Gislason et al (2010) (weight in grams, length in cm)
-    m.Gislason=1.73*(TL^-1.61)*(Linf^1.44)*k
-    m.Gislason[m.Gislason>1]=NA
-    
-    
-    #STEP 2. get mean at age
-    nat.mort=data.frame(m.Jensen.2,m.Pauly,m.Hoenig,m.Then.1,
-                        m.PetWro,m.Lorenzen,m.Gislason)  
-    #for dogfish, due to their small size, weight-based M estimators highly overestimate M
-    if(mean(m.PetWro/m.Gislason,na.rm=T)>5)  nat.mort=data.frame(m.Jensen.2,m.Pauly,m.Hoenig,m.Then.1,
-                                                                 m.Gislason)  
-    
-    #STEP 3. Calculate mean
-    MoRt=rowMeans(nat.mort,na.rm=T)
-    #MoRt=apply(nat.mort, 1, function(x) weighted.mean(x, c(1,1,1.5,1.5,1,1,1)))
-    
-    if(MoRt[1]<MoRt[2]) MoRt[1]=MoRt[2]
-    
-    return(MoRt)
-  }
- 
-  Stipns=function(max.age,M,age.mat,Meanfec,CyclE,Sel)
-  {  
-    #survivorship
-    surv=exp(-M)
-    
-    #fecundity  
-    fecundity=Meanfec*sexratio/CyclE
-    
-    #maturity
-    maturity=ifelse(age>=age.mat,1,0)   #knife edge
-    #maturity=plogis(age,age.mat,1)      #ogive
-    
-    # maximum age is plus group
-    phi.o=0.0
-    cum.survive=1.0
-    z=0.0
-    for (i in 2:(max.age)  )
-    {
-      z=M[i] + F.mult*Sel[i]
-      z.ts=(M[i]+F.mult*Sel[i])*spawn.time
-      phi.o=phi.o+cum.survive*fecundity[i]*maturity[i]*exp(-z.ts)
-      cum.survive=cum.survive*exp(-z )
-    }
-    #plus group  
-    z= M[max.age+1] + F.mult*Sel[max.age+1]
-    z.ts=(M[max.age+1]+F.mult*Sel[max.age+1])*spawn.time
-    phi.o=phi.o + fecundity[max.age+1]*maturity[max.age+1]*cum.survive*exp(-z.ts)/( 1- exp(-z ) )
-    
-    #maximum lifetime reproductive rate at low density
-    alpha=phi.o*surv[1]
-    
-    #steepness
-    h=alpha/(4+alpha)
-    
-    #spawning potential ratio at maximum excess recruitment (MER) (Beverton-Holt relationship)
-    SPR.mer=1/alpha^0.5
-    
-    #optimal depletionlevel (i.e.depletion at MER, the proportional reduction from unexploited level)
-    Dep.MER=((alpha^0.5)-1)/(alpha-1) 
-    
-    return(steepness=h)  
-  }
-  
-  Store=rep(NA,Nsims)
-  for(i in 1:Nsims)
-  {
-    a=fn.draw.samples()
-    A.sim=a$Max.A
-    age=first.age:A.sim
-    Age.mat.sim=a$age.mat
-    Meanfec.sim=a$Meanfec
-    Reprod_cycle.sim=a$Rep_cycle
-    M.sim=M.fun(Amax=A.sim,age.mat=Age.mat.sim)
-    Sel=sel.age
-    if(length(Sel)<length(age))
-    {
-      Sel=c(Sel,rep(Sel[length(Sel)],length(age)-length(Sel)))
-    }
-    hh=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
-              Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
-              Sel)
-    #avoid non-sense h
-    if(hh<0.21)repeat 
-    {
-      a=fn.draw.samples()
-      A.sim=a$Max.A
-      age=first.age:A.sim
-      Age.mat.sim=a$age.mat
-      Meanfec.sim=a$Meanfec
-      Reprod_cycle.sim=a$Rep_cycle
-      M.sim=M.fun(Amax=A.sim,age.mat=Age.mat.sim)
-      Sel=sel.age
-      if(length(Sel)<length(age))
-      {
-        Sel=c(Sel,rep(Sel[length(Sel)],length(age)-length(Sel)))
-      }
-      hh=Stipns(max.age=A.sim,M=M.sim,age.mat=Age.mat.sim,
-                Meanfec=Meanfec.sim,CyclE=Reprod_cycle.sim,
-                Sel)
-      if(hh>0.22)break
-    }
-    Store[i]=hh
-  }
-  
-  #get mean and sd from lognormal distribution
-  normal.pars=suppressWarnings(fitdistr(Store, "normal"))
-  gamma.pars=suppressWarnings(fitdistr(Store, "gamma"))  
-  shape=gamma.pars$estimate[1]        
-  rate=gamma.pars$estimate[2]  
-  
-  return(list(shape=shape,rate=rate,
-              mean=normal.pars$estimate[1],
-              sd=normal.pars$estimate[2]))
-}
-
+M.averaging="mean"  #setting to 'min' yields too high values of steepness
 store.species.steepness=vector('list',N.sp)
 names(store.species.steepness)=Specs$SP.group
 system.time(for(s in 1: N.sp) 
@@ -1859,11 +1690,15 @@ system.time(for(s in 1: N.sp)
   Breed.cycle=Repro_cycle[[s]]  #years
   SEL=Selectivity.at.age[[s]]$relative.sel
   
+  if(is.na(Growth.F$FL_inf.sd)) Growth.F$FL_inf.sd=0.038*Growth.F$FL_inf  
+  if(is.na(Growth.F$k.sd)) Growth.F$k.sd=0.088*Growth.F$k
+  
   print(paste("steepness ",s,"--",names(store.species)[s]))
   
   #Fishing mortality set at 0 so selectivity has no effect
   store.species.steepness[[s]]=fun.steepness(Nsims=2*NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf/.85,
-                                             first.age=0,sel.age=SEL,F.mult=0,Temp=TEMP,
+                                             Linf.sd=Growth.F$FL_inf.sd/.85,k.sd=Growth.F$k.sd,
+                                             first.age=0,sel.age=SEL,F.mult=0,
                                              Amax=Max.age.F,MAT=unlist(Age.50.mat),
                                              FecunditY=Fecundity,Cycle=Breed.cycle,
                                              sexratio=0.5,spawn.time = 0,
