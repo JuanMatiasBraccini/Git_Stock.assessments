@@ -46,6 +46,7 @@ library(Hmisc)
 library(ggplot2)
 library(ggrepel)
 library(datalowSA)
+library(zoo)
 
 
 Asses.year=2020    #enter year of assessment
@@ -300,6 +301,10 @@ k.times.mx.ktch=mean(c(Low.bound.K,Up.bound.K))
 fix.r="NO"
 r.weight=1   #weight given in the likelihood function
 
+    #what biomass percentiles to show
+What.percentil="100%" #100% to make it comparable to CMSY  
+#What.percentil="60%" #60% as required for MSC
+
 #... Catch-MSY arguments
 
     #simulatins
@@ -353,7 +358,7 @@ do.mean.weight.based="NO"   #not used due to logistic sel. assumption
 do.length.based.SPR="NO"   #not used due to logistic sel. assumption 
 Do.SPM="YES"
 Do.Ktch.MSY="YES"
-Do.aSPM="NO"
+Do.aSPM="YES"
 
 Min.len=25  #minimum length of sharks
 Min.size.sample=50  #minimum number of observations (all years combined) to derive selectivities
@@ -1262,31 +1267,24 @@ cpue.list=list(
   "great hammerhead"=NULL,            #NSF not used because it's for 'hammerhead spp'       
   "grey nurse shark"=list(Survey=NULL,
                           TDGDLF.mon=Greynurse.tdgdlf_mon,
-                          TDGDLF.day=NULL,
-                          NSF=NULL),
+                          TDGDLF.day=NULL),
   "lemon shark"=NULL,     #NSF not used to uncertain index and only few years
 
   "milk shark"=list(Survey=Mil.nat,     
                     TDGDLF.mon=NULL,
-                    TDGDLF.day=NULL,
-                    NSF=NULL),
+                    TDGDLF.day=NULL),
   "pigeye shark"=NULL,         #only 3 years with CV<.5, and for NSF
   "sawsharks"=NULL,
   "scalloped hammerhead"=NULL,    #Naturaliste not used due to no trend and high 0s; NSF not used because it's for 'hammerhead spp'
   "shortfin mako"=NULL,           #CVs too high for all years so not used
-  "smooth hammerhead"=list(Survey=NULL,
-                           TDGDLF.mon=Smuz.hh.tdgdlf_mon,
-                           TDGDLF.day=Smuz.hh.tdgdlf_daily,
-                           NSF=NULL),
+  "smooth hammerhead"=NULL,     #TDGDLF not used because it's for 'hammerhead spp' 
   "spinner shark"=list(Survey=NULL,
                        TDGDLF.mon=Spinr.tdgdlf_mon,
-                       TDGDLF.day=Spinr.tdgdlf_daily,
-                       NSF=NULL),
+                       TDGDLF.day=Spinr.tdgdlf_daily),
   "spurdogs"=NULL,
   "tiger shark"=list(Survey=Tiger.nat,
                      TDGDLF.mon=Tiger.tdgdlf_mon,
-                     TDGDLF.day=Tiger.tdgdlf_daily,
-                     NSF=NULL),         
+                     TDGDLF.day=Tiger.tdgdlf_daily),         
   "wobbegongs"=NULL)   
 
 cpue.list=cpue.list[Specs$Name]
@@ -1600,7 +1598,20 @@ if(use.size.comp=="YES")
     rm(GN,LL)
     print(paste("selectivity ",l,"--",names(Store.age.comp)[l]))
   }
-
+  #Reset too-low sels
+  Store.age.comp$`18001`$GN$Selectivity$y[1]=.1
+  
+  Store.age.comp$`8001`$GN$Selectivity$y[1]=.6
+  
+  Store.age.comp$`23900`$GN$Selectivity$y[12:16]=NA
+  approX=na.approx(c(1,Store.age.comp$`23900`$GN$Selectivity$y[12:15],0.7))
+  Store.age.comp$`23900`$GN$Selectivity$y[12:16]=approX[-1]
+  
+  Store.age.comp$`18023`$GN$Selectivity$y[1]=.4
+  
+  iii=which.max(Store.age.comp[[12]]$GN$Selectivity$y):length(Store.age.comp[[12]]$GN$Selectivity$y)
+  Store.age.comp$`20000`$GN$Selectivity$y[iii]=1
+  
       #show derived selectivity at age
   fn.plt.age.comp=function(sim,obs,sel,Title)   
   {
@@ -2253,7 +2264,7 @@ if(Do.SPM=="YES")
     }
     Store.stuff[[s]]=list(cpue=Store.CPUE.eff.dummy,CPUE.CV=CPUE.CV,Qs=QS.dummy,Ktch=ct$LIVEWT.c,
                           r.mean=r.prior,r.sd=r.prior.sd,yrs=all.iers,
-                          cpue.yrs=CPUE.yr.dummy,n.cpues=n.cpue.dummy)
+                          cpue.yrs=CPUE.yr.dummy,n.cpues=3)
     
   }
   
@@ -2640,7 +2651,12 @@ if(Do.Ktch.MSY=="YES")
 #Haddon datalowSA package (https://rdrr.io/github/haddonm/datalowSA/f/vignettes/aspm.md)
 if(Do.aSPM=="YES")
 {
-  #Tweak functions to allow 2 Qs for TDGDLF and 2 cpue series and Hessian
+  #Tweaked functions to allow multiple CPUEs and Qs, and total biomass and Hessian calculation for uncertainty
+  TotB=function (invect, WeightA) 
+  {
+    ans <- sum(WeightA * invect)/1000
+    return(ans)
+  }
   dynamics= function (pars, infish, inglb, inprops) 
   {
     waa <- inprops$waa
@@ -2665,7 +2681,7 @@ if(Do.aSPM=="YES")
                                                                           1), 0:nyrs))
     columns <- c("Year", "Catch", "PredC","SpawnB",
                  "ExploitB", "FullH","CPUE","CPUE2", 
-                 "PredCE","PredCE2", "Deplete")
+                 "PredCE","PredCE2", "Deplete","TotalB")
     fishery <- matrix(NA, nrow = (nyrs + 1), ncol = length(columns), 
                       dimnames = list(0:nyrs, columns))
     fishery[, "Year"] <- c((infish$year[1] - 1), infish$year)
@@ -2685,6 +2701,7 @@ if(Do.aSPM=="YES")
       Nt[maxage + 1, 1] <- (Nt[maxage, 1] * surv)/(1 - surv)
     }
     for (yr in 2:(nyrs + 1)) {
+      totb <- TotB(Nt[, (yr - 1)], waa)
       spb <- SpB(Nt[, (yr - 1)], maa, waa)
       exb <- ExB(Nt[, (yr - 1)] * hS, sela, waa)
       Nt[1, yr] <- bh(spb, inglb$steep, R0, B0)
@@ -2697,15 +2714,18 @@ if(Do.aSPM=="YES")
                                            hS) - Ct[nages]) * hS
       fishery[(yr - 1), 4:5] <- c(spb, exb)
       fishery[yr, c(3, 6)] <- c(sum(Ct * waa)/1000, hrate[nages])
+      fishery[(yr - 1), 12] <- totb
     }
+    totb <- TotB(Nt[, yr], waa)
     spb <- SpB(Nt[, yr], maa, waa)
     exb <- ExB(Nt[, yr] * hS, sela, waa)
     fishery[yr, 4:5] <- c(spb, exb)
+    fishery[yr, 12] <- totb
     fishery[, "Deplete"] <- fishery[, "SpawnB"]/B0
     ExpB <- fishery[1:nyrs, "ExploitB"]
     
     #catchability
-      #fleet 1
+    #fleet 1
     if(!exists(c('q1.yrs','q2.yrs')))
     {
       avq <- exp(mean(log(infish$cpue/fishery[1:nyrs, "ExploitB"]), 
@@ -2714,22 +2734,24 @@ if(Do.aSPM=="YES")
     }
     if(exists(c('q1.yrs','q2.yrs')))
     {
-      id=match(q1.yrs,infish$year)
-      avq1 <- exp(mean(log(infish$cpue[id]/fishery[id+1, "ExploitB"]), 
-                       na.rm = TRUE))
+      #id=match(q1.yrs,infish$year)
+      id=match(infish$year[1]:2005,infish$year)
+      avq1 <- exp(mean(log(infish$cpue[id]/fishery[id+1, "ExploitB"]),na.rm = TRUE))
       fishery[id+1, "PredCE"] <- ExpB[id] * avq1
       
-      id=match(q2.yrs,infish$year)
-      avq2 <- exp(mean(log(infish$cpue[id]/fishery[id+1, "ExploitB"]), 
-                       na.rm = TRUE))
+      #id=match(q2.yrs,infish$year)
+      id=match(2006:infish$year[length(infish$year)],infish$year)
+      avq2 <- exp(mean(log(infish$cpue[id]/fishery[id+1, "ExploitB"]),na.rm = TRUE))
       fishery[id+1, "PredCE"] <- ExpB[id] * avq2
     }
     
-      #fleet 2
+    #fleet 2
     avq.fleet2 <- exp(mean(log(infish$cpue2/fishery[1:nyrs, "ExploitB"]), 
-                      na.rm = TRUE))
+                           na.rm = TRUE))
     fishery[2:(nyrs + 1), "PredCE2"] <- ExpB * avq.fleet2
-
+    
+    #Add CVs for fit display
+    fishery=cbind(fishery,rbind(c(NA,NA),infish[,c('se','se2')]))
     
     return(as.data.frame(fishery))
   }
@@ -2765,7 +2787,6 @@ if(Do.aSPM=="YES")
     return(bestL)
   }
   
-  
   #fill in objects required for aSPM
   for(l in 1:nrow(LH.par))   
   {
@@ -2790,23 +2811,26 @@ if(Do.aSPM=="YES")
     "grey nurse shark"=c(logR0=10,sigCE=0.3),
     "lemon shark"=NULL,
     "great hammerhead"=NULL,
-    "milk shark"=NULL,
+    "milk shark"=c(logR0=10,sigCE=0.3),
     "sawsharks"=NULL,
-    "scalloped hammerhead"=c(logR0=10,sigCE=0.3),
-    "smooth hammerhead"=c(logR0=10,sigCE=0.3), 
+    "scalloped hammerhead"=NULL,
+    "smooth hammerhead"=NULL, 
     "spinner shark"=c(logR0=10,sigCE=0.3),
-    "shortfin mako"=c(logR0=10,sigCE=0.3),
+    "shortfin mako"=NULL,
     "spurdogs"=NULL,
     "tiger shark"=c(logR0=11,sigCE=0.3),         
-    "wobbegongs"=NULL)    
+    "wobbegongs"=NULL,
+    "pigeye shark"=NULL)
+  aSPM.init=aSPM.init[names(cpue.list)]
   
   #run aspm
   Store.aSPM=vector('list',N.sp)
   names(Store.aSPM)=names(aSPM.init)
-  
-  for(l in 1:N.sp)    #Still issues here with l==9 ACA!!
+  No.signal.cpue=c("milk shark","spinner shark")  #no signal in cpue
+  for(l in 1:N.sp)    
   {
-    if(!is.null(cpue.list[[l]]))
+    print(paste("aSPM--------- l=",l,names(Store.aSPM)[l]))
+    if(!is.null(cpue.list[[l]])&!names(Store.aSPM)[l]%in%No.signal.cpue)
     {
       #catch
       fish=Tot.ktch%>%
@@ -2871,7 +2895,7 @@ if(Do.aSPM=="YES")
       CPUE=CPUE%>%    
           dplyr::select(yr,MeAn,CV)%>%
           rename(year=yr,cpue=MeAn,se=CV)
-      if(min(CPUE$se,na.rm=T)>1)  CPUE$se=CPUE$se/100
+      if(min(CPUE$se,na.rm=T)>1)  CPUE$se=CPUE$se/100  #reset if CV in percentage
       
       fish=fish%>%left_join(CPUE,by='year')
       fish0.ktch=fish[1:20,]%>%
@@ -2894,7 +2918,6 @@ if(Do.aSPM=="YES")
       if(exists('CPUE2')) fish=fish%>%left_join(CPUE2,by='year')
       if(!exists('CPUE2')) fish=fish%>%mutate(cpue2=NA,se2=NA)
 
-      
       
       #init par values
       Id=match(Specs$SPECIES[match(names(aSPM.init)[l],Specs$Name)],names(Store.age.comp))
@@ -2920,11 +2943,10 @@ if(Do.aSPM=="YES")
       }
       
       if(exists(c('q1.yrs','q2.yrs'))) rm(q1.yrs,q2.yrs)
+      if(exists('CPUE')) rm(CPUE)
       if(exists('CPUE2')) rm(CPUE2)
 
       Store.aSPM[[l]]=list(fit=ans,quantities=fishery,fish=fish,quantities.MC=fishery.MC)
-      
-      print(paste("aSPM--------- l=",l,names(Store.aSPM)[l]))
     }
   }
 }
@@ -3243,7 +3265,7 @@ if(Do.SPM=="YES")
   {
     if(!is.null(SPM.preds[[s]]))    
     {
-      fn.fig(paste(Paz,names(SPM.preds)[s],sep=""),2400,2400)
+      fn.fig(paste(Paz,names(SPM.preds)[s],sep=""),2400,1400)
       
       HR.o.scens=Mx.init.harv[s]
       nrw=length(HR.o.scens)*length(Efficien.scens)
@@ -3313,7 +3335,7 @@ if(Do.SPM=="YES")
             {
               plot.new()
             }
-            if(x==1) legend("bottomleft",capitalize(names(SPM.preds)[s]),bty='n',cex=1,text.font=2)
+            if(x==1) legend("bottomleft",capitalize(names(SPM.preds)[s]),bty='n',cex=1.5,text.font=2)
             if(s==Shwed[1])mtext(names(cpue.list[[s]])[x],3,line=0.2)
           }
         }
@@ -3440,8 +3462,8 @@ if(Do.SPM=="YES")
           idd=which(round(dummy[,ncol(dummy)],1)<0.05) #remove cases where final biomass=0 
           if(length(idd)) dummy=dummy[-idd,]
           Bt.all=dummy
-          Bt=apply(dummy,2,function(x) quantile(x,probs=c(0,0.5,1)))   #100% to make it comparable to CMSY
-          #Bt=apply(dummy,2,function(x) quantile(x,probs=c(0.2,0.5,0.8)))   #60% as required for MSC
+          if(What.percentil=="100%") Bt=apply(dummy,2,function(x) quantile(x,probs=c(0,0.5,1)))   
+          if(What.percentil=="60%") Bt=apply(dummy,2,function(x) quantile(x,probs=c(0.2,0.5,0.8)))   
           Bt=Bt[,-ncol(Bt)] #remove future Bt
           dummy=subListExtract(SPM.preds_uncertainty[[s]][[h]][[e]],"Bmsy")    
           dummy=do.call(rbind,dummy)
@@ -3558,8 +3580,6 @@ if(Do.SPM=="YES")
   rm(HR.o.scens)
   
   
-  
-  
   #Plot MSY  
   fn.fig(paste(hNdl,"/Outputs/Figure MSY_SPM",sep=""), 2400, 2400)
   HR.o.scens=Mx.init.harv[1]
@@ -3642,7 +3662,7 @@ if(Do.Ktch.MSY=="YES")
     if(NMs=="Low") NMs="Low resilience"
     if(NMs=="Very.low") NMs="Very low resilience"
     plot(density(rgamma(10000, shape = store.species[[s]]$r.prior$shape, rate = store.species[[s]]$r.prior$rate)),
-         lwd=3,main=NMs,xlab="",ylab="",cex.lab=2,cex.axis=1.15,col=1,xlim=c(0,.4),yaxt='n')
+         lwd=3,main=NMs,xlab="",ylab="",cex.lab=2,cex.axis=1.15,col=1,xlim=c(0,.6),yaxt='n')
   }
   mtext(expression(paste(plain("Intrinsic rate of increase (years") ^ plain("-1"),")",sep="")),1,0.5,cex=1.35,outer=T)
   mtext("Density",2,0,las=3,cex=1.35,outer=T)
@@ -3717,7 +3737,7 @@ if(Do.Ktch.MSY=="YES")
   }
   
   fn.fig(paste(hNdl,"/Outputs/Figure 3_Biomass_Catch_MSY",sep=""), 2400, 2000)
-  smart.par(n.plots=length(compact(store.species)),MAR=c(1.2,2,1.5,1.75),
+  smart.par(n.plots=length(compact(store.species)),MAR=c(1.2,2,1.5,2),
             OMA=c(2,1.75,.2,2.1),MGP=c(1,.5,0))
   par(las=1,cex.axis=1.1)
   for(s in 1: N.sp)
@@ -3781,6 +3801,156 @@ if(Do.Ktch.MSY=="YES")
   dev.off()
 }
 
+
+#ACA
+#---aSPM RESULTS------
+if(Do.aSPM=="YES")
+{
+  #remove species with no aSPM
+  Store.aSPM=Store.aSPM[!sapply(Store.aSPM, is.null)]
+  
+  #Plot obs VS pred cpues  
+  Paz=paste(hNdl,"/Outputs/aSPM.fit/",sep="")
+  if(!file.exists(file.path(Paz))) dir.create(file.path(Paz))
+  
+  nRows=length(Store.aSPM)
+  nCols=2
+  Shwed=names(Store.aSPM)
+  fn.fig(paste(Paz,"All.species",sep=""),2400,1800)
+  par(mfrow=c(nRows,nCols),mar=c(1,1,1,1),oma=c(1.8,2,.5,.1),mgp=c(1,.5,0))
+  for(s in 1: length(Store.aSPM))
+  {
+    aa=Store.aSPM[[s]]$quantities%>%filter(Year%in%all.iers)
+    
+    #SURVEY
+    if(sum(aa$CPUE2,na.rm=T)>0)
+    {
+      plot(aa$Year,aa$PredCE2,type='l',lwd=2,ylab="",xlab="",xlim=c(min(aa$Year),max(aa$Year)),
+           ylim=c(0,max(c(max(aa$PredCE2),aa$PredCE2+aa$se2),na.rm=T)))
+      points(aa$Year,aa$CPUE2,col="orange",pch=19,cex=1)
+      with(aa,segments(Year,CPUE2,Year,CPUE2+se2,col="orange"))
+      with(aa,segments(Year,CPUE2,Year,CPUE2-se2,col="orange"))
+    }else
+      plot.new()
+    legend("bottomleft",capitalize(names(Store.aSPM)[s]),bty='n',cex=1.5,text.font=2)
+    if(s==1) mtext("Survey",3,line=0.2)
+    
+    #TDGDLF
+    xx=match(2005,aa$Year)
+    plot(aa$Year[1:xx],aa$PredCE[1:xx],type='l',lwd=2,ylab="",xlab="",xlim=c(min(aa$Year),max(aa$Year)),
+         ylim=c(0,max(c(max(aa$PredCE),aa$PredCE+aa$se),na.rm=T)))
+    lines(aa$Year[(xx+1):nrow(aa)],aa$PredCE[(xx+1):nrow(aa)],lwd=2)
+    points(aa$Year,aa$CPUE,col="orange",pch=19,cex=1)
+    with(aa,segments(Year,CPUE,Year,CPUE+se,col="orange"))
+    with(aa,segments(Year,CPUE,Year,CPUE-se,col="orange"))
+    if(s==1) mtext("TDGDLF",3,line=0.2)
+  }
+  legend("left",c("observed","predicted"),pch=19,cex=1.25,col=c("orange","black"),bty='n')
+  mtext("Financial year",1,.7,outer=T)
+  mtext("cpue",2,1,outer=T,las=3)
+  dev.off()
+  
+  
+  #Plot relative spawning biomass  
+  #1. Get median and percentiles    
+  Med.biom_aSPM=vector('list',length(Store.aSPM))
+  names(Med.biom_aSPM)=names(Store.aSPM)
+  Store.cons.Like.aSPM=Store.cons.Like.aSPM.total=Tab.aSPM=Med.biom_aSPM
+  dis.iers=match(all.iers,Store.aSPM$`tiger shark`$fish$year)
+  for(s in 1: length(Store.aSPM))
+  {
+    dummy=matrix(NA,nrow=NsimSS,ncol=length(all.yrs))
+    dummy.total=dummy
+    for(i in 1:NsimSS)
+    {
+      dummy[i,]=Store.aSPM[[s]]$quantities.MC[[i]]$Deplete[dis.iers]
+      dummy.total[i,]=with(Store.aSPM[[s]]$quantities.MC[[i]],TotalB[dis.iers]/TotalB[1])
+    }
+    if(What.percentil=="100%")
+    {
+      Bt=apply(dummy,2,function(x) quantile(x,probs=c(0,0.5,1))) 
+      Bt.total=apply(dummy.total,2,function(x) quantile(x,probs=c(0,0.5,1))) 
+    }
+    if(What.percentil=="60%")
+    {
+      Bt=apply(dummy,2,function(x) quantile(x,probs=c(0.2,0.5,0.8))) 
+      Bt.total=apply(dummy.total,2,function(x) quantile(x,probs=c(0.2,0.5,0.8))) 
+    }
+    Med.biom_aSPM[[s]]=list(DAT=dummy,Bt=Bt,
+                            DAT.total=dummy.total,Bt.total=Bt.total)
+  }
+  
+  #2. Plot
+  fn.fig(paste(hNdl,"/Outputs/Figure 3_Biomass_aSPM_spawning",sep=""),2000,2400)
+  smart.par(n.plots=length(Store.aSPM),MAR=c(1.2,2,1.5,1.25),
+            OMA=c(2,1.75,.2,2.1),MGP=c(1,.62,0))
+  par(las=1,cex.axis=.8)
+  for(s in 1: length(Store.aSPM))
+  {
+    iii=match(names(Store.aSPM)[s],names(Store.stuff))
+    Store.cons.Like.aSPM[[s]]=fn.plt.bio.ktch(Yr=Store.stuff[[iii]]$yrs,
+                                              Bt=Med.biom_aSPM[[s]]$Bt,
+                                              Bmsy=1,
+                                              Ktch=Store.stuff[[iii]]$Ktch,
+                                              CX.AX=1,
+                                              CX=1,
+                                              DAT=t(Med.biom_aSPM[[s]]$DAT),
+                                              Add.ktch="YES",
+                                              LOW="0%",
+                                              HIGH="100%")
+    mtext(capitalize(names(Store.aSPM)[s]),3,cex=1) 
+  }
+  mtext("Financial year",1,cex=1.2,line=0.75,outer=T)
+  mtext("Relative spawning biomass",2,cex=1.2,outer=T,las=3)
+  mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
+        col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
+  
+  dev.off()
+  
+  fn.fig(paste(hNdl,"/Outputs/Figure 3_Biomass_aSPM_total",sep=""),2000,2400)
+  smart.par(n.plots=length(Store.aSPM),MAR=c(1.2,2,1.5,1.25),
+            OMA=c(2,1.75,.2,2.1),MGP=c(1,.62,0))
+  par(las=1,cex.axis=.8)
+  for(s in 1: length(Store.aSPM))
+  {
+    iii=match(names(Store.aSPM)[s],names(Store.stuff))
+    Store.cons.Like.aSPM.total[[s]]=fn.plt.bio.ktch(Yr=Store.stuff[[iii]]$yrs,
+                                              Bt=Med.biom_aSPM[[s]]$Bt.total,
+                                              Bmsy=1,
+                                              Ktch=Store.stuff[[iii]]$Ktch,
+                                              CX.AX=1,
+                                              CX=1,
+                                              DAT=t(Med.biom_aSPM[[s]]$DAT.total),
+                                              Add.ktch="YES",
+                                              LOW="0%",
+                                              HIGH="100%")
+    mtext(capitalize(names(Store.aSPM)[s]),3,cex=1) 
+  }
+  mtext("Financial year",1,cex=1.2,line=0.75,outer=T)
+  mtext("Relative total biomass",2,cex=1.2,outer=T,las=3)
+  mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
+        col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
+  
+  dev.off()
+  
+  
+  #Output parameter estimates
+  for(s in 1: length(Store.aSPM))
+  {
+    fit=Store.aSPM[[s]]$fit
+    MLE=round(fit$par,2)
+    std=round(sqrt(diag(solve(fit$hessian))),2)
+    Nms=names(MLE)
+    Tab=as.data.frame(matrix(paste(MLE," (",std,")",sep=''),nrow=1))
+    names(Tab)=capitalize(Nms)
+    Tab.aSPM[[s]]=Tab
+  }
+  Tab.aSPM=do.call(rbind,Tab.aSPM)
+  fn.word.table(WD=getwd(),TBL=Tab.aSPM,Doc.nm="Table 3. aSPM estimates",caption=NA,paragph=NA,
+                HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+                Zebra='NO',Zebra.col='grey60',Grid.col='black',
+                Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+}
 
 #---RISK ------
 Like.ranges=list(L1=c(0,0.0499999),L2=c(0.05,0.2),L3=c(0.20001,0.5),L4=c(0.50001,1))
