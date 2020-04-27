@@ -47,7 +47,7 @@ library(ggplot2)
 library(ggrepel)
 library(datalowSA)
 library(zoo)
-
+library(MCDA)
 
 Asses.year=2020    #enter year of assessment
 Last.yr.ktch="2017-18"
@@ -175,7 +175,7 @@ Tiger.nat=fn.read('Tiger shark.Srvy.FixSt.csv')
 Mil.nat=fn.read('Milk shark.Srvy.FixSt.csv')
 
   #Standardised TDGDLF cpue
-Smuz.hh.tdgdlf_mon=fn.read('Hammerhead.annual.abundance.basecase.monthly_relative.csv') #assumed to be all smooth HH
+Smuz.hh.tdgdlf_mon=fn.read('Hammerhead.annual.abundance.basecase.monthly_relative.csv') #'hammerhead spp'
 Smuz.hh.tdgdlf_daily=fn.read('Hammerhead.annual.abundance.basecase.daily_relative.csv')
 Spinr.tdgdlf_mon=fn.read('Spinner Shark.annual.abundance.basecase.monthly_relative.csv')
 Spinr.tdgdlf_daily=fn.read('Spinner Shark.annual.abundance.basecase.daily_relative.csv')
@@ -198,7 +198,7 @@ HH.NSF=fn.read('Hammerheads.annual.abundance.NSF_relative.csv')
 #Mean catch weight data
 
   #Standardised TDGDLF mean size
-Smuz.hh.tdgdlf.size=fn.read('Smooth hammerhead.annual.mean.size_relative.csv')
+Smuz.hh.tdgdlf.size=fn.read('Smooth hammerhead.annual.mean.size_relative.csv')  #this is "hammerhead spp"
 Spinr.tdgdlf.size=fn.read('Spinner Shark.annual.mean.size_relative.csv')
 Tiger.tdgdlf.size=fn.read('Tiger Shark.annual.mean.size_relative.csv')
 
@@ -995,8 +995,8 @@ KIP=do.call(rbind,KIP)%>%
         dplyr::select(Name,Gear)
 
 Tot.ktch=Tot.ktch%>%filter(!Name%in%c("blacktips","dusky shark"))
-
-PSA.list=PSA.list%>%filter(Species%in%unique(Tot.ktch$Name))
+UniSp=unique(Tot.ktch$Name)
+PSA.list=PSA.list%>%filter(Species%in%UniSp)
 PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from Micheli et al 2014
 {
   PSA=data.frame(Species=d$Species,
@@ -1057,6 +1057,7 @@ PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from M
 }
 Keep.species=PSA.fn(d=PSA.list,Exprt=paste(hNdl,"/Outputs/Figure. PSA.tiff",sep=''))
 Keep.species=tolower(Keep.species)
+Drop.species=UniSp[which(!UniSp%in%Keep.species)]
 
 #Plot catches of all species
 all.yrs=min(Tot.ktch$finyear):max(Tot.ktch$finyear)
@@ -3800,9 +3801,6 @@ if(Do.Ktch.MSY=="YES")
   mtext("Density",2,line=1,outer=T,las=3)
   dev.off()
 }
-
-
-#ACA
 #---aSPM RESULTS------
 if(Do.aSPM=="YES")
 {
@@ -3952,8 +3950,13 @@ if(Do.aSPM=="YES")
                 Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
 }
 
-#---RISK ------
-Like.ranges=list(L1=c(0,0.0499999),L2=c(0.05,0.2),L3=c(0.20001,0.5),L4=c(0.50001,1))
+#---RISK RESULTS------
+
+#1. Calculate risk for each line of evidence
+Like.ranges=list(L1=c(0,0.0499999),
+                 L2=c(0.05,0.2),
+                 L3=c(0.20001,0.5),
+                 L4=c(0.50001,1))
 Risk.tab=data.frame(Consequence=paste("C",1:4,sep=""),
                     L1=NA,L2=NA,L3=NA,L4=NA,
                     Max.Risk.Score=NA)
@@ -3977,10 +3980,66 @@ for(s in 1: N.sp)
 {
   #SPM
   if(!is.null(Store.cons.Like.SPM[[s]])) Risk.SPM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.SPM[[s]]))
+  
   #SRM
   Risk.SRM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.SRM[[s]]))
 }
 
+#Drop.species #PSA species not further assessed
+
+#2. Integrate the risk from each line of evidence
+
+#note: Use a weighted sum to aggregate the Risk Categories form the alternative lines of evidence
+#      Normalize each criterion by dividing each by the
+#      highest value obtained on the corresponding criterion. 
+#      Assign weights to each criteria 
+Integrate.LoE=function(Preference.Table,criteriaMinMax,plot.data,LoE.weights)
+{
+  #Set up preference table
+  rownames(Preference.Table)=c("Negligibe","Low","Medium","High","Severe")
+  
+  #Maximise or minimise each criteria?
+  criteriaMinMax=rep(criteriaMinMax,ncol(Preference.Table))
+  names(criteriaMinMax) <- colnames(Preference.Table)
+  
+  #display data
+  if(plot.data)plotRadarPerformanceTable(Preference.Table, criteriaMinMax,overlay=FALSE, bw=TRUE, lwd =5)
+  
+  # Normalization of the performance table
+  normalizationTypes <- rep("percentageOfMax",ncol(Preference.Table))
+  names(normalizationTypes) <- colnames(Preference.Table)
+  nPreference.Table <- normalizePerformanceTable(Preference.Table,normalizationTypes)
+  
+  # Calculate weighted sum
+  names(LoE.weights) <- colnames(nPreference.Table)
+  weighted.sum<-weightedSum(nPreference.Table,LoE.weights)
+  
+  # Rank the scores of the alternatives
+  rank.score=sort(rank(-weighted.sum))
+  
+  # overall risk
+  risk=names(rank.score)[1]
+  
+  return(list(weighted.sum=weighted.sum,risk=risk))
+}
+
+#ACA Preference.table only has actual lines of evidence, if NA don't add
+#for()
+#{
+  
+#}
+Integrate.LoE(Preference.Table=data.frame(LE1=c(1,3,0,0,0),
+                                          LE2=c(0,3,6,0,0),
+                                          LE3=c(0,3,6,0,0),
+                                          LE4=c(0,4,6,0,0),
+                                          LE5=c(2,4,6,9,0)),
+              criteriaMinMax <- "max",
+              plot.data=FALSE,
+              LoE.weights <- c(1,1,2,2,2)
+              )
+
+
+#3. Display overall risk for each species
 fn.AD=function(add.text)
 {
   X.rng=1:N.sp
