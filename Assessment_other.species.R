@@ -1055,7 +1055,7 @@ PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from M
   
   return(as.character(PSA%>%filter(Risk=="high")%>%pull(Species)))
 }
-Keep.species=PSA.fn(d=PSA.list,Exprt=paste(hNdl,"/Outputs/Figure. PSA.tiff",sep=''))
+Keep.species=PSA.fn(d=PSA.list,Exprt=paste(hNdl,"/Outputs/Figure 2_PSA.tiff",sep=''))
 Keep.species=tolower(Keep.species)
 Drop.species=UniSp[which(!UniSp%in%Keep.species)]
 
@@ -2647,7 +2647,6 @@ if(Do.Ktch.MSY=="YES")
   })
 }
 
-#ACA
 #---Single-species age-structured aSPM (aSPM) -----------------------------------------------------------------------
 #Haddon datalowSA package (https://rdrr.io/github/haddonm/datalowSA/f/vignettes/aspm.md)
 if(Do.aSPM=="YES")
@@ -3175,14 +3174,18 @@ fn.spatio.temp.catch.dist=function(d)
   mtext(side = 1, line = 2, 'Financial year',cex=1.5)
   
   par(new=T)
-  CL=rgb(.1,.1,1,alpha=.8)
-  plot(yrs,Effort_blocks$Tot,type='l',col=CL,xlab="",ylab="",axes=F,lwd=3,lty=1)
+  CL=rgb(.1,.1,1,alpha=.6)
+  plot(yrs,Effort_blocks$Tot,type='l',col=CL,xlab="",ylab="",axes=F,lwd=5,lty=1)
   axis(side = 4,las=1)
   mtext(side = 4, line = 3, 'Number of blocks fished',las=3,cex=1.5,col=CL)
+  
+  DD=d1
+  rownames(DD)=Sp.nms$SNAME
+  return(DD)
 }
-fn.fig("Figure Spatio-temporal catch", 2400, 2400)
+fn.fig("Figure 2_Spatio-temporal catch", 2400, 2400)
 par(mar=c(2.5,4,.1,1),oma=c(.5,6,.1,3),mgp=c(1.5,.7,0))
-fn.spatio.temp.catch.dist(d=rbind(Data.monthly%>%
+Store.spatial.temporal.ktch=fn.spatio.temp.catch.dist(d=rbind(Data.monthly%>%
                                         filter(!is.na(BLOCKX))%>%
                                         dplyr::select(SNAME,FINYEAR,SPECIES,BLOCKX),
                                   Data.monthly.north%>%
@@ -3805,143 +3808,154 @@ if(Do.Ktch.MSY=="YES")
 if(Do.aSPM=="YES")
 {
   #remove species with no aSPM
-  Store.aSPM=Store.aSPM[!sapply(Store.aSPM, is.null)]
+  no.null.Store.aSPM=Store.aSPM[!sapply(Store.aSPM, is.null)]
   
   #Plot obs VS pred cpues  
   Paz=paste(hNdl,"/Outputs/aSPM.fit/",sep="")
   if(!file.exists(file.path(Paz))) dir.create(file.path(Paz))
   
-  nRows=length(Store.aSPM)
+  nRows=length(no.null.Store.aSPM)
   nCols=2
   Shwed=names(Store.aSPM)
   fn.fig(paste(Paz,"All.species",sep=""),2400,1800)
   par(mfrow=c(nRows,nCols),mar=c(1,1,1,1),oma=c(1.8,2,.5,.1),mgp=c(1,.5,0))
   for(s in 1: length(Store.aSPM))
   {
-    aa=Store.aSPM[[s]]$quantities%>%filter(Year%in%all.iers)
-    
-    #SURVEY
-    if(sum(aa$CPUE2,na.rm=T)>0)
+    if(!is.null(Store.aSPM[[s]]))
     {
-      plot(aa$Year,aa$PredCE2,type='l',lwd=2,ylab="",xlab="",xlim=c(min(aa$Year),max(aa$Year)),
-           ylim=c(0,max(c(max(aa$PredCE2),aa$PredCE2+aa$se2),na.rm=T)))
-      points(aa$Year,aa$CPUE2,col="orange",pch=19,cex=1)
-      with(aa,segments(Year,CPUE2,Year,CPUE2+se2,col="orange"))
-      with(aa,segments(Year,CPUE2,Year,CPUE2-se2,col="orange"))
-    }else
-      plot.new()
-    legend("bottomleft",capitalize(names(Store.aSPM)[s]),bty='n',cex=1.5,text.font=2)
-    if(s==1) mtext("Survey",3,line=0.2)
-    
-    #TDGDLF
-    xx=match(2005,aa$Year)
-    plot(aa$Year[1:xx],aa$PredCE[1:xx],type='l',lwd=2,ylab="",xlab="",xlim=c(min(aa$Year),max(aa$Year)),
-         ylim=c(0,max(c(max(aa$PredCE),aa$PredCE+aa$se),na.rm=T)))
-    lines(aa$Year[(xx+1):nrow(aa)],aa$PredCE[(xx+1):nrow(aa)],lwd=2)
-    points(aa$Year,aa$CPUE,col="orange",pch=19,cex=1)
-    with(aa,segments(Year,CPUE,Year,CPUE+se,col="orange"))
-    with(aa,segments(Year,CPUE,Year,CPUE-se,col="orange"))
-    if(s==1) mtext("TDGDLF",3,line=0.2)
+      aa=Store.aSPM[[s]]$quantities%>%filter(Year%in%all.iers)
+      
+      #SURVEY
+      if(sum(aa$CPUE2,na.rm=T)>0)
+      {
+        plot(aa$Year,aa$PredCE2,type='l',lwd=2,ylab="",xlab="",xlim=c(min(aa$Year),max(aa$Year)),
+             ylim=c(0,max(c(max(aa$PredCE2),aa$PredCE2+aa$se2),na.rm=T)))
+        points(aa$Year,aa$CPUE2,col="orange",pch=19,cex=1)
+        with(aa,segments(Year,CPUE2,Year,CPUE2+se2,col="orange"))
+        with(aa,segments(Year,CPUE2,Year,CPUE2-se2,col="orange"))
+      }else
+        plot.new()
+      legend("bottomleft",capitalize(names(Store.aSPM)[s]),bty='n',cex=1.5,text.font=2)
+      if(names(Store.aSPM)[s]==names(no.null.Store.aSPM)[1]) mtext("Survey",3,line=0.2)
+      
+      #TDGDLF
+      xx=match(2005,aa$Year)
+      plot(aa$Year[1:xx],aa$PredCE[1:xx],type='l',lwd=2,ylab="",xlab="",xlim=c(min(aa$Year),max(aa$Year)),
+           ylim=c(0,max(c(max(aa$PredCE),aa$PredCE+aa$se),na.rm=T)))
+      lines(aa$Year[(xx+1):nrow(aa)],aa$PredCE[(xx+1):nrow(aa)],lwd=2)
+      points(aa$Year,aa$CPUE,col="orange",pch=19,cex=1)
+      with(aa,segments(Year,CPUE,Year,CPUE+se,col="orange"))
+      with(aa,segments(Year,CPUE,Year,CPUE-se,col="orange"))
+      if(names(Store.aSPM)[s]==names(no.null.Store.aSPM)[1]) mtext("TDGDLF",3,line=0.2)
+    }
   }
-  legend("left",c("observed","predicted"),pch=19,cex=1.25,col=c("orange","black"),bty='n')
+  legend("bottomleft",c("observed","predicted"),pch=19,cex=1.25,col=c("orange","black"),bty='n')
   mtext("Financial year",1,.7,outer=T)
   mtext("cpue",2,1,outer=T,las=3)
   dev.off()
   
   
   #Plot relative spawning biomass  
-  #1. Get median and percentiles    
+    #1. Get median and percentiles    
   Med.biom_aSPM=vector('list',length(Store.aSPM))
   names(Med.biom_aSPM)=names(Store.aSPM)
   Store.cons.Like.aSPM=Store.cons.Like.aSPM.total=Tab.aSPM=Med.biom_aSPM
   dis.iers=match(all.iers,Store.aSPM$`tiger shark`$fish$year)
   for(s in 1: length(Store.aSPM))
   {
-    dummy=matrix(NA,nrow=NsimSS,ncol=length(all.yrs))
-    dummy.total=dummy
-    for(i in 1:NsimSS)
+    if(!is.null(Store.aSPM[[s]]))
     {
-      dummy[i,]=Store.aSPM[[s]]$quantities.MC[[i]]$Deplete[dis.iers]
-      dummy.total[i,]=with(Store.aSPM[[s]]$quantities.MC[[i]],TotalB[dis.iers]/TotalB[1])
+      dummy=matrix(NA,nrow=NsimSS,ncol=length(all.yrs))
+      dummy.total=dummy
+      for(i in 1:NsimSS)
+      {
+        dummy[i,]=Store.aSPM[[s]]$quantities.MC[[i]]$Deplete[dis.iers]
+        dummy.total[i,]=with(Store.aSPM[[s]]$quantities.MC[[i]],TotalB[dis.iers]/TotalB[1])
+      }
+      if(What.percentil=="100%")
+      {
+        Bt=apply(dummy,2,function(x) quantile(x,probs=c(0,0.5,1))) 
+        Bt.total=apply(dummy.total,2,function(x) quantile(x,probs=c(0,0.5,1))) 
+      }
+      if(What.percentil=="60%")
+      {
+        Bt=apply(dummy,2,function(x) quantile(x,probs=c(0.2,0.5,0.8))) 
+        Bt.total=apply(dummy.total,2,function(x) quantile(x,probs=c(0.2,0.5,0.8))) 
+      }
+      Med.biom_aSPM[[s]]=list(DAT=dummy,Bt=Bt,
+                              DAT.total=dummy.total,Bt.total=Bt.total)
     }
-    if(What.percentil=="100%")
-    {
-      Bt=apply(dummy,2,function(x) quantile(x,probs=c(0,0.5,1))) 
-      Bt.total=apply(dummy.total,2,function(x) quantile(x,probs=c(0,0.5,1))) 
-    }
-    if(What.percentil=="60%")
-    {
-      Bt=apply(dummy,2,function(x) quantile(x,probs=c(0.2,0.5,0.8))) 
-      Bt.total=apply(dummy.total,2,function(x) quantile(x,probs=c(0.2,0.5,0.8))) 
-    }
-    Med.biom_aSPM[[s]]=list(DAT=dummy,Bt=Bt,
-                            DAT.total=dummy.total,Bt.total=Bt.total)
   }
   
-  #2. Plot
+    #2. Plot
   fn.fig(paste(hNdl,"/Outputs/Figure 3_Biomass_aSPM_spawning",sep=""),2000,2400)
-  smart.par(n.plots=length(Store.aSPM),MAR=c(1.2,2,1.5,1.25),
+  smart.par(n.plots=nRows,MAR=c(1.2,2,1.5,1.25),
             OMA=c(2,1.75,.2,2.1),MGP=c(1,.62,0))
   par(las=1,cex.axis=.8)
   for(s in 1: length(Store.aSPM))
   {
-    iii=match(names(Store.aSPM)[s],names(Store.stuff))
-    Store.cons.Like.aSPM[[s]]=fn.plt.bio.ktch(Yr=Store.stuff[[iii]]$yrs,
-                                              Bt=Med.biom_aSPM[[s]]$Bt,
-                                              Bmsy=1,
-                                              Ktch=Store.stuff[[iii]]$Ktch,
-                                              CX.AX=1,
-                                              CX=1,
-                                              DAT=t(Med.biom_aSPM[[s]]$DAT),
-                                              Add.ktch="YES",
-                                              LOW="0%",
-                                              HIGH="100%")
-    mtext(capitalize(names(Store.aSPM)[s]),3,cex=1) 
+    if(!is.null(Store.aSPM[[s]]))
+    {
+      Store.cons.Like.aSPM[[s]]=fn.plt.bio.ktch(Yr=Store.stuff[[s]]$yrs,
+                                                Bt=Med.biom_aSPM[[s]]$Bt,
+                                                Bmsy=1,
+                                                Ktch=Store.stuff[[s]]$Ktch,
+                                                CX.AX=1,
+                                                CX=1,
+                                                DAT=t(Med.biom_aSPM[[s]]$DAT),
+                                                Add.ktch="YES",
+                                                LOW="0%",
+                                                HIGH="100%")
+      mtext(capitalize(names(Store.aSPM)[s]),3,cex=1) 
+    }
   }
   mtext("Financial year",1,cex=1.2,line=0.75,outer=T)
   mtext("Relative spawning biomass",2,cex=1.2,outer=T,las=3)
   mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
         col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
-  
   dev.off()
   
   fn.fig(paste(hNdl,"/Outputs/Figure 3_Biomass_aSPM_total",sep=""),2000,2400)
-  smart.par(n.plots=length(Store.aSPM),MAR=c(1.2,2,1.5,1.25),
+  smart.par(n.plots=nRows,MAR=c(1.2,2,1.5,1.25),
             OMA=c(2,1.75,.2,2.1),MGP=c(1,.62,0))
   par(las=1,cex.axis=.8)
   for(s in 1: length(Store.aSPM))
   {
-    iii=match(names(Store.aSPM)[s],names(Store.stuff))
-    Store.cons.Like.aSPM.total[[s]]=fn.plt.bio.ktch(Yr=Store.stuff[[iii]]$yrs,
-                                              Bt=Med.biom_aSPM[[s]]$Bt.total,
-                                              Bmsy=1,
-                                              Ktch=Store.stuff[[iii]]$Ktch,
-                                              CX.AX=1,
-                                              CX=1,
-                                              DAT=t(Med.biom_aSPM[[s]]$DAT.total),
-                                              Add.ktch="YES",
-                                              LOW="0%",
-                                              HIGH="100%")
-    mtext(capitalize(names(Store.aSPM)[s]),3,cex=1) 
+    if(!is.null(Store.aSPM[[s]]))
+    {
+      Store.cons.Like.aSPM.total[[s]]=fn.plt.bio.ktch(Yr=Store.stuff[[s]]$yrs,
+                                                      Bt=Med.biom_aSPM[[s]]$Bt.total,
+                                                      Bmsy=1,
+                                                      Ktch=Store.stuff[[s]]$Ktch,
+                                                      CX.AX=1,
+                                                      CX=1,
+                                                      DAT=t(Med.biom_aSPM[[s]]$DAT.total),
+                                                      Add.ktch="YES",
+                                                      LOW="0%",
+                                                      HIGH="100%")
+      mtext(capitalize(names(Store.aSPM)[s]),3,cex=1)
+    }
   }
   mtext("Financial year",1,cex=1.2,line=0.75,outer=T)
   mtext("Relative total biomass",2,cex=1.2,outer=T,las=3)
   mtext(side = 4, line = 0.75, 'Total catch (tonnes)',las=3,outer=T,
         col=rgb(0.1,0.1,0.8,alpha=0.6),cex=1.2)
-  
   dev.off()
   
   
   #Output parameter estimates
   for(s in 1: length(Store.aSPM))
   {
-    fit=Store.aSPM[[s]]$fit
-    MLE=round(fit$par,2)
-    std=round(sqrt(diag(solve(fit$hessian))),2)
-    Nms=names(MLE)
-    Tab=as.data.frame(matrix(paste(MLE," (",std,")",sep=''),nrow=1))
-    names(Tab)=capitalize(Nms)
-    Tab.aSPM[[s]]=Tab
+    if(!is.null(Store.aSPM[[s]]))
+    {
+      fit=Store.aSPM[[s]]$fit
+      MLE=round(fit$par,2)
+      std=round(sqrt(diag(solve(fit$hessian))),2)
+      Nms=names(MLE)
+      Tab=as.data.frame(matrix(paste(MLE," (",std,")",sep=''),nrow=1))
+      names(Tab)=capitalize(Nms)
+      Tab.aSPM[[s]]=Tab
+    }
   }
   Tab.aSPM=do.call(rbind,Tab.aSPM)
   fn.word.table(WD=getwd(),TBL=Tab.aSPM,Doc.nm="Table 3. aSPM estimates",caption=NA,paragph=NA,
@@ -3951,8 +3965,61 @@ if(Do.aSPM=="YES")
 }
 
 #---RISK RESULTS------
+LoE.Weights=c(psa=.2,sptemp=.2,efman=.2,spmod=.5,srmod=.5,aspmod=.5)
 
 #1. Calculate risk for each line of evidence
+  #1.1. PSA (Drop.species only)
+Risk.PSA=vector('list',length(Drop.species))
+names(Risk.PSA)=Drop.species
+for(s in 1:length(Risk.PSA))
+{
+  Risk.PSA[[s]]=data.frame(Max.Risk.Score=c(0,4,0,0))
+}
+
+  #1.2. catch spatio-temporal      
+Risk.spatial.temporal.ktch=vector('list',N.sp)
+names(Risk.spatial.temporal.ktch)=names(Store.cons.Like.SRM)
+for(s in 1: N.sp)
+{
+  sp.dat=Store.spatial.temporal.ktch[match(names(Risk.spatial.temporal.ktch)[s],
+                                           rownames(Store.spatial.temporal.ktch)),]
+  sp.dat=mean(sp.dat[(length(sp.dat)-4):length(sp.dat)]) #moving average
+
+  
+  if(sp.dat==0) dummy=data.frame(Max.Risk.Score=c(1,0,0,0))
+  if(sp.dat>0 & sp.dat<=.3) dummy=data.frame(Max.Risk.Score=c(0,4,0,0))
+  if(sp.dat>.3 & sp.dat<=.5) dummy=data.frame(Max.Risk.Score=c(0,0,6,0))
+  if(sp.dat>.5) dummy=data.frame(Max.Risk.Score=c(0,0,12,0))
+  Risk.spatial.temporal.ktch[[s]]=dummy
+}
+
+  #1.3. overall catch-effort-management               
+Risk.effort.mangmnt=vector('list',N.sp)
+names(Risk.effort.mangmnt)=names(Store.cons.Like.SRM)
+Rel.eff.n=mean(Effrt.n$Hook.hours[(nrow(Effrt.n)-4):nrow(Effrt.n)])/max(Effrt.n$Hook.hours) #moving average
+Rel.eff.s=mean(Effrt.s$Total[(nrow(Effrt.s)-4):nrow(Effrt.s)])/max(Effrt.s$Total)
+REgn=Tot.ktch%>%
+  group_by(SP.group,Region)%>%
+  summarise(Tot=sum(LIVEWT.c))%>%
+  spread(Region,Tot)%>%
+  mutate(Prop.N=North/(North+South),
+         Prop.S=South/(North+South),
+         Which.ef=ifelse(Prop.N>.7,'north',ifelse(Prop.S>.7,'south','north-south')))
+for(s in 1: N.sp)
+{
+  Which.ef=REgn$Which.ef[match(names(Risk.effort.mangmnt)[s],REgn$SP.group)]
+  if(Which.ef=='north') Which.ef=Rel.eff.n
+  if(Which.ef=='south') Which.ef=Rel.eff.s
+  if(Which.ef=='north-south') Which.ef=max(c(Rel.eff.s,Rel.eff.n))
+
+  if(Which.ef==0) dummy=data.frame(Max.Risk.Score=c(1,0,0,0))
+  if(Which.ef>0 & Which.ef<=.3) dummy=data.frame(Max.Risk.Score=c(0,4,0,0))
+  if(Which.ef>.3 & Which.ef<=.5) dummy=data.frame(Max.Risk.Score=c(0,0,6,0))
+  if(Which.ef>.5) dummy=data.frame(Max.Risk.Score=c(0,0,12,0))
+  Risk.effort.mangmnt[[s]]=dummy
+}
+
+  #1.4. population dynamics models
 Like.ranges=list(L1=c(0,0.0499999),
                  L2=c(0.05,0.2),
                  L3=c(0.20001,0.5),
@@ -3976,27 +4043,41 @@ fn.risk=function(likelihood)
 }
 Risk.SPM=Store.cons.Like.SPM
 Risk.SRM=Store.cons.Like.SRM
+if(Do.aSPM=="YES") Risk.aSPM=Store.cons.Like.aSPM
 for(s in 1: N.sp)
 {
   #SPM
-  if(!is.null(Store.cons.Like.SPM[[s]])) Risk.SPM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.SPM[[s]]))
+  if(names(Store.cons.Like.SPM)[s]%in%Species.not.hitting.bounds) Risk.SPM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.SPM[[s]]))
   
   #SRM
   Risk.SRM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.SRM[[s]]))
+  
+  #aSPM
+  if(Do.aSPM=="YES" & !is.null(Store.aSPM[[s]])) Risk.aSPM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.aSPM[[s]]))
+  
 }
 
-#Drop.species #PSA species not further assessed
 
 #2. Integrate the risk from each line of evidence
 
 #note: Use a weighted sum to aggregate the Risk Categories form the alternative lines of evidence
-#      Normalize each criterion by dividing each by the
-#      highest value obtained on the corresponding criterion. 
+#      Normalize each criterion by dividing by the highest value of each criterion. 
 #      Assign weights to each criteria 
-Integrate.LoE=function(Preference.Table,criteriaMinMax,plot.data,LoE.weights)
+Integrate.LoE=function(Cons.Like.tab,criteriaMinMax,plot.data,LoE.weights,Normalised)
 {
-  #Set up preference table
-  rownames(Preference.Table)=c("Negligibe","Low","Medium","High","Severe")
+  #Set up preference table by converting Cons-Like to Risk scores
+  Preference.Table=as.data.frame(matrix(0,nrow=5,ncol=ncol(Cons.Like.tab)))
+  colnames(Preference.Table)=colnames(Cons.Like.tab)
+  rownames(Preference.Table)=c("Negligible","Low","Medium","High","Severe")
+  for(i in 1:ncol(Preference.Table))
+  {
+    dd=Cons.Like.tab[,i]
+    if(max(dd[1:2])<=2) Preference.Table["Negligible",i]=max(dd[1:2])
+    if(max(dd)>2 & max(dd)<=4) Preference.Table["Low",i]=4
+    if(max(dd[2:4])>4 & max(dd[2:4])<=8) Preference.Table["Medium",i]=max(dd[2:4])
+    if(max(dd[3:4])>8 & max(dd[3:4])<=12) Preference.Table["High",i]=max(dd[3:4])
+    if(dd[4]>12 & dd[4]<=16) Preference.Table["Severe",i]=dd[4]
+  }
   
   #Maximise or minimise each criteria?
   criteriaMinMax=rep(criteriaMinMax,ncol(Preference.Table))
@@ -4008,7 +4089,8 @@ Integrate.LoE=function(Preference.Table,criteriaMinMax,plot.data,LoE.weights)
   # Normalization of the performance table
   normalizationTypes <- rep("percentageOfMax",ncol(Preference.Table))
   names(normalizationTypes) <- colnames(Preference.Table)
-  nPreference.Table <- normalizePerformanceTable(Preference.Table,normalizationTypes)
+  if(Normalised=="YES") nPreference.Table <- normalizePerformanceTable(Preference.Table,normalizationTypes)
+  if(Normalised=="NO") nPreference.Table=Preference.Table
   
   # Calculate weighted sum
   names(LoE.weights) <- colnames(nPreference.Table)
@@ -4018,29 +4100,42 @@ Integrate.LoE=function(Preference.Table,criteriaMinMax,plot.data,LoE.weights)
   rank.score=sort(rank(-weighted.sum))
   
   # overall risk
-  risk=names(rank.score)[1]
+  Order=c('Negligible','Low','Medium','High','Severe')
+  Order <- factor(Order,ordered = TRUE,levels = Order)
+  risk=which(rank.score==min(rank.score))
+  risk=as.character(max(Order[match(names(risk),Order)]))
   
-  return(list(weighted.sum=weighted.sum,risk=risk))
+  return(list(weighted.sum=weighted.sum,rank.score=rank.score,risk=risk))
 }
 
-#ACA Preference.table only has actual lines of evidence, if NA don't add
-#for()
-#{
+All.sp=sort(c(Drop.species,Keep.species))
+Overall.risk=vector('list',length(All.sp))
+names(Overall.risk)=All.sp
+for(s in 1:length(All.sp))
+{
+  dummy=list(psa=Risk.PSA[[match(All.sp[s],names(Risk.PSA))]]$Max.Risk.Score,
+             sptemp=Risk.spatial.temporal.ktch[[match(All.sp[s],names(Risk.spatial.temporal.ktch))]]$Max.Risk.Score,
+             efman=Risk.effort.mangmnt[[match(All.sp[s],names(Risk.effort.mangmnt))]]$Max.Risk.Score,
+             spmod=Risk.SPM[[match(All.sp[s],names(Risk.SPM))]]$Max.Risk.Score,
+             srmod=Risk.SRM[[match(All.sp[s],names(Risk.SRM))]]$Max.Risk.Score)
+  if(Do.aSPM=="YES")dummy$aspmod=Risk.aSPM[[match(All.sp[s],names(Risk.aSPM))]]$Max.Risk.Score
+  dummy=dummy[!sapply(dummy, is.null)]
+  NMs=names(dummy)
+  dummy=do.call(cbind,dummy)
+  colnames(dummy)=NMs
+  rownames(dummy)=paste("C",1:4,sep='')
   
-#}
-Integrate.LoE(Preference.Table=data.frame(LE1=c(1,3,0,0,0),
-                                          LE2=c(0,3,6,0,0),
-                                          LE3=c(0,3,6,0,0),
-                                          LE4=c(0,4,6,0,0),
-                                          LE5=c(2,4,6,9,0)),
-              criteriaMinMax <- "max",
-              plot.data=FALSE,
-              LoE.weights <- c(1,1,2,2,2)
-              )
+  Overall.risk[[s]]=Integrate.LoE(Cons.Like.tab=dummy,
+                                  criteriaMinMax <- "max",
+                                  plot.data=FALSE,
+                                  LoE.weights <- LoE.Weights[match(colnames(dummy),names(LoE.Weights))],
+                                  Normalised="YES")
+}
 
 
+#ACA
 #3. Display overall risk for each species
-fn.AD=function(add.text)
+fn.each.LoE.risk=function(N.sp)
 {
   X.rng=1:N.sp
   x.Vec <-  fn.cons.po(0:(N.sp+1),0:(N.sp+1))
@@ -4050,56 +4145,79 @@ fn.AD=function(add.text)
   medium.Vec <- fn.cons.po(rep(4,nn),rep(8,nn))
   high.Vec <- fn.cons.po(rep(8,nn),rep(12,nn))
   severe.Vec <- fn.cons.po(rep(12,nn),rep(16,nn))
-  plot(X.rng,ylim=c(0,16),col="transparent",ylab="",yaxs="i",xlab="",xaxt='n',yaxt='n')
+  plot(X.rng,xlim=c(0,16),ylim=c(0,N.sp+1),xaxs="i",yaxs="i",
+       col="transparent",ylab="",xlab="",xaxt='n',yaxt='n')
+  polygon(negigible.Vec, x.Vec, col = 'cornflowerblue', border = "transparent")
+  polygon(low.Vec, x.Vec, col = 'olivedrab3', border = "transparent")
+  polygon(medium.Vec, x.Vec, col = 'yellow', border = "transparent")
+  polygon(high.Vec, x.Vec, col = 'orange', border = "transparent")
+  polygon(severe.Vec, x.Vec, col = 'red', border = "transparent")
   
-  polygon(x.Vec, negigible.Vec, col = 'cornflowerblue', border = "transparent")
-  polygon(x.Vec, low.Vec, col = 'olivedrab3', border = "transparent")
-  polygon(x.Vec, medium.Vec, col = 'yellow', border = "transparent")
-  polygon(x.Vec, high.Vec, col = 'orange', border = "transparent")
-  polygon(x.Vec, severe.Vec, col = 'red', border = "transparent")
-  
-  if(add.text=="YES")
-  {
-    text(.55,mean(negigible.Vec),"Negligible",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))
-    text(.55,mean(low.Vec),"Low",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))
-    text(.55,mean(medium.Vec),"Medium",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))
-    text(.55,mean(high.Vec),"High",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))
-    text(.55,mean(severe.Vec),"Severe",pos=4,cex=.75,col=rgb(.1,.1,.1,.3))  
-  }
+  axis(1,at=c(mean(negigible.Vec),mean(low.Vec),mean(medium.Vec),mean(high.Vec),mean(severe.Vec)),
+       labels=c("Negligible","Low","Medium","High","Severe"))
   box()
 }
 
-fn.fig("Figure 5_Risk", 2400, 1400)
-par(mfrow=c(2,1),mar=c(.5,.5,.5,.95),oma=c(6,2,.2,.1),las=1,cex.axis=.8,mgp=c(1,.3,0))
-
-#SPM
-fn.AD(add.text="YES")
-for(s in 1:N.sp)
+fn.overall.risk=function(N,RISK,sp)
 {
-  if(!is.null(Risk.SPM[[s]])) 
-  {
-    Mx=max(Risk.SPM[[s]]$Max.Risk.Score)[1]
-    points(s,Mx,type='h',lwd = 15,lend=1)
-  }
+  x.Vec <-  c(1,3,3,1)
+  y.Vec <- c(rep((s-.5),2),rep((s+.5),2))
+  if(RISK=="Negligible") CL = 'cornflowerblue'
+  if(RISK=="Low") CL = 'olivedrab3'
+  if(RISK=="Medium") CL ='yellow'
+  if(RISK=="High") CL ='orange'
+  if(RISK=="Severe") CL ='red'
+  polygon(x.Vec, y.Vec, col = CL, border = "transparent")
+  text(1.5,mean(y.Vec),sp,cex=1.2)
 }
-axis(2,seq(0,16,1),labels=F,tck=-0.015)
-axis(2,seq(0,16,2),seq(0,16,2),tck=-0.03,cex.axis=.7)
-legend('topright',"SPM",bty='n')
 
-#SRM
-fn.AD(add.text="NO")
-for(s in 1:N.sp)
+fn.fig("Figure 5_Risk", 2400, 1600)
+par(mar=c(.5,.5,.5,.95),oma=c(3,11,.2,.1),las=1,mgp=c(1,.5,0),cex.axis=1.5)
+layout(matrix(c(rep(1,9),rep(2,3)),ncol=4))
+
+  #Risk for each line of evidence
+fn.each.LoE.risk(N.sp=length(All.sp))
+for(s in 1:length(All.sp))
 {
-  Mx=max(Risk.SRM[[s]]$Max.Risk.Score)[1]
-  points(s,Mx,type='h',lwd = 15,lend=1)
-  
+  dummy=list(psa=Risk.PSA[[match(All.sp[s],names(Risk.PSA))]]$Max.Risk.Score,
+             sptemp=Risk.spatial.temporal.ktch[[match(All.sp[s],names(Risk.spatial.temporal.ktch))]]$Max.Risk.Score,
+             efman=Risk.effort.mangmnt[[match(All.sp[s],names(Risk.effort.mangmnt))]]$Max.Risk.Score,
+             spmod=Risk.SPM[[match(All.sp[s],names(Risk.SPM))]]$Max.Risk.Score,
+             srmod=Risk.SRM[[match(All.sp[s],names(Risk.SRM))]]$Max.Risk.Score)
+  if(Do.aSPM=="YES")dummy$aspmod=Risk.aSPM[[match(All.sp[s],names(Risk.aSPM))]]$Max.Risk.Score
+  dummy=dummy[!sapply(dummy, is.null)]
+  NMs=names(dummy)
+  dummy=do.call(cbind,dummy)
+  colnames(dummy)=NMs
+  dummy=apply(dummy,2,max)
+  Nd=length(dummy)
+  if(Nd==1)Adjst=0 
+  if(Nd==3)Adjst=seq(-.1,.1,length.out = Nd)
+  if(Nd==4)Adjst=seq(-.15,.15,length.out = Nd)
+  if(Nd==5)Adjst=seq(-.3,.3,length.out = Nd)
+  dummy=data.frame(LoE=names(dummy),
+                   Start=0,
+                   End=dummy,
+                   y=s+Adjst)
+  segments(dummy$Start,dummy$y,dummy$End,dummy$y,lwd=2,lend=1)
 }
-axis(2,seq(0,16,1),labels=F,tck=-0.015)
-axis(2,seq(0,16,2),seq(0,16,2),tck=-0.03,cex.axis=.7)
-axis(1,1:N.sp,labels=names(Risk.SRM),tck=-0.01,las=2,cex.axis=.7)
-legend('topright',"SRM",bty='n')
-mtext("Highest risk score",2,outer=T,las=3,cex=1.25,line=0.85)
+axis(2,1:length(All.sp),capitalize(All.sp),cex.axis=1.2)
+mtext("Risk score",1,cex=1.25,line=2)
+
+  #Overall risk
+plot(0:1,ylim=c(0,length(All.sp)+1),fg='white',xaxs="i",yaxs="i",
+     col="transparent",ylab="",xlab="",xaxt='n',yaxt='n')
+for(s in 1:length(All.sp)) fn.overall.risk(N=s,
+                                           RISK=Overall.risk[[s]]$risk,
+                                           sp=capitalize(All.sp[s]))
+axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
 dev.off()
+
+
+
+
+
+
 
 
 #---National Scalloped HH Assessment -----------------------------------------------------------------------
