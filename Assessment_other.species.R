@@ -358,7 +358,7 @@ do.mean.weight.based="NO"   #not used due to logistic sel. assumption
 do.length.based.SPR="NO"   #not used due to logistic sel. assumption 
 Do.SPM="YES"
 Do.Ktch.MSY="YES"
-Do.aSPM="YES"
+Do.aSPM="NO"
 
 Min.len=25  #minimum length of sharks
 Min.size.sample=50  #minimum number of observations (all years combined) to derive selectivities
@@ -3124,29 +3124,43 @@ if(length(which(!all.YYrs%in%Effrt.n$finyear))>0)
   
 }
 
-fn.fig("Figure 4. Total Catch of analysed species and effort time series", 1800, 2400)
-par(mfcol=c(2,1),mar=c(1.5,2.5,1.5,.5),oma=c(2,2,.1,4),las=1,mgp=c(1,.6,0))
-  #North
-plot(all.YYrs,ktch.n$Tot,type='o',pch=19,col=1,cex=.75,ylab="",xlab="",main="North",
-     ylim=c(0,max(c(ktch.s$Tot,ktch.n$Tot))))
+fn.fig("Figure 4. Total effort time series", 2400, 2400)
+par(mfcol=c(1,1),mar=c(1.5,2.5,1.5,.5),oma=c(2,2,.1,4),las=1,mgp=c(1,.6,0))
+plot(Effrt.s$finyear,Effrt.s$Total,type='l',pch=19,col='grey65',cex=.75,ylab="",xlab="",lwd=3)
+mtext(side = 2, line = 2, 'Total effort (km gn days)',las=3,cex=1.75)
+
 par(new=T)
-plot(Effrt.n$finyear,Effrt.n$Hook.days,type='l',col="grey55",xlab="",ylab="",axes=F,lwd=2.5,lty=3)
+plot(Effrt.n$finyear,Effrt.n$Hook.days,type='o',pch=19,col="black",xlab="",ylab="",axes=F,lwd=2.5)
 axis(side = 4)
-mtext(side = 4, line = 3, 'Total effort (hook days)',las=3,cex=1.5)
+mtext(side = 4, line = 3, 'Total effort (hook days)',las=3,cex=1.75)
 
-legend("topleft",c("Catch","Effort"),bty='n',lty=c(1,3),col=c("black","grey55"),lwd=2.5)
-
-  #South
-plot(all.YYrs,ktch.s$Tot,type='o',pch=19,col=1,cex=.75,ylab="",xlab="",main="South",
-     ylim=c(0,max(c(ktch.s$Tot,ktch.n$Tot))))
-par(new=T)
-plot(Effrt.s$finyear,Effrt.s$Total,type='l',col="grey55",xlab="",ylab="",axes=F,lwd=2.5,lty=3)
-axis(side = 4)
-mtext(side = 4, line = 3, 'Total effort (km gn days)',las=3,cex=1.5)
-
-mtext("Year",1, line = .5,outer=T,cex=1.5)
-mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.5)
+legend("topleft",c("South","North"),bty='n',lty=1,cex=1.5,col=c("grey65","black"),lwd=3,pch=c(NA,19))
+mtext("Financial year",1, line = .5,outer=T,cex=1.75)
 dev.off()
+
+# fn.fig("Figure 4. Total Catch of analysed species and effort time series", 1800, 2400)
+# par(mfcol=c(2,1),mar=c(1.5,2.5,1.5,.5),oma=c(2,2,.1,4),las=1,mgp=c(1,.6,0))
+#   #North
+# plot(all.YYrs,ktch.n$Tot,type='o',pch=19,col='black',cex=.75,ylab="",xlab="",main="North",
+#      ylim=c(0,max(c(ktch.s$Tot,ktch.n$Tot))))
+# par(new=T)
+# plot(Effrt.n$finyear,Effrt.n$Hook.days,type='l',col="grey55",xlab="",ylab="",axes=F,lwd=2.5,lty=3)
+# axis(side = 4)
+# mtext(side = 4, line = 3, 'Total effort (hook days)',las=3,cex=1.5)
+# 
+# legend("topleft",c("Catch","Effort"),bty='n',lty=c(1,3),col=c("black","grey55"),lwd=2.5)
+# 
+#   #South
+# plot(all.YYrs,ktch.s$Tot,type='o',pch=19,col='black',cex=.75,ylab="",xlab="",main="South",
+#      ylim=c(0,max(c(ktch.s$Tot,ktch.n$Tot))))
+# par(new=T)
+# plot(Effrt.s$finyear,Effrt.s$Total,type='l',col="grey55",xlab="",ylab="",axes=F,lwd=2.5,lty=3)
+# axis(side = 4)
+# mtext(side = 4, line = 3, 'Total effort (km gn days)',las=3,cex=1.5)
+# 
+# mtext("Year",1, line = .5,outer=T,cex=1.5)
+# mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.5)
+# dev.off()
 
 
 #---Spatio-temporal catch------  
@@ -4012,7 +4026,7 @@ for(s in 1: N.sp)
   if(Which.ef=='south') Which.ef=Rel.eff.s
   if(Which.ef=='north-south') Which.ef=max(c(Rel.eff.s,Rel.eff.n))
 
-  if(Which.ef==0) dummy=data.frame(Max.Risk.Score=c(1,0,0,0))
+  if(Which.ef==0) dummy=data.frame(Max.Risk.Score=c(2,0,0,0))
   if(Which.ef>0 & Which.ef<=.3) dummy=data.frame(Max.Risk.Score=c(0,4,0,0))
   if(Which.ef>.3 & Which.ef<=.5) dummy=data.frame(Max.Risk.Score=c(0,0,6,0))
   if(Which.ef>.5) dummy=data.frame(Max.Risk.Score=c(0,0,12,0))
@@ -4063,6 +4077,8 @@ for(s in 1: N.sp)
 #note: Use a weighted sum to aggregate the Risk Categories form the alternative lines of evidence
 #      Normalize each criterion by dividing by the highest value of each criterion. 
 #      Assign weights to each criteria 
+Order=c('Negligible','Low','Medium','High','Severe')
+Order <- factor(Order,ordered = TRUE,levels = Order)
 Integrate.LoE=function(Cons.Like.tab,criteriaMinMax,plot.data,LoE.weights,Normalised)
 {
   #Set up preference table by converting Cons-Like to Risk scores
@@ -4100,8 +4116,6 @@ Integrate.LoE=function(Cons.Like.tab,criteriaMinMax,plot.data,LoE.weights,Normal
   rank.score=sort(rank(-weighted.sum))
   
   # overall risk
-  Order=c('Negligible','Low','Medium','High','Severe')
-  Order <- factor(Order,ordered = TRUE,levels = Order)
   risk=which(rank.score==min(rank.score))
   risk=as.character(max(Order[match(names(risk),Order)]))
   
@@ -4133,7 +4147,6 @@ for(s in 1:length(All.sp))
 }
 
 
-#ACA
 #3. Display overall risk for each species
 fn.each.LoE.risk=function(N.sp)
 {
@@ -4154,7 +4167,7 @@ fn.each.LoE.risk=function(N.sp)
   polygon(severe.Vec, x.Vec, col = 'red', border = "transparent")
   
   axis(1,at=c(mean(negigible.Vec),mean(low.Vec),mean(medium.Vec),mean(high.Vec),mean(severe.Vec)),
-       labels=c("Negligible","Low","Medium","High","Severe"))
+       labels=c("Negl.","Low","Medium","High","Severe"))
   box()
 }
 
@@ -4168,23 +4181,31 @@ fn.overall.risk=function(N,RISK,sp)
   if(RISK=="High") CL ='orange'
   if(RISK=="Severe") CL ='red'
   polygon(x.Vec, y.Vec, col = CL, border = "transparent")
-  text(1.5,mean(y.Vec),sp,cex=1.2)
+  text(1.5,mean(y.Vec),sp,cex=1.5)
 }
 
-fn.fig("Figure 5_Risk", 2400, 1600)
-par(mar=c(.5,.5,.5,.95),oma=c(3,11,.2,.1),las=1,mgp=c(1,.5,0),cex.axis=1.5)
-layout(matrix(c(rep(1,9),rep(2,3)),ncol=4))
+LoE.col=c(psa="grey85", sptemp="grey75", efman="grey55",
+          spmod="grey40", srmod="grey20", aspmod="black")
+
+Sp.risk.ranking=factor(unlist(lapply(Overall.risk, '[[', 'risk')),levels=levels(Order))  
+Sp.risk.ranking=names(sort(Sp.risk.ranking))
+
+
+fn.fig("Figure 5_Risk", 2400, 2300)
+par(mar=c(.5,.5,3,1),oma=c(3,13.5,.5,.1),las=1,mgp=c(1,.5,0),cex.axis=1.5,xpd=TRUE)
+layout(matrix(c(rep(1,6),rep(2,3)),ncol=3))
 
   #Risk for each line of evidence
-fn.each.LoE.risk(N.sp=length(All.sp))
-for(s in 1:length(All.sp))
+fn.each.LoE.risk(N.sp=length(Sp.risk.ranking))
+for(s in 1:length(Sp.risk.ranking))
 {
-  dummy=list(psa=Risk.PSA[[match(All.sp[s],names(Risk.PSA))]]$Max.Risk.Score,
-             sptemp=Risk.spatial.temporal.ktch[[match(All.sp[s],names(Risk.spatial.temporal.ktch))]]$Max.Risk.Score,
-             efman=Risk.effort.mangmnt[[match(All.sp[s],names(Risk.effort.mangmnt))]]$Max.Risk.Score,
-             spmod=Risk.SPM[[match(All.sp[s],names(Risk.SPM))]]$Max.Risk.Score,
-             srmod=Risk.SRM[[match(All.sp[s],names(Risk.SRM))]]$Max.Risk.Score)
-  if(Do.aSPM=="YES")dummy$aspmod=Risk.aSPM[[match(All.sp[s],names(Risk.aSPM))]]$Max.Risk.Score
+  ss=Sp.risk.ranking[s]
+  dummy=list(psa=Risk.PSA[[match(ss,names(Risk.PSA))]]$Max.Risk.Score,
+             sptemp=Risk.spatial.temporal.ktch[[match(ss,names(Risk.spatial.temporal.ktch))]]$Max.Risk.Score,
+             efman=Risk.effort.mangmnt[[match(ss,names(Risk.effort.mangmnt))]]$Max.Risk.Score,
+             spmod=Risk.SPM[[match(ss,names(Risk.SPM))]]$Max.Risk.Score,
+             srmod=Risk.SRM[[match(ss,names(Risk.SRM))]]$Max.Risk.Score)
+  if(Do.aSPM=="YES")dummy$aspmod=Risk.aSPM[[match(ss,names(Risk.aSPM))]]$Max.Risk.Score
   dummy=dummy[!sapply(dummy, is.null)]
   NMs=names(dummy)
   dummy=do.call(cbind,dummy)
@@ -4192,32 +4213,36 @@ for(s in 1:length(All.sp))
   dummy=apply(dummy,2,max)
   Nd=length(dummy)
   if(Nd==1)Adjst=0 
-  if(Nd==3)Adjst=seq(-.1,.1,length.out = Nd)
-  if(Nd==4)Adjst=seq(-.15,.15,length.out = Nd)
+  if(Nd==3)Adjst=seq(-.3,.3,length.out = Nd)
+  if(Nd==4)Adjst=seq(-.3,.3,length.out = Nd)
   if(Nd==5)Adjst=seq(-.3,.3,length.out = Nd)
   dummy=data.frame(LoE=names(dummy),
                    Start=0,
                    End=dummy,
                    y=s+Adjst)
-  segments(dummy$Start,dummy$y,dummy$End,dummy$y,lwd=2,lend=1)
+  CLL=LoE.col[match(dummy$LoE,names(LoE.col))]
+  segments(dummy$Start,dummy$y,dummy$End,dummy$y,lwd=3.75,lend=1,col=CLL)
 }
-axis(2,1:length(All.sp),capitalize(All.sp),cex.axis=1.2)
+axis(2,1:length(Sp.risk.ranking),capitalize(Sp.risk.ranking))
 mtext("Risk score",1,cex=1.25,line=2)
+legend(-1,length(Sp.risk.ranking)+3.25,c('PSA','Blocks fished','Effort management'),
+       bty='n',col=LoE.col[1:3],lty=1,lwd=3,horiz = T,cex=1.5,
+       text.width=c(0,1,2.25))
+if(Do.aSPM=="NO") legend(5,length(Sp.risk.ranking)+2.35,c('SPM','SRM'),bty='n',cex=1.5,
+                         col=LoE.col[4:5],lty=1,lwd=3,horiz = T,text.width=c(0,.95))
+if(Do.aSPM=="YES") legend(5,length(Sp.risk.ranking)+2.35,c('SPM','SRM','aSPM'),bty='n',cex=1.5,
+                          col=LoE.col[4:6],lty=1,lwd=3,horiz = T,text.width=c(0,.95,1.1))
 
   #Overall risk
 plot(0:1,ylim=c(0,length(All.sp)+1),fg='white',xaxs="i",yaxs="i",
      col="transparent",ylab="",xlab="",xaxt='n',yaxt='n')
-for(s in 1:length(All.sp)) fn.overall.risk(N=s,
-                                           RISK=Overall.risk[[s]]$risk,
-                                           sp=capitalize(All.sp[s]))
+for(s in 1:length(Sp.risk.ranking))
+{
+  ss=Sp.risk.ranking[s] 
+  fn.overall.risk(N=s,RISK=Overall.risk[[match(ss,names(Overall.risk))]]$risk,sp=capitalize(Sp.risk.ranking[s]))
+}
 axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
 dev.off()
-
-
-
-
-
-
 
 
 #---National Scalloped HH Assessment -----------------------------------------------------------------------
