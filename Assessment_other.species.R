@@ -3165,6 +3165,7 @@ dev.off()
 
 #---Spatio-temporal catch------  
 #note: bubble size is proportion of blocks fished out of maximum number of blocks fished for each species
+CL=rgb(.5,.5,.5,alpha=.7)
 fn.spatio.temp.catch.dist=function(d)
 {
   d1=d%>% filter(SNAME%in%Keep.species)%>%
@@ -3183,12 +3184,11 @@ fn.spatio.temp.catch.dist=function(d)
   Sp.nms=subset(All.species.names,SPECIES%in%All.sp)
   
   plot(1:nrow(d1),1:nrow(d1),col='transparent',ylab="",xlab="",yaxt='n',xlim=c(min(yrs),max(yrs)))
-  for(p in 1:length(All.sp)) points(yrs,rep(p,length(yrs)),col='grey50',cex=2*d1[p,],pch=19)
+  for(p in 1:length(All.sp)) points(yrs,rep(p,length(yrs)),col='black',cex=2*d1[p,],pch=19)
   axis(2,1:length(All.sp),capitalize(Sp.nms$SNAME),las=1)
   mtext(side = 1, line = 2, 'Financial year',cex=1.5)
   
   par(new=T)
-  CL=rgb(.1,.1,1,alpha=.6)
   plot(yrs,Effort_blocks$Tot,type='l',col=CL,xlab="",ylab="",axes=F,lwd=5,lty=1)
   axis(side = 4,las=1)
   mtext(side = 4, line = 3, 'Number of blocks fished',las=3,cex=1.5,col=CL)
@@ -4000,10 +4000,11 @@ for(s in 1: N.sp)
   sp.dat=mean(sp.dat[(length(sp.dat)-4):length(sp.dat)]) #moving average
 
   
-  if(sp.dat==0) dummy=data.frame(Max.Risk.Score=c(1,0,0,0))
-  if(sp.dat>0 & sp.dat<=.3) dummy=data.frame(Max.Risk.Score=c(0,4,0,0))
-  if(sp.dat>.3 & sp.dat<=.5) dummy=data.frame(Max.Risk.Score=c(0,0,6,0))
-  if(sp.dat>.5) dummy=data.frame(Max.Risk.Score=c(0,0,12,0))
+  if(sp.dat==0) dummy=data.frame(Max.Risk.Score=c(2,0,0,0))
+  if(sp.dat>0 & sp.dat<=.25) dummy=data.frame(Max.Risk.Score=c(0,4,0,0))
+  if(sp.dat>.25 & sp.dat<=.5) dummy=data.frame(Max.Risk.Score=c(0,0,6,0))
+  if(sp.dat>.5 & sp.dat<=.75) dummy=data.frame(Max.Risk.Score=c(0,0,12,0))
+  if(sp.dat>.75) dummy=data.frame(Max.Risk.Score=c(0,0,0,16))
   Risk.spatial.temporal.ktch[[s]]=dummy
 }
 
@@ -4027,9 +4028,11 @@ for(s in 1: N.sp)
   if(Which.ef=='north-south') Which.ef=max(c(Rel.eff.s,Rel.eff.n))
 
   if(Which.ef==0) dummy=data.frame(Max.Risk.Score=c(2,0,0,0))
-  if(Which.ef>0 & Which.ef<=.3) dummy=data.frame(Max.Risk.Score=c(0,4,0,0))
-  if(Which.ef>.3 & Which.ef<=.5) dummy=data.frame(Max.Risk.Score=c(0,0,6,0))
-  if(Which.ef>.5) dummy=data.frame(Max.Risk.Score=c(0,0,12,0))
+  if(Which.ef>0 & Which.ef<=.25) dummy=data.frame(Max.Risk.Score=c(0,4,0,0))
+  if(Which.ef>.25 & Which.ef<=.5) dummy=data.frame(Max.Risk.Score=c(0,0,6,0))
+  if(Which.ef>.5 & Which.ef<=.75) dummy=data.frame(Max.Risk.Score=c(0,0,12,0))
+  if(Which.ef>.75) dummy=data.frame(Max.Risk.Score=c(0,0,0,16))
+  
   Risk.effort.mangmnt[[s]]=dummy
 }
 
