@@ -170,8 +170,10 @@ WRL=read.csv(fn.hndl("WRL/Number-of-vessels.csv"))
 WRL.Wann=read.csv(fn.hndl("WRL/Wann_catch.csv"))
 
 WRL.prop=0.1  #small number of operators used the gear (Taylor et al 2015)   
-WRL.assumed.weight=100  #assumed weight of sharks in kg
-WRL.copper.dusky.prop=0.1  #average proportion copper sharks
+WRL.copper.dusky.prop=0.25  #average proportion copper sharks
+
+#WRL.assumed.weight=100  #assumed weight of sharks in kg
+
 
   #-- 2.1.4 TEPS   
 
@@ -189,10 +191,13 @@ Weight=data.frame(Species=c('BT','BW','CP','GB','HZ',
                             'LG','MS','TG','WP'),    #FishBASE
                   CAES_Code=c(18014,18003,18001,18004,19004,
                               18023,10001,18022,10003),
-                  awt=c(2.90,3.10038,2.9,3.24,2.86,
+                  awt=c(2.90,3.10038,2.9,3.11,2.86,
                         3.07,3.12,3.25,3.04),
-                  bwt=c(0.0107,3.47e-06,0.01040,0.0046,0.0083,
-                        0.0037,0.0054,0.0028,0.01))
+                  bwt=c(0.0107,3.47e-03,0.00447,0.0046,0.0083,
+                        0.0037,0.0054,0.0028,0.01),
+                  Mean.TL=c(200,250,250,200,250,200,200,200,250))
+Weight$Mean.weight=with(Weight,bwt*(Mean.TL)^awt/1000)
+
 
 
   #-- 2.1.5 Pilbara trawl shark species composition (go to scientist: Corey W.) 
@@ -1132,7 +1137,7 @@ PCM.sp=data.frame(Group=names(PCM.sp),SPECIES=PCM.sp)%>%
             ifelse(Group=='Ray.other',mean(PCM%>%filter(Group%in%All.rays)%>%pull(GN),na.rm=T),GN)),
          LL=ifelse(Group=='Shark.other',mean(PCM%>%filter(Group%in%All.shrks)%>%pull(LL),na.rm=T),
             ifelse(Group=='Ray.other',mean(PCM%>%filter(Group%in%All.rays)%>%pull(LL),na.rm=T),LL)))
-fn.PCM=function(d)
+fn.PCM=function(d,Nme)
 {
   d.disc=d%>%filter(Discarded.ktch=='YES')
   d=d%>%filter(!Discarded.ktch=='YES')
@@ -1149,11 +1154,21 @@ fn.PCM=function(d)
                       ifelse(what.method=='GN',LIVEWT.c*GN,
                       ifelse(what.method=='LL',LIVEWT.c*LL,
                       LIVEWT.c))))
+  
+  if(Do.recons.paper=="YES")
+  {
+    crap=d.disc%>%distinct(SPECIES,Trawl,GN,LL)%>%
+      left_join(All.species.names,by='SPECIES')%>%
+      dplyr::select(Name,Scien.nm,Trawl,GN,LL)%>%
+      filter(!is.na(Name))
+    write.csv(crap,fn.hnd.out(paste("TableS1.PCM_",Nme,".csv",sep="")),row.names=FALSE)   
+  }
+  
   d.disc=d.disc%>%dplyr::select(-c(what.method,Group,Trawl,GN,LL))
   return(rbind(d,d.disc))
 }
-Data.monthly=fn.PCM(d=Data.monthly)
-Data.monthly.north=fn.PCM(d=Data.monthly.north)
+Data.monthly=fn.PCM(d=Data.monthly,Nme="South")
+Data.monthly.north=fn.PCM(d=Data.monthly.north,Nme="North")
 
 
   #3.1.4. Kimberley Gillnet and Barramundi recalculation of catch (in kg) using effort as per McAuley et al 2005
@@ -1284,14 +1299,26 @@ WRL.Wann1=WRL.Wann%>%
     group_by(Species,CAES_Code)%>%
     summarise(N=sum(N,na.rm=T))
 
+WRL.assumed.weight=Weight%>%dplyr::select(CAES_Code,Mean.weight)
+
 WRL.total.ktch=WRL[rep(1:nrow(WRL),each=nrow(WRL.Wann1)),]%>%
                 mutate(Species=rep(WRL.Wann1$Species,nrow(WRL)))%>%
                 left_join(WRL.Wann1,by="Species")%>%
-                mutate(LIVEWT.c=N*WRL.assumed.weight*Number.of.vessels*WRL.prop)%>%
+                left_join(WRL.assumed.weight,by="CAES_Code")%>%
+                mutate(LIVEWT.c=N*Mean.weight*Number.of.vessels*WRL.prop)%>%
                 dplyr::select(Finyear,CAES_Code,LIVEWT.c)%>%
                 rename(FINYEAR=Finyear,
                        SPECIES=CAES_Code)
 
+if(Do.recons.paper=="YES")
+{
+  WRL.assumed.weight=WRL.assumed.weight%>%
+    left_join(All.species.names,by=c("CAES_Code"="SPECIES"))%>%
+    dplyr::select(Name,Scien.nm,Mean.weight)%>%
+    mutate(Mean.weight=round(Mean.weight))
+  write.csv(WRL.assumed.weight,fn.hnd.out("TableS2.WRL.weight.csv"),row.names = F)
+}
+  
 
 
 ## 3.2. Catch of non WA Fisheries
@@ -1496,7 +1523,7 @@ Indo_total.annual.ktch=rbind(Indo_total.annual.ktch,Indo_total.annual.ktch_MOU)%
               data.frame
 
 
-# Ammend banjo and wedgefish catches using observer data   ACA
+# Ammend banjo and wedgefish catches using observer data   
 prop_banjo_wedge_south=prop_banjo_wedge_south%>%
                         mutate(SPECIES=ifelse(Group=="Banjo rays",27909,
                                        ifelse(Group=="Wedgefishes",26000,NA)))%>%
