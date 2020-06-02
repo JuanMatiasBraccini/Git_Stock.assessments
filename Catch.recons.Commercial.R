@@ -559,6 +559,12 @@ Indo_MOU.annual.trips.prop=data.frame(year=c(1975:2019),
                                       trips.prop=rep(1,length(1975:2019)))
 Indo_missed.appr.rate=1.75  
 
+
+#Observed banjo and wegefish
+prop_banjo_wedge_north=read.csv(fn.hndl('prop_banjo_wedge_north.csv'))
+prop_banjo_wedge_south=read.csv(fn.hndl('prop_banjo_wedge_south.csv'))
+
+
 # 3 -------------------PROCEDURE SECTION------------------------------------
 
 ## Fisheries code and Fisheries name
@@ -1397,7 +1403,7 @@ if(length(Missn.appr)>0)
  
 # Combine Vanesa's and Marshall et al data on catch compo
 Indo_MOU.Vanesa=Indo_MOU.Vanesa%>%
-  filter(Location%in%c('MOU Box',"MoU Box"))%>%
+  filter(Homeport=='Pepela')%>%
   rename(Species=Species.Ref_plus.Genetics)%>%
   dplyr::select(Species)%>%
   mutate(Species=paste(Species,"shark"),
@@ -1488,6 +1494,38 @@ Indo_total.annual.ktch=rbind(Indo_total.annual.ktch,Indo_total.annual.ktch_MOU)%
               group_by(FINYEAR,SPECIES)%>%
               summarise(LIVEWT.c=sum(LIVEWT.c))%>%
               data.frame
+
+
+# Ammend banjo and wedgefish catches using observer data   ACA
+prop_banjo_wedge_south=prop_banjo_wedge_south%>%
+                        mutate(SPECIES=ifelse(Group=="Banjo rays",27909,
+                                       ifelse(Group=="Wedgefishes",26000,NA)))%>%
+                        dplyr::select(-Group)
+prop_banjo_wedge_north=prop_banjo_wedge_north%>%
+                        mutate(SPECIES=ifelse(Group=="Banjo rays",27909,
+                                              ifelse(Group=="Wedgefishes",26000,NA)))%>%
+                        dplyr::select(-Group)
+
+
+fn.expanda=function(d,Prop)
+{
+  d1=d%>%filter(SPECIES==26999)
+  d2=d%>%filter(!SPECIES==26999)
+  
+  N.dat=nrow(d1)
+  NN=rep(1:N.dat,each=nrow(Prop))
+  d1=d1[NN,]%>%
+    mutate(SPECIES=rep(Prop$SPECIES,N.dat))%>%
+    left_join(Prop,by='SPECIES')%>%
+    mutate(LIVEWT.c=LIVEWT.c*freq)%>%
+    dplyr::select(-c(freq))
+  d=rbind(d1,d2)
+  return(d)
+}
+Hist.expnd=fn.expanda(d=Hist.expnd,Prop=prop_banjo_wedge_south)
+Data.monthly=fn.expanda(d=Data.monthly,Prop=prop_banjo_wedge_south)
+Data.monthly.north=fn.expanda(d=subset(Data.monthly.north,!is.na(SPECIES)),
+                              Prop=prop_banjo_wedge_north)
 
 
 # 4 -------------------EXPORT CATCH DATA------------------------------------
@@ -1632,7 +1670,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   }
   tiff(file=fn.hnd.out("Figure2_reconstructed.catch.by.species.tiff"),2400,2400,
        units="px",res=300,compression="lzw")
-  smart.par(n.plots=length(these.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  smart.par(n.plots=length(these.sp),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.5),MGP=c(1,.5,0))
   for(s in 1:length(these.sp)) fun.plt.Fig2(SP=these.sp[s])
   plot.new()
   ii=1:3
@@ -1669,12 +1707,18 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
     data.frame%>%
     left_join(All.species.names,by='SPECIES')
   
-  Unified2=Unified%>%
-    mutate(Name=ifelse(Name%in%c("Smooth hammerhead","Scalloped hammerhead","Great hammerhead"),
-                  "Hammerheads",Name))
+  Unified2=Unified
   these.sp2=these.sp
-  these.sp2=unique(ifelse(these.sp2%in%c("Smooth hammerhead","Scalloped hammerhead","Great hammerhead"),
-                   "Hammerheads",these.sp2))
+  Show.HH.combined=FALSE  
+  if(Show.HH.combined)
+  {
+    Unified2=Unified%>%
+      mutate(Name=ifelse(Name%in%c("Smooth hammerhead","Scalloped hammerhead","Great hammerhead"),
+                         "Hammerheads",Name))
+    these.sp2=these.sp
+    these.sp2=unique(ifelse(these.sp2%in%c("Smooth hammerhead","Scalloped hammerhead","Great hammerhead"),
+                            "Hammerheads",these.sp2))
+  }
 
   
   fun.plt.Fig1=function(SP)
@@ -1698,7 +1742,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   }
   tiff(file=fn.hnd.out("Figure1_reconstructed.vs.original.tiff"),2400,2400,
        units="px",res=300,compression="lzw")
-  smart.par(n.plots=length(these.sp2),MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  smart.par(n.plots=length(these.sp2)+1,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
   for(s in 1:length(these.sp2)) fun.plt.Fig1(SP=these.sp2[s])
   plot.new()
   legend("right",c("Reconstructed","Original"),col=c('deepskyblue4','red'),lty=c(1,3),lwd=LWD*1.5,bty='n',cex=1.2)

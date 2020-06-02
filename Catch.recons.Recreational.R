@@ -14,6 +14,9 @@
 #       There is no reliable charter data before this date as it was not compulsory to send in logbook sheets.
 #         Compulsory logbooks were introduced in 2001.
 #         We have  a little data on the sharks for 1998 and 2000
+#       Bronze Whaler have been coded to Whalers general from 2014. So we have no specific lengths for Bronzies after this date.
+#       Rory did not trust that the sharks were being identified correctly so they were all put under whaler general code.
+
 #      To address this issue reconstructed catch time series are
 #        calculated using only the Isurvey years (combining Isurvey, beach fishing and charter
 #        boats which should be reliable) and the back calculating using WA population size
