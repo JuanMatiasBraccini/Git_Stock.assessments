@@ -698,7 +698,7 @@ Lista.reap.FishCubeCode=list(Pilbara.trawl='PFT',
                              WANCS='WANCS',
                              WCDGDL='WCDGDL')
 
-
+#ACA
 ## 3.1. Catch_WA Fisheries
 
   #3.1.1 Calculate commercial species discarding from non-shark fisheries since Shark.protection.yr
@@ -1137,7 +1137,8 @@ PCM.sp=data.frame(Group=names(PCM.sp),SPECIES=PCM.sp)%>%
             ifelse(Group=='Ray.other',mean(PCM%>%filter(Group%in%All.rays)%>%pull(GN),na.rm=T),GN)),
          LL=ifelse(Group=='Shark.other',mean(PCM%>%filter(Group%in%All.shrks)%>%pull(LL),na.rm=T),
             ifelse(Group=='Ray.other',mean(PCM%>%filter(Group%in%All.rays)%>%pull(LL),na.rm=T),LL)))
-fn.PCM=function(d,Nme)
+
+fn.PCM=function(d,Nme,PCM.multiplier)
 {
   d.disc=d%>%filter(Discarded.ktch=='YES')
   d=d%>%filter(!Discarded.ktch=='YES')
@@ -1149,8 +1150,12 @@ fn.PCM=function(d,Nme)
                                                   'JASDGDL','OANCGCWC','KGB','SBBS','EGBS'),"GN",
                          ifelse(FishCubeCode%in%c('C019','CSC','C048','C074','C111','PT','NDS','KTR',
                                                   'OASC','SBS','CSLP','WCDGDL','WANCS'),"LL",NA))))%>%
-      left_join(PCM.sp,by="SPECIES")%>%
-      mutate(LIVEWT.c=ifelse(what.method=='Trawl',LIVEWT.c*Trawl,
+      left_join(PCM.sp,by="SPECIES")
+  d.disc=d.disc%>%
+      mutate(Trawl=Trawl*PCM.multiplier,
+             GN=GN*PCM.multiplier,
+             LL=LL*PCM.multiplier,
+             LIVEWT.c=ifelse(what.method=='Trawl',LIVEWT.c*Trawl,
                       ifelse(what.method=='GN',LIVEWT.c*GN,
                       ifelse(what.method=='LL',LIVEWT.c*LL,
                       LIVEWT.c))))
@@ -1167,8 +1172,14 @@ fn.PCM=function(d,Nme)
   d.disc=d.disc%>%dplyr::select(-c(what.method,Group,Trawl,GN,LL))
   return(rbind(d,d.disc))
 }
-Data.monthly=fn.PCM(d=Data.monthly,Nme="South")
-Data.monthly.north=fn.PCM(d=Data.monthly.north,Nme="North")
+if(Do.recons.paper=="YES")
+{
+  Data.monthly_high.PCM=fn.PCM(d=Data.monthly,Nme="South",PCM.multiplier=1.5)
+  Data.monthly.north_high.PCM=fn.PCM(d=Data.monthly.north,Nme="North",PCM.multiplier=1.5)
+}
+Data.monthly=fn.PCM(d=Data.monthly,Nme="South",PCM.multiplier=1)
+Data.monthly.north=fn.PCM(d=Data.monthly.north,Nme="North",PCM.multiplier=1)  
+
 
 
   #3.1.4. Kimberley Gillnet and Barramundi recalculation of catch (in kg) using effort as per McAuley et al 2005
@@ -1207,6 +1218,7 @@ add.KGBM.to.Data.monthly.north=add.KGBM.to.Data.monthly.north%>%
                                Estuary="NO",
                                zone=sample(names(Tab.zon.KGB),nrow(KGB.tot.ktch),replace=T,prob=Tab.zon.KGB/sum(Tab.zon.KGB)))   #randomly allocate zone by observed records
 Data.monthly.north=rbind(Data.monthly.north,add.KGBM.to.Data.monthly.north)
+if(Do.recons.paper=="YES") Data.monthly.north_high.PCM=rbind(Data.monthly.north_high.PCM,add.KGBM.to.Data.monthly.north)
 rm(KGB.tot.ktch,add.KGBM.to.Data.monthly.north)
 
 
@@ -1237,11 +1249,11 @@ Historic.ktch$LIVEWT.c=Historic.ktch$LIVEWT.c*1000   #convert back to kg
 ALL=subset(Data.monthly,SPECIES<32000 & METHOD%in%c("GN","LL") & LAT<=(-26) & Estuary=="NO"
            & FINYEAR%in%c("1975-76","1976-77","1977-78","1978-79","1979-80","1980-81"),
            select=c(FINYEAR,LIVEWT.c,SPECIES,SNAME))%>%
-                  filter(!SPECIES==22999)
+    filter(!SPECIES==22999)
 ALL.north=subset(Data.monthly.north,SPECIES<32000 & METHOD%in%c("GN","LL") & LAT>(-26) & 
                   FINYEAR%in%c("1975-76","1976-77","1977-78","1978-79","1979-80","1980-81"),
                   select=c(FINYEAR,LIVEWT.c,SPECIES,SNAME))%>%
-                    filter(!SPECIES==22999)
+           filter(!SPECIES==22999)
 Prop.sp.yr.all=rbind(ALL,ALL.north)%>%group_by(SPECIES)%>%
   summarise(LIVEWT.c=sum(LIVEWT.c))%>%
   mutate(Proportion=LIVEWT.c/sum(LIVEWT.c))%>%
@@ -1258,6 +1270,33 @@ Hist.expnd=Hist.expnd%>%
          FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
   dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
 
+if(Do.recons.paper=="YES")
+{
+  ALL_S2=subset(Data.monthly,SPECIES<32000 & METHOD%in%c("GN","LL") & LAT<=(-26) & Estuary=="NO"
+               & FINYEAR%in%paste(1975:1984,substr(1976:1985,3,4),sep="-"),
+               select=c(FINYEAR,LIVEWT.c,SPECIES,SNAME))%>%
+         filter(!SPECIES==22999)
+  ALL.north_S2=subset(Data.monthly.north,SPECIES<32000 & METHOD%in%c("GN","LL") & LAT>(-26) & 
+                     FINYEAR%in%paste(1975:1984,substr(1976:1985,3,4),sep="-"),
+                     select=c(FINYEAR,LIVEWT.c,SPECIES,SNAME))%>%
+               filter(!SPECIES==22999)
+  Prop.sp.yr.all_S2=rbind(ALL_S2,ALL.north_S2)%>%group_by(SPECIES)%>%
+                      summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+                      mutate(Proportion=LIVEWT.c/sum(LIVEWT.c))%>%
+                      dplyr::select(SPECIES,Proportion)%>%
+                      data.frame
+  
+  
+  Hist.expnd_S2=expand.grid(year=Historic.ktch$year,SPECIES=Prop.sp.yr.all_S2$SPECIES)
+  Hist.expnd_S2=Hist.expnd_S2%>%
+        left_join(Historic.ktch,by="year")%>%
+        left_join(Prop.sp.yr.all_S2,by='SPECIES')%>%
+        rename(ktch=LIVEWT.c)%>%
+        mutate(LIVEWT.c=ktch*Proportion,
+               FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
+        dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
+  
+}
 
   #3.1.6. TEPS    
 #TDGDLF
@@ -1265,6 +1304,27 @@ Size.comp.Dusky.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #from Comm
 Size.comp.Greynurse.TEPS_TDGLDF=c(rep(.61,5),rep(.94,10),rep(1.22,10),
                                   rep(1.52,7),rep(1.83,7),rep(2.1,2),
                                   rep(2.4,6),rep(3.05,5),rep(1,2,2),rep(3,5),2.5,rep(1.5,3))     
+
+if(Do.recons.paper=="YES")
+{
+  TEPS_S3=TEPS%>%
+        filter(SpeciesCode%in%c(18003,8001))%>%
+        left_join(PCM.sp,by=c("SpeciesCode"= "SPECIES"))%>%
+        rename(FINYEAR=finyear,
+               SPECIES=SpeciesCode)%>%      
+        mutate(Kg=ifelse(SPECIES==18003,bwt*(100*mean(Size.comp.Dusky.TEPS_TDGLDF))^awt,
+                         ifelse(SPECIES==8001,bwt.grey*mean(Size.comp.Greynurse.TEPS_TDGLDF)^awt.grey,
+                                NA)),
+               LIVEWT.c=ifelse(Status%in%c("D","d"),Kg*Number,
+                               ifelse(Status%in%c("A","a"),Kg*1.5*Number*GN*1.5,
+                                      NA)))%>%
+        group_by(FINYEAR,SPECIES)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+        data.frame
+  Greynurse.ktch_S3=TEPS_S3%>%filter(SPECIES==8001)
+  TEPS_dusky_S3=TEPS_S3%>%filter(SPECIES==18003)
+}
+
 TEPS=TEPS%>%
         filter(SpeciesCode%in%c(18003,8001))%>%
         left_join(PCM.sp,by=c("SpeciesCode"= "SPECIES"))%>%
@@ -1285,17 +1345,14 @@ TEPS_dusky=TEPS%>%filter(SPECIES==18003)
 
   # 3.1.7 Wetline in the Western Rock lobster fishery
 #note: extrapolate Wann's catch (for one season) to the entire fishery as a proportion of the number of boats
+set.seed(666)
 WRL.Wann1=WRL.Wann%>%
-    mutate(TL=TL_metres*100,
-           TL=ifelse(is.na(TL),TL_feet*30.48,TL),
-           Species=ifelse(Species=="DW",
+    mutate(Species=ifelse(Species=="DW",
                          sample(c("CP","BW"),55,
                                 prob=c(WRL.copper.dusky.prop,1-WRL.copper.dusky.prop), replace = TRUE),
                          Species))%>%   #convert to cm
     left_join(Weight,by="Species")%>%
-    mutate(N=1,
-           LIVEWT.c=(bwt*TL^awt),
-           LIVEWT.c=ifelse(!Species=='BW',LIVEWT.c/1000,LIVEWT.c))%>%
+    mutate(N=1)%>%
     group_by(Species,CAES_Code)%>%
     summarise(N=sum(N,na.rm=T))
 
@@ -1312,6 +1369,15 @@ WRL.total.ktch=WRL[rep(1:nrow(WRL),each=nrow(WRL.Wann1)),]%>%
 
 if(Do.recons.paper=="YES")
 {
+  WRL.total.ktch_S4=WRL[rep(1:nrow(WRL),each=nrow(WRL.Wann1)),]%>%
+    mutate(Species=rep(WRL.Wann1$Species,nrow(WRL)))%>%
+    left_join(WRL.Wann1,by="Species")%>%
+    left_join(WRL.assumed.weight,by="CAES_Code")%>%
+    mutate(LIVEWT.c=N*Mean.weight*1.5*Number.of.vessels*WRL.prop)%>%
+    dplyr::select(Finyear,CAES_Code,LIVEWT.c)%>%
+    rename(FINYEAR=Finyear,
+           SPECIES=CAES_Code)
+  
   WRL.assumed.weight=WRL.assumed.weight%>%
     left_join(All.species.names,by=c("CAES_Code"="SPECIES"))%>%
     dplyr::select(Name,Scien.nm,Mean.weight)%>%
@@ -1319,7 +1385,6 @@ if(Do.recons.paper=="YES")
   write.csv(WRL.assumed.weight,fn.hnd.out("TableS2.WRL.weight.csv"),row.names = F)
 }
   
-
 
 ## 3.2. Catch of non WA Fisheries
 
@@ -1553,7 +1618,13 @@ Hist.expnd=fn.expanda(d=Hist.expnd,Prop=prop_banjo_wedge_south)
 Data.monthly=fn.expanda(d=Data.monthly,Prop=prop_banjo_wedge_south)
 Data.monthly.north=fn.expanda(d=subset(Data.monthly.north,!is.na(SPECIES)),
                               Prop=prop_banjo_wedge_north)
-
+if(Do.recons.paper=="YES")
+{
+  Hist.expnd_S2=fn.expanda(d=Hist.expnd_S2,Prop=prop_banjo_wedge_south)
+  Data.monthly_high.PCM=fn.expanda(d=Data.monthly_high.PCM,Prop=prop_banjo_wedge_south)
+  Data.monthly.north_high.PCM=fn.expanda(d=subset(Data.monthly.north_high.PCM,!is.na(SPECIES)),
+                                Prop=prop_banjo_wedge_north)
+}
 
 # 4 -------------------EXPORT CATCH DATA------------------------------------
 fn.out=function(d,NM)
@@ -1651,7 +1722,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
                    Scientific.name=Scien.nm)%>%
             arrange(-Total)
   Cum.ktch=cumsum(Table1$Total)/sum(Table1$Total)
-  ID=which.min(abs(Cum.ktch-0.99))
+  ID=which.min(abs(Cum.ktch-0.989))
   
   Table1=Table1%>%dplyr::select(Common.name,Scientific.name,
                     Historic,North,South,WRL,Protected,Taiwanese,Indonesian,WTB,GAB)
@@ -1669,6 +1740,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   #Figure 1. species annual catch by fishery
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R')
   these.sp=Table1[1:ID,]%>%pull(Common.name)
+  
   
   LWD=1.8
   CLs=data.frame(TYPE=c("Historic","WA.south","WA.north","Protected","WRL",
@@ -1817,6 +1889,145 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
   grid(nx=ncol(MAT),ny=nrow(MAT),col="black")
   box()
   dev.off()
+  
+  
+  
+  #Display sensitivity tests
+  Hist.expnd_S2$TYPE="Historic"   
+  Greynurse.ktch_S3$TYPE="Protected"  
+  TEPS_dusky_S3$TYPE="Protected"
+  WRL.total.ktch_S4$TYPE="WRL"     
+  
+  S1=rbind(Hist.expnd,
+           Greynurse.ktch,
+           TEPS_dusky,
+           WRL.total.ktch,
+           Indo_total.annual.ktch,Taiwan.gillnet.ktch,Taiwan.longline.ktch,GAB.trawl_catch,WTBF_catch,
+           Data.monthly_high.PCM%>%
+             group_by(FINYEAR,SPECIES)%>%
+             summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+             mutate(TYPE="WA.south")%>%
+             data.frame,
+           Data.monthly.north_high.PCM%>%
+             group_by(FINYEAR,SPECIES)%>%
+             summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+             mutate(TYPE="WA.north")%>%
+             data.frame)%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    filter(!is.na(Name) & FINYEAR%in%This.fin.yr) 
+  
+  S2=rbind(Hist.expnd_S2,
+           Greynurse.ktch,
+           TEPS_dusky,
+           WRL.total.ktch,
+           Indo_total.annual.ktch,Taiwan.gillnet.ktch,Taiwan.longline.ktch,GAB.trawl_catch,WTBF_catch,
+           Data.monthly%>%
+             group_by(FINYEAR,SPECIES)%>%
+             summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+             mutate(TYPE="WA.south")%>%
+             data.frame,
+           Data.monthly.north%>%
+             group_by(FINYEAR,SPECIES)%>%
+             summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+             mutate(TYPE="WA.north")%>%
+             data.frame)%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    filter(!is.na(Name) & FINYEAR%in%This.fin.yr) 
+  
+  S3=rbind(Hist.expnd,
+           Greynurse.ktch_S3,
+           TEPS_dusky_S3,
+           WRL.total.ktch,
+           Indo_total.annual.ktch,Taiwan.gillnet.ktch,Taiwan.longline.ktch,GAB.trawl_catch,WTBF_catch,
+           Data.monthly%>%
+             group_by(FINYEAR,SPECIES)%>%
+             summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+             mutate(TYPE="WA.south")%>%
+             data.frame,
+           Data.monthly.north%>%
+             group_by(FINYEAR,SPECIES)%>%
+             summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+             mutate(TYPE="WA.north")%>%
+             data.frame)%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    filter(!is.na(Name) & FINYEAR%in%This.fin.yr)
+  
+  S4=rbind(Hist.expnd,
+           Greynurse.ktch,
+           TEPS_dusky,
+           WRL.total.ktch_S4,
+           Indo_total.annual.ktch,Taiwan.gillnet.ktch,Taiwan.longline.ktch,GAB.trawl_catch,WTBF_catch,
+           Data.monthly%>%
+             group_by(FINYEAR,SPECIES)%>%
+             summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+             mutate(TYPE="WA.south")%>%
+             data.frame,
+           Data.monthly.north%>%
+             group_by(FINYEAR,SPECIES)%>%
+             summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+             mutate(TYPE="WA.north")%>%
+             data.frame)%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    filter(!is.na(Name) & FINYEAR%in%This.fin.yr) 
+  
+  Col.scens=c('black','red','orange','forestgreen','deepskyblue4')
+  LWD=1.8
+  fun.plt.Fig4=function(SP)
+  {
+    BC=Unified2%>%filter(Name==SP)%>%
+                  group_by(FINYEAR)%>%
+                  summarise(Total=sum(LIVEWT.c)/1000)%>%
+                  data.frame
+    yr=as.numeric(substr(BC$FINYEAR,1,4))
+    
+    scen1=S1%>%filter(Name==SP)%>%
+                  group_by(FINYEAR)%>%
+                  summarise(Total=sum(LIVEWT.c)/1000)%>%
+                  data.frame
+    yr1=as.numeric(substr(scen1$FINYEAR,1,4))
+    
+    scen2=S2%>%filter(Name==SP)%>%
+                  group_by(FINYEAR)%>%
+                  summarise(Total=sum(LIVEWT.c)/1000)%>%
+                  data.frame
+    yr2=as.numeric(substr(scen2$FINYEAR,1,4))
+    
+    scen3=S3%>%filter(Name==SP)%>%
+                  group_by(FINYEAR)%>%
+                  summarise(Total=sum(LIVEWT.c)/1000)%>%
+                  data.frame
+    yr3=as.numeric(substr(scen3$FINYEAR,1,4))
+    
+    
+    scen4=S4%>%filter(Name==SP)%>%
+                group_by(FINYEAR)%>%
+                summarise(Total=sum(LIVEWT.c)/1000)%>%
+                data.frame
+    yr4=as.numeric(substr(scen4$FINYEAR,1,4))
+    
+    Mx=max(c(max(BC$Total,na.rm=T),max(scen1$Total,na.rm=T),max(scen2$Total,na.rm=T),
+             max(scen3$Total,na.rm=T),max(scen4$Total,na.rm=T)))
+    plot(yr,yr,xlim=Yr.lim,col='transparent',ylab="",xlab="",ylim=c(0,Mx))
+    
+    lines(yr,BC$Total,lwd=LWD,col=Col.scens[1],lty=1)
+    lines(yr1,scen1$Total,lwd=LWD,col=Col.scens[2],lty=3)
+    lines(yr2,scen2$Total,lwd=LWD,col=Col.scens[3],lty=3)
+    lines(yr3,scen3$Total,lwd=LWD,col=Col.scens[4],lty=3)
+    lines(yr4,scen4$Total,lwd=LWD,col=Col.scens[5],lty=3)
+    
+    mtext(SP,3,cex=.85)
+  }
+  tiff(file=fn.hnd.out("Figure4_sensitivity tests.tiff"),2400,2400,
+       units="px",res=300,compression="lzw")
+  smart.par(n.plots=length(these.sp2)+1,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  for(s in 1:length(these.sp2)) fun.plt.Fig4(SP=these.sp2[s])
+  plot.new()
+  legend("right",c("Base case",paste("S",1:4,sep='')),col=Col.scens,lty=c(1,rep(3,4)),
+         lwd=LWD*1.5,bty='n',cex=1.2)
+  mtext("Financial year",1,outer=T,cex=1.15)
+  mtext("Total catch (tonnes)",2,outer=T,las=3,cex=1.15)
+  dev.off()
+  
 }
 
 
