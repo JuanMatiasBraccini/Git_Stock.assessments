@@ -8,14 +8,14 @@
 
 #missing:
 # Include ALL species in final risk scoring
-# Need CPUE for Copper sharks (run SPM and aSPM...); review Smooth HH cpue and mako cpue...; SPM Tiger fit
+#  review Smooth HH cpue and mako cpue...; SPM Tiger fit
 # Milk shark SPM, hitting upper K boundary, no trend in cpue, crap Hessian, too uncertain....mention in text...
 # aSPM: finish running for all species; issues with Tiger cpue fit...
 
 
 #Future considerations: rather than standard SPM, try JABBA (can be 
-#                        run from R..see Winker et al 2018; it's what IUCN uses); but does not
-#                        allow for multiple cpue series
+#                           run from R..see Winker et al 2018; it's what IUCN uses); but does not
+#                           allow for multiple cpue series
 
 
 rm(list=ls(all=TRUE))
@@ -48,6 +48,7 @@ library(ggrepel)
 library(datalowSA)
 library(zoo)
 library(MCDA)
+library(sfsmisc)   # p values from rlm
 
 Asses.year=2020    #enter year of assessment
 Last.yr.ktch="2017-18"
@@ -62,7 +63,7 @@ fnkr8t(paste(hNdl,"Outputs",sep="/"))
 #---DATA SECTION-----
 setwd("C:/Matias/Analyses/Data_outs")
 
-#Total effort
+#1. Total effort
 Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
 Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
 
@@ -72,56 +73,93 @@ Effort.monthly.north_blocks=read.csv("Effort.monthly.NSF.csv",stringsAsFactors=F
 Effort.daily.north_blocks=read.csv("Effort.daily.NSF.csv",stringsAsFactors=F)
 
 
-#Total catch
+#2. Commercial catch
 fn.in=function(NM)
 {
   read.csv(paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),stringsAsFactors = F)
 }
 
-  #1.1 Catch_WA Fisheries
+  #2.1 Catch_WA Fisheries
 
-#Historic
+    #Historic
 Hist.expnd=fn.in(NM='recons_Hist.expnd.csv')
 
-#Ammended reported catch including discards
+    #Ammended reported catch including discards
 Data.monthly=fn.in(NM='recons_Data.monthly.csv')
 Data.monthly.north=fn.in(NM='recons_Data.monthly.north.csv')
 
-#TEPS
+    #TEPS
 Greynurse.ktch=fn.in(NM='recons_Greynurse.ktch.csv')
 TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
 
 WRL.ktch=fn.in(NM='Wetline_rocklobster.csv')
 
 
-  #1.2. Catch of non WA Fisheries
+  #2.2. Catch of non WA Fisheries
 
-#Taiwanese gillnet and longline
+    #Taiwanese gillnet and longline
 Taiwan.gillnet.ktch=fn.in(NM='recons_Taiwan.gillnet.ktch.csv')
 Taiwan.longline.ktch=fn.in(NM='recons_Taiwan.longline.ktch.csv')
 
-
-#Indonesian illegal fishing in Australia waters
+    #Indonesian illegal fishing in Australia waters
 Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv') 
 
-#AFMA's GAB & SBT fisheries
+    #AFMA's GAB & SBT fisheries
 GAB.trawl_catch=fn.in(NM='recons_GAB.trawl_catch.csv') 
 WTBF_catch=fn.in(NM='recons_WTBF_catch.csv') 
 
-#SA Marine Scalefish fishery
+    #SA Marine Scalefish fishery
 Whaler_SA=fn.in(NM='recons_Whaler_SA.csv') 
 
 
-  #2. WA Recreational catch
+#3. WA Recreational catch
 Rec.ktch=fn.in(NM='recons_recreational.csv')
 
-#species codes
+
+#4. Abundance data
+fn.read=function(x) read.csv(paste('C:/Matias/Analyses/Data_outs',x,sep='/'),stringsAsFactors = F)
+
+  #Naturalist abundance survey
+Scal.hh.nat=fn.read('Scalloped hammerhead.Srvy.FixSt.csv')
+Tiger.nat=fn.read('Tiger shark.Srvy.FixSt.csv')
+Mil.nat=fn.read('Milk shark.Srvy.FixSt.csv')
+
+  #Standardised TDGDLF cpue
+Smuz.hh.tdgdlf_mon=fn.read('Smooth hammerhead.annual.abundance.basecase.monthly_relative.csv') 
+Smuz.hh.tdgdlf_daily=fn.read('Smooth hammerhead.annual.abundance.basecase.daily_relative.csv')
+Spinr.tdgdlf_mon=fn.read('Spinner Shark.annual.abundance.basecase.monthly_relative.csv')
+Spinr.tdgdlf_daily=fn.read('Spinner Shark.annual.abundance.basecase.daily_relative.csv')
+Tiger.tdgdlf_mon=fn.read('Tiger Shark.annual.abundance.basecase.monthly_relative.csv')
+Tiger.tdgdlf_daily=fn.read('Tiger Shark.annual.abundance.basecase.daily_relative.csv')
+Copper.tdgdlf_daily=fn.read('Bronze whaler.annual.abundance.basecase.daily_relative.csv')
+
+  #Standardised NSF cpue     #not used, short time series and increasing with catch: not an abundance index
+Lemon.NSF=fn.read('Lemon shark.annual.abundance.NSF_relative.csv')
+Pigeye.NSF=fn.read('Pigeye shark.annual.abundance.NSF_relative.csv')
+Tiger.NSF=fn.read('Tiger shark.annual.abundance.NSF_relative.csv')
+
+
+#5. Mean catch weight data
+
+  #Standardised TDGDLF mean size
+Smuz.hh.tdgdlf.mean.size=fn.read('Smooth hammerhead.annual.mean.size_relative.csv')  
+Spinr.tdgdlf.mean.size=fn.read('Spinner Shark.annual.mean.size_relative.csv')
+Tiger.tdgdlf.mean.size=fn.read('Tiger Shark.annual.mean.size_relative.csv')
+Copper.tdgdlf.mean.size=fn.read('Copper Shark.annual.mean.size_relative.csv')
+
+
+#6. Conventional tagging data
+Tag=fn.read('Tagging_conventional.data.csv')   
+
+
+#Species codes
 All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for catch
 #b=read.csv("C:\\Matias\\Data\\Species.code.csv")
 
 
-#list of life history param for demography
+#Life history param for demography
 LH.par=read.csv("C:/Matias/Data/Life history parameters/Life_History_other_sharks.csv",stringsAsFactors=F)
+
 
 #PSA scores
 PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv',stringsAsFactors=F)
@@ -165,47 +203,6 @@ non.commercial.sharks=c("Brown-banded catshark","Cobbler Wobbegong",
                         "Green sawfish","Guitarfish & shovelnose ray","Narrow sawfish",
                         "Port Jackson","Spotted shovelnose","Stingrays","Tawny nurse shark",
                         "Whitespot shovelnose","Zebra shark")
-
-#Abundance data
-fn.read=function(x) read.csv(paste('C:/Matias/Analyses/Data_outs',x,sep='/'),stringsAsFactors = F)
-
-  #Naturalist abundance survey
-Scal.hh.nat=fn.read('Scalloped hammerhead.Srvy.FixSt.csv')
-Tiger.nat=fn.read('Tiger shark.Srvy.FixSt.csv')
-Mil.nat=fn.read('Milk shark.Srvy.FixSt.csv')
-
-  #Standardised TDGDLF cpue
-Smuz.hh.tdgdlf_mon=fn.read('Hammerhead.annual.abundance.basecase.monthly_relative.csv') #'hammerhead spp'
-Smuz.hh.tdgdlf_daily=fn.read('Hammerhead.annual.abundance.basecase.daily_relative.csv')
-Spinr.tdgdlf_mon=fn.read('Spinner Shark.annual.abundance.basecase.monthly_relative.csv')
-Spinr.tdgdlf_daily=fn.read('Spinner Shark.annual.abundance.basecase.daily_relative.csv')
-Tiger.tdgdlf_mon=fn.read('Tiger Shark.annual.abundance.basecase.monthly_relative.csv')
-Tiger.tdgdlf_daily=fn.read('Tiger Shark.annual.abundance.basecase.daily_relative.csv')
-Greynurse.tdgdlf_mon=fn.read('Greynurse Shark.annual.abundance.basecase.monthly_relative.csv')
-Pencil.tdgdlf_mon=fn.read('Pencil Shark.annual.abundance.basecase.monthly_relative.csv')
-Pencil.tdgdlf_daily=fn.read('Pencil Shark.annual.abundance.basecase.daily_relative.csv')
-Sawshrk.tdgdlf_daily=fn.read('Sawsharks.annual.abundance.basecase.daily_relative.csv')
-Mako.tdgdlf_mon=fn.read('Mako.annual.abundance.basecase.monthly_relative.csv')
-Mako.tdgdlf_daily=fn.read('Mako.annual.abundance.basecase.daily_relative.csv')
-
-  #Standardised NSF cpue
-Lemon.NSF=fn.read('Lemon shark.annual.abundance.NSF_relative.csv')
-Pigeye.NSF=fn.read('Pigeye shark.annual.abundance.NSF_relative.csv')
-Tiger.NSF=fn.read('Tiger shark.annual.abundance.NSF_relative.csv')
-HH.NSF=fn.read('Hammerheads.annual.abundance.NSF_relative.csv')
-   
-
-#Mean catch weight data
-
-  #Standardised TDGDLF mean size
-Smuz.hh.tdgdlf.size=fn.read('Smooth hammerhead.annual.mean.size_relative.csv')  #this is "hammerhead spp"
-Spinr.tdgdlf.size=fn.read('Spinner Shark.annual.mean.size_relative.csv')
-Tiger.tdgdlf.size=fn.read('Tiger Shark.annual.mean.size_relative.csv')
-
-
-
-#Conventional tagging data
-Tag=fn.read('Tagging_conventional.data.csv')
 
 
 
@@ -354,7 +351,6 @@ Do.sim.test="NO"
 #... Control which assessment methods to implement
 use.size.comp="YES"        #is size catch comp used for anything?
 do.mean.weight.based="NO"   #not used due to logistic sel. assumption 
-                            #   and available data in length, not weight
 do.length.based.SPR="NO"   #not used due to logistic sel. assumption 
 Do.SPM="YES"
 Do.Ktch.MSY="YES"
@@ -680,7 +676,6 @@ Shark.species=subset(Shark.species,!Shark.species%in%c(Indicator.species,Shar_ot
 blacktips=subset(Scien.nm,Scien.nm%in%c('C. limbatus & C. tilstoni','Carcharhinus sorrah'))$SPECIES
 Shark.species=subset(Shark.species,!Shark.species%in%c(blacktips,School.shark))
   
-  #2.3 Remove indicator species, blacktips  and school sharks
 Data.monthly=subset(Data.monthly,SPECIES%in%Shark.species,select=c(SPECIES,FishCubeCode,SNAME,FINYEAR,LIVEWT.c,BLOCKX,METHOD))
 Data.monthly.north=subset(Data.monthly.north,SPECIES%in%Shark.species,select=c(SPECIES,FishCubeCode,SNAME,FINYEAR,LIVEWT.c,BLOCKX,METHOD))
 
@@ -696,7 +691,7 @@ Tot.ktch=rbind(Data.monthly,Data.monthly.north)
 SNAMEs=Data.monthly[!duplicated(Data.monthly$SPECIES),match(c("SPECIES","SNAME"),names(Data.monthly))]
 SNAMEs.north=Data.monthly.north[!duplicated(Data.monthly.north$SPECIES),match(c("SPECIES","SNAME"),names(Data.monthly.north))]
 
-#pull sawsharks as reported by species and as 'sawsharks'   
+#combine sawsharks as reported by species and as 'sawsharks'   
 Tot.ktch=Tot.ktch%>%
         mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
                SPECIES=ifelse(SPECIES%in%c(23002,23001,23900),23900,SPECIES), 
@@ -912,9 +907,9 @@ Tot.ktch=rbind(Tot.ktch,Whaler_SA)
 
 
 #15. Remove blacktips & school shark because they are not assessed here. Ditto white sharks
-Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','spot tail shark',
-                                    'Spot tail shark',"School shark",
-                                    "white shark"))
+Tot.ktch=subset(Tot.ktch,!Name%in%c('Blacktips','blacktips','spot tail shark',
+                                    'Spot tail shark',"spot-tail shark","School shark",
+                                    "white shark","dusky shark"))
 
 #16. Change bull to pigeye shark as bull not likely to be taken (Heupel & McAuley 2007 page  84)
 Tot.ktch=Tot.ktch%>%
@@ -1032,14 +1027,15 @@ PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from M
   }
   
   PSA=PSA%>%
+    rename(Vulnerability.score=Vulnerability)%>%
     mutate(Species=Hmisc::capitalize(as.character(Species)),
-           Risk=factor(ifelse(Vulnerability<=Low.risk,'low',
-                              ifelse(Vulnerability>Low.risk & Vulnerability<=medium.risk,'medium',
+           Vulnerability=factor(ifelse(Vulnerability.score<=Low.risk,'low',
+                              ifelse(Vulnerability.score>Low.risk & Vulnerability.score<=medium.risk,'medium',
                                      'high')),levels=c('low','medium','high')))%>%
-    arrange(Vulnerability)
+    arrange(Vulnerability.score)
   cols=c(low="green",medium="yellow",high="red")
   p=ggplot(PSA,
-           aes(Productivity, Susceptibility, label = Species,colour = Risk, fill = Risk)) +
+           aes(Productivity, Susceptibility, label = Species,colour = Vulnerability, fill = Vulnerability)) +
     geom_point(shape = 21, size = 6,colour="black") + 
     geom_text_repel(segment.colour='black',col='black',box.padding = 0.5) + 
     scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
@@ -1048,12 +1044,14 @@ PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from M
           axis.line = element_line(colour = "black"),
           axis.text=element_text(size=12),
           axis.title=element_text(size=14),
+          legend.title=element_text(size=16),
+          legend.text=element_text(size=14),
           panel.border = element_rect(colour = "black", fill=NA, size=1))
   p
   
-  ggsave(Exprt, width = 8,height = 8, dpi = "retina")
+  ggsave(Exprt, width = 8,height = 8, dpi = 300, compression = "lzw")
   
-  return(as.character(PSA%>%filter(Risk=="high")%>%pull(Species)))
+  return(as.character(PSA%>%filter(Vulnerability=="high")%>%pull(Species)))
 }
 Keep.species=PSA.fn(d=PSA.list,Exprt=paste(hNdl,"/Outputs/Figure 2_PSA.tiff",sep=''))
 Keep.species=tolower(Keep.species)
@@ -1066,7 +1064,8 @@ colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
 COLs.type=colfunc(length(Fishry.type))
 names(COLs.type)=Fishry.type
 All.N.sp=sort(unique(Tot.ktch$Name))
-fn.fig(paste(hNdl,'/Outputs/Figure 1_catch_all_species',sep=''),2400,2000) 
+
+fn.fig(paste(hNdl,'/Outputs/Figure 1_catch_all_species',sep=''),2200,2400) 
 smart.par(n.plots=length(All.N.sp),MAR=c(1,1,.8,.25),OMA=c(2.5,2.25,.05,.05),MGP=c(1,.5,0))
 par(cex.main=1,cex.axis=.85)
 for(s in 1:length(All.N.sp))
@@ -1177,9 +1176,9 @@ fn.word.table(WD=getwd(),TBL=TabL,Doc.nm="Table 1. Life history pars",caption=NA
 Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
 
 # Check available tagging data
-FL.sp=c('Bull shark','Great hammerhead','Lemon shark','Pigeye shark','Scalloped hammerhead',
-        'Smooth hammerhead','Spinner shark','Spurdogs','Tiger shark',' Wobbegong (general)',
-        "Grey nurse shark","Hammerheads","Shortfin mako","Pencil shark",
+FL.sp=c('Great hammerhead','Scalloped hammerhead','Smooth hammerhead',"Hammerheads",
+        'Lemon shark','Bull shark','Pigeye shark','Spinner shark','Spurdogs','Tiger shark',
+        "Wobbegong (general)",' Wobbegong (general)',"Grey nurse shark","Shortfin mako","Pencil shark",
         "Lemon shark","Milk shark","Copper shark","Common sawshark")
 if(use.tags)
 {
@@ -1264,11 +1263,11 @@ Tiger.nat$CV=Tiger.nat$CV/100
 Mil.nat$CV=Mil.nat$CV/100
 
 cpue.list=list(
-  "copper shark"=NULL,                          #ACA, update, also Estim.q
+  "copper shark"=list(Survey=NULL,
+                      TDGDLF.mon=NULL,
+                      TDGDLF.day=Copper.tdgdlf_daily),                          
   "great hammerhead"=NULL,            #NSF not used because it's for 'hammerhead spp'       
-  "grey nurse shark"=list(Survey=NULL,
-                          TDGDLF.mon=Greynurse.tdgdlf_mon,
-                          TDGDLF.day=NULL),
+  "grey nurse shark"=NULL,
   "lemon shark"=NULL,     #NSF not used to uncertain index and only few years
 
   "milk shark"=list(Survey=Mil.nat,     
@@ -1277,8 +1276,10 @@ cpue.list=list(
   "pigeye shark"=NULL,         #only 3 years with CV<.5, and for NSF
   "sawsharks"=NULL,
   "scalloped hammerhead"=NULL,    #Naturaliste not used due to no trend and high 0s; NSF not used because it's for 'hammerhead spp'
-  "shortfin mako"=NULL,           #CVs too high for all years so not used
-  "smooth hammerhead"=NULL,     #TDGDLF not used because it's for 'hammerhead spp' 
+  "shortfin mako"=NULL,           
+  "smooth hammerhead"=list(Survey=NULL,
+                           TDGDLF.mon=Smuz.hh.tdgdlf_mon,
+                           TDGDLF.day=Smuz.hh.tdgdlf_daily),      
   "spinner shark"=list(Survey=NULL,
                        TDGDLF.mon=Spinr.tdgdlf_mon,
                        TDGDLF.day=Spinr.tdgdlf_daily),
@@ -1289,9 +1290,10 @@ cpue.list=list(
   "wobbegongs"=NULL)   
 
 cpue.list=cpue.list[Specs$Name]
-Init.r=Init.r[names(cpue.list)]
+
 
 #---Build r prior -----------------------------------------------------------------------
+Init.r=Init.r[names(cpue.list)]
 M.averaging="min"   #this yields rmax
 fun.rprior.dist=function(Nsims,K,LINF,K.sd,LINF.sd,Amax,MAT,FecunditY,Cycle,BWT,AWT,LO)
 {
@@ -1446,9 +1448,7 @@ if(use.size.comp=="YES")
   DATA=DATA%>%
       mutate(COMMON_NAME=ifelse(COMMON_NAME=="Bronze whaler","Copper shark",
                          ifelse(COMMON_NAME=="Shortfin mako ","Shortfin mako",COMMON_NAME)))
-  
-  Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet",
-             "RV GANNET","RV SNIPE 2")
+  Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet","RV GANNET","RV SNIPE 2")
   fun.check.LFQ=function(a,area)
   {
     a=a%>%
@@ -1542,9 +1542,10 @@ if(use.size.comp=="YES")
             N=100,
             int=10,
             Obs.len=DATA%>%
-              filter(Method=='GN'& 
-                       COMMON_NAME==NM & 
-                       !BOAT%in%Res.vess)%>%
+              filter(Method=='GN'&
+                     MESH_SIZE%in% c("6.5","7","7\"")&
+                     COMMON_NAME==NM & 
+                     !BOAT%in%Res.vess)%>%
               mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
               filter(!is.na(FL))%>%
               filter(FL>=Min.len)%>%
@@ -1671,6 +1672,37 @@ if(use.size.comp=="YES")
     }
   }
   
+  #Show size frequency for selected species  
+  for(l in 1:nrow(LH.par))
+  {
+    NM=as.character(Conversion%>%filter(Name==LH.par$Name[l])%>%pull(FL.sp))
+    GN=Obs.len=DATA%>%
+      filter(Method=='GN'&
+               Lat.round<=(-26) &
+               MESH_SIZE%in% c("6.5","7","7\"")&
+               COMMON_NAME==NM & 
+               !BOAT%in%Res.vess)%>%
+      mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
+      filter(!is.na(FL))%>%
+      filter(FL>=Min.len)
+    LL=DATA%>%
+      filter(Method=='LL'& 
+               Lat.round>(-26) &
+               COMMON_NAME==NM & 
+               !BOAT%in%Res.vess)%>%
+      mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
+      filter(!is.na(FL))%>%
+      filter(FL>=Min.len)
+    
+    DD=rbind(GN,LL)
+    ggplot(DD, aes(x = FL)) +
+      geom_histogram(color = "grey30", fill ="salmon") +
+      facet_grid(year~Method, scales = "free")
+    
+    ggsave(paste(hNdl,"/Outputs/Size.frequency/Size.freq_",NM,".tiff",sep=''), width = 8,height = 8, dpi = 300, compression = "lzw")
+    
+    
+  }
   
   #Collate catch size frequency
   LFQ.south$COMMON_NAME=tolower(LFQ.south$COMMON_NAME)
@@ -1761,8 +1793,46 @@ p=ggplot(CompR,
   geom_errorbarh(aes(xmin=r-r.sd, xmax=r+r.sd),colour=COL)
 p
 ggsave(paste(hNdl,'/Outputs/Steepness_vs_r.png',sep=''), width = 6,
-       height = 6, dpi = "screen")
+       height = 6, dpi = 300, compression = "lzw")
 
+#---Show Total catch and cpue together------------------------------------------------------
+fn.fig(paste(hNdl,'/Outputs/Catch and cpue',sep=''),2400,1800) 
+smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,1),MGP=c(1,.5,0))
+for(s in 1: N.sp)
+{
+  ct=Tot.ktch%>%filter(SP.group==Specs$SP.group[s])%>%
+    group_by(finyear)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
+  plot(ct$finyear,ct$LIVEWT.c,type='o',pch=21,bg='orange',ylab="",xlab="",main=capitalize(Specs$SP.group[s]))
+  
+  if(!is.null(cpue.list[[s]]))
+  {
+    Survey=cpue.list[[s]]$Survey
+    TDGDLF.mon=cpue.list[[s]]$TDGDLF.mon
+    TDGDLF.day=cpue.list[[s]]$TDGDLF.day
+    Survey.MAX=0
+    TDGDLF.mon.MAX=0
+    TDGDLF.day.MAX=0
+    if(!is.null(Survey)) Survey.MAX=max(Survey$MeAn,na.rm=T)
+    if(!is.null(TDGDLF.mon)) TDGDLF.mon.MAX=max(TDGDLF.mon$Mean,na.rm=T)
+    if(!is.null(TDGDLF.day)) TDGDLF.day.MAX=max(TDGDLF.day$Mean,na.rm=T)
+    Ylim=max(c(Survey.MAX,TDGDLF.mon.MAX,TDGDLF.day.MAX))
+    
+    par(new=T)
+    plot(ct$finyear,ct$finyear,ylab='',xlab='',ylim=c(0,Ylim),col='transparent',yaxt='n') 
+    if(!is.null(Survey)) lines(Survey$yr,Survey$MeAn,lwd=2,col='steelblue')
+    if(!is.null(TDGDLF.mon)) lines(as.numeric(substr(TDGDLF.mon$Finyear,1,4)),TDGDLF.mon$Mean,lwd=2,col="red")
+    if(!is.null(TDGDLF.day)) lines(as.numeric(substr(TDGDLF.day$Finyear,1,4)),TDGDLF.day$Mean,lwd=2,col="forestgreen")
+    axis(4,seq(0,ceiling(Ylim),length.out=5),seq(0,ceiling(Ylim),length.out=5))
+    
+  }
+}
+legend("topleft",c("Catch","Survey","cpue.mon","cpue.day"),pch=21,pt.bg=c("orange","steelblue","red","forestgreen"),
+       bty='n',cex=1.1)
+mtext('Financial year',1,outer=T,line=0,cex=1.5)
+mtext('Catch (tonnes)',2,outer=T,las=3,cex=1.5,line=0)
+mtext('Relative cpue',4,outer=T,line=0,cex=1.5,las=3)
+dev.off() 
 
 #---Gear Size selectivity estimation------------------------------------------------------
 if(do.length.based.SPR=="YES")
@@ -1824,22 +1894,26 @@ if(do.length.based.SPR=="YES")
 }
 
 #---Mean weight-based Mortality estimation------------------------------------------------------
+Mn.weit.ktch=list("smooth hammerhead"=Smuz.hh.tdgdlf.mean.size,
+                  "spinner shark"=Spinr.tdgdlf.mean.size,
+                  "tiger shark"=Tiger.tdgdlf.mean.size,
+                  "copper shark"=Copper.tdgdlf.mean.size)
+#keep used years
+for(m in 1:length(Mn.weit.ktch))
+{
+  Mn.weit.ktch[[m]]=Mn.weit.ktch[[m]][1:match(Last.yr.ktch,Mn.weit.ktch[[m]]$Finyear),]
+}
 if(do.mean.weight.based=="YES")
 {
   library(fishmethods)
-  
-  # daily standardised mean weight of catch
-  Mn.weit.ktch=list("smooth hammerhead"=Smuz.hh.tdgdlf.size,
-                    "spinner shark"=Spinr.tdgdlf.size,
-                    "tiger shark"=Tiger.tdgdlf.size)
-  
+
   # Beverton-Holt Nonequilibrium Z Estimator based on mean size of catch in weight
   #note: based on Gedamke & Hoenig 2006. 
   #      Logistic selectivity. Only provides Z estimate for a period
   fn.bhnoneq=function(d,Lc,K,Linf,a,b)
   {
     d=d%>%mutate(year=as.numeric(substr(Finyear,1,4)),
-                 mean=(Pred.mean/a)^(1/b))
+                 mean=(mean/a)^(1/b))
     Z=bhnoneq(year=d$year,mlen=d$mean, ss=d$n,
               K=K,Linf=Linf,Lc=Lc,nbreaks=0,stZ=0.2,
               graph =F)
@@ -1937,7 +2011,7 @@ if(do.length.based.SPR=="YES")
 if(Do.SPM=="YES")                        
 {
   Estimable.qs=list(
-    "copper shark"=NULL,
+    "copper shark"=c(NA,q2=NA,q3=.001,NA),
     "grey nurse shark"=c(NA,q2=.005,NA,NA),
     "lemon shark"=NULL,
     "great hammerhead"=NULL,
@@ -3208,28 +3282,47 @@ Store.spatial.temporal.ktch=fn.spatio.temp.catch.dist(d=rbind(Data.monthly%>%
 dev.off()
 
 
-#---Mean weight-based Mortality estimation RESULTS----
-if(do.mean.weight.based=="YES")
+#---Mean weight of the catch RESULTS----
+
+#Any trend in mean weights? Leitao 2019
+r2 <- function(x){  
+   SSe <- sum((x$resid)^2);  
+   observed <- x$resid+x$fitted;  
+   SSt <- sum((observed-mean(observed))^2);  
+   value <- 1-SSe/SSt;  
+   return(value);  
+   }  
+fn.plt.mn.ktch.wght=function(d)
 {
-  fn.plt.mn.ktch.wght=function(d)
-  {
-    yr=as.numeric(substr(d$Finyear,1,4))
-    plot(yr,d$Pred.mean,ylab="",xlab="",pch=19,cex=1.5,cex.axis=1.25,
-         ylim=c(min(d$Pred.mean-1.96*d$Pred.SE),max(d$Pred.mean+1.96*d$Pred.SE)))
-    arrows(yr,d$Pred.mean,yr,d$Pred.mean-1.96*d$Pred.SE, angle=90, length=0.05)
-    arrows(yr,d$Pred.mean,yr,d$Pred.mean+1.96*d$Pred.SE, angle=90, length=0.05)
-  }
-  tiff(file="pred Mean weight of ktch.tiff",width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
-  smart.par(length(Mn.weit.ktch),MAR=c(1,3,3,.1),OMA=c(3,1,.1,.1),MGP=c(.1,.7,0))
-  for(i in 1:length(Mn.weit.ktch))
-  {
-    fn.plt.mn.ktch.wght(d=Mn.weit.ktch[[i]])
-    mtext(names(Mn.weit.ktch)[i],cex=1.5)
-  }
-  mtext("Mean catch weight (kg)",2,outer=T,cex=1.25,las=3,line=-1)
-  mtext("Financial year",1,outer=T,cex=1.25,line=1.5)
-  dev.off() 
+  d$Year=as.numeric(substr(d$Finyear,1,4))
+    
+  Weighted_fit <- rlm(mean ~ Year, data = d, weights = 1/CV)   #robust linear model
+  Y_pred <- predict(Weighted_fit)
+  FormulA=coef(Weighted_fit)
+  Symb=ifelse(FormulA[2]>0,'+',"-")
+  FormulA=paste('Mean weight=',round(FormulA[1],2),Symb,abs(round(FormulA[2],2)),'year')
+  R2=r2(Weighted_fit)
+  p.value=f.robftest(Weighted_fit, var='Year')$p.value
+  
+  yr=d$Year
+  plot(yr,d$mean,ylab="",xlab="",pch=19,cex=1.5,cex.axis=1.25,
+       ylim=c(0,max(d$mean+d$CV)))
+  lines(yr,Y_pred,col="grey50",lwd=2)
+  arrows(yr,d$mean,yr,d$mean-d$CV, angle=90, length=0.05)
+  arrows(yr,d$mean,yr,d$mean+d$CV, angle=90, length=0.05)
+  text(yr[1],min(d$mean)*.85,FormulA,col="grey50",pos=4)
+  text(yr[1],min(d$mean)*0.7,bquote(R^2 == .(round(R2,2))~"; P"==.(round(p.value,2))),col="grey50",pos=4)
 }
+tiff(file="Figure_Trend Mean weight of ktch.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+smart.par(length(Mn.weit.ktch),MAR=c(1,3,3,.1),OMA=c(3,1,.1,.5),MGP=c(.1,.7,0))
+for(i in 1:length(Mn.weit.ktch))
+{
+  fn.plt.mn.ktch.wght(d=Mn.weit.ktch[[i]])
+  mtext(capitalize(names(Mn.weit.ktch)[i]),cex=1.5)
+}
+mtext("Relative mean weight of the catch",2,outer=T,cex=1.25,las=3,line=-.5)
+mtext("Financial year",1,outer=T,cex=1.25,line=1.5)
+dev.off() 
 
 
 #---SPM RESULTS------
