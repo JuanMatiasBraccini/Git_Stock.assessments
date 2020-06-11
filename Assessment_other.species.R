@@ -147,6 +147,16 @@ Spinr.tdgdlf.mean.size=fn.read('Spinner Shark.annual.mean.size_relative.csv')
 Tiger.tdgdlf.mean.size=fn.read('Tiger Shark.annual.mean.size_relative.csv')
 Copper.tdgdlf.mean.size=fn.read('Copper Shark.annual.mean.size_relative.csv')
 
+Mn.weit.ktch=list("smooth hammerhead"=Smuz.hh.tdgdlf.mean.size,
+                  "spinner shark"=Spinr.tdgdlf.mean.size,
+                  "tiger shark"=Tiger.tdgdlf.mean.size,
+                  "copper shark"=Copper.tdgdlf.mean.size)
+    
+for(m in 1:length(Mn.weit.ktch))  #keep used years
+{
+  Mn.weit.ktch[[m]]=Mn.weit.ktch[[m]][1:match(Last.yr.ktch,Mn.weit.ktch[[m]]$Finyear),]
+}
+
 
 #6. Conventional tagging data
 Tag=fn.read('Tagging_conventional.data.csv')   
@@ -1796,7 +1806,7 @@ ggsave(paste(hNdl,'/Outputs/Steepness_vs_r.png',sep=''), width = 6,
        height = 6, dpi = 300, compression = "lzw")
 
 #---Show Total catch and cpue together------------------------------------------------------
-fn.fig(paste(hNdl,'/Outputs/Catch and cpue',sep=''),2400,1800) 
+fn.fig(paste(hNdl,'/Outputs/Figure_Catch and cpue',sep=''),2400,1800) 
 smart.par(n.plots=N.sp,MAR=c(2,2,1,1),OMA=c(1.75,2,.5,1),MGP=c(1,.5,0))
 for(s in 1: N.sp)
 {
@@ -1826,15 +1836,15 @@ for(s in 1: N.sp)
     axis(4,seq(0,ceiling(Ylim),length.out=5),seq(0,ceiling(Ylim),length.out=5))
     
   }
+  if(s==1)legend("topleft",c("Catch","Survey","cpue.mon","cpue.day"),pch=21,pt.bg=c("orange","steelblue","red","forestgreen"),
+                 bty='n',cex=1.1)
 }
-legend("topleft",c("Catch","Survey","cpue.mon","cpue.day"),pch=21,pt.bg=c("orange","steelblue","red","forestgreen"),
-       bty='n',cex=1.1)
 mtext('Financial year',1,outer=T,line=0,cex=1.5)
 mtext('Catch (tonnes)',2,outer=T,las=3,cex=1.5,line=0)
 mtext('Relative cpue',4,outer=T,line=0,cex=1.5,las=3)
 dev.off() 
 
-#---Gear Size selectivity estimation------------------------------------------------------
+#---Estimate Gear Size selectivity from size composition------------------------------------------
 if(do.length.based.SPR=="YES")
 {
   library(TropFishR)
@@ -1893,16 +1903,7 @@ if(do.length.based.SPR=="YES")
   
 }
 
-#---Mean weight-based Mortality estimation------------------------------------------------------
-Mn.weit.ktch=list("smooth hammerhead"=Smuz.hh.tdgdlf.mean.size,
-                  "spinner shark"=Spinr.tdgdlf.mean.size,
-                  "tiger shark"=Tiger.tdgdlf.mean.size,
-                  "copper shark"=Copper.tdgdlf.mean.size)
-#keep used years
-for(m in 1:length(Mn.weit.ktch))
-{
-  Mn.weit.ktch[[m]]=Mn.weit.ktch[[m]][1:match(Last.yr.ktch,Mn.weit.ktch[[m]]$Finyear),]
-}
+#---Estimate mortality using Mean weight ------------------------------------------------------
 if(do.mean.weight.based=="YES")
 {
   library(fishmethods)
