@@ -1189,7 +1189,7 @@ Tot.ktch$LIVEWT.c=Tot.ktch$LIVEWT.c/1000
 FL.sp=c('Great hammerhead','Scalloped hammerhead','Smooth hammerhead',"Hammerheads",
         'Lemon shark','Bull shark','Pigeye shark','Spinner shark','Spurdogs','Tiger shark',
         "Wobbegong (general)",' Wobbegong (general)',"Grey nurse shark","Shortfin mako","Pencil shark",
-        "Lemon shark","Milk shark","Copper shark","Common sawshark")
+        "Lemon shark","Milk shark","Copper shark","Common sawshark","Sawsharks")
 if(use.tags)
 {
   Tag=Tag%>%filter(COMMON_NAME%in%FL.sp & Recaptured=="Yes")
@@ -1457,7 +1457,17 @@ if(use.size.comp=="YES")
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R')
   DATA=DATA%>%
       mutate(COMMON_NAME=ifelse(COMMON_NAME=="Bronze whaler","Copper shark",
-                         ifelse(COMMON_NAME=="Shortfin mako ","Shortfin mako",COMMON_NAME)))
+                         ifelse(COMMON_NAME=="Shortfin mako ","Shortfin mako",COMMON_NAME)),
+             MESH_SIZE=ifelse(MESH_SIZE=="10\"","10",
+                       ifelse(MESH_SIZE=="6\"","6",
+                       ifelse(MESH_SIZE=="5\r\n5","5",
+                       ifelse(MESH_SIZE=="7\"","7",
+                       ifelse(MESH_SIZE=="5\"","5",
+                       ifelse(MESH_SIZE=="4\"","4",
+                       ifelse(MESH_SIZE=="8\"","8",
+                              MESH_SIZE))))))),
+             MESH_SIZE=as.numeric(MESH_SIZE))
+    
   Res.vess=c('FLIN','NAT',"HAM","HOU","RV BREAKSEA","RV Gannet","RV GANNET","RV SNIPE 2")
   fun.check.LFQ=function(a,area)
   {
@@ -1877,7 +1887,7 @@ if(do.length.based.SPR=="YES")
     for(s in 1:length(Size.sel)) Size.sel[[s]]=fn.sel.stim(d=ktch.size.fq[[s]],size.int=10)
   }
   
-  #Simple selectivity
+  #Simple selectivity approximation
   if(Estim.sel.exp=="NO")
   {
     fn.sel.simple=function(d)
