@@ -2,22 +2,37 @@
 
 #assumptions: different mesh sizes set at the same time in same place
 
-#note: it is important to know if different mesh sizes are used equally
+#note: are different mesh sizes  used equally?
 #      fish size in mm
 
-#Missing: Rory's gillnet selectivity data
 
 
 library(tidyverse)
 library(RODBC)
 library(doParallel)
+library(Hmisc)
 
 options(stringsAsFactors = FALSE,"max.print"=50000,"width"=240) 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 
+Min.sample=50
+
 # DATA  -------------------------------------------------------------------
 
-#1. Rory's gillnet selectivity study (need to enter data)           #MISSING
+#1. Rory's gillnet selectivity study 
+
+  #1.1 1994-1996
+channel <- odbcConnectExcel2007("U:/Shark/ExperimentalNet.mdb")
+EXP_NET<- sqlFetch(channel,"EXP_NET", colnames = F)
+EXPNET_B<- sqlFetch(channel,"EXPNET_B", colnames = F)
+close(channel)
+
+  #1.2 2001-2003
+channel <- odbcConnectAccess2007("U:/Shark/Sharks v20200323.mdb")  
+Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
+Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F)   
+close(channel)
+
 
 
 #2. SSF Shark survey 2007-2008
@@ -43,13 +58,129 @@ if(Do.TDGDLF)
 }
 
 
+SP.names=read.csv('C:/Matias/Data/Species_names_shark.only.csv')
+SP.codes=read.csv('C:/Matias/Data/Species.code.csv')
+
 # PROCEDURE  -------------------------------------------------------------------
 
 #1. Data manipulation
 
   #1.1. Rory's
-  
-  #1.2. SSF
+
+  #1.1.1 1994-1996
+EXP_NET=EXP_NET[grep("E",EXP_NET$SHEET_NO),]%>%
+           mutate(BOAT=VESSEL)%>%
+          mutate(SKIPPER=NA,
+                 Method='GN',
+                 BOTDEPTH=NA,
+                 SOAK.TIME=NA,
+                 NET_LENGTH=NA,
+                 Lng1=END1_LNG_D+(END1_LNG_M/60),
+                 Lng2=END2_LNG_D+(END2_LNG_M/60),
+                 Lat1=END1_LAT_D+(END1_LAT_M/60),
+                 Lat2=END2_LAT_D+(END2_LAT_M/60))
+EXP_NET=EXP_NET%>%
+          mutate(MID.LONG=rowMeans(select(EXP_NET,starts_with("Lng"))),
+                 MID.LAT=-rowMeans(select(EXP_NET,starts_with("Lat"))))%>%
+  dplyr::select(SHEET_NO,DATE,BOAT,SKIPPER,Method,START_SET,END_HAUL,BOTDEPTH,
+                MID.LAT,MID.LONG,SOAK.TIME,NET_LENGTH)
+    
+EXPNET_B=EXPNET_B[grep("E",EXPNET_B$SHEET_NO),]%>%
+          left_join(EXP_NET,by='SHEET_NO')%>%
+          filter(SPP_CODE<50000)%>%
+          mutate(species=SPP_CODE)
+
+Exp.net.94_96=EXPNET_B%>%
+                left_join(SP.names,by=c("SPP_CODE" = "SPECIES"))%>%
+                filter(!is.na(Name))%>%
+                rename(tl=TOT_LENGTH,
+                       fl=FORK_LNGTH)
+colnames(Exp.net.94_96)=tolower(colnames(Exp.net.94_96))
+
+
+
+  #1.1.2 2001-2003
+Boat_hdr=Boat_hdr[grep("E",Boat_hdr$SHEET_NO),]%>%
+          dplyr::select(SHEET_NO,DATE,BOAT,SKIPPER,Method,START_SET,END_HAUL,BOTDEPTH,
+                        'MID LAT','MID LONG','SOAK TIME',MESH_SIZE,MESH_DROP,NET_LENGTH)%>%
+          rename(MID.LAT='MID LAT',MID.LONG='MID LONG',SOAK.TIME='SOAK TIME')%>%
+          filter(Method=='GN')
+Boat_bio=Boat_bio[grep("E",Boat_bio$SHEET_NO),]%>%
+          dplyr::select(SHEET_NO,SPECIES,TL,FL,PL,SEX)
+Exp.net.01_03=left_join(Boat_bio,Boat_hdr,by="SHEET_NO")%>%
+          mutate(SEX=ifelse(SEX=="m","M",ifelse(SEX=="f","F",SEX)),
+                 MESH_SIZE=ifelse(MESH_SIZE=="10\"","10",
+                           ifelse(MESH_SIZE=="6\"","6",
+                           ifelse(MESH_SIZE=="5\r\n5","5",
+                           ifelse(MESH_SIZE=="7\"","7",
+                           ifelse(MESH_SIZE=="5\"","5",
+                           ifelse(MESH_SIZE=="4\"","4",
+                           ifelse(MESH_SIZE=="8\"","8",
+                           MESH_SIZE))))))),
+                 MESH_SIZE=as.numeric(MESH_SIZE))%>%
+          dplyr::select(-PL)%>%
+  left_join(SP.codes,by=c("SPECIES" = "Species"))%>%
+  rename(Name=COMMON_NAME)
+colnames(Exp.net.01_03)=tolower(colnames(Exp.net.01_03))
+
+Exp.net.94_96$experiment='94_96'
+Exp.net.01_03$experiment='01_03'
+
+This.col=c('sheet_no','date','experiment','mid.lat','mid.long','mesh_size','mesh_drop','name','tl','fl','sex')
+
+Exp.net.WA=rbind(Exp.net.94_96[,match(This.col,names(Exp.net.94_96))],
+                 Exp.net.01_03[,match(This.col,names(Exp.net.01_03))])%>%
+          mutate(name=ifelse(name=="Angel Shark (general)","Angel Shark",
+                             ifelse(name=="Eagle ray","Eagle Ray",
+                                    ifelse(name=="Gummy shark","Gummy Shark",
+                                           ifelse(name=="Port Jackson","PortJackson shark",
+                                                  ifelse(name=="Big eye sixgill shark","Sixgill shark",
+                                                         ifelse(name=="Wobbegong (general)","Wobbegongs",name)))))))
+
+
+TAB=table(Exp.net.WA$name,Exp.net.WA$mesh_size)
+TAB[TAB<Min.sample/10]=0
+TAB[TAB>=Min.sample/10]=1
+
+Exp.net.WA=Exp.net.WA%>%
+  filter(name%in%names(which(rowSums(TAB)>=2)))%>%
+  mutate(tl=ifelse(tl>500,tl/10,tl))%>%
+  filter(!name=='Wobbegongs')
+
+ggplot(Exp.net.WA,aes(tl,fl,shape=name, colour=name, fill=name))+
+  geom_point() + 
+  geom_smooth(method = "lm", fill = NA)+
+  facet_wrap(vars(name), scales = "free")
+
+TL_FL=data.frame(name=c('Angel Shark','Dusky shark','Gummy Shark','Pencil shark',
+           'PortJackson shark','Sandbar shark','Smooth hammerhead','Spurdogs',
+           'Whiskery shark'),intercept=NA,slope=NA)
+for(l in 1:nrow(TL_FL))
+{
+  a=Exp.net.WA%>%filter(name==TL_FL$name[l])
+  mod=lm(tl~fl,a)
+  COEF=coef(mod)
+  TL_FL$intercept[l]=COEF[1]
+  TL_FL$slope[l]=COEF[2]
+}
+
+# add sliteye conversion manually (Gutridge et al 2011)
+TL_FL=rbind(TL_FL,
+            data.frame(name='Sliteye shark',intercept=7.0195,slope=1.134))
+
+Exp.net.WA=Exp.net.WA%>%
+           left_join(TL_FL,by='name')%>%
+            mutate(tl=ifelse(is.na(tl),intercept+fl*slope,tl),
+                   Length=tl*10)%>%   #Length in mm; use Total length
+            filter(!is.na(Length))
+
+
+ggplot(Exp.net.WA,aes(tl,colour=name, fill=name))+
+  geom_histogram(alpha=0.6, binwidth = 5) +
+    facet_wrap(vars(name), scales = "free")
+
+
+  #1.2 SSF
 F2_Sampling=F2_Sampling%>%
                 filter(Csiro>37000002 & Csiro<37039000 & LengthType=="TL" &
                       !is.na(Mesh1) & !is.na(Length))%>%
@@ -62,8 +193,8 @@ F2_Sampling=F2_Sampling%>%
                 mutate(Length=Length*10)  #length in mm
 
 TAB=table(F2_Sampling$Species,F2_Sampling$Mesh.size)
-TAB[TAB<50]=0
-TAB[TAB>=50]=1
+TAB[TAB<Min.sample]=0
+TAB[TAB>=Min.sample]=1
 F2_Sampling=F2_Sampling%>%
               filter(Species%in%names(which(rowSums(TAB)>=2)))%>%
               dplyr::select(Species,Csiro,Sex,Mesh1,Mesh.size,Length)
@@ -72,9 +203,23 @@ ggplot(F2_Sampling, aes(x = Length/10)) +
   facet_grid(Species~Mesh.size, scales = "free")
 
 
+#Combine SSF and Rory's
+Exp.net.WA=Exp.net.WA%>%
+  rename(Species=name)%>%
+  mutate(Mesh.size=2.54*mesh_size,
+         Data.set="WA")
+F2_Sampling=F2_Sampling%>%mutate(Data.set="SSF")
+
+Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length),
+               Exp.net.WA%>%dplyr::select(Species,Mesh.size,Length))%>%
+                  mutate(Species=tolower(Species),
+                         Species=ifelse(Species=='portjackson shark','port jackson shark',Species),
+                         Species=capitalize(Species))
 
 
-#2. Selectivity parameter estimation
+
+
+#2. Estimate selectivity parameters 
 Selectivty.Kirkwood.Walker=function(d,size.int,theta)
 {
   #Create size bins
@@ -114,8 +259,9 @@ Selectivty.Kirkwood.Walker=function(d,size.int,theta)
   
   #predicted numbers
   sum.n=colSums(tab)
-  tab.pred=(S.ij*matrix(rep(mu.j.prop,3),ncol=3)*matrix(rep(sum.n,each=nrow(S.ij)),ncol=3))/
-    (matrix(rep(colSums(S.ij*matrix(rep(mu.j.prop,3))),each=nrow(S.ij)),ncol=3))
+  NN=ncol(S.ij)
+  tab.pred=(S.ij*matrix(rep(mu.j.prop,NN),ncol=NN)*matrix(rep(sum.n,each=nrow(S.ij)),ncol=NN))/
+    (matrix(rep(colSums(S.ij*matrix(rep(mu.j.prop,NN))),each=nrow(S.ij)),ncol=NN))
   
   
   
@@ -125,53 +271,43 @@ Selectivty.Kirkwood.Walker=function(d,size.int,theta)
   return(list(negLL=negLL,d=d,observed=tab,predicted=tab.pred))
 }
 
-  #2.1
-
-  #2.2 SSF
-
-SSF.sp=unique(F2_Sampling$Species)
-
-theta.list=vector('list',length(SSF.sp))
-names(theta.list)=SSF.sp
-SSF.fit=Combined.sel=theta.list
+n.sp=unique(Combined$Species)
+theta.list=vector('list',length(n.sp))
+names(theta.list)=n.sp
+Fit=Combined.sel=theta.list
 
 #initial parameter values
 theta.list$`Gummy shark`=c(Theta1=log(80),Theta2=log(29000))
 for(s in 1:length(theta.list)) theta.list[[s]]=jitter(theta.list$`Gummy shark`,factor=.1)
-
 #theta=c(Theta1=log(80),Theta2=log(29000))
 
-
-
 # fit model
-for(s in 1:length(SSF.sp))
+for(s in 1:length(n.sp))
 {
   theta=theta.list[[s]]
   
   #. objfun to minimize
-  fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=F2_Sampling%>%filter(Species==SSF.sp[s]),
+  fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
                                                   size.int=100,
                                                   theta)$negLL
   
   #. fit model
-  SSF.fit[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
+  Fit[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
 }
-
-
 
 # Calculate confidence intervals thru bootstrapping 
 n.boot=1:1000
 cl <- makeCluster(detectCores()-1)
 registerDoParallel(cl)
 system.time({
-  SSF.fit.CI=foreach(s=1:length(SSF.sp),.packages=c('tidyverse','doParallel','Biobase')) %dopar%
+  Fit.CI=foreach(s=1:length(n.sp),.packages=c('tidyverse','doParallel','Biobase')) %dopar%
     {
       boot=foreach(n=n.boot,.packages=c('doParallel','splitstackshape','tidyverse')) %dopar%
       {
           theta=theta.list[[s]]
           
           #bootstrapped sample
-          d.samp=F2_Sampling%>%filter(Species==SSF.sp[s]) 
+          d.samp=Combined%>%filter(Species==n.sp[s]) 
           d.samp=stratified(d.samp, "Mesh.size",size=nrow(d.samp),replace=TRUE)
           
           #. objfun to minimize
@@ -185,13 +321,13 @@ system.time({
       return(exp(do.call(rbind,subListExtract(boot,"par"))))
     }
 })    #takes 0.5 sec per iteration per species
-names(SSF.fit.CI)=SSF.sp
+names(Fit.CI)=n.sp
 stopCluster(cl)
 
 
 
-
 # REPORT  -------------------------------------------------------------------
+setwd('C:/Matias/Analyses/Selectivity')
 
 #Plot selectivity
 fn.plt.Sel=function(Dat,theta)
@@ -216,40 +352,42 @@ fn.plt.Sel=function(Dat,theta)
   S.ij=S.ij[,-1]
   
   ggplot(d, aes(Size.class,  Rel.sel)) + geom_line(aes(colour = factor(Mesh.size)),size=1.5)
+  ggsave(paste("Selectivity_",n.sp[s],'.tiff',sep=''), width = 8,height = 8, dpi = 300, compression = "lzw")
   
   return(S.ij)
 }
-
-#2. SSF
-for(s in 1:length(SSF.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=F2_Sampling%>%filter(Species==SSF.sp[s]),theta=SSF.fit[[s]]$par)
+for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit[[s]]$par)
 
 
 #Combined selectivity
-
-#2. SSF
-for(s in 1:length(SSF.sp))
+tiff(file="Combined selectivity.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+smart.par(n.plots=length(n.sp),MAR=c(1.5,.5,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+for(s in 1:length(n.sp))
 {
   Sum.sel=rowSums(Combined.sel[[s]])
   Combined.sel[[s]]$combined=Sum.sel/max(Sum.sel)
-  plot(as.numeric(rownames(Combined.sel[[s]])),Combined.sel[[s]]$combined,type='l',lwd=5,col='orange')
+  plot(as.numeric(rownames(Combined.sel[[s]])),Combined.sel[[s]]$combined,type='l',ylab='',xlab='',
+       lwd=5,col='orange',main=n.sp[s])
   for(l in 1:(ncol(Combined.sel[[s]])-1)) lines(as.numeric(rownames(Combined.sel[[s]])),Combined.sel[[s]][,l])
 }
-  
+mtext("Total length (mm)",1,outer=T,line=.5)
+mtext("Relative selectivity",2,outer=T,las=3,line=1.75)
+dev.off()  
 
 
 #Plot predicted numbers
-
-#2. SSF
-for(s in 1:length(SSF.sp))
+for(s in 1:length(n.sp))
 {
-  dummy=Selectivty.Kirkwood.Walker(d=F2_Sampling%>%filter(Species==SSF.sp[s]),
+  dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
                                    size.int=100,
-                                   SSF.fit[[s]]$par)
+                                   Fit[[s]]$par)
+  tiff(file=paste("Pre_vs_Obs_",n.sp[s],".tiff",sep=''),width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  
   smart.par(n.plots=ncol(dummy$observed),MAR=c(.1,.1,.1,.1),OMA=c(2.5,2.5,1.5,.1),MGP=c(1,.5,0))
   for(m in 1:ncol(dummy$observed))
   {
     plot(dummy$observed[,m],dummy$predicted[,m],pch=19)
     lines(dummy$observed[,m],dummy$observed[,m],col=2)
   }
-    
+  dev.off()  
 }
