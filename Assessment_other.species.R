@@ -1737,6 +1737,18 @@ if(use.size.comp=="YES")
   
     #remove species with no size frequency data
   ktch.size.fq=ktch.size.fq[!sapply(ktch.size.fq, is.null)]
+  
+  
+  #Export LFQ.south for selectivity estimation  #ACA
+  out.LFQ.south=LFQ.south%>%
+                  mutate(Name=ifelse(COMMON_NAME=="common sawshark","Sawsharks",
+                              ifelse(COMMON_NAME=="wobbegong (general)","Wobbegongs",
+                              COMMON_NAME)),
+                         Name=tolower(Name))%>%
+                  filter(Name%in%Specs$SP.group)
+  write.csv(out.LFQ.south,"C:/Matias/Analyses/Selectivity/out.LFQ.south.csv",row.names = F)
+
+  
 }
 setwd(WD)
 #---Calculate steepness -----------------------------------------------------------------------
