@@ -5,7 +5,11 @@
 #note: are different mesh sizes  used equally?
 #      fish size in mm
 
-
+#MISSING: revise input data (numbers at size class, species names, etc). 
+#         Only present species with no selectivty published
+#         For published one, compare with mine
+#         Issues with some species rel. sel. not going to 1 (grey nurse, spinner, etc)
+#         Tiger size frequency seems wider than selectivites
 
 library(tidyverse)
 library(RODBC)
@@ -242,13 +246,14 @@ Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
                          Species=capitalize(Species))
 
 Combined=rbind(Combined,LFQ.south)%>%
-  mutate(Species=ifelse(Species=='Angel shark','Australian angelshark',Species))
+  mutate(Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
+  filter(!is.na(Mesh.size))
 
 TAB=table(Combined$Species,Combined$Mesh.size)
 TAB[TAB<Min.sample]=0
 TAB[TAB>=Min.sample]=1
 Combined=Combined%>%
-  filter(Species%in%names(which(rowSums(TAB)>=2)))
+  filter(Species%in%names(which(rowSums(TAB)>=2)) & Length<=3500 & Mesh.size<22)
   
 
 
@@ -306,51 +311,28 @@ Selectivty.Kirkwood.Walker=function(d,size.int,theta)
 
 }
 
-n.sp=unique(Combined$Species)
+n.sp=sort(unique(Combined$Species))
 
-#remove meshes with few observations
-Chek=vector('list',length(n.sp))
-names(Chek)=n.sp
-size.int=100
+#remove records with few observations per mesh
 for(s in 1:length(n.sp))
 {
-  #Create size bins
-  d=Combined%>%filter(Species==n.sp[s])%>%mutate(Size.class=size.int*floor(Length/size.int)+size.int/2)
+  d=Combined%>%filter(Species==n.sp[s])
+  Combined=Combined%>%filter(!Species==n.sp[s])
   
-  #Tabulate observations by mid size class and mesh size
-  tab=d%>%
-    group_by(Mesh.size,Size.class)%>%
-    summarise(n=n())%>%
-    spread(Mesh.size,n,fill=0)%>%
-    data.frame
-  row.names(tab)=tab$Size.class
-  tab=tab[,-1]
-  
-  
-  id=colSums(tab)
+  id=table(d$Mesh.size)
   Drop=as.numeric(gsub("[^0-9.]", "",  names(which(id<min.obs.per.mesh))))
   if(length(Drop)>0)
   {
     d=d%>%filter(!Mesh.size%in%Drop)
-    tab=d%>%
-      group_by(Mesh.size,Size.class)%>%
-      summarise(n=n())%>%
-      spread(Mesh.size,n,fill=0)%>%
-      data.frame
-    row.names(tab)=tab$Size.class
-    tab=tab[,-1]
-  } 
-  if(! is.numeric(tab))
-  {
-    if(nrow(tab)>0) AA=n.sp[s]
-    if(nrow(tab)==0) AA=NA
+    id=table(d$Mesh.size)
+    if(length(id)==1) d=NULL
   }
-  if(is.numeric(tab))AA=NA
-  n.sp[s]=AA
-  rm(AA)
+    
+  Combined=rbind(Combined,d)
+
 }
 
-n.sp=n.sp[!is.na(n.sp)]
+n.sp=sort(unique(Combined$Species))
 
 theta.list=vector('list',length(n.sp))
 names(theta.list)=n.sp
@@ -359,7 +341,6 @@ Fit=Combined.sel=theta.list
 #initial parameter values
 theta.list$`Gummy shark`=c(Theta1=log(80),Theta2=log(29000))
 for(s in 1:length(theta.list)) theta.list[[s]]=jitter(theta.list$`Gummy shark`,factor=.1)
-#theta=c(Theta1=log(80),Theta2=log(29000))
 
 # fit model
 for(s in 1:length(n.sp))
@@ -410,13 +391,13 @@ stopCluster(cl)
 # REPORT  -------------------------------------------------------------------
 setwd('C:/Matias/Analyses/Selectivity')
 
-#Plot selectivity
+#Plot each species' selectivity
 fn.plt.Sel=function(Dat,theta)
 {
   Theta1=exp(theta[1])
   Theta2=exp(theta[2])
   
-  sizes=seq(round(min(Dat$Length)*.9),round(max(Dat$Length)*1.2))
+  sizes=seq(10*round(min(Dat$Length)*.9/10),10*(round(max(Dat$Length)*1.1/10)),by=10)
   meshes=unique(Dat$Mesh.size)
   d=data.frame(Size.class=rep(sizes,length(meshes)))%>%
     mutate(Mesh.size=rep(meshes,each=length(sizes)),
@@ -433,16 +414,43 @@ fn.plt.Sel=function(Dat,theta)
   S.ij=S.ij[,-1]
   
   ggplot(d, aes(Size.class,  Rel.sel)) + geom_line(aes(colour = factor(Mesh.size)),size=1.5)
-  ggsave(paste("Selectivity_",n.sp[s],'.tiff',sep=''), width = 8,height = 8, dpi = 300, compression = "lzw")
+  ggsave(paste("Each species/Selectivity/",n.sp[s],'.tiff',sep=''), width = 8,height = 8, dpi = 300, compression = "lzw")
   
   return(S.ij)
 }
 for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit[[s]]$par)
 
 
+#Selectivity
+colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4"))
+unik.mesh=sort(unique(Combined$Mesh.size))
+CLS=colfunc(length(unik.mesh))
+names(CLS)=unik.mesh
+tiff(file="Figure 1.Selectivity.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+smart.par(n.plots=length(n.sp),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+for(s in 1:length(n.sp))
+{
+  d=Combined.sel[[s]]%>%
+    mutate(Length=as.numeric(rownames(Combined.sel[[s]])),
+           TL=Length/10)
+  
+  plot(d$TL,d$TL,type='l',ylab='',xlab='',
+       lwd=5,col='transparent',main=n.sp[s],ylim=c(0,1))
+  for(l in 1:(ncol(d)))
+  {
+    lines(d$TL,d[,l],col=CLS[match(names(d)[l],names(CLS))],lwd=2)
+  }
+}
+plot.new()
+legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
+mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
+mtext("Relative selectivity",2,outer=T,las=3,line=1.5,cex=1.25)
+dev.off() 
+
+
 #Combined selectivity
 tiff(file="Combined selectivity.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-smart.par(n.plots=length(n.sp),MAR=c(1.5,.5,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+smart.par(n.plots=length(n.sp),MAR=c(1.5,1,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
 for(s in 1:length(n.sp))
 {
   Sum.sel=rowSums(Combined.sel[[s]])
@@ -451,24 +459,53 @@ for(s in 1:length(n.sp))
        lwd=5,col='orange',main=n.sp[s])
   for(l in 1:(ncol(Combined.sel[[s]])-1)) lines(as.numeric(rownames(Combined.sel[[s]])),Combined.sel[[s]][,l])
 }
-mtext("Total length (mm)",1,outer=T,line=.5)
+plot.new()
+legend('center',"combined",lwd=4,col="orange",bty='n',cex=1.25)
+mtext("Total length (mm)",1,outer=T,line=.35)
 mtext("Relative selectivity",2,outer=T,las=3,line=1.75)
 dev.off()  
 
 
-#Plot predicted numbers
+#Plot fit (observed vs predicted number at size by mesh)
 for(s in 1:length(n.sp))
 {
   dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
                                    size.int=100,
                                    Fit[[s]]$par)
-  tiff(file=paste("Pre_vs_Obs_",n.sp[s],".tiff",sep=''),width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  
-  smart.par(n.plots=ncol(dummy$observed),MAR=c(.1,.1,.1,.1),OMA=c(2.5,2.5,1.5,.1),MGP=c(1,.5,0))
+  tiff(file=paste("Each species/Fit/Pre_vs_Obs_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+  smart.par(n.plots=ncol(dummy$observed),MAR=c(2,1,2,1.5),OMA=c(2.5,3,.5,.1),MGP=c(1,.5,0))
   for(m in 1:ncol(dummy$observed))
   {
-    plot(dummy$observed[,m],dummy$predicted[,m],pch=19)
-    lines(dummy$observed[,m],dummy$observed[,m],col=2)
+    DAT=data.frame(y=dummy$observed[,m],x=dummy$predicted[,m])
+    mod=lm(y~x,data=DAT)
+    CoF=coef(mod)
+    Smry=summary(mod)
+    Ndat=data.frame(x=seq(min(DAT$x),max(DAT$x),length.out = 10))
+    Prd=predict(mod,newdata=Ndat,se.fit=TRUE)
+    Main=paste(as.numeric(gsub("[^0-9.]", "",colnames(dummy$observed)[m]))/2.54,'inch')
+    plot(dummy$predicted[,m],dummy$observed[,m],pch=19,cex=1.5,ylab='',xlab='',main=Main)
+    lines(Ndat$x,Prd$fit,lwd=1.5)
+    text(mean(Ndat$x),mean(Prd$fit)*.6,
+         paste('y= ',round(CoF[1],2),' + ',round(CoF[2],2),'x',sep=''),pos=4,cex=1.25)
+    mylabel = bquote(italic(r)^2 == .(format(round(Smry$r.squared,2), digits = 3)))
+    text(mean(Ndat$x),mean(Prd$fit)*.4,mylabel,pos=4,cex=1.25)
+    polygon(x=c(Ndat$x,rev(Ndat$x)),
+            y=c(Prd$fit+1.96*Prd$se.fit,rev(Prd$fit-1.96*Prd$se.fit)),
+            col=rgb(.1,.1,.1,alpha=.2),border='transparent')
   }
+  mtext("Predicted size class (mm)",1,outer=T,line=1)
+  mtext("Observed size class (mm)",2,outer=T,las=3,line=1.5)
   dev.off()  
 }
+
+
+#Display size frequencies
+d=Combined%>%mutate(MESH=as.factor(Mesh.size/2.54),
+                    TL=Length/10)
+d %>%
+  ggplot( aes(x=TL, fill=MESH)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity', binwidth = 10)  +
+  labs(fill="Mesh size")+
+  facet_wrap(vars(Species), scales = "free_y")+
+  xlab("Total length (cm)")+ ylab("Frequency")
+ggsave('Size frequency.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
