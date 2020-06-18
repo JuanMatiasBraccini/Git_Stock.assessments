@@ -39,7 +39,7 @@ close(channel)
 
 
 #2. SSF Shark survey 2007-2008
-channel <- odbcConnectExcel2007("H:/Backups/Matias_4_13/Data/Shark survey/2007-2008/SharkSurveyData_30_09_2008.xls")
+channel <- odbcConnectExcel2007("C:/Matias/Data/SSF_survey_07_08/SharkSurveyData_30_09_2008.xls")
 F2_Sampling<- sqlFetch(channel,"F2_Sampling", colnames = F)
 F1_SamplingTwo<- sqlFetch(channel,"F1_SamplingTwo", colnames = F)
 close(channel)
