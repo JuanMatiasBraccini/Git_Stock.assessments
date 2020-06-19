@@ -6,7 +6,7 @@
 #      fish size in mm
 
 #MISSING: revise input data (numbers at size class, species names, etc). 
-#         Only present species with no selectivty published
+#         Table of MLE
 #         For published one, compare with mine
 #         Issues with some species rel. sel. not going to 1 (grey nurse, spinner, etc)
 #         Tiger size frequency seems wider than selectivites
@@ -131,6 +131,7 @@ Exp.net.WA=rbind(Exp.net.94_96[,match(This.col,names(Exp.net.94_96))],
                       ifelse(name=="Big eye sixgill shark","Sixgill shark",
                       ifelse(name%in%c("Wobbegong (general)",'Spotted Wobbegong','Western Wobbegong'),"Wobbegongs",name)))))))
 
+Published=capitalize(tolower(c("Sandbar shark","Gummy Shark","Whiskery shark","Dusky shark")))
 
 TAB=table(Exp.net.WA$name,Exp.net.WA$mesh_size)
 TAB[TAB<2]=0
@@ -146,6 +147,7 @@ if(Preliminary) ggplot(Exp.net.WA,aes(tl,fl,shape=name, colour=name, fill=name))
                 geom_smooth(method = "lm", fill = NA)+
                 facet_wrap(vars(name), scales = "free")
 
+#Conversion TL-FL
 TL_FL=data.frame(name=c('Angel Shark','Dusky shark','Gummy Shark','Pencil shark',
            'PortJackson shark','Sandbar shark','Smooth hammerhead','Spurdogs',
            'Whiskery shark','Tiger shark'),intercept=NA,slope=NA)
@@ -157,11 +159,10 @@ for(l in 1:nrow(TL_FL))
   TL_FL$intercept[l]=COEF[1]
   TL_FL$slope[l]=COEF[2]
 }
-
-# add sliteye conversion manually (Gutridge et al 2011)
 TL_FL=rbind(TL_FL,
-            data.frame(name='Sliteye shark',intercept=7.0195,slope=1.134))
+            data.frame(name='Sliteye shark',intercept=7.0195,slope=1.134)) # add sliteye conversion manually (Gutridge et al 2011)
 
+#Derive TL from FL if no TL observation
 Exp.net.WA=Exp.net.WA%>%
            left_join(TL_FL,by='name')%>%
             mutate(tl=ifelse(is.na(tl),intercept+fl*slope,tl),
@@ -169,10 +170,12 @@ Exp.net.WA=Exp.net.WA%>%
             filter(!is.na(Length))%>%
             filter(!name=='Sliteye shark')#too few observations for sliteye
 
-
-if(Preliminary) ggplot(Exp.net.WA,aes(tl,colour=name, fill=name))+
-                geom_histogram(alpha=0.6, binwidth = 5) +
-                  facet_wrap(vars(name), scales = "free")
+#Size frequency
+ggplot(Exp.net.WA,aes(tl,colour=name, fill=name))+
+                geom_histogram(alpha=0.6, binwidth = 5, show.legend = FALSE) +
+                  xlab("Total length (cm)")+
+                  facet_wrap(vars(name), scales = "free") 
+ggsave('C:/Matias/Analyses/Selectivity/Size.frequency_experimental.WA.tiff', width = 8,height = 8, dpi = 300, compression = "lzw")
 
 
   #1.2 SSF
@@ -194,6 +197,14 @@ if(Preliminary) ggplot(F2_Sampling, aes(x = Length/10)) +
                     geom_histogram(color = "grey30", fill ="salmon",binwidth=10) +
                     facet_grid(Species~Mesh.size, scales = "free")
 
+#Size frequency
+ggplot(F2_Sampling,aes(Length/10,colour=Species, fill=Species))+
+  geom_histogram(alpha=0.6, binwidth = 5, show.legend = FALSE) +
+  xlab("Total length (cm)") +
+  facet_wrap(vars(Species), scales = "free") 
+ggsave('C:/Matias/Analyses/Selectivity/Size.frequency_SSF.tiff', width = 12,height = 8, dpi = 300, compression = "lzw")
+
+
 
   #1.3 TDGLDF
 LFQ.south=LFQ.south%>%
@@ -204,6 +215,8 @@ LFQ.south=LFQ.south%>%
                          ifelse(Species=="Wobbegong (general)","Wobbegong",
                          Species)))%>%
           filter(!Species=="Wobbegong")  #remove Wobbies because measurement ucertain
+
+#Convert FL to TL
 TL_FL_LFQ.south=TL_FL%>%
                 filter(name%in%c("Smooth hammerhead","Spurdogs","Tiger shark"))
 
@@ -225,6 +238,13 @@ LFQ.south=LFQ.south%>%
                  Length=tl*10)%>%   #Length in mm; use Total length
           filter(!is.na(Length))%>%
     dplyr::select(Species,Mesh.size,Length,Data.set)
+
+#Size frequency
+ggplot(LFQ.south,aes(Length/10,colour=Species, fill=Species))+
+  geom_histogram(alpha=0.6, binwidth = 5, show.legend = FALSE) +
+  xlab("Total length (cm)") +
+  facet_wrap(vars(Species), scales = "free") 
+ggsave('C:/Matias/Analyses/Selectivity/Size.frequency_TDGDLF_observed.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
 
 
 
@@ -249,6 +269,8 @@ Combined=rbind(Combined,LFQ.south)%>%
   mutate(Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
   filter(!is.na(Mesh.size))
 
+
+#Remove species with small sample sizes
 TAB=table(Combined$Species,Combined$Mesh.size)
 TAB[TAB<Min.sample]=0
 TAB[TAB>=Min.sample]=1
@@ -420,36 +442,11 @@ fn.plt.Sel=function(Dat,theta)
 }
 for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit[[s]]$par)
 
-
-#Selectivity
-colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4"))
-unik.mesh=sort(unique(Combined$Mesh.size))
-CLS=colfunc(length(unik.mesh))
-names(CLS)=unik.mesh
-tiff(file="Figure 1.Selectivity.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-smart.par(n.plots=length(n.sp),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
-for(s in 1:length(n.sp))
-{
-  d=Combined.sel[[s]]%>%
-    mutate(Length=as.numeric(rownames(Combined.sel[[s]])),
-           TL=Length/10)
-  
-  plot(d$TL,d$TL,type='l',ylab='',xlab='',
-       lwd=5,col='transparent',main=n.sp[s],ylim=c(0,1))
-  for(l in 1:(ncol(d)))
-  {
-    lines(d$TL,d[,l],col=CLS[match(names(d)[l],names(CLS))],lwd=2)
-  }
-}
-plot.new()
-legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
-mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
-mtext("Relative selectivity",2,outer=T,las=3,line=1.5,cex=1.25)
-dev.off() 
+#Output parameter estimates            MISSING
 
 
 #Combined selectivity
-tiff(file="Combined selectivity.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+tiff(file="Combined selectivity all selected species.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
 smart.par(n.plots=length(n.sp),MAR=c(1.5,1,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
 for(s in 1:length(n.sp))
 {
@@ -465,6 +462,17 @@ mtext("Total length (mm)",1,outer=T,line=.35)
 mtext("Relative selectivity",2,outer=T,las=3,line=1.75)
 dev.off()  
 
+
+#Display size frequencies
+d=Combined%>%mutate(MESH=as.factor(Mesh.size/2.54),
+                    TL=Length/10)
+d %>%
+  ggplot( aes(x=TL, fill=MESH)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity', binwidth = 10)  +
+  labs(fill="Mesh size")+
+  facet_wrap(vars(Species), scales = "free_y")+
+  xlab("Total length (cm)")+ ylab("Frequency")
+ggsave('Size frequency all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
 
 #Plot fit (observed vs predicted number at size by mesh)
 for(s in 1:length(n.sp))
@@ -498,14 +506,46 @@ for(s in 1:length(n.sp))
   dev.off()  
 }
 
+#Select not published species
+n.sp=n.sp[-match(Published,n.sp)]
+
+
+#Selectivity
+colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4"))
+unik.mesh=sort(unique(Combined$Mesh.size))
+CLS=colfunc(length(unik.mesh))
+names(CLS)=unik.mesh
+tiff(file="Figure 1.Selectivity.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+smart.par(n.plots=length(n.sp),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+for(s in 1:length(n.sp))
+{
+  d=Combined.sel[[s]]%>%
+    mutate(Length=as.numeric(rownames(Combined.sel[[s]])),
+           TL=Length/10)
+  
+  plot(d$TL,d$TL,type='l',ylab='',xlab='',
+       lwd=5,col='transparent',main=n.sp[s],ylim=c(0,1))
+  for(l in 1:(ncol(d)))
+  {
+    lines(d$TL,d[,l],col=CLS[match(names(d)[l],names(CLS))],lwd=2)
+  }
+}
+plot.new()
+legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
+mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
+mtext("Relative selectivity",2,outer=T,las=3,line=1.5,cex=1.25)
+dev.off() 
+
 
 #Display size frequencies
 d=Combined%>%mutate(MESH=as.factor(Mesh.size/2.54),
-                    TL=Length/10)
+                    TL=Length/10)%>%
+  filter(Species%in%n.sp)
 d %>%
   ggplot( aes(x=TL, fill=MESH)) +
   geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity', binwidth = 10)  +
   labs(fill="Mesh size")+
   facet_wrap(vars(Species), scales = "free_y")+
   xlab("Total length (cm)")+ ylab("Frequency")
-ggsave('Size frequency.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+ggsave('Figure 2.Size frequency.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+
