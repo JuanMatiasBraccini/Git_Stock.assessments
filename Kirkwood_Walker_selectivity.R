@@ -6,7 +6,7 @@
 #      fish size in mm
 
 #MISSING: revise input data (numbers at size class, species names, etc). 
-#         Table of MLE
+#         Something out of wack between Figure 1 and Combined selectivity figures (e.g. PortJackson)
 #         For published one, compare with mine
 #         Issues with some species rel. sel. not going to 1 (grey nurse, spinner, etc)
 #         Tiger size frequency seems wider than selectivites
@@ -18,7 +18,7 @@ library(Hmisc)
 
 options(stringsAsFactors = FALSE,"max.print"=50000,"width"=240) 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
-
+source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
 Min.sample=10
 
 # DATA  -------------------------------------------------------------------
@@ -442,7 +442,33 @@ fn.plt.Sel=function(Dat,theta)
 }
 for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit[[s]]$par)
 
-#Output parameter estimates            MISSING
+#Output parameter estimates            
+Table1=data.frame(Species=n.sp,
+                  Theta1=NA,Theta1.LOW95=NA,Theta1.UP95=NA,
+                  Theta2=NA,Theta2.LOW95=NA,Theta2.UP95=NA)
+for(s in 1:length(n.sp))
+{
+  dummy=Fit.CI[[s]]
+  Table1$Theta1[s]=round(quantile(dummy[,"Theta1"],probs=0.5),1)
+  Table1$Theta1.LOW95[s]=round(quantile(dummy[,"Theta1"],probs=0.025),1)
+  Table1$Theta1.UP95[s]=round(quantile(dummy[,"Theta1"],probs=0.975),1)
+  Table1$Theta2[s]=round(quantile(dummy[,"Theta2"],probs=0.5),1)
+  Table1$Theta2.LOW95[s]=round(quantile(dummy[,"Theta2"],probs=0.025),1)
+  Table1$Theta2.UP95[s]=round(quantile(dummy[,"Theta2"],probs=0.975),1)
+}
+write.csv(Table1,'Table1.csv',row.names = F) 
+
+Table11=Table1%>%
+        mutate(Theta1=paste(Theta1," (",paste(Theta1.LOW95,Theta1.UP95,sep="-"),")",sep=''),
+               Theta2=paste(Theta2," (",paste(Theta2.LOW95,Theta2.UP95,sep="-"),")",sep=''))%>%
+  dplyr::select(Species,Theta1,Theta2)
+#colnames(Table11)[2]=intToUtf8(0x03B8)
+#colnames(Table11)[2]=intToUtf8(U+03B8)
+fn.word.table(WD=getwd(),TBL=Table11,Doc.nm="Table1",caption=NA,paragph=NA,
+              HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+              Zebra='NO',Zebra.col='grey60',Grid.col='black',
+              Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+
 
 
 #Combined selectivity
