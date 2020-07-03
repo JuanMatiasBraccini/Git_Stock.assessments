@@ -11,7 +11,7 @@
 #  review Smooth HH cpue and mako cpue...; SPM Tiger fit
 # Milk shark SPM, hitting upper K boundary, no trend in cpue, crap Hessian, too uncertain....mention in text...
 # aSPM: finish running for all species; issues with Tiger cpue fit...
-
+#   Try the LB-SPR extended to Dome-shaped selectivity (Hommik et al 2020)
 
 #Future considerations: rather than standard SPM, try JABBA (can be 
 #                           run from R..see Winker et al 2018; it's what IUCN uses); but does not
