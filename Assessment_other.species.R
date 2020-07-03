@@ -1451,7 +1451,7 @@ for(r in 1:length(RESILIENCE))
 
 # ---Derive age frequency and selectivity from length frequency -----------------------------------------------------------------------
 WD=getwd()
-if(use.size.comp=="YES") 
+if(use.size.comp=="YES")       #ACA, remove all selectivity estimation, done in "Gillnet_selectivity.R"
 {
   User="Matias"
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R')
@@ -1871,7 +1871,7 @@ if(do.length.based.SPR=="YES")
 {
   library(TropFishR)
 
-  #get gillnet selectivity schedule from different experimental nets
+  #get gillnet selectivity schedule from different experimental nets    #MISSING: remove all selectivity estimation, done in 'Gillnet_selectivity.R'
   Estim.sel.exp='NO'  #not enough observations from different mesh sizes
   Size.sel=vector('list',length(ktch.size.fq))
   names(Size.sel)=names(ktch.size.fq)

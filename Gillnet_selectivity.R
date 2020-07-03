@@ -1,4 +1,4 @@
-# Script for estimating gear selectivity based on Kirkwood & Walker 1986
+# Script for estimating gear selectivity based on Kirkwood & Walker 1986 and extended to Millar & Fryer 1999
 
 #assumptions: different mesh sizes set at the same time in same place
 
@@ -19,7 +19,7 @@ library(Hmisc)
 options(stringsAsFactors = FALSE,"max.print"=50000,"width"=240) 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
-Min.sample=10
+Min.sample=25
 
 # DATA  -------------------------------------------------------------------
 
