@@ -1,15 +1,21 @@
-# Script for estimating gear selectivity based on Kirkwood & Walker 1986 and extended to Millar & Fryer 1999
+# Script for estimating gear selectivity based on Kirkwood & Walker 1986, extended to 
+#       Millar & Holst 1997, and Millar & Fryer 1999
+
+# size classes for selectivity analysis: 5 cm bins (as used in pop dyn model)
+# size type for selectivity analysis: total length (in mm)
 
 #assumptions: different mesh sizes set at the same time in same place
 
 #note: are different mesh sizes  used equally?
-#      fish size in mm
 
 #MISSING: revise input data (numbers at size class, species names, etc). 
+#         Remove commercial data as different mesh sizes not fished at same time??? check with Alex
 #         Something out of wack between Figure 1 and Combined selectivity figures (e.g. PortJackson)
-#         For published one, compare with mine
+#         Compare published selectivities with those estimated here
 #         Issues with some species rel. sel. not going to 1 (grey nurse, spinner, etc)
 #         Tiger size frequency seems wider than selectivites
+
+#         Implemente Millar method. 
 
 library(tidyverse)
 library(RODBC)
@@ -19,11 +25,15 @@ library(Hmisc)
 options(stringsAsFactors = FALSE,"max.print"=50000,"width"=240) 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
+source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/NextGeneration.R")
+source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/SelnCurveDefinitions.R") #These can be extended by the user
+
 Min.sample=25
+Min.nets=2
 
 # DATA  -------------------------------------------------------------------
 
-#1. Rory's gillnet selectivity study 
+#1. WA Fisheries experimental mesh selectivity studies 
 
   #1.1 1994-1996
 channel <- odbcConnectExcel2007("U:/Shark/ExperimentalNet.mdb")
@@ -38,7 +48,7 @@ Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F)
 close(channel)
 
 
-#2. SSF Shark survey 2007-2008
+#2. SESSF 2007-2008 experimental mesh selectivity and survey 
 channel <- odbcConnectExcel2007("C:/Matias/Data/SSF_survey_07_08/SharkSurveyData_30_09_2008.xls")
 F2_Sampling<- sqlFetch(channel,"F2_Sampling", colnames = F)
 F1_SamplingTwo<- sqlFetch(channel,"F1_SamplingTwo", colnames = F)
@@ -214,7 +224,7 @@ LFQ.south=LFQ.south%>%
                  Species=ifelse(Species=="Sawsharks","Common sawshark",
                          ifelse(Species=="Wobbegong (general)","Wobbegong",
                          Species)))%>%
-          filter(!Species=="Wobbegong")  #remove Wobbies because measurement ucertain
+          filter(!Species=="Wobbegong")  #remove Wobbies because size measurements are uncertain
 
 #Convert FL to TL
 TL_FL_LFQ.south=TL_FL%>%
@@ -248,7 +258,7 @@ ggsave('C:/Matias/Analyses/Selectivity/Size.frequency_TDGDLF_observed.tiff', wid
 
 
 
-#2. Combine SSF, Rory's experimental and TDGDLF observed
+#2. Combine all data sets
 Exp.net.WA=Exp.net.WA%>%
   rename(Species=name)%>%
   mutate(Mesh.size=2.54*mesh_size,
@@ -257,30 +267,119 @@ F2_Sampling=F2_Sampling%>%
         mutate(Data.set="SSF",
                Species=ifelse(Species=='Bronze Whaler',"Copper shark",Species))
 
-Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
-               Exp.net.WA%>%dplyr::select(Species,Mesh.size,Length,Data.set))%>%
-                  mutate(Species=tolower(Species),
-                         Species=ifelse(Species=='portjackson shark','port jackson shark',
-                                 ifelse(Species=='wobbegong','wobbegongs',
-                                  Species)),
-                         Species=capitalize(Species))
+####remove this when U drive works
+Combined=F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set)%>%
+  mutate(Species=tolower(Species),
+         Species=ifelse(Species=='portjackson shark','port jackson shark',
+                        ifelse(Species=='wobbegong','wobbegongs',
+                               Species)),
+         Species=capitalize(Species))
 
+#####
+
+###switch back when U drive works
+# Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
+#                Exp.net.WA%>%dplyr::select(Species,Mesh.size,Length,Data.set))%>%
+#                   mutate(Species=tolower(Species),
+#                          Species=ifelse(Species=='portjackson shark','port jackson shark',
+#                                  ifelse(Species=='wobbegong','wobbegongs',
+#                                   Species)),
+#                          Species=capitalize(Species))
+############
 Combined=rbind(Combined,LFQ.south)%>%
   mutate(Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
   filter(!is.na(Mesh.size))
 
 
-#Remove species with small sample sizes
+#Analyse species with at least Min.sample and Min.nets
 TAB=table(Combined$Species,Combined$Mesh.size)
 TAB[TAB<Min.sample]=0
 TAB[TAB>=Min.sample]=1
 Combined=Combined%>%
-  filter(Species%in%names(which(rowSums(TAB)>=2)) & Length<=3500 & Mesh.size<22)
+  filter(Species%in%names(which(rowSums(TAB)>=Min.nets)) & Length<=3500 & Mesh.size<22)
   
+
+#for each selected species, remove meshes with few observations
+min.obs.per.mesh=Min.sample
+n.sp=sort(unique(Combined$Species))
+for(s in 1:length(n.sp))
+{
+  d=Combined%>%filter(Species==n.sp[s])
+  Combined=Combined%>%filter(!Species==n.sp[s])
+  
+  id=table(d$Mesh.size)
+  Drop=as.numeric(gsub("[^0-9.]", "",  names(which(id<min.obs.per.mesh))))
+  if(length(Drop)>0)
+  {
+    d=d%>%filter(!Mesh.size%in%Drop)
+    id=table(d$Mesh.size)
+    if(length(id)==1) d=NULL
+  }
+  
+  Combined=rbind(Combined,d)
+  
+}
+n.sp=sort(unique(Combined$Species))
 
 
 #3. Estimate selectivity parameters 
-min.obs.per.mesh=20
+
+
+  #3.1 Millar & Holst 1997 
+Fitfunction='gillnetfit'
+#Fitfunction='NetFit'
+  
+Rtype=c("norm.loc","norm.sca","gamma","lognorm")
+
+Millar.Holst=function(d,size.int)
+{
+  #Create size bins
+  d=d%>%mutate(Size.class=size.int*floor(Length/size.int)+size.int/2)
+  
+  #Tabulate observations by mid size class and mesh size   
+  tab=d%>%
+    group_by(Mesh.size,Size.class)%>%
+    summarise(n=n())%>%
+    spread(Mesh.size,n,fill=0)%>%
+    data.frame
+  Meshsize=as.numeric(substr(names(tab)[-1],2,10))
+  
+  #Fit SELECT model  ACA. Gamma not implemented in NetFit, can I use gamma estim pars from gillnetfit?
+  
+  #Equal fishing power
+  pwr=rep(1,length(Meshsize))
+  Equal.power=vector('list',length(Rtype))
+  names(Equal.power)=Rtype
+  
+  #gillnetfit approah
+  if(Fitfunction=='gillnetfit')
+  {
+    for(f in 1:length(Equal.power))Equal.power[[f]]=gillnetfit(data=as.matrix(tab),
+                                                               meshsizes=Meshsize,
+                                                               type=Rtype[f],
+                                                               plots=c(T,T),
+                                                               plotlens=NULL,
+                                                               details=F)
+  }
+  
+  #NetFit approach (gamma not implemented)
+  if(Fitfunction=='NetFit')
+  {
+    Init.par=c(mean(d$Length),sd(d$Length))
+    for(f in 1:length(Equal.power))Equal.power[[f]]=NetFit(Data=tab,Meshsize=Meshsize,
+                                                               x0=Init.par,rtype=Rtype[f],
+                                                               rel.power=pwr)
+  }
+
+  
+}
+for(s in 1:length(n.sp))
+{
+  Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),size.int=50)
+}
+
+
+  #3.2 Kirkwood & Walker
 Selectivty.Kirkwood.Walker=function(d,size.int,theta)
 {
   #Create size bins
@@ -295,7 +394,7 @@ Selectivty.Kirkwood.Walker=function(d,size.int,theta)
   row.names(tab)=tab$Size.class
   tab=tab[,-1]
   
-
+  
   #Calculate relative selectivity
   Theta1=exp(theta[1])
   Theta2=exp(theta[2])
@@ -330,37 +429,13 @@ Selectivty.Kirkwood.Walker=function(d,size.int,theta)
   negLL=min(-sum(tab*(log(mu.j*S.ij))-(mu.j*S.ij),na.rm=T),1e100)
   
   return(list(negLL=negLL,d=d,observed=tab,predicted=tab.pred))
-
-}
-
-n.sp=sort(unique(Combined$Species))
-
-#remove records with few observations per mesh
-for(s in 1:length(n.sp))
-{
-  d=Combined%>%filter(Species==n.sp[s])
-  Combined=Combined%>%filter(!Species==n.sp[s])
   
-  id=table(d$Mesh.size)
-  Drop=as.numeric(gsub("[^0-9.]", "",  names(which(id<min.obs.per.mesh))))
-  if(length(Drop)>0)
-  {
-    d=d%>%filter(!Mesh.size%in%Drop)
-    id=table(d$Mesh.size)
-    if(length(id)==1) d=NULL
-  }
-    
-  Combined=rbind(Combined,d)
-
 }
-
-n.sp=sort(unique(Combined$Species))
-
 theta.list=vector('list',length(n.sp))
 names(theta.list)=n.sp
 Fit=Combined.sel=theta.list
 
-#initial parameter values
+# initial parameter values
 theta.list$`Gummy shark`=c(Theta1=log(80),Theta2=log(29000))
 for(s in 1:length(theta.list)) theta.list[[s]]=jitter(theta.list$`Gummy shark`,factor=.1)
 
@@ -371,15 +446,14 @@ for(s in 1:length(n.sp))
   
   #. objfun to minimize
   fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
-                                                  size.int=100,
+                                                  size.int=50,
                                                   theta)$negLL
   
   #. fit model
   Fit[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
 }
 
-
-# 4. Calculate confidence intervals thru bootstrapping 
+# Calculate confidence intervals thru bootstrapping 
 n.boot=1:1000
 cl <- makeCluster(detectCores()-1)
 registerDoParallel(cl)
@@ -532,7 +606,7 @@ for(s in 1:length(n.sp))
   dev.off()  
 }
 
-#Select not published species
+#Select species without selectivity published
 n.sp=n.sp[-match(Published,n.sp)]
 
 
