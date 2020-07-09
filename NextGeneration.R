@@ -1,6 +1,7 @@
 #####################Original functions (glm approach) #############
 gillnetfit=function(data,meshsizes,type="norm.loc",rel=NULL,
-                    plots=c(T,T),plotlens=NULL,details=F) {
+                    plots=c(T,T),plotlens=NULL,details=F)
+{
   require(msm)
   if(sum(sort(meshsizes)==meshsizes)!=length(meshsizes))
     stop("Mesh sizes must be ascending order")
@@ -84,11 +85,17 @@ gillnetfit=function(data,meshsizes,type="norm.loc",rel=NULL,
   g.o.f=c(deviance(fit),sum(resid(fit,type="pearson")^2),fit$df.res,fit$null)
   names(g.o.f)=c("model_dev","Pearson chi-sq","dof","null_dev")
   fit.type=paste(paste(type,ifelse(is.null(rel),"",": with unequal mesh efficiencies")))
+  
   if(details==F)
-    return(list(fit.type=fit.type,gear.pars=gear.pars,fit.stats=g.o.f))     
-  else 
-    return(list(
-      fit.type=fit.type,gear.pars=gear.pars,fit.stats=g.o.f,devres=devres,rselect=rselect)) }
+  {
+    return(list(fit.type=fit.type,gear.pars=gear.pars,fit.stats=g.o.f))
+  }else 
+  {
+    return(list(fit.type=fit.type,gear.pars=gear.pars,fit.stats=g.o.f,
+                devres=devres,rselect=rselect,
+                type=type,meshsizes=meshsizes,plotlens=plotlens,lens=data[,1]))
+  }
+}
 
 #Calculate the relative selection curves
 rcurves=function(type,meshsizes,rel,pars,plotlens) {
@@ -115,27 +122,31 @@ rcurves=function(type,meshsizes,rel,pars,plotlens) {
 }
 
 #Plot the relative selection curves
-plot.curves=function(type,plotlens,rselect) {
+plot.curves=function(type,plotlens,rselect,cOL)
+{
   plot.title=switch(type,
                     "norm.loc"="Normal (common spread)",
                     "norm.sca"="Normal",
                     "gamma"="Gamma",
                     "lognorm"="Log-normal")
   plot.title=paste(plot.title,"retention curve")
-  matplot(plotlens,rselect,type="l",lty=1,las=1,ylim=c(0,1),
-          xlab="Length (cm)",ylab="Relative retention",main=plot.title) }
+  matplot(plotlens,rselect,type="l",lty=1,las=1,ylim=c(0,1),lwd=2,col=cOL,
+          xlab="Length (cm)",ylab="Relative retention",main=plot.title)
+}
 
 #Plot the deviance residuals matrix
-plot.resids=function(residuals,msizes,lens,cex=1,title="Deviance residuals",...) {
+plot.resids=function(residuals,msizes,lens,cex=1,title="Deviance residuals",...)
+{
     if(missing(lens)) lens=1:nrow(residuals)
     if(missing(msizes)) msizes=1:ncol(residuals)
-    plot(c(min(lens),max(lens)),range(msizes),xlab="Length (cm)",ylab="Mesh size",
+    plot(c(min(lens),max(lens)),range(msizes),xlab="",ylab="",
          ylim=range(msizes)+(cex/25)*c(-1,1)*(max(msizes)-min(msizes)),
          type="n",main=title,...)
     for(i in 1:nrow(residuals))
       for(j in 1:ncol(residuals))
         points(lens[i],msizes[j],pch=ifelse(residuals[i,j]>0,16,1),
-               cex=3*abs(residuals[i,j])*cex/(abs(max(residuals)))) }
+               cex=3*abs(residuals[i,j])*cex/(abs(max(residuals))))
+}
 
 
 ##################### Next generation functions (optim approach) ##################

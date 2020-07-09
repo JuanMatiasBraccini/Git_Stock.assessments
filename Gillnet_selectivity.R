@@ -28,8 +28,6 @@ source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
 source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/NextGeneration.R")
 source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/SelnCurveDefinitions.R") #These can be extended by the user
 
-Min.sample=25
-Min.nets=2
 
 # DATA  -------------------------------------------------------------------
 
@@ -55,14 +53,22 @@ F1_SamplingTwo<- sqlFetch(channel,"F1_SamplingTwo", colnames = F)
 close(channel)
 
 
-#3. TDGDLF observed catch composition
+#3. TDGDLF observed catch composition 
+#note: this is for fishers using one type of net at a time
 LFQ.south=read.csv("C:/Matias/Analyses/Selectivity/out.LFQ.south.csv")
 
 
-
-#Species names
+#4. Species names
 SP.names=read.csv('C:/Matias/Data/Species_names_shark.only.csv')
 SP.codes=read.csv('C:/Matias/Data/Species.code.csv')
+
+# PARAMETERS  -------------------------------------------------------------------
+
+Min.sample=25  #keep species with at least 25 observations in at least 2 mesh sizes
+Min.nets=2
+min.obs.per.mesh=Min.sample  #for each kept species, use nets with a minimum # of records
+
+Size.Interval=50 #size intervals for selectivity estimation (in mm)
 
 
 # PROCEDURE  -------------------------------------------------------------------
@@ -286,6 +292,8 @@ Combined=F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set)%>%
 #                                   Species)),
 #                          Species=capitalize(Species))
 ############
+
+
 Combined=rbind(Combined,LFQ.south)%>%
   mutate(Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
   filter(!is.na(Mesh.size))
@@ -300,7 +308,6 @@ Combined=Combined%>%
   
 
 #for each selected species, remove meshes with few observations
-min.obs.per.mesh=Min.sample
 n.sp=sort(unique(Combined$Species))
 for(s in 1:length(n.sp))
 {
@@ -323,14 +330,15 @@ n.sp=sort(unique(Combined$Species))
 
 
 #3. Estimate selectivity parameters 
-
+#note: shark size in mm
 
   #3.1 Millar & Holst 1997 
 Fitfunction='gillnetfit'
-#Fitfunction='NetFit'
-  
+#Fitfunction='NetFit'  #not used because it doesn't have gamma implemented
+PlotLens=seq(250,3000,by=50)  #length sequence to plot (in mm)  
 Rtype=c("norm.loc","norm.sca","gamma","lognorm")
-
+Fit.M_H=vector('list',length(n.sp))
+names(Fit.M_H)=n.sp
 Millar.Holst=function(d,size.int)
 {
   #Create size bins
@@ -344,38 +352,44 @@ Millar.Holst=function(d,size.int)
     data.frame
   Meshsize=as.numeric(substr(names(tab)[-1],2,10))
   
-  #Fit SELECT model  ACA. Gamma not implemented in NetFit, can I use gamma estim pars from gillnetfit?
+  #Fit SELECT model
   
-  #Equal fishing power
+    #Equal fishing power
   pwr=rep(1,length(Meshsize))
   Equal.power=vector('list',length(Rtype))
   names(Equal.power)=Rtype
   
-  #gillnetfit approah
   if(Fitfunction=='gillnetfit')
   {
-    for(f in 1:length(Equal.power))Equal.power[[f]]=gillnetfit(data=as.matrix(tab),
-                                                               meshsizes=Meshsize,
-                                                               type=Rtype[f],
-                                                               plots=c(T,T),
-                                                               plotlens=NULL,
-                                                               details=F)
+    for(f in 1:length(Equal.power))
+    {
+      Equal.power[[f]]=gillnetfit(data=as.matrix(tab),
+                                  meshsizes=Meshsize,
+                                  type=Rtype[f],
+                                  plots=c(F,F),
+                                  plotlens=PlotLens,
+                                  details=T)
+    }
   }
   
-  #NetFit approach (gamma not implemented)
   if(Fitfunction=='NetFit')
   {
     Init.par=c(mean(d$Length),sd(d$Length))
-    for(f in 1:length(Equal.power))Equal.power[[f]]=NetFit(Data=tab,Meshsize=Meshsize,
-                                                               x0=Init.par,rtype=Rtype[f],
-                                                               rel.power=pwr)
+    for(f in 1:length(Equal.power))
+    {
+      Equal.power[[f]]=NetFit(Data=tab,
+                              Meshsize=Meshsize,
+                              x0=Init.par,
+                              rtype=Rtype[f],
+                              rel.power=pwr)
+    }
   }
 
-  
+  return(list(tab=tab,Equal.power=Equal.power))
 }
 for(s in 1:length(n.sp))
 {
-  Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),size.int=50)
+  Fit.M_H[[s]]=Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),size.int=Size.Interval)
 }
 
 
@@ -433,7 +447,7 @@ Selectivty.Kirkwood.Walker=function(d,size.int,theta)
 }
 theta.list=vector('list',length(n.sp))
 names(theta.list)=n.sp
-Fit=Combined.sel=theta.list
+Fit.K_W=Combined.sel=theta.list
 
 # initial parameter values
 theta.list$`Gummy shark`=c(Theta1=log(80),Theta2=log(29000))
@@ -446,11 +460,11 @@ for(s in 1:length(n.sp))
   
   #. objfun to minimize
   fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
-                                                  size.int=50,
+                                                  size.int=Size.Interval,
                                                   theta)$negLL
   
   #. fit model
-  Fit[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
+  Fit.K_W[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
 }
 
 # Calculate confidence intervals thru bootstrapping 
@@ -458,7 +472,7 @@ n.boot=1:1000
 cl <- makeCluster(detectCores()-1)
 registerDoParallel(cl)
 system.time({
-  Fit.CI=foreach(s=1:length(n.sp),.packages=c('tidyverse','doParallel','Biobase')) %dopar%
+  Fit.K_W.CI=foreach(s=1:length(n.sp),.packages=c('tidyverse','doParallel','Biobase')) %dopar%
     {
       boot=foreach(n=n.boot,.packages=c('doParallel','splitstackshape','tidyverse')) %dopar%
       {
@@ -479,15 +493,46 @@ system.time({
       return(exp(do.call(rbind,subListExtract(boot,"par"))))
     }
 })    #takes 0.5 sec per iteration per species
-names(Fit.CI)=n.sp
+names(Fit.K_W.CI)=n.sp
 stopCluster(cl)
 
 
 
-# REPORT  -------------------------------------------------------------------
+# REPORT  ------------------------------------------------------------------
 setwd('C:/Matias/Analyses/Selectivity')
 
-#Plot each species' selectivity
+#Select species without selectivity published
+n.sp.pub=n.sp[-match(Published,n.sp)]
+
+
+#Display size frequencies of species in paper
+d=Combined%>%mutate(MESH=as.factor(Mesh.size/2.54),
+                    TL=Length/10)%>%
+  filter(Species%in%n.sp.pub)
+d %>%
+  ggplot( aes(x=TL, fill=MESH)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity', binwidth = 10)  +
+  labs(fill="Mesh size")+
+  facet_wrap(vars(Species), scales = "free_y")+
+  xlab("Total length (cm)")+ ylab("Frequency")
+ggsave('Figure 2.Size frequency.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+
+
+#Display size frequencies of all species
+d=Combined%>%mutate(MESH=as.factor(Mesh.size/2.54),
+                    TL=Length/10)
+d %>%
+  ggplot( aes(x=TL, fill=MESH)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity', binwidth = 10)  +
+  labs(fill="Mesh size")+
+  facet_wrap(vars(Species), scales = "free_y")+
+  xlab("Total length (cm)")+ ylab("Frequency")
+ggsave('Size frequency all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+
+
+#---Kirkwood & Walker
+
+  #Plot each species' selectivity separately
 fn.plt.Sel=function(Dat,theta)
 {
   Theta1=exp(theta[1])
@@ -510,19 +555,19 @@ fn.plt.Sel=function(Dat,theta)
   S.ij=S.ij[,-1]
   
   ggplot(d, aes(Size.class,  Rel.sel)) + geom_line(aes(colour = factor(Mesh.size)),size=1.5)
-  ggsave(paste("Each species/Selectivity/",n.sp[s],'.tiff',sep=''), width = 8,height = 8, dpi = 300, compression = "lzw")
+  ggsave(paste("Each species/Selectivity/K&W_",n.sp[s],'.tiff',sep=''), width = 8,height = 8, dpi = 300, compression = "lzw")
   
   return(S.ij)
 }
-for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit[[s]]$par)
+for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit.K_W[[s]]$par)
 
-#Output parameter estimates            
+  #Output parameter estimates            
 Table1=data.frame(Species=n.sp,
                   Theta1=NA,Theta1.LOW95=NA,Theta1.UP95=NA,
                   Theta2=NA,Theta2.LOW95=NA,Theta2.UP95=NA)
 for(s in 1:length(n.sp))
 {
-  dummy=Fit.CI[[s]]
+  dummy=Fit.K_W.CI[[s]]
   Table1$Theta1[s]=round(quantile(dummy[,"Theta1"],probs=0.5),1)
   Table1$Theta1.LOW95[s]=round(quantile(dummy[,"Theta1"],probs=0.025),1)
   Table1$Theta1.UP95[s]=round(quantile(dummy[,"Theta1"],probs=0.975),1)
@@ -530,7 +575,7 @@ for(s in 1:length(n.sp))
   Table1$Theta2.LOW95[s]=round(quantile(dummy[,"Theta2"],probs=0.025),1)
   Table1$Theta2.UP95[s]=round(quantile(dummy[,"Theta2"],probs=0.975),1)
 }
-write.csv(Table1,'Table1.csv',row.names = F) 
+write.csv(Table1,'Table1_K&W.csv',row.names = F) 
 
 Table11=Table1%>%
         mutate(Theta1=paste(Theta1," (",paste(Theta1.LOW95,Theta1.UP95,sep="-"),")",sep=''),
@@ -538,15 +583,13 @@ Table11=Table1%>%
   dplyr::select(Species,Theta1,Theta2)
 #colnames(Table11)[2]=intToUtf8(0x03B8)
 #colnames(Table11)[2]=intToUtf8(U+03B8)
-fn.word.table(WD=getwd(),TBL=Table11,Doc.nm="Table1",caption=NA,paragph=NA,
+fn.word.table(WD=getwd(),TBL=Table11,Doc.nm="Table1_K&W",caption=NA,paragph=NA,
               HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
               Zebra='NO',Zebra.col='grey60',Grid.col='black',
               Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
 
-
-
-#Combined selectivity
-tiff(file="Combined selectivity all selected species.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  #Combined selectivity all species together
+tiff(file="Combined selectivity all selected species_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
 smart.par(n.plots=length(n.sp),MAR=c(1.5,1,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
 for(s in 1:length(n.sp))
 {
@@ -562,25 +605,13 @@ mtext("Total length (mm)",1,outer=T,line=.35)
 mtext("Relative selectivity",2,outer=T,las=3,line=1.75)
 dev.off()  
 
-
-#Display size frequencies
-d=Combined%>%mutate(MESH=as.factor(Mesh.size/2.54),
-                    TL=Length/10)
-d %>%
-  ggplot( aes(x=TL, fill=MESH)) +
-  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity', binwidth = 10)  +
-  labs(fill="Mesh size")+
-  facet_wrap(vars(Species), scales = "free_y")+
-  xlab("Total length (cm)")+ ylab("Frequency")
-ggsave('Size frequency all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
-
-#Plot fit (observed vs predicted number at size by mesh)
+  #Plot fit (observed vs predicted number at size by mesh)
 for(s in 1:length(n.sp))
 {
   dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
                                    size.int=100,
-                                   Fit[[s]]$par)
-  tiff(file=paste("Each species/Fit/Pre_vs_Obs_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+                                   Fit.K_W[[s]]$par)
+  tiff(file=paste("Each species/Fit/K&W_Pre_vs_Obs_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
   smart.par(n.plots=ncol(dummy$observed),MAR=c(2,1,2,1.5),OMA=c(2.5,3,.5,.1),MGP=c(1,.5,0))
   for(m in 1:ncol(dummy$observed))
   {
@@ -606,25 +637,21 @@ for(s in 1:length(n.sp))
   dev.off()  
 }
 
-#Select species without selectivity published
-n.sp=n.sp[-match(Published,n.sp)]
-
-
-#Selectivity
+  # Show Selectivity for published species
 colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4"))
 unik.mesh=sort(unique(Combined$Mesh.size))
 CLS=colfunc(length(unik.mesh))
 names(CLS)=unik.mesh
-tiff(file="Figure 1.Selectivity.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-smart.par(n.plots=length(n.sp),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
-for(s in 1:length(n.sp))
+tiff(file="Figure 1.Selectivity_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+for(s in 1:length(n.sp.pub))
 {
   d=Combined.sel[[s]]%>%
     mutate(Length=as.numeric(rownames(Combined.sel[[s]])),
            TL=Length/10)
   
   plot(d$TL,d$TL,type='l',ylab='',xlab='',
-       lwd=5,col='transparent',main=n.sp[s],ylim=c(0,1))
+       lwd=5,col='transparent',main=n.sp.pub[s],ylim=c(0,1))
   for(l in 1:(ncol(d)))
   {
     lines(d$TL,d[,l],col=CLS[match(names(d)[l],names(CLS))],lwd=2)
@@ -637,15 +664,36 @@ mtext("Relative selectivity",2,outer=T,las=3,line=1.5,cex=1.25)
 dev.off() 
 
 
-#Display size frequencies
-d=Combined%>%mutate(MESH=as.factor(Mesh.size/2.54),
-                    TL=Length/10)%>%
-  filter(Species%in%n.sp)
-d %>%
-  ggplot( aes(x=TL, fill=MESH)) +
-  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity', binwidth = 10)  +
-  labs(fill="Mesh size")+
-  facet_wrap(vars(Species), scales = "free_y")+
-  xlab("Total length (cm)")+ ylab("Frequency")
-ggsave('Figure 2.Size frequency.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
 
+#---Millar & Holst
+
+  #Plot Selectivity curves
+tiff(file="Figure 1.Selectivity_M&H.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+for(s in 1:length(n.sp.pub))
+{
+  ThiS=as.numeric(substr(names(Fit.M_H[[s]]$tab)[-1],2,10))
+  cl=CLS[match(ThiS,names(CLS))]
+  for(f in 1:length(Fit.M_H[[s]]$Equal.power))
+  {
+    with(Fit.M_H[[s]]$Equal.power[[f]],plot.curves(type,plotlens,rselect,cOL=cl))
+  }
+}
+plot.new()
+legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
+mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
+dev.off() 
+
+  #Plot residuals
+for(s in 1:length(n.sp))
+{
+  tiff(file=paste("Each species/Fit/M&H_Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+  smart.par(n.plots=length(Fit.M_H[[s]]$Equal.power),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+  for(f in 1:length(Fit.M_H[[s]]$Equal.power))
+  {
+    with(Fit.M_H[[s]]$Equal.power[[f]],plot.resids(devres,meshsizes,lens,title=type))
+  }
+  mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
+  mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
+  dev.off()
+}
