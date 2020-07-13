@@ -33,7 +33,7 @@ source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/SelnCurveDe
 
 #1. WA Fisheries experimental mesh selectivity studies 
 
-  #1.1 1994-1996
+  #1.1 1994-1996      (need to phisically open this file for R to connect)
 channel <- odbcConnectExcel2007("U:/Shark/ExperimentalNet.mdb")
 EXP_NET<- sqlFetch(channel,"EXP_NET", colnames = F)
 EXPNET_B<- sqlFetch(channel,"EXPNET_B", colnames = F)
@@ -273,27 +273,13 @@ F2_Sampling=F2_Sampling%>%
         mutate(Data.set="SSF",
                Species=ifelse(Species=='Bronze Whaler',"Copper shark",Species))
 
-####remove this when U drive works
-Combined=F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set)%>%
-  mutate(Species=tolower(Species),
-         Species=ifelse(Species=='portjackson shark','port jackson shark',
-                        ifelse(Species=='wobbegong','wobbegongs',
-                               Species)),
-         Species=capitalize(Species))
-
-#####
-
-###switch back when U drive works
-# Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
-#                Exp.net.WA%>%dplyr::select(Species,Mesh.size,Length,Data.set))%>%
-#                   mutate(Species=tolower(Species),
-#                          Species=ifelse(Species=='portjackson shark','port jackson shark',
-#                                  ifelse(Species=='wobbegong','wobbegongs',
-#                                   Species)),
-#                          Species=capitalize(Species))
-############
-
-
+Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
+               Exp.net.WA%>%dplyr::select(Species,Mesh.size,Length,Data.set))%>%
+                  mutate(Species=tolower(Species),
+                         Species=ifelse(Species=='portjackson shark','port jackson shark',
+                                 ifelse(Species=='wobbegong','wobbegongs',
+                                  Species)),
+                         Species=capitalize(Species))
 Combined=rbind(Combined,LFQ.south)%>%
   mutate(Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
   filter(!is.na(Mesh.size))
@@ -669,7 +655,7 @@ dev.off()
 
   #Plot Selectivity curves
 tiff(file="Figure 1.Selectivity_M&H.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+smart.par(n.plots=length(n.sp.pub)*length(Rtype),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
 for(s in 1:length(n.sp.pub))
 {
   ThiS=as.numeric(substr(names(Fit.M_H[[s]]$tab)[-1],2,10))
