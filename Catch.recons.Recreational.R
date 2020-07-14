@@ -40,7 +40,7 @@
 library(tidyverse)
 library(readxl)
 library(lubridate)
-
+library(Hmisc)
 
 Do.recons.rec.fishn.paper="NO"
 
@@ -188,9 +188,10 @@ Rec.fish.catch=Rec.fish.catch%>%
                                   Common.Name))))))
 
 #reapportion 'whaler sharks' among all reported whaler species
+Reported.whalers=c("Dusky Whaler","Sandbar Shark","Bronze Whaler","Tiger Shark",
+               "Blacktip Reef Shark","Lemon Shark","Whitetip Reef Shark")
 Whaler.prop=Rec.fish.catch%>%
-                filter(Common.Name%in%c("Dusky Whaler","Sandbar Shark","Bronze Whaler","Tiger Shark",
-                                        "Blacktip Reef Shark","Lemon Shark","Whitetip Reef Shark"))%>%
+                filter(Common.Name%in%Reported.whalers)%>%
                 group_by(Common.Name,Bioregion,FINYEAR)%>%
                 summarise_at(vars(c(Kept.Number,Rel.Number)), sum, na.rm = TRUE)%>%
                 data.frame
@@ -294,6 +295,9 @@ Charter=Charter%>%
   filter(!Common.Name=="Whaler & Weasel Sharks")
 Charter=rbind(Charter,Whaler.reap)
 
+# Change bull to pigeye shark
+Charter=Charter%>%
+          mutate(Common.Name=ifelse(Common.Name=='Bull Shark','Pigeye Shark',Common.Name))
 
 # reapportion "Hound Sharks" among all reported hound shark species
 Hound.prop=Charter%>%
@@ -373,7 +377,7 @@ Fishing.population=data.frame(
                 substr(WA.population$Year[2:length(WA.population$Year)],start=3,stop=4),sep="")
 )
 
-  #get catch weight for each species
+  #calculate total catch for each species for Isurvey years
 fn.rec=function(DAT,PCM.scen,Wght.scen)  
 {
         AGG=DAT%>%left_join(AVG.WT,by="Common.Name")%>%
@@ -394,12 +398,31 @@ Rec.ktch=vector('list',nrow(Scenarios))
 names(Rec.ktch)=Scenarios$Scenario
 for(s in 1:length(Rec.ktch))
 {
-  Rec.ktch[[s]]=fn.rec(DAT=subset(Rec.fish.catch,FINYEAR%in%I.survey.years),
+  #select only Isurvey years
+  dd=subset(Rec.fish.catch,FINYEAR%in%I.survey.years)  
+  #add rare species not in Isurvey but in Charter (though not during Isurvey years)
+  Uni=unique(Rec.fish.catch$Common.Name)
+  IId=which(!Uni%in%unique(dd$Common.Name))
+  if(length(IId)>0)
+  {
+    dd.IID=Rec.fish.catch%>%
+            filter(Common.Name%in%Uni[IId])%>%
+            group_by(Common.Name,Bioregion)%>%
+            summarise(Kept.Number=sum(Kept.Number),
+                      Rel.Number=sum(Rel.Number))%>%
+            mutate(FINYEAR='2011-12')%>%
+            data.frame%>%
+            arrange(colnames(dd))
+    dd=rbind(dd,dd.IID)
+  }
+  
+  
+  Rec.ktch[[s]]=fn.rec(DAT=dd,
                        PCM.scen=Scenarios$PCM[s],
                        Wght.scen=Scenarios$Weight[s])   
 }
 
-  #reconstruct time series
+  #reconstruct total catch time series
 back.fill=function(dat)
 {
   Regns=unique(dat$Bioregion)
@@ -474,7 +497,7 @@ if(Do.recons.rec.fishn.paper=="YES")
           summarise(Kept=round(sum(Kept.Number)),
                      Rel=round(sum(Rel.Number)))%>%
           data.frame
-  write.csv(Tab.2,paste(hndl.out,"Appendix2.Table.Kept.Rel.csv",sep=''),row.names = FALSE)
+  write.csv(Tab.2,paste(hndl.out,"Table2.Table.Kept.Rel.csv",sep=''),row.names = FALSE)
   
   #export weight and PCS table
   Tab.1=AVG.WT%>%
@@ -482,7 +505,7 @@ if(Do.recons.rec.fishn.paper=="YES")
     left_join(Scien.nm,by='Common.Name')%>%
     arrange(Common.Name)%>%
     dplyr::select(Common.Name,Scientific.name,AVG.wt,PCM.rec)
-  write.csv(Tab.1,paste(hndl.out,"Appendix1.Table.wght.PCS.csv",sep=''),row.names = FALSE)
+  write.csv(Tab.1,paste(hndl.out,"Table2.Table.wght.PCS.csv",sep=''),row.names = FALSE)
   
   #1. Species proportions (by number) for each bioregion based on original Isurvey and Charter data
   Rec.fish.catch.alone$source='Isurvey'
@@ -542,12 +565,14 @@ if(Do.recons.rec.fishn.paper=="YES")
   
   COls=c('grey90','grey70','grey40','grey10')
   names(COls)=c('North Coast','Gascoyne Coast','West Coast','South Coast')
+  Legdns=capitalize(tolower(Ktch.by.sp.zn$Common.Name))
+  Legdns=ifelse(Legdns=="Port jackson shark","Port Jackson shark",Legdns)
   
   tiff(file=paste(hndl.out,"Fig2. Proportion.tiff",sep=''),width=2400,height=2400,
        units="px",res=300,compression="lzw")
   par(mar=c(2.5,8,.5,3),oma=c(.1,.1,.1,.1),mgp=c(.1,.3,0),las=1,xpd=TRUE)
   s=barplot(t(as.matrix(Ktch.by.sp.zn[,-1])),horiz=T,col=COls,
-          names.arg = Ktch.by.sp.zn$Common.Name,cex.names=.8,
+          names.arg = Legdns,cex.names=.8,
           legend.text=T,args.legend=list(x=1,y=nrow(Ktch.by.sp.zn)+8,
                                          bty='n',horiz=T,cex=1.1))
   text(.99,s,paste("n=",round(Sp.tot)),pos=4,cex=.8)
@@ -585,8 +610,8 @@ if(Do.recons.rec.fishn.paper=="YES")
   plot(NMDS$points[,1],NMDS$points[,2],bg=Factors$col,cex=2,
        pch=Factors$Shape,ann=F,xaxt='n',yaxt='n')
   #text(NMDS$points[,1],NMDS$points[,2],Factors$FINYEAR,col=as.color(Factors$Bioregion),cex=.8)
-  legend('bottomright',paste("Stress=",round(NMDS$stress,2)),bty='n')
-  legend(x=-.4,y=-.96,c("I-survey","Charter"),pch=c(24,21),pt.cex=1.5,bty='n',horiz = T,cex=1.25)
+  legend('bottomright',paste("2D Stress=",round(NMDS$stress,2)),bty='n')
+  legend(x=-.4,y=-.96,c("Private-boat","Charter-boat"),pch=c(24,21),pt.cex=1.5,bty='n',horiz = T,cex=1.25)
   legend(x=-1.75,y=1.4,names(COls),pch=22,pt.bg=COls,pt.cex=2,bty='n',horiz = T,cex=1.2)
   dev.off()
   
@@ -602,8 +627,8 @@ if(Do.recons.rec.fishn.paper=="YES")
   SIMPER.source <- with(Factors.env, simper(MDS, source))
   SIMPER.source=summary(SIMPER.source)
   
-  capture.output(SIMPER.bioregion, file = paste(hndl.out,'Appendix2.SIMPER.bioregion.txt',sep=''))
-  capture.output(SIMPER.source, file = paste(hndl.out,'Appendix3.SIMPER.source.txt',sep=''))
+  capture.output(SIMPER.bioregion, file = paste(hndl.out,'Appendix1.SIMPER.bioregion.txt',sep=''))
+  capture.output(SIMPER.source, file = paste(hndl.out,'Appendix1.SIMPER.source.txt',sep=''))
   
   
   #3. Temporal trends in reconstructed catches      
@@ -613,9 +638,12 @@ if(Do.recons.rec.fishn.paper=="YES")
     arrange(Common.Name)
   Rec.sp=unique(Rec.ktch$Common.Name)
   LWD=3
-  tiff(file=paste(hndl.out,"Fig4. Time series.tiff",sep=''),width=2400,height=2400,
+  Legdns=capitalize(tolower(Rec.sp))
+  Legdns=ifelse(Legdns=="Port jackson shark","Port Jackson shark",Legdns)
+  
+  tiff(file=paste(hndl.out,"Fig4. Time series.tiff",sep=''),width=2400,height=2000,
        units="px",res=300,compression="lzw") 
-  smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1.2),OMA=c(1.75,2,.5,.1),MGP=c(1,.5,0))
+  smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1.2),OMA=c(1.75,2.5,.5,.1),MGP=c(1,.5,0))
   for(i in 1:length(Rec.sp))
   {
     d=Rec.ktch%>%
@@ -646,15 +674,19 @@ if(Do.recons.rec.fishn.paper=="YES")
     #ySeq.lab=round(ySeq,3)
     #axis(2,ySeq,ySeq.lab)
     
-    nm=Rec.sp[i]
-    nm=ifelse(nm=="Wobbegong","Wobbegongs",nm)
-    mtext(paste(nm),3,line=0.2,cex=0.85)  
+    nm=Legdns[i]
+  #  nm=ifelse(nm=="Wobbegong","Wobbegongs",nm)
+    mtext(paste(nm),3,line=0.2,cex=0.8)  
   }
-  legend('topleft',c("Base case","High","Low"),lty=1,col=c("grey55","grey20","grey80"),
-         lwd=LWD,bty='n',cex=1)
+  plot.new()
+  legend('left',c("High","Base case","Low"),lty=1,col=c("grey20","grey55","grey80"),
+         lwd=LWD,bty='n',cex=1.3)
   mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
-  mtext("Total catch (tonnes)",2,las=3,line=0.35,cex=1.5,outer=T)
+  mtext("Total harvest (tonnes)",2,las=3,line=.7,cex=1.5,outer=T)
   dev.off()
+  
+  
+  
   
   
   #4. Bioregion map
