@@ -323,7 +323,7 @@ Charter=Charter%>%
   filter(!Common.Name=="Hound Sharks")
 Charter=rbind(Charter,Hound.reap)
 
-# add to Rec.fish.catch
+# add Charter to Rec.fish.catch
 Rec.fish.catch=rbind(Rec.fish.catch,Charter)
 
 
