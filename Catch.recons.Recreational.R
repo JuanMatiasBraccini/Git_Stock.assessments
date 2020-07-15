@@ -4,11 +4,12 @@
         # For each new I-survey, get data from Karina
         # Update Charter boat data each year
 
+
 #notes: This script uses I-Survey (boat-based) point estimates to reconstruct
-#       time series considering rec fishing participation rates and WA 
-#       population growth
+#       time series considering rec fishing participation rates and WA population size
 #       Shore-based fishing is added as a proportion of boat-based fishing
 #       Charter boat fishing is also added
+
 
 #Notes on Charter boat (from Rhonda):
 #       There is no reliable charter data before this date as it was not compulsory to send in logbook sheets.
@@ -22,6 +23,7 @@
 #        boats which should be reliable) and the back calculating using WA population size
 #        and participating rate
 
+
 #Notes on Isurvey (from Karina):
 # The data is an extract of what will be the most up-to-date iSurvey data to be made
 #   available on fishcube in the near future, however, there are final checks to complete
@@ -30,11 +32,6 @@
 #   may change slightly as there may be some differences between the extract provided and fishcube 
 # The variables Kept, Released and Total have always been estimates with decimals, 
 #   but rounded to integers for publication / release – and should have been rounded in the extract 
-# Please note a comment in your publication needs to be made about reliability of 
-#   estimates – for our purposes robust estimates are where relative standard error <40% and 
-#   sample size is >30 respondents, e.g. tables in iSurvey report shows estimates in bold to 
-#   indicate relative standard error >40% (i.e. se >40% of estimate); in italics to 
-#   indicate <30 respondents recorded catches of the species) to indicate unreliable estimates
 
 
 library(tidyverse)
@@ -145,12 +142,12 @@ Mn.w.ray=.5
 #  Dasyatids PCM=0.156   #(Ellis et al 2016, average at vessel survival for LL)
 #  Greynurse  PCM=0.13   #(Ellis et al 2016, average at vessel survival for LL)
 
-# Give the lack of PCM info but the expected low PCM, a precautious value is 
+# Given the lack of PCM info (but expected low PCM) a precautious value is 
 #  assumed (this is considered in Sensitivity Scenarios)
 Asmd=0.3  
 
 Small.shrk=c('Dogfishes',"Gummy Sharks","Pencil Shark","Nervous Shark","Port Jackson Shark",
-             "Sawsharks","School Shark","Sliteye Shark")
+             "Sawsharks","School Shark","Sliteye Shark","Whitetip Reef Shark")
 AVG.WT=data.frame(
   Common.Name=c(
     "Australian Blacktip Shark","Bignose Shark","Blacktip Reef Shark","Blue Shark","Bronze Whaler","Bull Shark",
@@ -187,7 +184,7 @@ Rec.fish.catch=Rec.fish.catch%>%
                            ifelse(Common.Name%in%c('Other Sharks','Unspecified Shark',"Sharks"),'Other Shark',
                                   Common.Name))))))
 
-#reapportion 'whaler sharks' among all reported whaler species
+#reapportion 'whaler sharks' among all reported whaler species in Isurvey
 Reported.whalers=c("Dusky Whaler","Sandbar Shark","Bronze Whaler","Tiger Shark",
                "Blacktip Reef Shark","Lemon Shark","Whitetip Reef Shark")
 Whaler.prop=Rec.fish.catch%>%
@@ -362,7 +359,7 @@ Rec.fish.catch=Rec.fish.catch%>%
 
 # 6 -------------------Reconstruct time series------------------------------------
 
-#reconstruct size of population fishing
+#reconstruct size of human population fishing
 dummy=rbind(cbind(Year=c(1940,1950,1960),Population=c(473300,557100,722100)),WA.population)
 mod=loess(Population~Year,data=dummy)
 Historic.pop=predict(mod,newdata = data.frame(Year=1941:1970))
@@ -372,27 +369,27 @@ WA.population=rbind(cbind(Year=1941:1970,Population=round(Historic.pop)),
 Fishing.population=(Part.rate/100)*WA.population$Population
 Fishing.population=Fishing.population/Fishing.population[match(2011,WA.population$Year)] #relative to 2011-12
 Fishing.population=data.frame(
-  Size=Fishing.population[1:(length(Fishing.population)-1)],
-  FinYear=paste(WA.population$Year[1:(length(WA.population$Year)-1)],"-",
-                substr(WA.population$Year[2:length(WA.population$Year)],start=3,stop=4),sep="")
-)
+    Size=Fishing.population[1:(length(Fishing.population)-1)],
+    FinYear=paste(WA.population$Year[1:(length(WA.population$Year)-1)],"-",
+                  substr(WA.population$Year[2:length(WA.population$Year)],start=3,stop=4),sep=""))
 
-  #calculate total catch for each species for Isurvey years
+  #1. calculate total catch in weight (kg) for each species for Isurvey years
 fn.rec=function(DAT,PCM.scen,Wght.scen)  
 {
-        AGG=DAT%>%left_join(AVG.WT,by="Common.Name")%>%
-                  mutate(LIVEWT.c=ceiling((Kept.Number+Rel.Number*PCM.rec*PCM.scen)*AVG.wt*Wght.scen))%>%
-                group_by(FINYEAR,Common.Name,Bioregion)%>%
-                summarise(LIVEWT.c=sum(LIVEWT.c))%>%
-                data.frame
-        LisT=vector('list',length(unique(AGG$Common.Name)))
-        names(LisT)=unique(AGG$Common.Name)
-        for(i in 1:length(LisT))
-        {
-                LisT[[i]]=subset(AGG,Common.Name==names(LisT)[i],
-                                 select=c(Common.Name,LIVEWT.c,FINYEAR,Bioregion))
-        }
-        return(LisT)
+   AGG=DAT%>%
+      left_join(AVG.WT,by="Common.Name")%>%
+      mutate(LIVEWT.c=ceiling((Kept.Number+Rel.Number*PCM.rec*PCM.scen)*AVG.wt*Wght.scen))%>%
+      group_by(FINYEAR,Common.Name,Bioregion)%>%
+      summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+      data.frame
+  LisT=vector('list',length(unique(AGG$Common.Name)))
+  names(LisT)=unique(AGG$Common.Name)
+  for(i in 1:length(LisT))
+  {
+    LisT[[i]]=subset(AGG,Common.Name==names(LisT)[i],
+                     select=c(Common.Name,LIVEWT.c,FINYEAR,Bioregion))
+  }
+  return(LisT)
 }
 Rec.ktch=vector('list',nrow(Scenarios))
 names(Rec.ktch)=Scenarios$Scenario
@@ -400,6 +397,7 @@ for(s in 1:length(Rec.ktch))
 {
   #select only Isurvey years
   dd=subset(Rec.fish.catch,FINYEAR%in%I.survey.years)  
+  
   #add rare species not in Isurvey but in Charter (though not during Isurvey years)
   Uni=unique(Rec.fish.catch$Common.Name)
   IId=which(!Uni%in%unique(dd$Common.Name))
@@ -416,13 +414,13 @@ for(s in 1:length(Rec.ktch))
     dd=rbind(dd,dd.IID)
   }
   
-  
+  #run reconstruction
   Rec.ktch[[s]]=fn.rec(DAT=dd,
                        PCM.scen=Scenarios$PCM[s],
                        Wght.scen=Scenarios$Weight[s])   
 }
 
-  #reconstruct total catch time series
+  #2. reconstruct total catch (in kg) time series
 back.fill=function(dat)
 {
   Regns=unique(dat$Bioregion)
@@ -684,9 +682,6 @@ if(Do.recons.rec.fishn.paper=="YES")
   mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
   mtext("Total harvest (tonnes)",2,las=3,line=.7,cex=1.5,outer=T)
   dev.off()
-  
-  
-  
   
   
   #4. Bioregion map
