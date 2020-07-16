@@ -92,6 +92,7 @@ Data.monthly.north=fn.in(NM='recons_Data.monthly.north.csv')
 Greynurse.ktch=fn.in(NM='recons_Greynurse.ktch.csv')
 TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
 
+  #Droplines Western Rock Lobster
 WRL.ktch=fn.in(NM='Wetline_rocklobster.csv')
 
 
@@ -163,7 +164,7 @@ Tag=fn.read('Tagging_conventional.data.csv')
 
 
 #Species codes
-All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for catch
+All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv",stringsAsFactors = F) #for catch
 #b=read.csv("C:\\Matias\\Data\\Species.code.csv")
 
 
