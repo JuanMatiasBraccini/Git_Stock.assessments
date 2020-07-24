@@ -5,10 +5,10 @@
 # size type for selectivity analysis: total length (in mm)
 
 #assumptions: different mesh sizes set at the same time in same place
-
+#             for greynurse, Shortfin mako, spinner and tiger shark, use commercial and mention in text the caveats
+#             and future research to sort this out. Do selectivity tests.
 
 #MISSING: 
-#         Remove commercial data as different mesh sizes not fished at same time??? check with Alex
 #         Something out of wack between Figure 1 and Combined selectivity figures (e.g. PortJackson)
 #         Compare published selectivities with those estimated here
 #         Issues with some species rel. sel. not going to 1 (grey nurse, spinner, etc)
@@ -64,11 +64,14 @@ SP.codes=read.csv('C:/Matias/Data/Species.code.csv')
 
 # PARAMETERS  -------------------------------------------------------------------
 
-Min.sample=25  #keep species with at least 25 observations in at least 2 mesh sizes
+Min.sample=25  #keep species with at least 20 observations in at least 2 mesh sizes
 Min.nets=2
 min.obs.per.mesh=Min.sample  #for each kept species, use nets with a minimum # of records
 
 Size.Interval=50 #size intervals for selectivity estimation (in mm)
+
+Min.length=250  #min and max length considered
+Max.length=3500
 
 do.paper.figures=FALSE
 Preliminary=FALSE
@@ -264,7 +267,8 @@ LFQ.south=LFQ.south%>%
           mutate(tl=intercept+FL*slope,
                  Length=tl*10)%>%   #Length in mm; use Total length
           filter(!is.na(Length))%>%
-    dplyr::select(Species,Mesh.size,Length,Data.set)
+    dplyr::select(Species,Mesh.size,Length,Data.set)%>%
+          filter(!Species=='Spurdogs')  #mixed bag of species
 
 #Size frequency
 if(Preliminary)
@@ -277,7 +281,6 @@ if(Preliminary)
     facet_wrap(vars(Species), scales = "free") 
   ggsave('C:/Matias/Analyses/Selectivity/Size.frequency_TDGDLF_observed.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
 }
-
 
 #--2. Combine all data sets    
 Exp.net.WA=Exp.net.WA%>%
@@ -292,22 +295,35 @@ Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
                Exp.net.WA%>%dplyr::select(Species,Mesh.size,Length,Data.set))%>%
                   mutate(Species=tolower(Species),
                          Species=ifelse(Species=='portjackson shark','port jackson shark',
-                                 ifelse(Species=='wobbegong','wobbegongs',
-                                  Species)),
+                                 ifelse(Species%in%c('wobbegong','banded wobbegong','spotted wobbegong'),
+                                        'wobbegongs',Species)),
                          Species=capitalize(Species))
-Combined=rbind(Combined,LFQ.south)%>%
-  mutate(Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
+Combined=rbind(Combined%>%
+                 filter(!Species%in%c("Grey nurse shark","Shortfin mako","Spinner shark","Tiger shark")),
+               LFQ.south%>%
+                 filter(Species%in%c("Grey nurse shark","Shortfin mako","Spinner shark","Tiger shark")))%>%
+  mutate(Mesh.size=round(Mesh.size,1),
+         Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
   filter(!is.na(Mesh.size))%>%
-  filter(!Species%in%c('Spurdogs','Wobbegongs'))   #remove Spurdogs and wobbies from WA, could be several species
+  filter(!Species%in%c('Spurdogs')) #remove Spurdogs from WA, could be several species
+  
 
+#Table 1. Numbers by species and mesh
+Table1=Combined%>%
+  group_by(Mesh.size,Species)%>%
+  tally()%>%
+  spread(Mesh.size,n)%>%
+  data.frame
+colnames(Table1)[-1]=substr(colnames(Table1)[-1],2,10)
+Table1=Table1%>%left_join(SP.names%>%dplyr::select(-SPECIES),by=c('Species'='Name'))
 
 #Analyse species with at least Min.sample and Min.nets
 TAB=table(Combined$Species,Combined$Mesh.size)
 TAB[TAB<Min.sample]=0
 TAB[TAB>=Min.sample]=1
 Combined=Combined%>%
-  filter(Species%in%names(which(rowSums(TAB)>=Min.nets)) & Length<=3500 & Mesh.size<22)
-  
+  filter(Species%in%names(which(rowSums(TAB)>=Min.nets)) & Length<=Max.length)
+
 
 #for each selected species, remove meshes with few observations
 n.sp=sort(unique(Combined$Species))
@@ -337,7 +353,7 @@ n.sp=sort(unique(Combined$Species))
   #3.1 Millar & Holst 1997 
 Fitfunction='gillnetfit'
 #Fitfunction='NetFit'  #not used because it doesn't have gamma implemented
-PlotLens=seq(250,3500,by=50)  #length sequence to plot (in mm)  
+PlotLens=seq(Min.length,Max.length,by=Size.Interval)  #length sequence to plot (in mm)  
 Rtype=c("norm.loc","norm.sca","gamma","lognorm")   #consider this selection curves: normal fixed spread, 
                                                    #       normal spread proportional to mesh size,
                                                    #       gamma, lognormal
@@ -536,34 +552,126 @@ if(do.paper.figures)
 {
   setwd('C:/Matias/Analyses/Selectivity')
   
+  colfunc <- colorRampPalette(c("white", "yellow","orange",'brown2',"darkred"))
+  
+  #Table 1. All species observed
+  write.csv(Table1,'Table1.csv',row.names = F)
+  
+  #Table mean size of by mesh of selected species
+  Tab2.mean=Combined%>%
+    group_by(Mesh.size,Species)%>%
+    summarise(Mean=round(mean(Length),1))%>%
+    spread(Mesh.size,Mean)%>%
+    data.frame
+  colnames(Tab2.mean)[-1]=substr(colnames(Tab2.mean)[-1],2,10)
+  write.csv(Tab2.mean,'Table mean size by mesh selected species.csv',row.names = F)
+  
+  cols=colfunc(length(unique(Combined$Mesh.size)))
+  Combined%>%
+    group_by(Mesh.size,Species)%>%
+    summarise(Mean=mean(Length),
+              SD=sd(Length))%>%
+    mutate(Mesh=as.character(Mesh.size))%>%
+    ggplot(aes(x=Mesh.size, y= Mean, colour=Mesh)) + 
+    geom_errorbar(aes(ymin= Mean-SD, ymax= Mean+SD), width=.1) +
+    geom_point() + ylab("Mean length (+/-SD)") + xlab("Mesh size (cm)") +
+    facet_wrap(vars(Species), scales = "free")+
+    scale_color_manual(values=cols)+
+    theme_dark()
+  ggsave('Mean size by mesh.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  
+  
   #Select species without selectivity published
   n.sp.pub=n.sp[-match(Published,n.sp)]
   
   
   #Display size frequencies of species in paper
-  d=Combined%>%mutate(MESH=as.factor(Mesh.size/2.54),
-                      TL=Length/10)%>%
-    filter(Species%in%n.sp.pub)
-  d %>%
-    ggplot( aes(x=TL, fill=MESH)) +
-    geom_histogram(color="#e9ecef", alpha=0.6, binwidth = 10)  +
-    labs(fill="Mesh size")+
-    facet_wrap(vars(Species), scales = "free")+
-    xlab("Total length (cm)")+ ylab("Frequency")
+  fig2=function(d)
+  {
+    cols=colfunc(length(unique(d$MESH)))
+    d %>%
+      ggplot( aes(x=TL, fill=MESH)) +
+      geom_histogram(binwidth = 10, alpha=0.8,colour='grey40',size=.1)  +
+      labs(fill="Mesh size (cm)")+
+      facet_wrap(vars(Species), scales = "free")+
+      xlab("Total length (cm)")+ ylab("Frequency")+scale_fill_manual(values=cols)
+  }
+  fig2(d=Combined%>%
+         mutate(MESH=as.factor(Mesh.size),
+                TL=Length/10)%>%
+        filter(Species%in%n.sp.pub))
   ggsave('Figure 2.Size frequency.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
   
   #Display size frequencies of all species
-  d=Combined%>%mutate(MESH=as.factor(Mesh.size/2.54),
-                      TL=Length/10)
-  d %>%
-    ggplot( aes(x=TL, fill=MESH)) +
-    geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity', binwidth = 10)  +
-    labs(fill="Mesh size")+
-    facet_wrap(vars(Species), scales = "free_y")+
-    xlab("Total length (cm)")+ ylab("Frequency")
+  fig2(d=Combined%>%
+         mutate(MESH=as.factor(Mesh.size),
+                TL=Length/10))
   ggsave('Size frequency all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
+  
+  #Display density
+  fig.density=function(d)
+  {
+    cols=colfunc(length(unique(d$MESH)))
+    d %>%
+      ggplot( aes(x=TL, fill=MESH)) +
+      geom_density(alpha=0.8)  +
+      labs(fill="Mesh size (cm)")+
+      facet_wrap(vars(Species), scales = "free")+
+      ylab("Density")+ 
+      scale_fill_manual("Total length (cm)", values = cols)
+  }
+  fig.density(d=Combined%>%
+         mutate(MESH=as.factor(Mesh.size),
+                TL=Length/10))
+  ggsave('Density all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  
+  
+  #Colors for displaying mesh selectivity
+  colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4"))
+  unik.mesh=sort(unique(Combined$Mesh.size))
+  CLS=colfunc(length(unik.mesh))
+  names(CLS)=unik.mesh
+  
+  
+  #---Millar & Holst
+  
+  #Select best fit  ACA
+  
+  
+  #Plot residuals
+  for(s in 1:length(n.sp))
+  {
+    tiff(file=paste("Each species/Fit/M&H_Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    smart.par(n.plots=length(Fit.M_H[[s]]$Equal.power),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+    for(f in 1:length(Fit.M_H[[s]]$Equal.power))
+    {
+      with(Fit.M_H[[s]]$Equal.power[[f]],plot.resids(devres,meshsizes,lens,title=type))
+    }
+    mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
+    mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
+    dev.off()
+  }
+  
+  #Plot Selectivity curves
+  tiff(file="Figure 1.Selectivity_M&H.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  smart.par(n.plots=length(n.sp.pub)*length(Rtype),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+  for(s in 1:length(n.sp.pub))
+  {
+    ThiS=as.numeric(substr(names(Fit.M_H[[s]]$tab)[-1],2,10))
+    cl=CLS[match(ThiS,names(CLS))]
+    for(f in 1:length(Fit.M_H[[s]]$Equal.power))
+    {
+      with(Fit.M_H[[s]]$Equal.power[[f]],plot.curves(type,plotlens,rselect,cOL=cl))
+    }
+  }
+  plot.new()
+  legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
+  mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
+  dev.off() 
+  
+
   
   #---Kirkwood & Walker
   
@@ -597,28 +705,28 @@ if(do.paper.figures)
   for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit.K_W[[s]]$par)
   
   #Output parameter estimates            
-  Table1=data.frame(Species=n.sp,
+  Table2=data.frame(Species=n.sp,
                     Theta1=NA,Theta1.LOW95=NA,Theta1.UP95=NA,
                     Theta2=NA,Theta2.LOW95=NA,Theta2.UP95=NA)
   for(s in 1:length(n.sp))
   {
     dummy=Fit.K_W.CI[[s]]
-    Table1$Theta1[s]=round(quantile(dummy[,"Theta1"],probs=0.5),1)
-    Table1$Theta1.LOW95[s]=round(quantile(dummy[,"Theta1"],probs=0.025),1)
-    Table1$Theta1.UP95[s]=round(quantile(dummy[,"Theta1"],probs=0.975),1)
-    Table1$Theta2[s]=round(quantile(dummy[,"Theta2"],probs=0.5),1)
-    Table1$Theta2.LOW95[s]=round(quantile(dummy[,"Theta2"],probs=0.025),1)
-    Table1$Theta2.UP95[s]=round(quantile(dummy[,"Theta2"],probs=0.975),1)
+    Table2$Theta1[s]=round(quantile(dummy[,"Theta1"],probs=0.5),1)
+    Table2$Theta1.LOW95[s]=round(quantile(dummy[,"Theta1"],probs=0.025),1)
+    Table2$Theta1.UP95[s]=round(quantile(dummy[,"Theta1"],probs=0.975),1)
+    Table2$Theta2[s]=round(quantile(dummy[,"Theta2"],probs=0.5),1)
+    Table2$Theta2.LOW95[s]=round(quantile(dummy[,"Theta2"],probs=0.025),1)
+    Table2$Theta2.UP95[s]=round(quantile(dummy[,"Theta2"],probs=0.975),1)
   }
-  write.csv(Table1,'Table1_K&W.csv',row.names = F) 
+  write.csv(Table2,'Table2_K&W.csv',row.names = F) 
   
-  Table11=Table1%>%
+  Table11=Table2%>%
     mutate(Theta1=paste(Theta1," (",paste(Theta1.LOW95,Theta1.UP95,sep="-"),")",sep=''),
            Theta2=paste(Theta2," (",paste(Theta2.LOW95,Theta2.UP95,sep="-"),")",sep=''))%>%
     dplyr::select(Species,Theta1,Theta2)
   #colnames(Table11)[2]=intToUtf8(0x03B8)
   #colnames(Table11)[2]=intToUtf8(U+03B8)
-  fn.word.table(WD=getwd(),TBL=Table11,Doc.nm="Table1_K&W",caption=NA,paragph=NA,
+  fn.word.table(WD=getwd(),TBL=Table11,Doc.nm="Table2_K&W",caption=NA,paragph=NA,
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                 Zebra='NO',Zebra.col='grey60',Grid.col='black',
                 Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
@@ -673,10 +781,6 @@ if(do.paper.figures)
   }
   
   # Show Selectivity for published species
-  colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4"))
-  unik.mesh=sort(unique(Combined$Mesh.size))
-  CLS=colfunc(length(unik.mesh))
-  names(CLS)=unik.mesh
   tiff(file="Figure 1.Selectivity_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
   smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
   for(s in 1:length(n.sp.pub))
@@ -697,39 +801,4 @@ if(do.paper.figures)
   mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
   mtext("Relative selectivity",2,outer=T,las=3,line=1.5,cex=1.25)
   dev.off() 
-  
-  
-  
-  #---Millar & Holst
-  
-  #Plot Selectivity curves
-  tiff(file="Figure 1.Selectivity_M&H.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  smart.par(n.plots=length(n.sp.pub)*length(Rtype),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
-  for(s in 1:length(n.sp.pub))
-  {
-    ThiS=as.numeric(substr(names(Fit.M_H[[s]]$tab)[-1],2,10))
-    cl=CLS[match(ThiS,names(CLS))]
-    for(f in 1:length(Fit.M_H[[s]]$Equal.power))
-    {
-      with(Fit.M_H[[s]]$Equal.power[[f]],plot.curves(type,plotlens,rselect,cOL=cl))
-    }
-  }
-  plot.new()
-  legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
-  mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
-  dev.off() 
-  
-  #Plot residuals
-  for(s in 1:length(n.sp))
-  {
-    tiff(file=paste("Each species/Fit/M&H_Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
-    smart.par(n.plots=length(Fit.M_H[[s]]$Equal.power),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
-    for(f in 1:length(Fit.M_H[[s]]$Equal.power))
-    {
-      with(Fit.M_H[[s]]$Equal.power[[f]],plot.resids(devres,meshsizes,lens,title=type))
-    }
-    mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
-    mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
-    dev.off()
-  }
 }
