@@ -1,8 +1,8 @@
 #####################Original functions (glm approach) #############
+require(msm)
 gillnetfit=function(data,meshsizes,type="norm.loc",rel=NULL,
                     plots=c(T,T),plotlens=NULL,details=F)
 {
-  require(msm)
   if(sum(sort(meshsizes)==meshsizes)!=length(meshsizes))
     stop("Mesh sizes must be ascending order")
   lens=rep(data[,1],ncol(data[,-1]))
@@ -176,7 +176,6 @@ nllhood=function(theta,Data,Meshsize,r,rel.power) {
   return(nll) }
 
 Estimates=function(fit) {
-  require("msm")
   x=fit$par; varx=solve(fit$hess) 
   names=c("Mode(mesh1)","Std dev.(mesh1)")
   switch(fit$rtype,

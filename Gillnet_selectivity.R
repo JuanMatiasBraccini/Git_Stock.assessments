@@ -21,6 +21,7 @@ library(RODBC)
 library(doParallel)
 library(Hmisc)
 library(magrittr)
+library(expandFunctions)
 
 options(stringsAsFactors = FALSE,"max.print"=50000,"width"=240) 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
@@ -54,7 +55,9 @@ close(channel)
 
 
 #3. TDGDLF observed catch composition 
-#note: this is for fishers using one type of net at a time
+#note: this is for fishers using one type of net at a time.
+#      Not used as models cannot converge and not used simultaneously.
+#      Mean sizes of 6.5 and 7 inch similar, or 6.5 > 7 
 LFQ.south=read.csv("C:/Matias/Analyses/Selectivity/out.LFQ.south.csv")
 
 
@@ -71,7 +74,7 @@ min.obs.per.mesh=Min.sample  #for each kept species, use nets with a minimum # o
 Size.Interval=50 #size intervals for selectivity estimation (in mm)
 
 Min.length=250  #min and max length considered
-Max.length=3500
+Max.length=4000
 
 do.paper.figures=FALSE
 Preliminary=FALSE
@@ -289,7 +292,9 @@ Exp.net.WA=Exp.net.WA%>%
          Data.set="WA")
 F2_Sampling=F2_Sampling%>%
         mutate(Data.set="SSF",
-               Species=ifelse(Species=='Bronze Whaler',"Copper shark",Species))
+               Species=ifelse(Species=='Bronze Whaler',"Copper shark",Species))%>%
+        filter(!Mesh1%in%c("C6.5","C6"))
+
 
 Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
                Exp.net.WA%>%dplyr::select(Species,Mesh.size,Length,Data.set))%>%
@@ -297,13 +302,10 @@ Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
                          Species=ifelse(Species=='portjackson shark','port jackson shark',
                                  ifelse(Species%in%c('wobbegong','banded wobbegong','spotted wobbegong'),
                                         'wobbegongs',Species)),
-                         Species=capitalize(Species))
-Combined=rbind(Combined%>%
-                 filter(!Species%in%c("Grey nurse shark","Shortfin mako","Spinner shark","Tiger shark")),
-               LFQ.south%>%
-                 filter(Species%in%c("Grey nurse shark","Shortfin mako","Spinner shark","Tiger shark")))%>%
-  mutate(Mesh.size=round(Mesh.size,1),
-         Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
+                         Species=capitalize(Species),
+                         Species=ifelse(Species=='Port jackson shark','Port Jackson shark',Species),
+                         Mesh.size=round(Mesh.size,1),
+                         Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
   filter(!is.na(Mesh.size))%>%
   filter(!Species%in%c('Spurdogs')) #remove Spurdogs from WA, could be several species
   
@@ -344,7 +346,15 @@ for(s in 1:length(n.sp))
   Combined=rbind(Combined,d)
   
 }
+
 n.sp=sort(unique(Combined$Species))
+
+#remove mesh sizes with higher mean size that next largest mesh   
+drop.one.mesh=data.frame(Species=c("Port Jackson shark","Sandbar shark","Whiskery shark"),
+                         Mesh.size=c(10.2,10.2,16.5),
+                         Drop="YES")
+Combined=left_join(Combined,drop.one.mesh,by=c('Species','Mesh.size'))%>%
+         filter(is.na(Drop))%>%dplyr::select(-Drop)
 
 
 #--3. Estimate selectivity parameters 
@@ -353,10 +363,11 @@ n.sp=sort(unique(Combined$Species))
   #3.1 Millar & Holst 1997 
 Fitfunction='gillnetfit'
 #Fitfunction='NetFit'  #not used because it doesn't have gamma implemented
-PlotLens=seq(Min.length,Max.length,by=Size.Interval)  #length sequence to plot (in mm)  
+PlotLens=seq(Min.length+Size.Interval/2,Max.length-Size.Interval/2,by=Size.Interval)  #length sequence to plot (midpoints, in mm)  
 Rtype=c("norm.loc","norm.sca","gamma","lognorm")   #consider this selection curves: normal fixed spread, 
                                                    #       normal spread proportional to mesh size,
                                                    #       gamma, lognormal
+#Fit functions
 Fit.M_H=vector('list',length(n.sp))
 names(Fit.M_H)=n.sp
 Millar.Holst=function(d,size.int)
@@ -388,6 +399,8 @@ Millar.Holst=function(d,size.int)
                                   plots=c(F,F),
                                   plotlens=PlotLens,
                                   details=T)
+      Equal.power[[f]]$Warnings=warnings()
+      reset.warnings()
     }
   }
   if(Fitfunction=='NetFit')
@@ -400,6 +413,8 @@ Millar.Holst=function(d,size.int)
                               x0=Init.par,
                               rtype=Rtype[f],
                               rel.power=pwr)
+      Equal.power[[f]]$Warnings=warnings()
+      reset.warnings()
     }
   }
   
@@ -417,6 +432,8 @@ Millar.Holst=function(d,size.int)
                                   plots=c(F,F),
                                   plotlens=PlotLens,
                                   details=T)
+      Prop.power[[f]]$Warnings=warnings()
+      reset.warnings()
     }
   }
   if(Fitfunction=='NetFit')
@@ -429,15 +446,19 @@ Millar.Holst=function(d,size.int)
                               x0=Init.par,
                               rtype=Rtype[f],
                               rel.power=pwr)
+      Prop.power[[f]]$Warnings=warnings()
+      reset.warnings()
     }
   }
 
   return(list(tab=tab,Equal.power=Equal.power,Prop.power=Prop.power))
 }
-for(s in 1:length(n.sp))
+for(s in 1:length(n.sp))  
 {
   Fit.M_H[[s]]=Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),size.int=Size.Interval)
 }
+
+#Select best fit   #ACA
 
 
   #3.2 Kirkwood & Walker
@@ -554,10 +575,19 @@ if(do.paper.figures)
   
   colfunc <- colorRampPalette(c("white", "yellow","orange",'brown2',"darkred"))
   
+  #Appendix 1
+  Appendix1=TL_FL%>%
+    mutate(intercept=round(intercept,2),
+           slope=round(slope,2),
+           name=capitalize(tolower(name)))%>%
+    arrange(name)%>%
+    distinct(name,.keep_all = T)
+  write.csv(Appendix1,'Appendix1.csv',row.names = F)
+  
   #Table 1. All species observed
   write.csv(Table1,'Table1.csv',row.names = F)
   
-  #Table mean size of by mesh of selected species
+  #Mean size of by mesh of selected species
   Tab2.mean=Combined%>%
     group_by(Mesh.size,Species)%>%
     summarise(Mean=round(mean(Length),1))%>%
@@ -574,10 +604,11 @@ if(do.paper.figures)
     mutate(Mesh=as.character(Mesh.size))%>%
     ggplot(aes(x=Mesh.size, y= Mean, colour=Mesh)) + 
     geom_errorbar(aes(ymin= Mean-SD, ymax= Mean+SD), width=.1) +
-    geom_point() + ylab("Mean length (+/-SD)") + xlab("Mesh size (cm)") +
-    facet_wrap(vars(Species), scales = "free")+
-    scale_color_manual(values=cols)+
-    theme_dark()
+    geom_point() + ylab("Mean total length (+/-SD)") + xlab("Mesh size (cm)") +
+    facet_wrap(vars(Species), scales = "free_y")+
+    scale_color_manual("Mesh size (cm)",values=cols)+
+    theme_dark()+ 
+    theme(strip.text.x = element_text(size = 11,face='bold',color="white"))
   ggsave('Mean size by mesh.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
   
@@ -619,8 +650,8 @@ if(do.paper.figures)
       geom_density(alpha=0.8)  +
       labs(fill="Mesh size (cm)")+
       facet_wrap(vars(Species), scales = "free")+
-      ylab("Density")+ 
-      scale_fill_manual("Total length (cm)", values = cols)
+      ylab("Density")+ xlab("Total length (cm)")+
+      scale_fill_manual("Mesh size (cm)", values = cols)
   }
   fig.density(d=Combined%>%
          mutate(MESH=as.factor(Mesh.size),
@@ -637,7 +668,7 @@ if(do.paper.figures)
   
   #---Millar & Holst
   
-  #Select best fit  ACA
+  #Display best fit  
   
   
   #Plot residuals
