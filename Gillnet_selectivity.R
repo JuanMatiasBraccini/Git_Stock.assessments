@@ -396,6 +396,7 @@ Millar.Holst=function(d,size.int)
       Equal.power[[f]]=gillnetfit(data=as.matrix(tab),
                                   meshsizes=Meshsize,
                                   type=Rtype[f],
+                                  rel=pwr,
                                   plots=c(F,F),
                                   plotlens=PlotLens,
                                   details=T)
@@ -429,6 +430,7 @@ Millar.Holst=function(d,size.int)
       Prop.power[[f]]=gillnetfit(data=as.matrix(tab),
                                   meshsizes=Meshsize,
                                   type=Rtype[f],
+                                  rel=pwr,
                                   plots=c(F,F),
                                   plotlens=PlotLens,
                                   details=T)
@@ -457,8 +459,6 @@ for(s in 1:length(n.sp))
 {
   Fit.M_H[[s]]=Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),size.int=Size.Interval)
 }
-
-#Select best fit   #ACA
 
 
   #3.2 Kirkwood & Walker
@@ -519,7 +519,7 @@ Fit.K_W=Combined.sel=theta.list
 
 # initial parameter values
 theta.list$`Gummy shark`=c(Theta1=log(80),Theta2=log(29000))
-for(s in 1:length(theta.list)) theta.list[[s]]=jitter(theta.list$`Gummy shark`,factor=.1)
+for(s in 1:length(theta.list)) theta.list[[s]]=jitter(theta.list$`Gummy shark`,factor=1)
 
 # fit model
 for(s in 1:length(n.sp))
@@ -552,7 +552,7 @@ system.time({
           
           #. objfun to minimize
           fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=d.samp,
-                                                          size.int=100,
+                                                          size.int=Size.Interval,
                                                           theta)$negLL
           
           #. fit model
@@ -560,13 +560,50 @@ system.time({
       }
       return(exp(do.call(rbind,subListExtract(boot,"par"))))
     }
-})    #takes 0.5 sec per iteration per species
+})    #takes 0.4 sec per iteration per species
 names(Fit.K_W.CI)=n.sp
 stopCluster(cl)
 
 
+  #3.3. Select best fit   
+K.and.W_Dev=data.frame(Species=n.sp,Model='Gamma_K&W',Deviance=NA)
+K.and.W_Residuals=vector('list',length(n.sp))
+names(K.and.W_Residuals)=n.sp
+for(s in 1:length(n.sp))
+{
+  dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
+                                   size.int=Size.Interval,
+                                   Fit.K_W[[s]]$par)
+  K.and.W_Dev$Deviance[s]=sum((dummy$observed-dummy$predicted)^2)
+  K.and.W_Residuals[[s]]=dummy$observed-dummy$predicted
+}
+
+Best.fit=vector('list',length(n.sp))
+names(Best.fit)=n.sp
+for(s in 1:length(n.sp))
+{
+  Tab=data.frame(Model=names(Fit.M_H[[s]]$Equal.power),
+                 Equal_dev=NA,
+                 Prop_dev=NA)
+  for(f in 1:length(Rtype))
+  {
+    Tab$Equal_dev[f]=Fit.M_H[[s]]$Equal.power[[f]]$fit.stats['model_dev']
+    Tab$Prop_dev[f]=Fit.M_H[[s]]$Prop.power[[f]]$fit.stats['model_dev']
+  }
+  Tab1=Tab[which.min(Tab[,2]),-3]%>%mutate(Fishing.power="Equal.power")%>%rename(Dev=Equal_dev)
+  Tab2=Tab[which.min(Tab[,3]),-2]%>%mutate(Fishing.power="Prop.power")%>%rename(Dev=Prop_dev)
+  Tab3=rbind(Tab1,Tab2,data.frame(Model="K&W",Dev=K.and.W_Dev$Deviance[s],Fishing.power=''))
+  Best.fit[[s]]=Tab3[which.min(Tab3[,2]),]
+}
+
+
+
+
+
+
 # EXPORT SELECTIVITY OGIVES  ------------------------------------------------------------------
 setwd('C:/Matias/Analyses/Data_outs')
+#MISSING
 
 # REPORT  ------------------------------------------------------------------
 if(do.paper.figures)
@@ -659,54 +696,235 @@ if(do.paper.figures)
   ggsave('Density all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
   
+  #Output parameter estimates from all models 
+  fn.rnd=function(x) sprintf(round(x,2), fmt = '%#.2f')
+  
+  Table.mod.fit=vector('list',length(n.sp))
+  names(Table.mod.fit)=n.sp
+  for(s in 1:length(n.sp))
+  {
+    Tab=data.frame(Model=names(Fit.M_H[[s]]$Equal.power),
+                   Equal_Param1=NA,Equal_Param2=NA,Equal_Deviance=NA,
+                   Prop_Param1=NA,Prop_Param2=NA,Prop_Deviance=NA)
+    for(f in 1:length(Rtype))
+    {
+      #equal power
+      Del=ifelse(sum(is.na(Fit.M_H[[s]]$Equal.power[[f]]$gear.pars[1:2,]))>0,"YES","NO")
+      if(Del=="NO")
+      {
+        Tab$Equal_Deviance[f]=fn.rnd(Fit.M_H[[s]]$Equal.power[[f]]$fit.stats['model_dev'])
+        PaR=fn.rnd(Fit.M_H[[s]]$Equal.power[[f]]$gear.pars[1:2,'estimate'])
+        errOr=fn.rnd(Fit.M_H[[s]]$Equal.power[[f]]$gear.pars[1:2,'s.e.'])
+        Tab$Equal_Param1[f]=paste(PaR[1]," (",errOr[1],")",sep='')
+        Tab$Equal_Param2[f]=paste(PaR[2]," (",errOr[2],")",sep='')
+        rm(PaR,errOr)
+      }
+      
+      #Prop power
+      Del=ifelse(sum(is.na(Fit.M_H[[s]]$Prop.power[[f]]$gear.pars[1:2,]))>0,"YES","NO")
+      if(Del=="NO")
+      {
+        Tab$Prop_Deviance[f]=fn.rnd(Fit.M_H[[s]]$Prop.power[[f]]$fit.stats['model_dev'])
+        PaR=fn.rnd(Fit.M_H[[s]]$Prop.power[[f]]$gear.pars[1:2,'estimate'])
+        errOr=fn.rnd(Fit.M_H[[s]]$Prop.power[[f]]$gear.pars[1:2,'s.e.'])
+        Tab$Prop_Param1[f]=paste(PaR[1]," (",errOr[1],")",sep='')
+        Tab$Prop_Param2[f]=paste(PaR[2]," (",errOr[2],")",sep='')
+        rm(PaR,errOr)
+      }
+    }
+    Table.mod.fit[[s]]=Tab
+  }
+  Table.mod.fit=do.call(rbind,Table.mod.fit)
+  Table.mod.fit$Species=sub("*\\.[0-9]", "", rownames(Table.mod.fit))
+  Table.mod.fit=Table.mod.fit%>%
+    mutate(Model=ifelse(Model=="norm.loc","Normal (fixed spread)",
+                        ifelse(Model=="norm.sca","Normal (prop. spread)",
+                               ifelse(Model=="gamma","Gamma",
+                                      ifelse(Model=="lognorm","Lognormal",
+                                             Model)))))%>%
+    dplyr::select(Species,Model,Equal_Param1,Equal_Param2,Equal_Deviance,
+                  Prop_Param1,Prop_Param2,Prop_Deviance)
+  
+  #add K&W                    
+  Table2=data.frame(Species=n.sp,
+                    Theta1=NA,Theta1.LOW95=NA,Theta1.UP95=NA,
+                    Theta2=NA,Theta2.LOW95=NA,Theta2.UP95=NA)
+  for(s in 1:length(n.sp))
+  {
+    dummy=Fit.K_W.CI[[s]]
+    Table2$Theta1[s]=round(quantile(dummy[,"Theta1"],probs=0.5),1)
+    Table2$Theta1.LOW95[s]=round(quantile(dummy[,"Theta1"],probs=0.025),1)
+    Table2$Theta1.UP95[s]=round(quantile(dummy[,"Theta1"],probs=0.975),1)
+    Table2$Theta2[s]=round(quantile(dummy[,"Theta2"],probs=0.5),1)
+    Table2$Theta2.LOW95[s]=round(quantile(dummy[,"Theta2"],probs=0.025),1)
+    Table2$Theta2.UP95[s]=round(quantile(dummy[,"Theta2"],probs=0.975),1)
+  }
+  Table2=Table2%>%mutate(Theta1.SE=fn.rnd((Theta1.UP95-Theta1)/1.96),
+                         Theta2.SE=fn.rnd((Theta2.UP95-Theta2)/1.96),
+                         Theta1=fn.rnd(Theta1),
+                         Theta2=fn.rnd(Theta2))
+  Add.K.and.W=K.and.W_Dev%>%
+    mutate(Equal_Param1=paste(Table2$Theta1," (",Table2$Theta1.SE,")",sep=''),
+           Equal_Param2=paste(Table2$Theta2," (",Table2$Theta2.SE,")",sep=''),
+           Prop_Param1=NA,
+           Prop_Param2=NA,
+           Prop_Deviance=NA,
+           Deviance=fn.rnd(Deviance))%>%
+    rename(Equal_Deviance=Deviance)%>%
+    dplyr::select(names(Table.mod.fit))
+  
+  Table.mod.fit=rbind(Table.mod.fit,Add.K.and.W)%>%
+                  arrange(Species)
+  
+  Table.mod.fit$Species[duplicated(Table.mod.fit$Species)] <- ""
+  Table.mod.fit[is.na(Table.mod.fit)] <- ""
+  fn.word.table(WD=getwd(),TBL=Table.mod.fit,Doc.nm="Table2",caption=NA,paragph=NA,
+                HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+                Zebra='NO',Zebra.col='grey60',Grid.col='black',
+                Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+  
+  
+  #Plot residuals for all model
+  tiff(file="Figure.3_Fit.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
+  par(mfrow=c(length(n.sp),length(Rtype)+1),mar=c(1.5,1.2,.1,.1),oma=c(1.75,3,.1,1),mgp=c(1,.5,0))
+  for(s in 1:length(n.sp))
+  {
+     for(f in 1:length(Fit.M_H[[s]]$Equal.power))
+    {
+      with(Fit.M_H[[s]]$Equal.power[[f]],
+      {
+        MAIN=""
+        if(s==1)MAIN=ifelse(type=="norm.loc","Normal (fixed spread)",
+             ifelse(type=="norm.sca","Normal (prop. spread)",
+             ifelse(type=="gamma","Gamma",
+             ifelse(type=="lognorm","Lognormal",NA))))
+        plot.resids(devres,meshsizes,lens,title=MAIN)
+      })
+     }
+    with(Fit.M_H[[s]]$Equal.power[[f]],plot.resids(K.and.W_Residuals[[s]],meshsizes,lens,title="Gammab"))
+    mtext( names(Fit.M_H)[s],4)
+  }
+  mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
+  mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
+  dev.off()
+  
+    #By species
+  for(s in 1:length(n.sp))
+  {
+    tiff(file=paste("Each species/Fit/Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    smart.par(length(Rtype)+1,MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.75,3,.1,.1),MGP=c(1,.5,0))
+    for(f in 1:length(Fit.M_H[[s]]$Equal.power))
+    {
+      with(Fit.M_H[[s]]$Equal.power[[f]],
+           {
+             MAIN=""
+             if(s==1)MAIN=ifelse(type=="norm.loc","Normal (fixed spread)",
+                                 ifelse(type=="norm.sca","Normal (prop. spread)",
+                                        ifelse(type=="gamma","Gamma",
+                                               ifelse(type=="lognorm","Lognormal",NA))))
+             plot.resids(devres,meshsizes,lens,title=MAIN)
+           })
+    }
+    with(Fit.M_H[[s]]$Equal.power[[f]],plot.resids(K.and.W_Residuals[[s]],meshsizes,lens,title="Gammab"))
+    mtext("Total length (mm)",1,outer=T,line=.5,cex=1.2)
+    mtext("Mesh size (cm)",2,outer=T,line=1.25,cex=1.2,las=3)
+    mtext( names(Fit.M_H)[s],3,outer=T,line=-1.25,cex=1.2)
+    dev.off()
+  }
+  
+  
+  #Observed vs predicted number at size by mesh for Kirkwood & Walker
+  for(s in 1:length(n.sp))
+  {
+    dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
+                                     size.int=Size.Interval,
+                                     Fit.K_W[[s]]$par)
+    tiff(file=paste("Each species/Fit/K&W_Pre_vs_Obs_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    smart.par(n.plots=ncol(dummy$observed),MAR=c(2,1,2,1.5),OMA=c(2.5,3,.5,.1),MGP=c(1,.5,0))
+    for(m in 1:ncol(dummy$observed))
+    {
+      DAT=data.frame(y=dummy$observed[,m],x=dummy$predicted[,m])
+      mod=lm(y~x,data=DAT)
+      CoF=coef(mod)
+      Smry=summary(mod)
+      Ndat=data.frame(x=seq(min(DAT$x),max(DAT$x),length.out = 10))
+      Prd=predict(mod,newdata=Ndat,se.fit=TRUE)
+      Main=paste(round(as.numeric(gsub("[^0-9.]", "",colnames(dummy$observed)[m]))/2.54,1),'inch')
+      plot(dummy$predicted[,m],dummy$observed[,m],pch=19,cex=1.5,ylab='',xlab='',main=Main)
+      lines(Ndat$x,Prd$fit,lwd=1.5)
+      text(mean(Ndat$x),mean(Prd$fit)*.6,
+           paste('y= ',round(CoF[1],2),' + ',round(CoF[2],2),'x',sep=''),pos=4,cex=1.25)
+      mylabel = bquote(italic(r)^2 == .(format(round(Smry$r.squared,2), digits = 3)))
+      text(mean(Ndat$x),mean(Prd$fit)*.4,mylabel,pos=4,cex=1.25)
+      polygon(x=c(Ndat$x,rev(Ndat$x)),
+              y=c(Prd$fit+1.96*Prd$se.fit,rev(Prd$fit-1.96*Prd$se.fit)),
+              col=rgb(.1,.1,.1,alpha=.2),border='transparent')
+    }
+    mtext("Predicted size class (mm)",1,outer=T,line=1)
+    mtext("Observed size class (mm)",2,outer=T,las=3,line=1.5)
+    dev.off()  
+  }
+  
+  
   #Colors for displaying mesh selectivity
   colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4"))
   unik.mesh=sort(unique(Combined$Mesh.size))
   CLS=colfunc(length(unik.mesh))
   names(CLS)=unik.mesh
   
-  
-  #---Millar & Holst
-  
-  #Display best fit  
+  #ACA
+  #Plot Observed size frequency VS estimated selectivity MISSING!!!!
   
   
-  #Plot residuals
-  for(s in 1:length(n.sp))
-  {
-    tiff(file=paste("Each species/Fit/M&H_Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
-    smart.par(n.plots=length(Fit.M_H[[s]]$Equal.power),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
-    for(f in 1:length(Fit.M_H[[s]]$Equal.power))
-    {
-      with(Fit.M_H[[s]]$Equal.power[[f]],plot.resids(devres,meshsizes,lens,title=type))
-    }
-    mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
-    mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
-    dev.off()
-  }
   
-  #Plot Selectivity curves
+  
+  
+   
+  #Display best model      Best.fit    MISSING!!
   tiff(file="Figure 1.Selectivity_M&H.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  smart.par(n.plots=length(n.sp.pub)*length(Rtype),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+  smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
   for(s in 1:length(n.sp.pub))
   {
     ThiS=as.numeric(substr(names(Fit.M_H[[s]]$tab)[-1],2,10))
     cl=CLS[match(ThiS,names(CLS))]
-    for(f in 1:length(Fit.M_H[[s]]$Equal.power))
-    {
-      with(Fit.M_H[[s]]$Equal.power[[f]],plot.curves(type,plotlens,rselect,cOL=cl))
-    }
+    
+    BEST=Best.fit[[s]]
+    if(BEST$Fishing.power=="Equal.power") DAT=Fit.M_H[[s]]$Equal.power
+    if(BEST$Fishing.power=="Prop.power")  DAT=Fit.M_H[[s]]$Prop.power
+    id=match(BEST$Model,names(DAT))
+    with(DAT[[id]],plot.curves(type,plotlens,rselect,cOL=cl))
+    rm(DAT)
   }
   plot.new()
   legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
   mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
   dev.off() 
-  
 
+
+  # Show Selectivity for published species
+  tiff(file="Figure 1.Selectivity_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+  for(s in 1:length(n.sp.pub))
+  {
+    d=Combined.sel[[s]]%>%
+      mutate(Length=as.numeric(rownames(Combined.sel[[s]])),
+             TL=Length/10)
+    
+    plot(d$TL,d$TL,type='l',ylab='',xlab='',
+         lwd=5,col='transparent',main=n.sp.pub[s],ylim=c(0,1))
+    for(l in 1:(ncol(d)))
+    {
+      lines(d$TL,d[,l],col=CLS[match(names(d)[l],names(CLS))],lwd=2)
+    }
+  }
+  plot.new()
+  legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
+  mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
+  mtext("Relative selectivity",2,outer=T,las=3,line=1.5,cex=1.25)
+  dev.off() 
   
-  #---Kirkwood & Walker
   
-  #Plot each species' selectivity separately
+  #Plot each species' selectivity separately for K&W
   fn.plt.Sel=function(Dat,theta)
   {
     Theta1=exp(theta[1])
@@ -735,32 +953,6 @@ if(do.paper.figures)
   }
   for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit.K_W[[s]]$par)
   
-  #Output parameter estimates            
-  Table2=data.frame(Species=n.sp,
-                    Theta1=NA,Theta1.LOW95=NA,Theta1.UP95=NA,
-                    Theta2=NA,Theta2.LOW95=NA,Theta2.UP95=NA)
-  for(s in 1:length(n.sp))
-  {
-    dummy=Fit.K_W.CI[[s]]
-    Table2$Theta1[s]=round(quantile(dummy[,"Theta1"],probs=0.5),1)
-    Table2$Theta1.LOW95[s]=round(quantile(dummy[,"Theta1"],probs=0.025),1)
-    Table2$Theta1.UP95[s]=round(quantile(dummy[,"Theta1"],probs=0.975),1)
-    Table2$Theta2[s]=round(quantile(dummy[,"Theta2"],probs=0.5),1)
-    Table2$Theta2.LOW95[s]=round(quantile(dummy[,"Theta2"],probs=0.025),1)
-    Table2$Theta2.UP95[s]=round(quantile(dummy[,"Theta2"],probs=0.975),1)
-  }
-  write.csv(Table2,'Table2_K&W.csv',row.names = F) 
-  
-  Table11=Table2%>%
-    mutate(Theta1=paste(Theta1," (",paste(Theta1.LOW95,Theta1.UP95,sep="-"),")",sep=''),
-           Theta2=paste(Theta2," (",paste(Theta2.LOW95,Theta2.UP95,sep="-"),")",sep=''))%>%
-    dplyr::select(Species,Theta1,Theta2)
-  #colnames(Table11)[2]=intToUtf8(0x03B8)
-  #colnames(Table11)[2]=intToUtf8(U+03B8)
-  fn.word.table(WD=getwd(),TBL=Table11,Doc.nm="Table2_K&W",caption=NA,paragph=NA,
-                HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
-                Zebra='NO',Zebra.col='grey60',Grid.col='black',
-                Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
   
   #Combined selectivity all species together
   tiff(file="Combined selectivity all selected species_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
@@ -779,57 +971,4 @@ if(do.paper.figures)
   mtext("Relative selectivity",2,outer=T,las=3,line=1.75)
   dev.off()  
   
-  #Plot fit (observed vs predicted number at size by mesh)
-  for(s in 1:length(n.sp))
-  {
-    dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
-                                     size.int=100,
-                                     Fit.K_W[[s]]$par)
-    tiff(file=paste("Each species/Fit/K&W_Pre_vs_Obs_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
-    smart.par(n.plots=ncol(dummy$observed),MAR=c(2,1,2,1.5),OMA=c(2.5,3,.5,.1),MGP=c(1,.5,0))
-    for(m in 1:ncol(dummy$observed))
-    {
-      DAT=data.frame(y=dummy$observed[,m],x=dummy$predicted[,m])
-      mod=lm(y~x,data=DAT)
-      CoF=coef(mod)
-      Smry=summary(mod)
-      Ndat=data.frame(x=seq(min(DAT$x),max(DAT$x),length.out = 10))
-      Prd=predict(mod,newdata=Ndat,se.fit=TRUE)
-      Main=paste(as.numeric(gsub("[^0-9.]", "",colnames(dummy$observed)[m]))/2.54,'inch')
-      plot(dummy$predicted[,m],dummy$observed[,m],pch=19,cex=1.5,ylab='',xlab='',main=Main)
-      lines(Ndat$x,Prd$fit,lwd=1.5)
-      text(mean(Ndat$x),mean(Prd$fit)*.6,
-           paste('y= ',round(CoF[1],2),' + ',round(CoF[2],2),'x',sep=''),pos=4,cex=1.25)
-      mylabel = bquote(italic(r)^2 == .(format(round(Smry$r.squared,2), digits = 3)))
-      text(mean(Ndat$x),mean(Prd$fit)*.4,mylabel,pos=4,cex=1.25)
-      polygon(x=c(Ndat$x,rev(Ndat$x)),
-              y=c(Prd$fit+1.96*Prd$se.fit,rev(Prd$fit-1.96*Prd$se.fit)),
-              col=rgb(.1,.1,.1,alpha=.2),border='transparent')
-    }
-    mtext("Predicted size class (mm)",1,outer=T,line=1)
-    mtext("Observed size class (mm)",2,outer=T,las=3,line=1.5)
-    dev.off()  
-  }
-  
-  # Show Selectivity for published species
-  tiff(file="Figure 1.Selectivity_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
-  for(s in 1:length(n.sp.pub))
-  {
-    d=Combined.sel[[s]]%>%
-      mutate(Length=as.numeric(rownames(Combined.sel[[s]])),
-             TL=Length/10)
-    
-    plot(d$TL,d$TL,type='l',ylab='',xlab='',
-         lwd=5,col='transparent',main=n.sp.pub[s],ylim=c(0,1))
-    for(l in 1:(ncol(d)))
-    {
-      lines(d$TL,d[,l],col=CLS[match(names(d)[l],names(CLS))],lwd=2)
-    }
-  }
-  plot.new()
-  legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
-  mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
-  mtext("Relative selectivity",2,outer=T,las=3,line=1.5,cex=1.25)
-  dev.off() 
 }
