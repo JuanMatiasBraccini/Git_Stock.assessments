@@ -58,12 +58,13 @@ close(channel)
 #note: this is for fishers using one type of net at a time.
 #      Not used as models cannot converge and not used simultaneously.
 #      Mean sizes of 6.5 and 7 inch similar, or 6.5 > 7 
-LFQ.south=read.csv("C:/Matias/Analyses/Selectivity/out.LFQ.south.csv")
+LFQ.south=read.csv("C:/Matias/Analyses/Selectivity_Gillnet/out.LFQ.south.csv")
 
 
 #4. Species names
 SP.names=read.csv('C:/Matias/Data/Species_names_shark.only.csv')
 SP.codes=read.csv('C:/Matias/Data/Species.code.csv')
+
 
 # PARAMETERS  -------------------------------------------------------------------
 
@@ -203,7 +204,7 @@ if(Preliminary)
     labs(fill="Mesh size")+
     xlab("Total length (cm)")+
     facet_wrap(vars(name), scales = "free") 
-  ggsave('C:/Matias/Analyses/Selectivity/Size.frequency_experimental.WA.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  ggsave('C:/Matias/Analyses/Selectivity_Gillnet/Size.frequency_experimental.WA.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
 }
 
 
@@ -235,7 +236,7 @@ if(Preliminary)
     labs(fill="Mesh size")+
     xlab("Total length (cm)") +
     facet_wrap(vars(Species), scales = "free") 
-  ggsave('C:/Matias/Analyses/Selectivity/Size.frequency_SSF.tiff', width = 12,height = 8, dpi = 300, compression = "lzw")
+  ggsave('C:/Matias/Analyses/Selectivity_Gillnet/Size.frequency_SSF.tiff', width = 12,height = 8, dpi = 300, compression = "lzw")
 }
 
 
@@ -282,7 +283,7 @@ if(Preliminary)
     labs(fill="Mesh size")+
     xlab("Total length (cm)") +
     facet_wrap(vars(Species), scales = "free") 
-  ggsave('C:/Matias/Analyses/Selectivity/Size.frequency_TDGDLF_observed.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  ggsave('C:/Matias/Analyses/Selectivity_Gillnet/Size.frequency_TDGDLF_observed.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
 }
 
 #--2. Combine all data sets    
@@ -308,7 +309,21 @@ Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
                          Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
   filter(!is.na(Mesh.size))%>%
   filter(!Species%in%c('Spurdogs')) #remove Spurdogs from WA, could be several species
+
+SP.names=SP.names%>%
+  mutate(Name=ifelse(Name=='PortJackson shark','Port Jackson shark',
+              ifelse(Name=='Angel Shark','Australian angelshark',
+              ifelse(Name=='Sevengill shark','Broadnose shark',
+              ifelse(Name=='Sixgill shark','Bluntnose sixgill shark',
+              ifelse(Name=='Eagle Ray','Eagle ray',
+              Name))))))
+
+Families=SP.names%>%  
+  dplyr::select(Name,Family)%>%
+  rename(Species=Name)
   
+Combined=Combined%>%left_join(Families,"Species")
+Combined.family=Combined%>%dplyr::select(-Species)%>%rename(Species=Family)  
 
 #Table 1. Numbers by species and mesh
 Table1=Combined%>%
@@ -317,7 +332,9 @@ Table1=Combined%>%
   spread(Mesh.size,n)%>%
   data.frame
 colnames(Table1)[-1]=substr(colnames(Table1)[-1],2,10)
-Table1=Table1%>%left_join(SP.names%>%dplyr::select(-SPECIES),by=c('Species'='Name'))
+Table1=Table1%>%
+  left_join(SP.names%>%dplyr::select(-SPECIES),by=c('Species'='Name'))%>%
+  arrange(Family,Species)
 
 #Analyse species with at least Min.sample and Min.nets
 TAB=table(Combined$Species,Combined$Mesh.size)
@@ -326,8 +343,18 @@ TAB[TAB>=Min.sample]=1
 Combined=Combined%>%
   filter(Species%in%names(which(rowSums(TAB)>=Min.nets)) & Length<=Max.length)
 
+TAB=table(Combined.family$Species,Combined.family$Mesh.size)
+TAB[TAB<Min.sample]=0
+TAB[TAB>=Min.sample]=1
+Combined.family=Combined.family%>%
+  filter(Species%in%names(which(rowSums(TAB)>=Min.nets)) & Length<=Max.length)
+
+#remove family with single species
+Single.sp.family=table(Families$Family)
+Combined.family=Combined.family%>%filter(!Species%in%names(Single.sp.family[Single.sp.family==1]))
 
 #for each selected species, remove meshes with few observations
+  #species
 n.sp=sort(unique(Combined$Species))
 for(s in 1:length(n.sp))
 {
@@ -346,15 +373,45 @@ for(s in 1:length(n.sp))
   Combined=rbind(Combined,d)
   
 }
-
 n.sp=sort(unique(Combined$Species))
 
-#remove mesh sizes with higher mean size that next largest mesh   
+  #family
+n.sp.family=sort(unique(Combined.family$Species))
+for(s in 1:length(n.sp.family))
+{
+  d=Combined.family%>%filter(Species==n.sp.family[s])
+  Combined.family=Combined.family%>%filter(!Species==n.sp.family[s])
+  
+  id=table(d$Mesh.size)
+  Drop=as.numeric(gsub("[^0-9.]", "",  names(which(id<min.obs.per.mesh))))
+  if(length(Drop)>0)
+  {
+    d=d%>%filter(!Mesh.size%in%Drop)
+    id=table(d$Mesh.size)
+    if(length(id)==1) d=NULL
+  }
+  
+  Combined.family=rbind(Combined.family,d)
+  
+}
+n.sp.family=sort(unique(Combined.family$Species))
+
+
+#remove mesh sizes with higher mean size that next largest mesh
+  #species
 drop.one.mesh=data.frame(Species=c("Port Jackson shark","Sandbar shark","Whiskery shark"),
                          Mesh.size=c(10.2,10.2,16.5),
                          Drop="YES")
 Combined=left_join(Combined,drop.one.mesh,by=c('Species','Mesh.size'))%>%
          filter(is.na(Drop))%>%dplyr::select(-Drop)
+
+  #family
+drop.one.mesh=data.frame(Species=c("Carcharhinidae"),
+                         Mesh.size=c(10.2),
+                         Drop="YES")
+Combined.family=left_join(Combined.family,drop.one.mesh,by=c('Species','Mesh.size'))%>%
+        filter(is.na(Drop))%>%dplyr::select(-Drop)
+
 
 
 #--3. Estimate selectivity parameters 
@@ -368,8 +425,6 @@ Rtype=c("norm.loc","norm.sca","gamma","lognorm")   #consider this selection curv
                                                    #       normal spread proportional to mesh size,
                                                    #       gamma, lognormal
 #Fit functions
-Fit.M_H=vector('list',length(n.sp))
-names(Fit.M_H)=n.sp
 Millar.Holst=function(d,size.int)
 {
   #Create size bins
@@ -455,9 +510,20 @@ Millar.Holst=function(d,size.int)
 
   return(list(tab=tab,Equal.power=Equal.power,Prop.power=Prop.power))
 }
+  #species
+Fit.M_H=vector('list',length(n.sp))
+names(Fit.M_H)=n.sp
 for(s in 1:length(n.sp))  
 {
   Fit.M_H[[s]]=Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),size.int=Size.Interval)
+}
+
+  #family
+Fit.M_H.family=vector('list',length(n.sp.family))
+names(Fit.M_H.family)=n.sp.family
+for(s in 1:length(n.sp.family))  
+{
+  Fit.M_H.family[[s]]=Millar.Holst(d=Combined.family%>%filter(Species==n.sp.family[s]),size.int=Size.Interval)
 }
 
 
@@ -566,6 +632,7 @@ stopCluster(cl)
 
 
   #3.3. Select best fit   
+  #Species
 K.and.W_Dev=data.frame(Species=n.sp,Model='Gamma_K&W',Deviance=NA)
 K.and.W_Residuals=vector('list',length(n.sp))
 names(K.and.W_Residuals)=n.sp
@@ -577,7 +644,6 @@ for(s in 1:length(n.sp))
   K.and.W_Dev$Deviance[s]=sum((dummy$observed-dummy$predicted)^2)
   K.and.W_Residuals[[s]]=dummy$observed-dummy$predicted
 }
-
 Best.fit=vector('list',length(n.sp))
 names(Best.fit)=n.sp
 for(s in 1:length(n.sp))
@@ -592,10 +658,29 @@ for(s in 1:length(n.sp))
   }
   Tab1=Tab[which.min(Tab[,2]),-3]%>%mutate(Fishing.power="Equal.power")%>%rename(Dev=Equal_dev)
   Tab2=Tab[which.min(Tab[,3]),-2]%>%mutate(Fishing.power="Prop.power")%>%rename(Dev=Prop_dev)
-  Tab3=rbind(Tab1,Tab2,data.frame(Model="K&W",Dev=K.and.W_Dev$Deviance[s],Fishing.power=''))
+  Tab3=rbind(Tab1,Tab2)
+#  Tab3=rbind(Tab1,Tab2,data.frame(Model="K&W",Dev=K.and.W_Dev$Deviance[s],Fishing.power='')) #removed K&W as only Angel shark selected but poor fit
   Best.fit[[s]]=Tab3[which.min(Tab3[,2]),]
 }
 
+  #Family
+Best.fit.family=vector('list',length(n.sp.family))
+names(Best.fit.family)=n.sp.family
+for(s in 1:length(n.sp.family))
+{
+  Tab=data.frame(Model=names(Fit.M_H.family[[s]]$Equal.power),
+                 Equal_dev=NA,
+                 Prop_dev=NA)
+  for(f in 1:length(Rtype))
+  {
+    Tab$Equal_dev[f]=Fit.M_H.family[[s]]$Equal.power[[f]]$fit.stats['model_dev']
+    Tab$Prop_dev[f]=Fit.M_H.family[[s]]$Prop.power[[f]]$fit.stats['model_dev']
+  }
+  Tab1=Tab[which.min(Tab[,2]),-3]%>%mutate(Fishing.power="Equal.power")%>%rename(Dev=Equal_dev)
+  Tab2=Tab[which.min(Tab[,3]),-2]%>%mutate(Fishing.power="Prop.power")%>%rename(Dev=Prop_dev)
+  Tab3=rbind(Tab1,Tab2)
+  Best.fit.family[[s]]=Tab3[which.min(Tab3[,2]),]
+}
 
 
 
@@ -604,11 +689,14 @@ for(s in 1:length(n.sp))
 # EXPORT SELECTIVITY OGIVES  ------------------------------------------------------------------
 setwd('C:/Matias/Analyses/Data_outs')
 #MISSING
+  #species
+
+  #family
 
 # REPORT  ------------------------------------------------------------------
 if(do.paper.figures)
 {
-  setwd('C:/Matias/Analyses/Selectivity')
+  setwd('C:/Matias/Analyses/Selectivity_Gillnet')
   
   colfunc <- colorRampPalette(c("white", "yellow","orange",'brown2',"darkred"))
   
@@ -625,6 +713,7 @@ if(do.paper.figures)
   write.csv(Table1,'Table1.csv',row.names = F)
   
   #Mean size of by mesh of selected species
+    #species
   Tab2.mean=Combined%>%
     group_by(Mesh.size,Species)%>%
     summarise(Mean=round(mean(Length),1))%>%
@@ -648,12 +737,33 @@ if(do.paper.figures)
     theme(strip.text.x = element_text(size = 11,face='bold',color="white"))
   ggsave('Mean size by mesh.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
+    #family
+  Tab2.mean=Combined.family%>%
+    group_by(Mesh.size,Species)%>%
+    summarise(Mean=round(mean(Length),1))%>%
+    spread(Mesh.size,Mean)%>%
+    data.frame
+  colnames(Tab2.mean)[-1]=substr(colnames(Tab2.mean)[-1],2,10)
+  Combined.family%>%
+    group_by(Mesh.size,Species)%>%
+    summarise(Mean=mean(Length),
+              SD=sd(Length))%>%
+    mutate(Mesh=as.character(Mesh.size))%>%
+    ggplot(aes(x=Mesh.size, y= Mean, colour=Mesh)) + 
+    geom_errorbar(aes(ymin= Mean-SD, ymax= Mean+SD), width=.1) +
+    geom_point() + ylab("Mean total length (+/-SD)") + xlab("Mesh size (cm)") +
+    facet_wrap(vars(Species), scales = "free_y")+
+    scale_color_manual("Mesh size (cm)",values=cols)+
+    theme_dark()+ 
+    theme(strip.text.x = element_text(size = 11,face='bold',color="white"))
+  ggsave('Mean size by mesh_family.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  
   
   #Select species without selectivity published
   n.sp.pub=n.sp[-match(Published,n.sp)]
   
   
-  #Display size frequencies of species in paper
+  #Display size frequencies 
   fig2=function(d)
   {
     cols=colfunc(length(unique(d$MESH)))
@@ -664,18 +774,26 @@ if(do.paper.figures)
       facet_wrap(vars(Species), scales = "free")+
       xlab("Total length (cm)")+ ylab("Frequency")+scale_fill_manual(values=cols)
   }
+
+    #species in paper
   fig2(d=Combined%>%
          mutate(MESH=as.factor(Mesh.size),
                 TL=Length/10)%>%
         filter(Species%in%n.sp.pub))
   ggsave('Figure 2.Size frequency.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
-  
-  #Display size frequencies of all species
+      #all species
   fig2(d=Combined%>%
          mutate(MESH=as.factor(Mesh.size),
                 TL=Length/10))
   ggsave('Size frequency all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+
+      #family
+  fig2(d=Combined.family%>%
+         mutate(MESH=as.factor(Mesh.size),
+                TL=Length/10))
+  ggsave('Size frequency family_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  
   
   
   #Display density
@@ -690,15 +808,24 @@ if(do.paper.figures)
       ylab("Density")+ xlab("Total length (cm)")+
       scale_fill_manual("Mesh size (cm)", values = cols)
   }
+  
+      #all species
   fig.density(d=Combined%>%
          mutate(MESH=as.factor(Mesh.size),
                 TL=Length/10))
   ggsave('Density all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
-  
-  
+
+    #family
+  fig.density(d=Combined.family%>%
+                mutate(MESH=as.factor(Mesh.size),
+                       TL=Length/10))
+  ggsave('Density family_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+
+
   #Output parameter estimates from all models 
   fn.rnd=function(x) sprintf(round(x,2), fmt = '%#.2f')
   
+    #species
   Table.mod.fit=vector('list',length(n.sp))
   names(Table.mod.fit)=n.sp
   for(s in 1:length(n.sp))
@@ -744,11 +871,9 @@ if(do.paper.figures)
                                              Model)))))%>%
     dplyr::select(Species,Model,Equal_Param1,Equal_Param2,Equal_Deviance,
                   Prop_Param1,Prop_Param2,Prop_Deviance)
-  
-  #add K&W                    
   Table2=data.frame(Species=n.sp,
                     Theta1=NA,Theta1.LOW95=NA,Theta1.UP95=NA,
-                    Theta2=NA,Theta2.LOW95=NA,Theta2.UP95=NA)
+                    Theta2=NA,Theta2.LOW95=NA,Theta2.UP95=NA)   #add K&W 
   for(s in 1:length(n.sp))
   {
     dummy=Fit.K_W.CI[[s]]
@@ -778,13 +903,71 @@ if(do.paper.figures)
   
   Table.mod.fit$Species[duplicated(Table.mod.fit$Species)] <- ""
   Table.mod.fit[is.na(Table.mod.fit)] <- ""
+  Table.mod.fit[Table.mod.fit=="NaN"] <- ""
   fn.word.table(WD=getwd(),TBL=Table.mod.fit,Doc.nm="Table2",caption=NA,paragph=NA,
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                 Zebra='NO',Zebra.col='grey60',Grid.col='black',
                 Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
   
+    #family
+  Table.mod.fit.family=vector('list',length(n.sp.family))
+  names(Table.mod.fit.family)=n.sp.family
+  for(s in 1:length(n.sp.family))
+  {
+    Tab=data.frame(Model=names(Fit.M_H.family[[s]]$Equal.power),
+                   Equal_Param1=NA,Equal_Param2=NA,Equal_Deviance=NA,
+                   Prop_Param1=NA,Prop_Param2=NA,Prop_Deviance=NA)
+    for(f in 1:length(Rtype))
+    {
+      #equal power
+      Del=ifelse(sum(is.na(Fit.M_H.family[[s]]$Equal.power[[f]]$gear.pars[1:2,]))>0,"YES","NO")
+      if(Del=="NO")
+      {
+        Tab$Equal_Deviance[f]=fn.rnd(Fit.M_H.family[[s]]$Equal.power[[f]]$fit.stats['model_dev'])
+        PaR=fn.rnd(Fit.M_H.family[[s]]$Equal.power[[f]]$gear.pars[1:2,'estimate'])
+        errOr=fn.rnd(Fit.M_H.family[[s]]$Equal.power[[f]]$gear.pars[1:2,'s.e.'])
+        Tab$Equal_Param1[f]=paste(PaR[1]," (",errOr[1],")",sep='')
+        Tab$Equal_Param2[f]=paste(PaR[2]," (",errOr[2],")",sep='')
+        rm(PaR,errOr)
+      }
+      
+      #Prop power
+      Del=ifelse(sum(is.na(Fit.M_H.family[[s]]$Prop.power[[f]]$gear.pars[1:2,]))>0,"YES","NO")
+      if(Del=="NO")
+      {
+        Tab$Prop_Deviance[f]=fn.rnd(Fit.M_H.family[[s]]$Prop.power[[f]]$fit.stats['model_dev'])
+        PaR=fn.rnd(Fit.M_H.family[[s]]$Prop.power[[f]]$gear.pars[1:2,'estimate'])
+        errOr=fn.rnd(Fit.M_H.family[[s]]$Prop.power[[f]]$gear.pars[1:2,'s.e.'])
+        Tab$Prop_Param1[f]=paste(PaR[1]," (",errOr[1],")",sep='')
+        Tab$Prop_Param2[f]=paste(PaR[2]," (",errOr[2],")",sep='')
+        rm(PaR,errOr)
+      }
+    }
+    Table.mod.fit.family[[s]]=Tab
+  }
+  Table.mod.fit.family=do.call(rbind,Table.mod.fit.family)
+  Table.mod.fit.family$Species=sub("*\\.[0-9]", "", rownames(Table.mod.fit.family))
+  Table.mod.fit.family=Table.mod.fit.family%>%
+    mutate(Model=ifelse(Model=="norm.loc","Normal (fixed spread)",
+                        ifelse(Model=="norm.sca","Normal (prop. spread)",
+                               ifelse(Model=="gamma","Gamma",
+                                      ifelse(Model=="lognorm","Lognormal",
+                                             Model)))))%>%
+    dplyr::select(Species,Model,Equal_Param1,Equal_Param2,Equal_Deviance,
+                  Prop_Param1,Prop_Param2,Prop_Deviance)
+  Table.mod.fit.family$Species[duplicated(Table.mod.fit.family$Species)] <- ""
+  Table.mod.fit.family[is.na(Table.mod.fit.family)] <- ""
+  Table.mod.fit.family[Table.mod.fit.family=="NaN"] <- ""
+  fn.word.table(WD=getwd(),TBL=Table.mod.fit.family,Doc.nm="Table2.family",caption=NA,paragph=NA,
+                HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+                Zebra='NO',Zebra.col='grey60',Grid.col='black',
+                Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+
   
   #Plot residuals for all model
+  
+    #species
+      #all together
   tiff(file="Figure.3_Fit.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
   par(mfrow=c(length(n.sp),length(Rtype)+1),mar=c(1.5,1.2,.1,.1),oma=c(1.75,3,.1,1),mgp=c(1,.5,0))
   for(s in 1:length(n.sp))
@@ -808,10 +991,10 @@ if(do.paper.figures)
   mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
   dev.off()
   
-    #By species
+      #each individual species
   for(s in 1:length(n.sp))
   {
-    tiff(file=paste("Each species/Fit/Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    tiff(file=paste("Each species/Fit/species/Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
     smart.par(length(Rtype)+1,MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.75,3,.1,.1),MGP=c(1,.5,0))
     for(f in 1:length(Fit.M_H[[s]]$Equal.power))
     {
@@ -831,11 +1014,60 @@ if(do.paper.figures)
     mtext( names(Fit.M_H)[s],3,outer=T,line=-1.25,cex=1.2)
     dev.off()
   }
+
+    #family
+      #all together
+  tiff(file="Figure.3_Fit.family.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
+  par(mfrow=c(length(n.sp.family),length(Rtype)),mar=c(1.5,1.2,.1,.1),oma=c(1.75,3,.1,1),mgp=c(1,.5,0))
+  for(s in 1:length(n.sp.family))
+  {
+    for(f in 1:length(Fit.M_H.family[[s]]$Equal.power))
+    {
+      with(Fit.M_H.family[[s]]$Equal.power[[f]],
+           {
+             MAIN=""
+             if(s==1)MAIN=ifelse(type=="norm.loc","Normal (fixed spread)",
+                                 ifelse(type=="norm.sca","Normal (prop. spread)",
+                                        ifelse(type=="gamma","Gamma",
+                                               ifelse(type=="lognorm","Lognormal",NA))))
+             plot.resids(devres,meshsizes,lens,title=MAIN)
+           })
+    }
+    mtext( names(Fit.M_H.family)[s],4)
+  }
+  mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
+  mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
+  dev.off()
   
+      #each individual species
+  for(s in 1:length(n.sp.family))
+  {
+    tiff(file=paste("Each species/Fit/family/Deviance residual plot_",n.sp.family[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    smart.par(length(Rtype),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.75,3,.1,.1),MGP=c(1,.5,0))
+    for(f in 1:length(Fit.M_H.family[[s]]$Equal.power))
+    {
+      with(Fit.M_H.family[[s]]$Equal.power[[f]],
+           {
+             MAIN=""
+             if(s==1)MAIN=ifelse(type=="norm.loc","Normal (fixed spread)",
+                                 ifelse(type=="norm.sca","Normal (prop. spread)",
+                                        ifelse(type=="gamma","Gamma",
+                                               ifelse(type=="lognorm","Lognormal",NA))))
+             plot.resids(devres,meshsizes,lens,title=MAIN)
+           })
+    }
+    mtext("Total length (mm)",1,outer=T,line=.5,cex=1.2)
+    mtext("Mesh size (cm)",2,outer=T,line=1.25,cex=1.2,las=3)
+    mtext( names(Fit.M_H.family)[s],3,outer=T,line=-1.25,cex=1.2)
+    dev.off()
+  }
   
   #Observed vs predicted number at size by mesh for Kirkwood & Walker
-  for(s in 1:length(n.sp))
+  do.K.W.fit=FALSE
+  if(do.K.W.fit)
   {
+   for(s in 1:length(n.sp))
+   {
     dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
                                      size.int=Size.Interval,
                                      Fit.K_W[[s]]$par)
@@ -864,8 +1096,8 @@ if(do.paper.figures)
     mtext("Observed size class (mm)",2,outer=T,las=3,line=1.5)
     dev.off()  
   }
-  
-  
+  }
+
   #Colors for displaying mesh selectivity
   colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4"))
   unik.mesh=sort(unique(Combined$Mesh.size))
@@ -875,12 +1107,20 @@ if(do.paper.figures)
   #ACA
   #Plot Observed size frequency VS estimated selectivity MISSING!!!!
   
+    #species
+  
+  
+    #family
   
   
   
   
    
   #Display best model      Best.fit    MISSING!!
+    #species
+  
+    #family
+  
   tiff(file="Figure 1.Selectivity_M&H.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
   smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
   for(s in 1:length(n.sp.pub))
@@ -896,7 +1136,7 @@ if(do.paper.figures)
     rm(DAT)
   }
   plot.new()
-  legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
+  legend("center",paste(round(as.numeric(names(CLS)),2),'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
   mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
   dev.off() 
 
