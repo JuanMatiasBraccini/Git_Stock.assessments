@@ -9,10 +9,11 @@
 #             and future research to sort this out. Do selectivity tests.
 
 #MISSING: 
-#         Something out of wack between Figure 1 and Combined selectivity figures (e.g. PortJackson)
+#         For species where best is 'proportial power' model not going to 1 for all meshes... consider only 'equal power'?
+#         Explore sandbar second peak for large mesh (see if fishing deeper, see Density all selected species_data set combined.tiff)
+#         Squalidae is bi modal (2 different species??)
 #         Compare published selectivities with those estimated here
-#         Issues with some species rel. sel. not going to 1 (grey nurse, spinner, etc)
-#         Tiger size frequency seems wider than selectivites
+
 
 
 
@@ -79,6 +80,9 @@ Max.length=4000
 
 do.paper.figures=FALSE
 Preliminary=FALSE
+
+Published=capitalize(tolower(c("Sandbar shark","Gummy Shark","Whiskery shark","Dusky shark")))
+
 
 # PROCEDURE  -------------------------------------------------------------------
 
@@ -155,8 +159,6 @@ Exp.net.WA=rbind(Exp.net.94_96[,match(This.col,names(Exp.net.94_96))],
                       ifelse(name=="Port Jackson","PortJackson shark",
                       ifelse(name=="Big eye sixgill shark","Sixgill shark",
                       ifelse(name%in%c("Wobbegong (general)",'Spotted Wobbegong','Western Wobbegong'),"Wobbegongs",name)))))))
-
-Published=capitalize(tolower(c("Sandbar shark","Gummy Shark","Whiskery shark","Dusky shark")))
 
 TAB=table(Exp.net.WA$name,Exp.net.WA$mesh_size)
 TAB[TAB<2]=0
@@ -324,6 +326,9 @@ Families=SP.names%>%
   
 Combined=Combined%>%left_join(Families,"Species")
 Combined.family=Combined%>%dplyr::select(-Species)%>%rename(Species=Family)  
+Tab.sp.fam=table(Combined$Species,Combined$Family)
+Tab.sp.fam[Tab.sp.fam>0]=1
+Tab.sp.fam=colSums(Tab.sp.fam)
 
 #Table 1. Numbers by species and mesh
 Table1=Combined%>%
@@ -350,8 +355,7 @@ Combined.family=Combined.family%>%
   filter(Species%in%names(which(rowSums(TAB)>=Min.nets)) & Length<=Max.length)
 
 #remove family with single species
-Single.sp.family=table(Families$Family)
-Combined.family=Combined.family%>%filter(!Species%in%names(Single.sp.family[Single.sp.family==1]))
+Combined.family=Combined.family%>%filter(!Species%in%names(Tab.sp.fam[Tab.sp.fam==1]))
 
 #for each selected species, remove meshes with few observations
   #species
@@ -579,9 +583,26 @@ Selectivty.Kirkwood.Walker=function(d,size.int,theta)
   return(list(negLL=negLL,d=d,observed=tab,predicted=tab.pred))
   
 }
+
+pred.Kirkwood.Walker=function(theta,pred.len,Mesh)
+{
+  Theta1=exp(theta[1])
+  Theta2=exp(theta[2])
+  
+  d1=data.frame(Size.class=rep(pred.len,times=length(Mesh)),
+                Mesh.size=rep(Mesh,each=length(pred.len)))%>%
+    mutate(alpha.beta=Theta1*Mesh.size,
+           beta=-0.5*((alpha.beta)-((alpha.beta*alpha.beta+4*Theta2)^0.5)),
+           alpha=alpha.beta/beta,
+           Rel.sel=((Size.class/(alpha*beta))^alpha)*(exp(alpha-(Size.class/beta))))%>%
+    dplyr::select(-c('alpha.beta','beta','alpha'))%>%
+    spread(Mesh.size,Rel.sel)
+  return(d1)
+}
+
 theta.list=vector('list',length(n.sp))
 names(theta.list)=n.sp
-Fit.K_W=Combined.sel=theta.list
+Fit.K_W=Pred.sel.K_W=theta.list
 
 # initial parameter values
 theta.list$`Gummy shark`=c(Theta1=log(80),Theta2=log(29000))
@@ -599,6 +620,16 @@ for(s in 1:length(n.sp))
   
   #. fit model
   Fit.K_W[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
+  
+  
+  #. predict selectivity
+  Pred.sel.K_W[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W[[s]]$par,
+                                         pred.len=PlotLens,
+                                         Mesh=Combined%>%
+                                                filter(Species==n.sp[s])%>%
+                                                distinct(Mesh.size)%>%
+                                                pull(Mesh.size))
+  
 }
 
 # Calculate confidence intervals thru bootstrapping 
@@ -684,11 +715,9 @@ for(s in 1:length(n.sp.family))
 
 
 
-
-
 # EXPORT SELECTIVITY OGIVES  ------------------------------------------------------------------
 setwd('C:/Matias/Analyses/Data_outs')
-#MISSING
+#MISSING  Best.fit
   #species
 
   #family
@@ -969,7 +998,7 @@ if(do.paper.figures)
     #species
       #all together
   tiff(file="Figure.3_Fit.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
-  par(mfrow=c(length(n.sp),length(Rtype)+1),mar=c(1.5,1.2,.1,.1),oma=c(1.75,3,.1,1),mgp=c(1,.5,0))
+  par(mfrow=c(length(n.sp),length(Rtype)),mar=c(1.5,1.2,.1,.1),oma=c(1.75,3,.1,1),mgp=c(1,.5,0))
   for(s in 1:length(n.sp))
   {
      for(f in 1:length(Fit.M_H[[s]]$Equal.power))
@@ -984,7 +1013,6 @@ if(do.paper.figures)
         plot.resids(devres,meshsizes,lens,title=MAIN)
       })
      }
-    with(Fit.M_H[[s]]$Equal.power[[f]],plot.resids(K.and.W_Residuals[[s]],meshsizes,lens,title="Gammab"))
     mtext( names(Fit.M_H)[s],4)
   }
   mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
@@ -994,24 +1022,22 @@ if(do.paper.figures)
       #each individual species
   for(s in 1:length(n.sp))
   {
-    tiff(file=paste("Each species/Fit/species/Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
-    smart.par(length(Rtype)+1,MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.75,3,.1,.1),MGP=c(1,.5,0))
+    tiff(file=paste("Each species/Fit/species/Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+    smart.par(length(Rtype),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.75,3,.5,.1),MGP=c(1,.5,0))
     for(f in 1:length(Fit.M_H[[s]]$Equal.power))
     {
       with(Fit.M_H[[s]]$Equal.power[[f]],
            {
-             MAIN=""
-             if(s==1)MAIN=ifelse(type=="norm.loc","Normal (fixed spread)",
-                                 ifelse(type=="norm.sca","Normal (prop. spread)",
-                                        ifelse(type=="gamma","Gamma",
-                                               ifelse(type=="lognorm","Lognormal",NA))))
+              MAIN=ifelse(type=="norm.loc","Normal (fixed spread)",
+                   ifelse(type=="norm.sca","Normal (prop. spread)",
+                   ifelse(type=="gamma","Gamma",
+                   ifelse(type=="lognorm","Lognormal",NA))))
              plot.resids(devres,meshsizes,lens,title=MAIN)
            })
     }
-    with(Fit.M_H[[s]]$Equal.power[[f]],plot.resids(K.and.W_Residuals[[s]],meshsizes,lens,title="Gammab"))
     mtext("Total length (mm)",1,outer=T,line=.5,cex=1.2)
     mtext("Mesh size (cm)",2,outer=T,line=1.25,cex=1.2,las=3)
-    mtext( names(Fit.M_H)[s],3,outer=T,line=-1.25,cex=1.2)
+    mtext( names(Fit.M_H)[s],3,outer=T,line=-.75,cex=1.2)
     dev.off()
   }
 
@@ -1039,26 +1065,25 @@ if(do.paper.figures)
   mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
   dev.off()
   
-      #each individual species
+      #each individual family
   for(s in 1:length(n.sp.family))
   {
     tiff(file=paste("Each species/Fit/family/Deviance residual plot_",n.sp.family[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
-    smart.par(length(Rtype),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.75,3,.1,.1),MGP=c(1,.5,0))
+    smart.par(length(Rtype),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.75,3,.5,.1),MGP=c(1,.5,0))
     for(f in 1:length(Fit.M_H.family[[s]]$Equal.power))
     {
       with(Fit.M_H.family[[s]]$Equal.power[[f]],
            {
-             MAIN=""
-             if(s==1)MAIN=ifelse(type=="norm.loc","Normal (fixed spread)",
-                                 ifelse(type=="norm.sca","Normal (prop. spread)",
-                                        ifelse(type=="gamma","Gamma",
-                                               ifelse(type=="lognorm","Lognormal",NA))))
+             MAIN=ifelse(type=="norm.loc","Normal (fixed spread)",
+                  ifelse(type=="norm.sca","Normal (prop. spread)",
+                  ifelse(type=="gamma","Gamma",
+                  ifelse(type=="lognorm","Lognormal",NA))))
              plot.resids(devres,meshsizes,lens,title=MAIN)
            })
     }
     mtext("Total length (mm)",1,outer=T,line=.5,cex=1.2)
     mtext("Mesh size (cm)",2,outer=T,line=1.25,cex=1.2,las=3)
-    mtext( names(Fit.M_H.family)[s],3,outer=T,line=-1.25,cex=1.2)
+    mtext( names(Fit.M_H.family)[s],3,outer=T,line=-.75,cex=1.2)
     dev.off()
   }
   
@@ -1066,12 +1091,22 @@ if(do.paper.figures)
   do.K.W.fit=FALSE
   if(do.K.W.fit)
   {
-   for(s in 1:length(n.sp))
+    tiff(file=paste("Each species/Fit/K&W/Deviance residual plot.tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    smart.par(length(n.sp),MAR=c(1.5,1.2,1,.1),OMA=c(1.75,3,.1,1),MGP=c(1,.5,0))
+    for(s in 1:length(n.sp))
+    {
+      with(Fit.M_H[[s]]$Equal.power[[1]],plot.resids(K.and.W_Residuals[[s]],meshsizes,lens,title=names(Fit.M_H)[s]))
+    }
+    mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
+    mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
+    dev.off()
+    
+    for(s in 1:length(n.sp))
    {
     dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
                                      size.int=Size.Interval,
                                      Fit.K_W[[s]]$par)
-    tiff(file=paste("Each species/Fit/K&W_Pre_vs_Obs_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    tiff(file=paste("Each species/Fit/K&W/Pre_vs_Obs_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
     smart.par(n.plots=ncol(dummy$observed),MAR=c(2,1,2,1.5),OMA=c(2.5,3,.5,.1),MGP=c(1,.5,0))
     for(m in 1:ncol(dummy$observed))
     {
@@ -1104,111 +1139,213 @@ if(do.paper.figures)
   CLS=colfunc(length(unik.mesh))
   names(CLS)=unik.mesh
   
-  #ACA
-  #Plot Observed size frequency VS estimated selectivity MISSING!!!!
+
+  #Plot Observed size frequency VS estimated selectivity 
+  fn.freq.obs.pred=function(d,d.KW=NULL,NME,MAR,OMA)
+  {
+    #Calculated expected population frequency
+    Obs=d$tab[,-match('Size.class',names(d$tab))]
+    N.fish.caught=vector('list',length(d$Equal.power))
+    names(N.fish.caught)=names(d$Equal.power)
+    for(f in 1:length(d$Equal.power))
+    {
+      Lns=d$Equal.power[[f]]$lens
+      iid=match(Lns,d$Equal.power[[f]]$plotlens)
+      Pred.sel=d$Equal.power[[f]]$rselect[iid,]
+      Total.sel=rowSums(Pred.sel)
+      Total.obs=rowSums(Obs)
+      Rel.num.in.pop=sapply(Total.obs/Total.sel,function(x) max(x,0.1))
+      Rel.prop.in.pop=Rel.num.in.pop/sum(Rel.num.in.pop)
+      N.mesh=colSums(Obs)
+      Expnd.N.mesh=matrix(rep(N.mesh,each=nrow(Pred.sel)),ncol=ncol(Pred.sel))
+      Expnd.Rel.prop.in.pop=matrix(rep(Rel.prop.in.pop,ncol(Pred.sel)),ncol=ncol(Pred.sel))
+      Sum.prod=colSums(Pred.sel*Expnd.Rel.prop.in.pop)
+      Sum.prod=matrix(rep(Sum.prod,each=nrow(Pred.sel)),ncol=ncol(Pred.sel))
+      N.fish.caught[[f]]=(Expnd.N.mesh*Expnd.Rel.prop.in.pop*Pred.sel)/Sum.prod
+    }
+    if(!is.null(d.KW))
+    {
+      iid=match(Lns,d.KW$Size.class)
+      
+      Pred.sel=d.KW[iid,-1]
+      Total.sel=rowSums(Pred.sel)
+      Total.obs=rowSums(Obs)
+      Rel.num.in.pop=sapply(Total.obs/Total.sel,function(x) max(x,0.1))
+      Rel.prop.in.pop=Rel.num.in.pop/sum(Rel.num.in.pop)
+      N.mesh=colSums(Obs)
+      Expnd.N.mesh=matrix(rep(N.mesh,each=nrow(Pred.sel)),ncol=ncol(Pred.sel))
+      Expnd.Rel.prop.in.pop=matrix(rep(Rel.prop.in.pop,ncol(Pred.sel)),ncol=ncol(Pred.sel))
+      Sum.prod=colSums(Pred.sel*Expnd.Rel.prop.in.pop)
+      Sum.prod=matrix(rep(Sum.prod,each=nrow(Pred.sel)),ncol=ncol(Pred.sel))
+      N.fish.caught$'K&W'=(Expnd.N.mesh*Expnd.Rel.prop.in.pop*Pred.sel)/Sum.prod
+    }
+    
+    #Plot by mesxh
+    n=ncol(d$tab)-1
+    smart.par(n,MAR,OMA,MGP=c(1,.5,0))
+    Msh=substr(names(d$tab)[-1],2,10)
+    for(i in 1:n)
+    {
+      plot(d$tab$Size.class,d$tab[,i+1],type='h',ylab='',xlab='', lwd = 4,col=rgb(.5,.5,.5,alpha=.5))
+      for(m in 1:length(N.fish.caught))
+      {
+        lines(d$tab$Size.class,N.fish.caught[[m]][,i],col=Cols.type[m],lwd=1.5)
+      }
+      Where=which.max(N.fish.caught[[1]][,i])
+      if(Where<10) here='topright' else here= 'topleft'
+      if(NME=="Sphyrnidae") here= 'topleft'
+      if(i<n)legend(here,paste(Msh[i],'cm mesh'),bty='n',cex=1.2)
+      
+    }
+    legend(here,names(Cols.type),bty='n',lty=1,lwd=2,col=Cols.type,title=paste(Msh[i],'cm mesh'),cex=1.2)
+    mtext("Frequency", side = 2,outer=T, line = 0.2,las=3,cex=1.2)
+    mtext("Total length (mm)",1,outer=T,line=.45,cex=1.2)
+    mtext(NME,3,outer=T,line=-.75,cex=1.2)
+  }
+  Cols.type=c('brown','red','forestgreen','orange','steelblue')
+  names(Cols.type)=c(Rtype,"K&W")
   
     #species
-  
-  
-    #family
-  
-  
-  
-  
-   
-  #Display best model      Best.fit    MISSING!!
-    #species 
-  
-    #family
-  
-  tiff(file="Figure 1.Selectivity_M&H.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
-  for(s in 1:length(n.sp.pub))
-  {
-    ThiS=as.numeric(substr(names(Fit.M_H[[s]]$tab)[-1],2,10))
-    cl=CLS[match(ThiS,names(CLS))]
-    
-    BEST=Best.fit[[s]]
-    if(BEST$Fishing.power=="Equal.power") DAT=Fit.M_H[[s]]$Equal.power
-    if(BEST$Fishing.power=="Prop.power")  DAT=Fit.M_H[[s]]$Prop.power
-    id=match(BEST$Model,names(DAT))
-    with(DAT[[id]],plot.curves(type,plotlens,rselect,cOL=cl))
-    rm(DAT)
-  }
-  plot.new()
-  legend("center",paste(round(as.numeric(names(CLS)),2),'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
-  mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
-  dev.off() 
-
-
-  # Show Selectivity for published species
-  tiff(file="Figure 1.Selectivity_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  smart.par(n.plots=length(n.sp.pub),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
-  for(s in 1:length(n.sp.pub))
-  {
-    d=Combined.sel[[s]]%>%
-      mutate(Length=as.numeric(rownames(Combined.sel[[s]])),
-             TL=Length/10)
-    
-    plot(d$TL,d$TL,type='l',ylab='',xlab='',
-         lwd=5,col='transparent',main=n.sp.pub[s],ylim=c(0,1))
-    for(l in 1:(ncol(d)))
-    {
-      lines(d$TL,d[,l],col=CLS[match(names(d)[l],names(CLS))],lwd=2)
-    }
-  }
-  plot.new()
-  legend("center",paste(as.numeric(names(CLS))/2.54,'inch'),col=CLS,bty='n',lwd=2,cex=1.25)
-  mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
-  mtext("Relative selectivity",2,outer=T,las=3,line=1.5,cex=1.25)
-  dev.off() 
-  
-  
-  #Plot each species' selectivity separately for K&W
-  fn.plt.Sel=function(Dat,theta)
-  {
-    Theta1=exp(theta[1])
-    Theta2=exp(theta[2])
-    
-    sizes=seq(10*round(min(Dat$Length)*.9/10),10*(round(max(Dat$Length)*1.1/10)),by=10)
-    meshes=unique(Dat$Mesh.size)
-    d=data.frame(Size.class=rep(sizes,length(meshes)))%>%
-      mutate(Mesh.size=rep(meshes,each=length(sizes)),
-             alpha.beta=Theta1*Mesh.size,
-             beta=-0.5*((alpha.beta)-((alpha.beta*alpha.beta+4*Theta2)^0.5)),
-             alpha=alpha.beta/beta,
-             Rel.sel=((Size.class/(alpha*beta))^alpha)*(exp(alpha-(Size.class/beta))))
-    
-    S.ij=d%>%
-      distinct(Size.class,Mesh.size,.keep_all = T)%>%
-      dplyr::select(Size.class,Mesh.size,Rel.sel)%>%
-      spread(Mesh.size,Rel.sel,fill = 0)
-    row.names(S.ij)=S.ij$Size.class
-    S.ij=S.ij[,-1]
-    
-    ggplot(d, aes(Size.class,  Rel.sel)) + geom_line(aes(colour = factor(Mesh.size)),size=1.5)
-    ggsave(paste("Each species/Selectivity/K&W_",n.sp[s],'.tiff',sep=''), width = 8,height = 8, dpi = 300, compression = "lzw")
-    
-    return(S.ij)
-  }
-  for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit.K_W[[s]]$par)
-  
-  
-  #Combined selectivity all species together
-  tiff(file="Combined selectivity all selected species_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  smart.par(n.plots=length(n.sp),MAR=c(1.5,1,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
   for(s in 1:length(n.sp))
   {
-    Sum.sel=rowSums(Combined.sel[[s]])
-    Combined.sel[[s]]$combined=Sum.sel/max(Sum.sel)
-    plot(as.numeric(rownames(Combined.sel[[s]])),Combined.sel[[s]]$combined,type='l',ylab='',xlab='',
-         lwd=5,col='orange',main=n.sp[s])
-    for(l in 1:(ncol(Combined.sel[[s]])-1)) lines(as.numeric(rownames(Combined.sel[[s]])),Combined.sel[[s]][,l])
+    tiff(file=paste("Each species/Fit/species/Observed.vs.pred_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    fn.freq.obs.pred(d=Fit.M_H[[s]],
+                     d.KW=Pred.sel.K_W[[s]],
+                     NME=names(Fit.M_H)[s],
+                     MAR=c(1.2,1.75,1,1),
+                     OMA=c(1.75,1.75,.75,.75))
+    dev.off()
+  }
+  
+    #family
+  for(s in 1:length(n.sp.family))
+  {
+    tiff(file=paste("Each species/Fit/family/Observed.vs.pred_",n.sp.family[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    fn.freq.obs.pred(d=Fit.M_H.family[[s]],
+                     NME=names(Fit.M_H.family)[s],
+                     MAR=c(1.2,1.85,1,1.5),
+                     OMA=c(1.75,1.5,.75,1.5))
+    dev.off()
+  }
+
+  
+  #Display best model selectivity
+  plot.sel=function(d,BEST,NM)
+  {
+    ThiS=as.numeric(substr(names(d$tab)[-1],2,10))
+    cl=CLS[match(ThiS,names(CLS))]
+    
+    if(BEST$Fishing.power=="Equal.power") DAT=d$Equal.power
+    if(BEST$Fishing.power=="Prop.power")  DAT=d$Prop.power
+    id=match(BEST$Model,names(DAT))
+    
+    with(DAT[[id]],
+         {
+           plot(plotlens,rselect[,1],type='l',lwd=2,col=cl[1],ylab='',xlab='',ylim=c(0,1))
+           for(m in 2:length(cl)) lines(plotlens,rselect[,m],lwd=2,col=cl[m])
+         })
+     mtext(NM,3)
+  }
+  
+    #species 
+  tiff(file="Figure 3. Selectivity.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  smart.par(n.plots=length(n.sp)+1,MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+  for(s in 1:length(n.sp))
+  {
+    plot.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s])
   }
   plot.new()
-  legend('center',"combined",lwd=4,col="orange",bty='n',cex=1.25)
-  mtext("Total length (mm)",1,outer=T,line=.35)
-  mtext("Relative selectivity",2,outer=T,las=3,line=1.75)
-  dev.off()  
+  legend("center",paste(round(as.numeric(names(CLS)),2),'cm'),col=CLS,bty='n',lwd=2,cex=1.25,title='Mesh')
+  mtext("Total length (mm)",1,outer=T,line=.15,cex=1.25)
+  mtext("Relative selectivity",2,outer=T,line=1,cex=1.25,las=3)
+  dev.off() 
   
+    #family
+  tiff(file="Figure 3. Selectivity.family.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  smart.par(n.plots=length(n.sp.family)+1,MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+  for(s in 1:length(n.sp.family))
+  {
+    plot.sel(d=Fit.M_H.family[[s]],BEST=Best.fit.family[[s]],NM=n.sp.family[s])
+  }
+  plot.new()
+  legend("center",paste(round(as.numeric(names(CLS)),2),'cm'),col=CLS,bty='n',lwd=2,cex=1.25,title='Mesh')
+  mtext("Total length (mm)",1,outer=T,line=.15,cex=1.25)
+  mtext("Relative selectivity",2,outer=T,line=1,cex=1.25,las=3)
+  dev.off() 
+  
+
+  #Plot each species' selectivity separately for K&W
+  if(do.K.W.fit)
+  {
+    #Get predicted selectivity
+    fn.plt.Sel=function(Dat,theta)
+    {
+      Theta1=exp(theta[1])
+      Theta2=exp(theta[2])
+      
+      sizes=seq(10*round(min(Dat$Length)*.9/10),10*(round(max(Dat$Length)*1.1/10)),by=10)
+      meshes=unique(Dat$Mesh.size)
+      d=data.frame(Size.class=rep(sizes,length(meshes)))%>%
+        mutate(Mesh.size=rep(meshes,each=length(sizes)),
+               alpha.beta=Theta1*Mesh.size,
+               beta=-0.5*((alpha.beta)-((alpha.beta*alpha.beta+4*Theta2)^0.5)),
+               alpha=alpha.beta/beta,
+               Rel.sel=((Size.class/(alpha*beta))^alpha)*(exp(alpha-(Size.class/beta))))
+      
+      S.ij=d%>%
+        distinct(Size.class,Mesh.size,.keep_all = T)%>%
+        dplyr::select(Size.class,Mesh.size,Rel.sel)%>%
+        spread(Mesh.size,Rel.sel,fill = 0)
+      row.names(S.ij)=S.ij$Size.class
+      S.ij=S.ij[,-1]
+      
+      ggplot(d, aes(Size.class,  Rel.sel)) + geom_line(aes(colour = factor(Mesh.size)),size=1.5)
+      ggsave(paste("Each species/Selectivity/K&W_",n.sp[s],'.tiff',sep=''), width = 8,height = 8, dpi = 300, compression = "lzw")
+      
+      return(S.ij)
+    }
+    for(s in 1:length(n.sp)) Combined.sel[[s]]=fn.plt.Sel(Dat=Combined%>%filter(Species==n.sp[s]),theta=Fit.K_W[[s]]$par)
+    
+    # Show Selectivity for published species
+    tiff(file="Figure 1.Selectivity_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+    smart.par(n.plots=length(n.sp.pub)+1,MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+    for(s in 1:length(n.sp.pub))
+    {
+      d=Combined.sel[[s]]%>%
+        mutate(Length=as.numeric(rownames(Combined.sel[[s]])),
+               TL=Length/10)
+      
+      plot(d$TL,d$TL,type='l',ylab='',xlab='',
+           lwd=5,col='transparent',main=n.sp.pub[s],ylim=c(0,1))
+      for(l in 1:(ncol(d)))
+      {
+        lines(d$TL,d[,l],col=CLS[match(names(d)[l],names(CLS))],lwd=2)
+      }
+    }
+    plot.new()
+    legend("center",paste(as.numeric(names(CLS))),col=CLS,bty='n',lwd=2,cex=1.25)
+    mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
+    mtext("Relative selectivity",2,outer=T,las=3,line=1.5,cex=1.25)
+    dev.off() 
+    
+    #Combined selectivity all species together for K$W
+    tiff(file="Combined selectivity all selected species_K&W.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+    smart.par(n.plots=length(n.sp)+1,MAR=c(1.5,1,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+    for(s in 1:length(n.sp))
+    {
+      Sum.sel=rowSums(Combined.sel[[s]])
+      Combined.sel[[s]]$combined=Sum.sel/max(Sum.sel)
+      if(!is.na(sum(Combined.sel[[s]]$combined)))
+      {
+        plot(as.numeric(rownames(Combined.sel[[s]])),Combined.sel[[s]]$combined,type='l',ylab='',xlab='',
+             lwd=5,col='orange',main=n.sp[s])
+        for(l in 1:(ncol(Combined.sel[[s]])-1)) lines(as.numeric(rownames(Combined.sel[[s]])),Combined.sel[[s]][,l])
+      }
+     }
+    plot.new()
+    legend('center',"combined",lwd=4,col="orange",bty='n',cex=1.25)
+    mtext("Total length (mm)",1,outer=T,line=.35)
+    mtext("Relative selectivity",2,outer=T,las=3,line=1.75)
+    dev.off() 
+  }
 }
