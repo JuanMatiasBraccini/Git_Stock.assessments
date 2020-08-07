@@ -118,7 +118,8 @@ Rec.ktch=fn.in(NM='recons_recreational.csv')
 
 
 #4. Abundance data
-fn.read=function(x) read.csv(paste('C:/Matias/Analyses/Data_outs',x,sep='/'),stringsAsFactors = F)
+WD='C:/Matias/Analyses/Data_outs'
+fn.read=function(x) read.csv(paste(WD,x,sep='/'),stringsAsFactors = F)
 
   #Naturalist abundance survey
 Scal.hh.nat=fn.read('Scalloped hammerhead.Srvy.FixSt.csv')
@@ -161,6 +162,11 @@ for(m in 1:length(Mn.weit.ktch))  #keep used years
 
 #6. Conventional tagging data
 Tag=fn.read('Tagging_conventional.data.csv')   
+
+#7. Gillnet selectivity
+All.sel.dat =list.files(WD,pattern="^gillnet.selectivity")
+Sel.list <- lapply(All.sel.dat, read.csv)
+names(Sel.list)= gsub(".*[_]([^.]+)[.].*", "\\1", All.sel.dat)
 
 
 #Species codes
@@ -1450,9 +1456,9 @@ for(r in 1:length(RESILIENCE))
                                       'Very low'))))
 }
 
-# ---Derive age frequency and selectivity from length frequency -----------------------------------------------------------------------
+# ---Bring in length fequency data -----------------------------------------------------------------------
 WD=getwd()
-if(use.size.comp=="YES")       #ACA, remove all selectivity estimation, done in "Gillnet_selectivity.R"
+if(use.size.comp=="YES")       
 {
   User="Matias"
   source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R')
@@ -1532,8 +1538,6 @@ if(use.size.comp=="YES")       #ACA, remove all selectivity estimation, done in 
                             Method%in%c('GN') &!BOAT%in%Res.vess),area="South")
   dev.off()
   
-  #Get age from size using age-length-key constructed based on assumed size variability at age
-  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Age.length.key.R")  
   Conversion=data.frame(Name=c("copper shark","great hammerhead","grey nurse shark","lemon shark",
                                "milk shark","sawsharks","scalloped hammerhead","shortfin mako",
                                "smooth hammerhead","spinner shark","spurdogs",
@@ -1542,156 +1546,164 @@ if(use.size.comp=="YES")       #ACA, remove all selectivity estimation, done in 
                                 "Milk shark","Common sawshark","Scalloped hammerhead","Shortfin mako",
                                 "Smooth hammerhead","Spinner shark","Spurdogs",
                                 "Tiger shark","Wobbegong (general)","Pigeye shark"))
-  Store.age.comp=vector('list',nrow(LH.par))
-  names(Store.age.comp)=LH.par$SPECIES
-  for(l in 1:nrow(LH.par))
+  
+  derive.age.comp.from.length.comp=FALSE
+  if(derive.age.comp.from.length.comp)  
   {
-    NM=as.character(Conversion%>%filter(Name==LH.par$Name[l])%>%pull(FL.sp))
-    Linf=LH.par$FL_inf[l] 
-    Lo=LH.par$LF_o[l] 
-    k=LH.par$K[l] 
-    AMAX=LH.par$Max_Age[l] 
-    b_w8t=LH.par$b_w8t[l]
-    a_w8t=LH.par$a_w8t[l]
-    
-    mn.len=Lo+(Linf-Lo)*(1-exp(-k*(0:AMAX)))
-    
-    GN=get.prop.at.age.from.length(
-            age=0:AMAX,
-            mn.len=mn.len,
-            SD=mn.len*seq(.15,.025,length.out = AMAX+1),
-            N=100,
-            int=10,
-            Obs.len=DATA%>%
-              filter(Method=='GN'&
-                     MESH_SIZE%in% c("6.5","7","7\"")&
-                     COMMON_NAME==NM & 
-                     !BOAT%in%Res.vess)%>%
-              mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
-              filter(!is.na(FL))%>%
-              filter(FL>=Min.len)%>%
-              pull(FL),
-            min.obs=Min.size.sample)
-    
-    LL=get.prop.at.age.from.length(
-            age=0:AMAX,
-            mn.len=mn.len,
-            SD=mn.len*seq(.15,.025,length.out = AMAX+1),
-            N=100,
-            int=10,
-            Obs.len=DATA%>%
-              filter(Method=='LL'& 
+        #Get age from size using age-length-key constructed based on assumed size variability at age
+    source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Age.length.key.R")  
+     Store.age.comp=vector('list',nrow(LH.par))
+    names(Store.age.comp)=LH.par$SPECIES
+    for(l in 1:nrow(LH.par))
+    {
+      NM=as.character(Conversion%>%filter(Name==LH.par$Name[l])%>%pull(FL.sp))
+      Linf=LH.par$FL_inf[l] 
+      Lo=LH.par$LF_o[l] 
+      k=LH.par$K[l] 
+      AMAX=LH.par$Max_Age[l] 
+      b_w8t=LH.par$b_w8t[l]
+      a_w8t=LH.par$a_w8t[l]
+      
+      mn.len=Lo+(Linf-Lo)*(1-exp(-k*(0:AMAX)))
+      
+      GN=get.prop.at.age.from.length(
+              age=0:AMAX,
+              mn.len=mn.len,
+              SD=mn.len*seq(.15,.025,length.out = AMAX+1),
+              N=100,
+              int=10,
+              Obs.len=DATA%>%
+                filter(Method=='GN'&
+                       MESH_SIZE%in% c("6.5","7","7\"")&
                        COMMON_NAME==NM & 
                        !BOAT%in%Res.vess)%>%
-              mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
-              filter(!is.na(FL))%>%
-              filter(FL>=Min.len)%>%
-              pull(FL),
-            min.obs=Min.size.sample)
+                mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
+                filter(!is.na(FL))%>%
+                filter(FL>=Min.len)%>%
+                pull(FL),
+              min.obs=Min.size.sample)
+      
+      LL=get.prop.at.age.from.length(
+              age=0:AMAX,
+              mn.len=mn.len,
+              SD=mn.len*seq(.15,.025,length.out = AMAX+1),
+              N=100,
+              int=10,
+              Obs.len=DATA%>%
+                filter(Method=='LL'& 
+                         COMMON_NAME==NM & 
+                         !BOAT%in%Res.vess)%>%
+                mutate(FL=ifelse(is.na(FL),TL*Mn.conv.Fl.Tl,FL))%>%   
+                filter(!is.na(FL))%>%
+                filter(FL>=Min.len)%>%
+                pull(FL),
+              min.obs=Min.size.sample)
+      
+      #fill in objects for aSPM
+      props=data.frame(age=floor(0:AMAX),
+                       laa=mn.len,
+                       waa= a_w8t*mn.len^b_w8t,  #catch in tonnes; waa in kgs 
+                       maa=plogis(floor(0:AMAX),
+                                  floor(mean(unlist(LH.par[l,c('Age_50_Mat_min',
+                                                               'Age_50_Mat_max')]))),1),
+                       sela=NA,
+                       feca=NA)    
+      
+      glb=list(maxage=AMAX,
+               M=NA,
+               Linf=Linf,
+               K=k,
+               t0=NA,
+               Waa=NA,
+               Wab=NA,
+               M50a=floor(mean(unlist(LH.par[l,c('Age_50_Mat_min','Age_50_Mat_max')]))),
+               deltaM=NA,
+               steep=NA,
+               R0=NA,
+               sela50=NA,
+               deltaS=NA,
+               resilience=RESILIENCE[[l]],
+               nages=length(floor(0:AMAX)),
+               ages=floor(0:AMAX),
+               nyrs=NA,
+               spsname=names(RESILIENCE)[l])
+      Store.age.comp[[l]]=list(GN=GN,LL=LL,props=props,glb=glb)
+      rm(GN,LL)
+      print(paste("selectivity ",l,"--",names(Store.age.comp)[l]))
+    }
+    #Reset too-low sels
+    Store.age.comp$`18001`$GN$Selectivity$y[1]=.1
     
-    #fill in objects for aSPM
-    props=data.frame(age=floor(0:AMAX),
-                     laa=mn.len,
-                     waa= a_w8t*mn.len^b_w8t,  #catch in tonnes; waa in kgs 
-                     maa=plogis(floor(0:AMAX),
-                                floor(mean(unlist(LH.par[l,c('Age_50_Mat_min',
-                                                             'Age_50_Mat_max')]))),1),
-                     sela=NA,
-                     feca=NA)    
+    Store.age.comp$`8001`$GN$Selectivity$y[1]=.6
     
-    glb=list(maxage=AMAX,
-             M=NA,
-             Linf=Linf,
-             K=k,
-             t0=NA,
-             Waa=NA,
-             Wab=NA,
-             M50a=floor(mean(unlist(LH.par[l,c('Age_50_Mat_min','Age_50_Mat_max')]))),
-             deltaM=NA,
-             steep=NA,
-             R0=NA,
-             sela50=NA,
-             deltaS=NA,
-             resilience=RESILIENCE[[l]],
-             nages=length(floor(0:AMAX)),
-             ages=floor(0:AMAX),
-             nyrs=NA,
-             spsname=names(RESILIENCE)[l])
-    Store.age.comp[[l]]=list(GN=GN,LL=LL,props=props,glb=glb)
-    rm(GN,LL)
-    print(paste("selectivity ",l,"--",names(Store.age.comp)[l]))
-  }
-  #Reset too-low sels
-  Store.age.comp$`18001`$GN$Selectivity$y[1]=.1
-  
-  Store.age.comp$`8001`$GN$Selectivity$y[1]=.6
-  
-  Store.age.comp$`23900`$GN$Selectivity$y[12:16]=NA
-  approX=na.approx(c(1,Store.age.comp$`23900`$GN$Selectivity$y[12:15],0.7))
-  Store.age.comp$`23900`$GN$Selectivity$y[12:16]=approX[-1]
-  
-  Store.age.comp$`18023`$GN$Selectivity$y[1]=.4
-  
-  iii=which.max(Store.age.comp[[12]]$GN$Selectivity$y):length(Store.age.comp[[12]]$GN$Selectivity$y)
-  Store.age.comp$`20000`$GN$Selectivity$y[iii]=1
-  
-      #show derived selectivity at age
-  fn.plt.age.comp=function(sim,obs,sel,Title)   
-  {
-    if(!is.null(sim))
+    Store.age.comp$`23900`$GN$Selectivity$y[12:16]=NA
+    approX=na.approx(c(1,Store.age.comp$`23900`$GN$Selectivity$y[12:15],0.7))
+    Store.age.comp$`23900`$GN$Selectivity$y[12:16]=approX[-1]
+    
+    Store.age.comp$`18023`$GN$Selectivity$y[1]=.4
+    
+    iii=which.max(Store.age.comp[[12]]$GN$Selectivity$y):length(Store.age.comp[[12]]$GN$Selectivity$y)
+    Store.age.comp$`20000`$GN$Selectivity$y[iii]=1
+    
+    #show derived selectivity at age
+    fn.plt.age.comp=function(sim,obs,sel,Title)   
     {
-      with(sim,
-           {
-             plot(age,Mean.len,type='l',lwd=3,xlab="Age",ylab="Length (cm)",
-                  main=Title,ylim=c(0,max(len)))
-             points(age,len)
-           })
-      with(obs,points(age,len,pch=19,col="orange"))
-      par(fig = c(0.4,0.95, 0.05, .6), new = T,mgp=c(2,.5,0),las=1)  
-      aa=prop.table(table(obs$age))
-      plot(aa/max(aa),cex.axis=.75,
-           main=paste("Age composition (n=",nrow(obs),")",sep=''),xlab="",ylab="Proportion")
-      lines(sel$x,sel$y,col="forestgreen",lwd=3)
-      legend("topright","Vulnerability",bty='n',text.col="forestgreen")
+      if(!is.null(sim))
+      {
+        with(sim,
+             {
+               plot(age,Mean.len,type='l',lwd=3,xlab="Age",ylab="Length (cm)",
+                    main=Title,ylim=c(0,max(len)))
+               points(age,len)
+             })
+        with(obs,points(age,len,pch=19,col="orange"))
+        par(fig = c(0.4,0.95, 0.05, .6), new = T,mgp=c(2,.5,0),las=1)  
+        aa=prop.table(table(obs$age))
+        plot(aa/max(aa),cex.axis=.75,
+             main=paste("Age composition (n=",nrow(obs),")",sep=''),xlab="",ylab="Proportion")
+        lines(sel$x,sel$y,col="forestgreen",lwd=3)
+        legend("topright","Vulnerability",bty='n',text.col="forestgreen")
+      }
+    }
+    pdf(paste(hNdl,"/Outputs/Size.frequency/Inferred.age.comp.and.selectivity.pdf",sep=""))
+    for(l in 1:nrow(LH.par))
+    {
+      par(mfcol=c(1,1))
+      fn.plt.age.comp(sim=Store.age.comp[[l]]$GN$dat,
+                      obs=Store.age.comp[[l]]$GN$pred.age,
+                      sel=Store.age.comp[[l]]$GN$Selectivity,
+                      Title=paste(LH.par$Name[l],"(gillnet)"))
+      par(mfcol=c(1,1))
+      fn.plt.age.comp(sim=Store.age.comp[[l]]$LL$dat,
+                      obs=Store.age.comp[[l]]$LL$pred.age,
+                      sel=Store.age.comp[[l]]$LL$Selectivity,
+                      Title=paste(LH.par$Name[l],"(longline)"))
+    }
+    dev.off()
+    
+    #combine selectivities-at-age of gillnets and longlines
+    Selectivity.at.age=vector('list',nrow(LH.par))
+    names(Selectivity.at.age)=LH.par$SPECIES
+    for(l in 1:length(Selectivity.at.age))
+    {
+      dummy.GN=dummy.LL=NULL
+      L=Store.age.comp[[l]]$GN$Selectivity
+      if(!is.null(L))dummy.GN=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
+      L=Store.age.comp[[l]]$LL$Selectivity
+      if(!is.null(L))dummy.LL=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
+      dummy=rbind(dummy.GN,dummy.LL)  
+      if(!is.null(dummy))
+      {
+        names(dummy)=c('age','relative.sel')
+        dummy=dummy%>%
+          group_by(age)%>%
+          summarise(relative.sel=max(relative.sel))
+        dummy$relative.sel=dummy$relative.sel/max(dummy$relative.sel)
+        Selectivity.at.age[[l]]=dummy
+      }
     }
   }
-  pdf(paste(hNdl,"/Outputs/Size.frequency/Inferred.age.comp.and.selectivity.pdf",sep=""))
-  for(l in 1:nrow(LH.par))
-  {
-    par(mfcol=c(1,1))
-    fn.plt.age.comp(sim=Store.age.comp[[l]]$GN$dat,
-                    obs=Store.age.comp[[l]]$GN$pred.age,
-                    sel=Store.age.comp[[l]]$GN$Selectivity,
-                    Title=paste(LH.par$Name[l],"(gillnet)"))
-    par(mfcol=c(1,1))
-    fn.plt.age.comp(sim=Store.age.comp[[l]]$LL$dat,
-                    obs=Store.age.comp[[l]]$LL$pred.age,
-                    sel=Store.age.comp[[l]]$LL$Selectivity,
-                    Title=paste(LH.par$Name[l],"(longline)"))
-  }
-  dev.off()
   
-      #combine selectivities-at-age of gillnets and longlines
-  Selectivity.at.age=vector('list',nrow(LH.par))
-  names(Selectivity.at.age)=LH.par$SPECIES
-  for(l in 1:length(Selectivity.at.age))
-  {
-    dummy.GN=dummy.LL=NULL
-    L=Store.age.comp[[l]]$GN$Selectivity
-    if(!is.null(L))dummy.GN=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
-    L=Store.age.comp[[l]]$LL$Selectivity
-    if(!is.null(L))dummy.LL=data.frame(matrix(unlist(L), ncol=length(L), byrow=F))
-    dummy=rbind(dummy.GN,dummy.LL)  
-    if(!is.null(dummy))
-    {
-      names(dummy)=c('age','relative.sel')
-      dummy=dummy%>%
-        group_by(age)%>%
-        summarise(relative.sel=max(relative.sel))
-      dummy$relative.sel=dummy$relative.sel/max(dummy$relative.sel)
-      Selectivity.at.age[[l]]=dummy
-    }
-  }
   
   #Show size frequency for selected species  
   for(l in 1:nrow(LH.par))
@@ -1719,10 +1731,7 @@ if(use.size.comp=="YES")       #ACA, remove all selectivity estimation, done in 
     ggplot(DD, aes(x = FL)) +
       geom_histogram(color = "grey30", fill ="salmon") +
       facet_grid(year~Method, scales = "free")
-    
     ggsave(paste(hNdl,"/Outputs/Size.frequency/Size.freq_",NM,".tiff",sep=''), width = 8,height = 8, dpi = 300, compression = "lzw")
-    
-    
   }
   
   #Collate catch size frequency
@@ -1740,18 +1749,25 @@ if(use.size.comp=="YES")       #ACA, remove all selectivity estimation, done in 
   ktch.size.fq=ktch.size.fq[!sapply(ktch.size.fq, is.null)]
   
   
-  #Export LFQ.south for selectivity estimation  #ACA
-  out.LFQ.south=LFQ.south%>%
-                  mutate(Name=ifelse(COMMON_NAME=="common sawshark","Sawsharks",
-                              ifelse(COMMON_NAME=="wobbegong (general)","Wobbegongs",
-                              COMMON_NAME)),
-                         Name=tolower(Name))%>%
-                  filter(Name%in%Specs$SP.group)
-  write.csv(out.LFQ.south,"C:/Matias/Analyses/Selectivity/out.LFQ.south.csv",row.names = F)
-
-  
+  #Export LFQ.south for selectivity estimation in Gillnet_selectivity.R
+  Export.observed.size.comp=FALSE
+  if(Export.observed.size.comp)
+  {
+    out.LFQ.south=LFQ.south%>%
+      mutate(Name=ifelse(COMMON_NAME=="common sawshark","Sawsharks",
+                         ifelse(COMMON_NAME=="wobbegong (general)","Wobbegongs",
+                                COMMON_NAME)),
+             Name=tolower(Name))%>%
+      filter(Name%in%Specs$SP.group)
+    write.csv(out.LFQ.south,"C:/Matias/Analyses/Selectivity/out.LFQ.south.csv",row.names = F)
+  }
 }
+
+#ACA need to convert selectivity at size to selectivity at age for steepness calculation
+#     Create this: Selectivity.at.age
+
 setwd(WD)
+
 #---Calculate steepness -----------------------------------------------------------------------
 M.averaging="mean"  #setting to 'min' yields too high values of steepness
 store.species.steepness=vector('list',N.sp)

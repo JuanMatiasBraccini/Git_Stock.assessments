@@ -717,10 +717,25 @@ for(s in 1:length(n.sp.family))
 
 # EXPORT SELECTIVITY OGIVES  ------------------------------------------------------------------
 setwd('C:/Matias/Analyses/Data_outs')
-#MISSING  Best.fit
+
   #species
+out.sel=function(d,BEST,NM)
+{
+  if(BEST$Fishing.power=="Equal.power") DAT=d$Equal.power
+  if(BEST$Fishing.power=="Prop.power")  DAT=d$Prop.power
+  id=match(BEST$Model,names(DAT))
+  
+  dat=DAT[[id]]$rselect
+  colnames(dat)=DAT[[id]]$meshsizes
+  dat=as.data.frame(cbind(TL.mm=DAT[[id]]$plotlens,dat))
+  write.csv(dat,paste("gillnet.selectivity_",NM,".csv",sep=''),row.names = F)
+}
+for(s in 1:length(n.sp))  out.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s])
 
   #family
+for(s in 1:length(n.sp.family))  out.sel(d=Fit.M_H.family[[s]],BEST=Best.fit.family[[s]],NM=n.sp.family[s])
+
+
 
 # REPORT  ------------------------------------------------------------------
 if(do.paper.figures)
@@ -1133,13 +1148,6 @@ if(do.paper.figures)
   }
   }
 
-  #Colors for displaying mesh selectivity
-  colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4"))
-  unik.mesh=sort(unique(Combined$Mesh.size))
-  CLS=colfunc(length(unik.mesh))
-  names(CLS)=unik.mesh
-  
-
   #Plot Observed size frequency VS estimated selectivity 
   fn.freq.obs.pred=function(d,d.KW=NULL,NME,MAR,OMA)
   {
@@ -1230,6 +1238,12 @@ if(do.paper.figures)
 
   
   #Display best model selectivity
+  
+  colfunc <- colorRampPalette(c("cadetblue2", "deepskyblue4")) #Colors for displaying mesh selectivity
+  unik.mesh=sort(unique(Combined$Mesh.size))
+  CLS=colfunc(length(unik.mesh))
+  names(CLS)=unik.mesh
+  
   plot.sel=function(d,BEST,NM)
   {
     ThiS=as.numeric(substr(names(d$tab)[-1],2,10))
