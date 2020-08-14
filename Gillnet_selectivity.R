@@ -716,8 +716,6 @@ for(s in 1:length(n.sp.family))
 
 
 # EXPORT SELECTIVITY OGIVES  ------------------------------------------------------------------
-setwd('C:/Matias/Analyses/Data_outs')
-
   #species
 out.sel=function(d,BEST,NM)
 {
@@ -728,7 +726,7 @@ out.sel=function(d,BEST,NM)
   dat=DAT[[id]]$rselect
   colnames(dat)=DAT[[id]]$meshsizes
   dat=as.data.frame(cbind(TL.mm=DAT[[id]]$plotlens,dat))
-  write.csv(dat,paste("gillnet.selectivity_",NM,".csv",sep=''),row.names = F)
+  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',NM,'/',"gillnet.selectivity_",NM,".csv",sep=''),row.names = F)
 }
 for(s in 1:length(n.sp))  out.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s])
 
