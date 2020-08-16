@@ -230,7 +230,7 @@ fn.input.data=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size
   #3.3.TDGDLF observing programs
   #description: FL (cm) composition observed as part of different research projects on commercial gillnet vessels. 
   #           6.5 and 7 inch mesh combined (also available are data by mesh size). Souce: "Shark database"
-  if(SP=="WH")
+  if(SP=="WH")      #FIX. all this is each species folder in Analysis/Data outs  !!!!
   {
     FL.TDGDFL.WC=read.csv("Size_composition/Whiskery.West.6.5.inch.raw.csv",stringsAsFactors=F)      
     FL.TDGDFL.Zn1=read.csv("Size_composition/Whiskery.Zone1.6.5.inch.raw.csv",stringsAsFactors=F)
