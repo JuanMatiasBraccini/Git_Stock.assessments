@@ -1629,6 +1629,7 @@ if(Do.recons.paper=="YES")
 # 4 -------------------EXPORT CATCH DATA------------------------------------
 fn.out=function(d,NM)
 {
+  d=subset(d,LIVEWT.c>0)
   write.csv(d,paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),row.names = F)
 }
  

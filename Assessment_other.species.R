@@ -60,20 +60,21 @@ fnkr8t(paste(hNdl,"Outputs",sep="/"))
 
 
 
-#---DATA SECTION-----
-setwd("C:/Matias/Analyses/Data_outs")
+#---DATA SECTION-----   
+source('C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Organise data.R')
+#setwd("C:/Matias/Analyses/Data_outs")
 
-#1. Total effort
-Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
-Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
+#1. Total effort should be able to replace all this section with Organise data.R
+# Effort.monthly=read.csv("Annual.total.eff.days.csv",stringsAsFactors=F)
+# Effort.monthly.north=read.csv("Annual.total.eff_NSF.csv",stringsAsFactors=F)
+# 
+# Effort.monthly_blocks=read.csv("Effort.monthly.csv",stringsAsFactors=F)
+# Effort.daily_blocks=read.csv("Effort.daily.csv",stringsAsFactors=F)
+# Effort.monthly.north_blocks=read.csv("Effort.monthly.NSF.csv",stringsAsFactors=F)
+# Effort.daily.north_blocks=read.csv("Effort.daily.NSF.csv",stringsAsFactors=F)
 
-Effort.monthly_blocks=read.csv("Effort.monthly.csv",stringsAsFactors=F)
-Effort.daily_blocks=read.csv("Effort.daily.csv",stringsAsFactors=F)
-Effort.monthly.north_blocks=read.csv("Effort.monthly.NSF.csv",stringsAsFactors=F)
-Effort.daily.north_blocks=read.csv("Effort.daily.NSF.csv",stringsAsFactors=F)
 
-
-#2. Commercial catch
+#2. Commercial catch should be able to replace all this section with fn.import.catch.effort.data() from Organise data.R
 fn.in=function(NM)
 {
   read.csv(paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),stringsAsFactors = F)
@@ -243,7 +244,7 @@ B.limit=Lim.prop*B.threshold
   #Empirical reference points
 Fmsy.emp=function(M) 0.41*M     #Zhou et al 2012
 SPR.thre=0.3   #Punt 2000 Extinction of marine renewable resources: a demographic analysis. 
-SPR.tar=0.4                # Population Ecology 42, 19–27
+SPR.tar=0.4                # Population Ecology 42, 
 
 
 #Life history parameters for selected species  
@@ -737,7 +738,7 @@ Tot.ktch$Type="Commercial"
 Tot.ktch=rbind(Tot.ktch,Rec.ktch)
 
 
-#6. Add Taiwanese catch
+#6. Add Taiwanese catch 
 Taiwan=Taiwan%>%
           rename(finyear=year)%>%
           mutate(BLOCKX=NA,
