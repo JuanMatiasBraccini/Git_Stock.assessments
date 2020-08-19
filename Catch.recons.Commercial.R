@@ -569,6 +569,7 @@ Indo_missed.appr.rate=1.75
 prop_banjo_wedge_north=read.csv(fn.hndl('prop_banjo_wedge_north.csv'))
 prop_banjo_wedge_south=read.csv(fn.hndl('prop_banjo_wedge_south.csv'))
 
+Gummies.prop=read.csv("C:/Matias/Analyses/Catch and effort/Gummies.prop.csv",stringsAsFactors=F)
 
 # 3 -------------------PROCEDURE SECTION------------------------------------
 
@@ -588,6 +589,14 @@ daily.other=daily.other%>%left_join(FisheryCodes,by=c("fishery"="SASCode"))%>%
                      FINYEAR=finyear)%>%
               mutate(FishCubeCode=ifelse(is.na(FishCubeCode),FisheryCode,FishCubeCode),
                      DATA.type="daily.other")
+
+
+#- Correct gummy catches by proportion of M antarcticus per zone  (Rory McAuley pers com)  
+Gummy.prop=subset(Gummies.prop,Bioregion=="WC" & SPECIES=="GM" ,select=Prop)$Prop
+Data.monthly=Data.monthly%>%
+              mutate(LIVEWT.c=ifelse(SPECIES==17001 & FishCubeCode%in% c('JASDGDL','WCDGDL') & 
+                                       zone%in%c("West","Zone1"),LIVEWT.c*Gummy.prop,LIVEWT.c))
+
 
 
 ## Add 'daily.other' to Data.monthly or Data.monthly.north accordingly
@@ -635,9 +644,16 @@ if(Do.recons.paper=="YES")
   fn.hnd.out=function(x)paste('C:/Matias/Analyses/Reconstruction_catch_commercial/',x,sep='')
   source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
   
+  dummy=Data.monthly%>%
+    mutate(FishCubeName=ifelse(FishCubeCode=='OANCGCWC',"Open Access in the West Coast Bioregion",FishCubeName),
+           FishCubeCode=ifelse(FishCubeCode=='OANCGCWC','OAWC',FishCubeCode))
+  dummy.north=Data.monthly.north%>%
+            mutate(FishCubeName=ifelse(FishCubeCode=='OANCGCWC',"Open Access in the North Coast and Gascoyne Coast Bioregions",FishCubeName),
+                   FishCubeCode=ifelse(FishCubeCode=='OANCGCWC','OANCGC',FishCubeCode))
+  
   dit=rbind(daily.other%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT),
-            Data.monthly%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT),
-            Data.monthly.north%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT))%>%
+            dummy%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT),
+            dummy.north%>%dplyr::select(SPECIES,FishCubeCode,FishCubeName,LIVEWT))%>%
             filter(SPECIES<50000 & !is.na(FishCubeName))%>%
             group_by(FishCubeCode,FishCubeName)%>%
             summarise(Total=round(sum(LIVEWT,na.rm=T)/1000,2))%>%    #in tonnes
@@ -649,10 +665,10 @@ if(Do.recons.paper=="YES")
   dit.region=rbind(daily.other%>%
                      mutate(LAT=-as.numeric(substr(block10,1,2)))%>%
                      dplyr::select(FishCubeCode,FishCubeName,LAT),
-                   Data.monthly%>%
+                   dummy%>%
                      mutate(LAT=-as.numeric(substr(BLOCKX,1,2)))%>%
                      dplyr::select(FishCubeCode,FishCubeName,LAT),
-                   Data.monthly.north%>%
+                   dummy.north%>%
                      mutate(LAT=-as.numeric(substr(BLOCKX,1,2)))%>%
                      dplyr::select(FishCubeCode,FishCubeName,LAT))%>%
           distinct(FishCubeName ,.keep_all = T)%>%
@@ -698,7 +714,7 @@ Lista.reap.FishCubeCode=list(Pilbara.trawl='PFT',
                              WANCS='WANCS',
                              WCDGDL='WCDGDL')
 
-#ACA
+
 ## 3.1. Catch_WA Fisheries
 
   #3.1.1 Calculate commercial species discarding from non-shark fisheries since Shark.protection.yr
@@ -877,7 +893,7 @@ for(i in 1:length(Calculate.discarding))
 
 
   #3.1.2 Reapportion catch of 'shark,other' for non-shark fisheries      
-#note:  for TDGDLF, main 4 species already reapportioned
+#note:  for TDGDLF, main 4 species already reapportioned in 1. Manipulate data.R
 for(f in 1:length(Lista.reap.FishCubeCode))   
 {
   Fishry=Lista.reap.FishCubeCode[[f]]
@@ -1330,13 +1346,25 @@ TEPS=TEPS%>%
         left_join(PCM.sp,by=c("SpeciesCode"= "SPECIES"))%>%
         rename(FINYEAR=finyear,
                SPECIES=SpeciesCode)%>%      
-        mutate(Kg=ifelse(SPECIES==18003,bwt*(100*mean(Size.comp.Dusky.TEPS_TDGLDF))^awt,
+        mutate(blockx = case_when(blockx==96021~25120,
+                                  blockx%in%c(96022,96023)~26131,
+                                  blockx==97011~27132,
+                                  blockx%in%c(97012,97013)~28132,
+                                  blockx%in%c(97014,97015)~29132,
+                                  blockx==96010~33151,
+                                  blockx==96000~32150,
+                                  blockx==96030~35181,
+                                  TRUE ~ as.numeric(.$blockx)),
+          Lat=-as.numeric(substr(blockx,1,2)),
+               Long=100+as.numeric(substr(blockx,3,4)),
+               zone=ifelse(Lat>-33,'West',ifelse(Lat<=(-33)& Long<116.5,'Zone1','Zone2')),
+               Kg=ifelse(SPECIES==18003,bwt*(100*mean(Size.comp.Dusky.TEPS_TDGLDF))^awt,
                   ifelse(SPECIES==8001,bwt.grey*mean(Size.comp.Greynurse.TEPS_TDGLDF)^awt.grey,
                          NA)),
                LIVEWT.c=ifelse(Status%in%c("D","d"),Kg*Number,
                         ifelse(Status%in%c("A","a"),Kg*Number*GN,
                                NA)))%>%
-        group_by(FINYEAR,SPECIES)%>%
+        group_by(FINYEAR,SPECIES,zone)%>%
         summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
         data.frame
 Greynurse.ktch=TEPS%>%filter(SPECIES==8001)
@@ -1626,7 +1654,25 @@ if(Do.recons.paper=="YES")
                                 Prop=prop_banjo_wedge_north)
 }
 
+
 # 4 -------------------EXPORT CATCH DATA------------------------------------
+
+#Split OANCGCWC
+Data.monthly=Data.monthly%>%mutate(FishCubeCode=ifelse(FishCubeCode=='OANCGCWC','OAWC',FishCubeCode))
+Data.monthly.north=Data.monthly.north%>%mutate(FishCubeCode=ifelse(FishCubeCode=='OANCGCWC','OANCGC',FishCubeCode))
+
+#Alocate 'unknwn' FishCubeCode
+Data.monthly=Data.monthly%>%
+            mutate(FishCubeCode=ifelse(FishCubeCode=='unknwn' & zone=='West','WCDGDL',
+                                ifelse(FishCubeCode=='unknwn' & zone%in%c('Zone1','Zone2'),'JASDGDL',
+                                FishCubeCode)))
+Data.monthly.north=Data.monthly.north%>%
+            mutate(FishCubeCode=ifelse(FishCubeCode=='unknwn' & zone=='Joint','JANS',
+                                ifelse(FishCubeCode=='unknwn' & zone=='Closed','OANCGC',
+                                ifelse(FishCubeCode=='unknwn' & zone=='North','WANCS',
+                                FishCubeCode))))
+
+#export
 fn.out=function(d,NM)
 {
   d=subset(d,LIVEWT.c>0)
@@ -1640,6 +1686,7 @@ This.fin.yr=paste(Yr.lim[1]:Yr.lim[2],substr((Yr.lim[1]+1):(Yr.lim[2]+1),3,4),se
 #4.1 Catch_WA Fisheries
 
   #Historic
+Hist.expnd$zone=NA
 fn.out(d=Hist.expnd%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Hist.expnd.csv')
 
   #Ammended reported catch including discards
@@ -1657,24 +1704,31 @@ fn.out(d=Greynurse.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Greynurse.kt
 fn.out(d=TEPS_dusky%>%filter(FINYEAR%in%This.fin.yr),NM='recons_TEPS_dusky.csv')
 
   #Wetline in the Western Rock lobster fishery
+WRL.total.ktch$zone=NA
 fn.out(d=WRL.total.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='Wetline_rocklobster.csv')
 
 
 #4.2. Catch of non WA Fisheries
  
    #Taiwanese gillnet and longline
+Taiwan.gillnet.ktch$zone=NA
 fn.out(d=Taiwan.gillnet.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Taiwan.gillnet.ktch.csv')
+Taiwan.longline.ktch$zone=NA
 fn.out(d=Taiwan.longline.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Taiwan.longline.ktch.csv')
 
   #Commonwealth GAB trawl and Western Tuna and Billfish Fisheries (WTBF) 
+GAB.trawl_catch$zone="Zone2"
 fn.out(d=GAB.trawl_catch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_GAB.trawl_catch.csv')
+WTBF_catch$zone=NA
 fn.out(d=WTBF_catch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_WTBF_catch.csv')
  
   #SA Marine Scalefish fishery
+Whaler_SA$zone=NA
 fn.out(d=Whaler_SA%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Whaler_SA.csv')
 
 
   #Indonesian illegal fishing in Australia waters
+Indo_total.annual.ktch$zone=NA
 fn.out(d=Indo_total.annual.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Indo.IUU.csv')
 
 
