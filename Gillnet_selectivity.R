@@ -23,6 +23,7 @@ library(doParallel)
 library(Hmisc)
 library(magrittr)
 library(expandFunctions)
+library(stringr)
 
 options(stringsAsFactors = FALSE,"max.print"=50000,"width"=240) 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
@@ -176,20 +177,19 @@ if(Preliminary) ggplot(Exp.net.WA,aes(tl,fl,shape=name, colour=name, fill=name))
 
 
 #Conversion FL to TL for records with no TL
+LH=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')
 TL_FL=data.frame(name=c('Angel Shark','Dusky shark','Gummy Shark','Pencil shark',
            'PortJackson shark','Sandbar shark','Smooth hammerhead','Spurdogs',
-           'Whiskery shark','Tiger shark'),intercept=NA,slope=NA)
-for(l in 1:nrow(TL_FL))
-{
-  a=Exp.net.WA%>%filter(name==TL_FL$name[l])
-  mod=lm(tl~fl,a)
-  COEF=coef(mod)
-  TL_FL$intercept[l]=COEF[1]
-  TL_FL$slope[l]=COEF[2]
-}
-TL_FL=rbind(TL_FL,
-            data.frame(name='Sliteye shark',intercept=7.0195,slope=1.134)) # add sliteye conversion manually (Gutridge et al 2011)
+           'Whiskery shark','Tiger shark','Sliteye shark'))%>%
+          mutate(get.this=str_remove(tolower(name), " shark"))
 
+LH=LH%>%mutate(SNAME=str_remove(tolower(SNAME), "shark, "),
+              SNAME=ifelse(SNAME=="smooth hh","smooth hammerhead",
+                           ifelse(SNAME=="spurdog","spurdogs",SNAME)))
+TL_FL=TL_FL%>%
+        left_join(LH%>%dplyr::select(SNAME,a_FL.to.TL,b_FL.to.TL),by=c('get.this'='SNAME'))%>%
+        rename(intercept=b_FL.to.TL,
+               slope=a_FL.to.TL)
 Exp.net.WA=Exp.net.WA%>%
            left_join(TL_FL,by='name')%>%
             mutate(tl=ifelse(is.na(tl),intercept+fl*slope,tl),

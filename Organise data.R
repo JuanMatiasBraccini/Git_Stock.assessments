@@ -7,7 +7,13 @@ if(!"tidyr" %in% (.packages()))library(tidyr)
 library(Hmisc)
 
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/fn.fig.R")
+
+fn.fig=function(NAME,Width,Height,Do.tiff="YES",Do.jpeg="NO")
+{
+  if(Do.tiff=="YES") tiff(file=paste(NAME,".tiff",sep=""),width=Width,height=Height,units="px",res=300,compression="lzw")
+  if(Do.jpeg=="YES") jpeg(file=paste(NAME,".jpeg",sep=""),width=Width,height=Height,units="px",res=300)
+}
+smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv",stringsAsFactors = F)
 All.species.names=All.species.names%>%
   mutate(Name=tolower(Name))%>%
@@ -107,7 +113,7 @@ fn.import.catch.data=function(KTCH.UNITS)
   a=Rec.ktch%>%
     rename(finyear=year)%>%
     mutate(BLOCKX=NA,
-           zone1=case_when(zone%in%c("North Coast","Gascoyne Coast")~'North',
+           zone=case_when(zone%in%c("North Coast","Gascoyne Coast")~'North',
                           zone=="West Coast"~'West',
                           zone=="South Coast"~'Zone1'),
            Common.Name=ifelse(Common.Name=="dogfishes","spurdogs",
@@ -295,7 +301,8 @@ KtCh.zone=Get.ktch$Zone
 fn.extract.dat=function(STRING,nm.Dat) grepl(STRING, nm.Dat, perl = TRUE)
 fn.rename.dat=function(x,y) str_remove_all(x, paste(y, collapse = "|"))
 
-fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,What.Efrt,Bin.size)   #this is run for each assessed species...
+#this is run for each assessed species and some argumetns are global, defined in Assessemnt.R
+fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,What.Efrt,Bin.size,Yr.assess)   
 {
   #----DATA SECTION------ 
   
@@ -504,10 +511,11 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
 
   
  
- #  #----PARAMETERS SECTIONS ------- 
+  #----PARAMETERS SECTIONS ------- 
   LH.par=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')%>%filter(SPECIES==Species)
   a.TL=LH.par$a_FL.to.TL
   b.TL=LH.par$b_FL.to.TL
+  Max.TL=LH.par$Max.TL
 
 
   
@@ -515,7 +523,7 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   
   #1. CATCH
 
-  #-Put all catches in list (currently not including 'historic')
+  #-Put all catches in list
   catch=catch %>%
     mutate(
       Fishery = case_when(
@@ -530,9 +538,15 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
         FishCubeCode=='Historic'~'Historic',
         FishCubeCode%in%c('JASDGDL','WCDGDL','C070','OAWC')~'TDGDLF',
         FishCubeCode%in%c('JANS','OANCGC','WANCS')~'NSF',   
-        TRUE  ~ "other"))
+        TRUE  ~ "Other"),
+      Fishery=ifelse(Fishery%in%c('NSF')& Name%in%c("gummy shark","whiskery shark"),'TDGDLF',Fishery))
+  n.fishry=sort(unique(catch$Fishery))
+  iid=vector('list',length(n.fishry))
+  names(iid)=n.fishry
+  for(v in 1:length(n.fishry)) iid[[v]]=subset(catch,Fishery==n.fishry[v])
+  catch=iid
   
-  catch.zone=catch.zone %>%
+  catch.zone=catch.zone %>%   
     mutate(
       Fishery = case_when(
         FishCubeCode=='WRL'~'WRL',
@@ -546,10 +560,19 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
         FishCubeCode=='Historic'~'Historic',
         FishCubeCode%in%c('JASDGDL','WCDGDL','C070','OAWC')~'TDGDLF',
         FishCubeCode%in%c('JANS','OANCGC','WANCS')~'NSF',   
-        TRUE  ~ "other"))
+        TRUE  ~ "Other"),
+      zone=ifelse(Name%in%c("gummy shark","whiskery shark") & 
+                  zone%in%c('Closed','North','Joint'),'West',zone),
+      Fishery=ifelse(Name%in%c("gummy shark","whiskery shark") & 
+                  Fishery%in%c('NSF'),'TDGDLF',Fishery))
+  n.fishry=sort(unique(catch.zone$Fishery))
+  iid=vector('list',length(n.fishry))
+  names(iid)=n.fishry
+  for(v in 1:length(n.fishry)) iid[[v]]=subset(catch.zone,Fishery==n.fishry[v])
+  catch.zone=iid
+  
 
-
-  #2.Aggregate size frequencies by financial year and zone
+  #2. Put catch size composition data together (grouped by financial year and zone)
   
     #2.1. convert FL to TL 
   FL_to_TL=function(FL,a,b) TL=FL*a+b
@@ -563,7 +586,7 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   if(exists('FL_Pilbara_trawl')) FL_Pilbara_trawl$TL=round(FL_to_TL(FL_Pilbara_trawl$FL,a.TL,b.TL))
   if(exists('FL_NSF')) FL_NSF$TL=round(FL_to_TL(FL_NSF$FL,a.TL,b.TL))
    
-  #ACA
+    #2.2. do the aggregation
   fn.add.missing.size=function(dat,Min,Max,interval)
   {
     Rango=c(Min,Max)
@@ -611,7 +634,6 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     return(Table)
     
   }
-  
   fn.add.missing.size2=function(dat,Min,Max,interval)
   {
     Rango=c(Min,Max)
@@ -640,7 +662,6 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     return(Table)
     
   }
-  
   fn.add.missing.size3=function(dat,Min,Max,interval)
   {
    Rango=c(Min,Max)
@@ -670,300 +691,188 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
    
  }
  
-  
- 
-  #TDGDLF observing
-  # FL_observers.WC=fn.add.missing.size2(FL.TDGDFL.WC,Min.FL,Mx.FL,Bin.size)
-  # FL_observers.Zn1=fn.add.missing.size2(FL.TDGDFL.Zn1,Min.FL,Mx.FL,Bin.size)
-  # FL_observers.Zn2=fn.add.missing.size2(FL.TDGDFL.Zn2,Min.FL,Mx.FL,Bin.size)
-  
-  Min.TL=round(FL_to_TL(Min.FL,a.TL,b.TL)/10)*10
-  Mx.TL=round(FL_to_TL(Mx.FL,a.TL,b.TL))
-  TL_observers.WC=fn.add.missing.size3(FL.TDGDFL.WC,Min.TL,Mx.TL,Bin.size)    
-  TL_observers.Zn1=fn.add.missing.size3(FL.TDGDFL.Zn1,Min.TL,Mx.TL,Bin.size)
-  TL_observers.Zn2=fn.add.missing.size3(FL.TDGDFL.Zn2,Min.TL,Mx.TL,Bin.size)
-  
-  TL_observers.WC_7=fn.add.missing.size3(FL.TDGDFL.WC_7,Min.TL,Mx.TL,Bin.size)    
-  TL_observers.Zn1_7=fn.add.missing.size3(FL.TDGDFL.Zn1_7,Min.TL,Mx.TL,Bin.size)
-  TL_observers.Zn2_7=fn.add.missing.size3(FL.TDGDFL.Zn2_7,Min.TL,Mx.TL,Bin.size)
-  
- 
-  
-  if(SP=="TK")
+  if(exists('FL.TDGDFL'))   #ACA
   {
-    #2.2 Pilbara observing
-    FL_Sandbar_Pilbara_trawl$FINYEAR=as.character(with(FL_Sandbar_Pilbara_trawl,
-             ifelse(Month%in%1:6,paste(year-1,"-",fn.subs(year),sep=""),
-              ifelse(Month%in%7:12,paste(year,"-",fn.subs(year+1),sep=""),NA))))
-    if(Conv.cal.mn.to.fin.mn=="YES") FL_Sandbar_Pilbara_trawl$Month=fn.month.to.fin.mn(FL_Sandbar_Pilbara_trawl$Month)
+    #keep observation within logical size range
+    for(n in 1:length(FL.TDGDFL)) FL.TDGDFL[[n]]=FL.TDGDFL[[n]]%>%filter(TL<=Max.TL)
     
-    FL_Sandbar_Pilbara_trawl$FL=round(FL_to_TL(FL_Sandbar_Pilbara_trawl$FL,a.TL,b.TL))
-    Sandbar_FL_Pil.trwl_observers=fn.add.missing.size2(FL_Sandbar_Pilbara_trawl,Min.FL,round(FL_to_TL(Mx.FL,a.TL,b.TL)),Bin.size)
-  
-    #2.3 NSF observing
-    FL_Sandbar_NSF$FINYEAR=as.character(with(FL_Sandbar_NSF,
-                                             ifelse(Month%in%1:6,paste(year-1,"-",fn.subs(year),sep=""),
-                                                    ifelse(Month%in%7:12,paste(year,"-",fn.subs(year+1),sep=""),NA))))
-    if(Conv.cal.mn.to.fin.mn=="YES") FL_Sandbar_NSF$Month=fn.month.to.fin.mn(FL_Sandbar_NSF$Month)
-    
-    FL_Sandbar_NSF$FL=round(FL_to_TL(FL_Sandbar_NSF$FL,a.TL,b.TL))   #convert FL to TL
-    
-    FL_NSF_observers=fn.add.missing.size2(FL_Sandbar_NSF,Min.FL,round(FL_to_TL(Mx.FL,a.TL,b.TL)),Bin.size)
+    TL_observers=FL.TDGDFL
+    for(n in 1:length(FL.TDGDFL))
+    {
+      TL_observers[[n]]=fn.add.missing.size3(dat=FL.TDGDFL[[n]],
+                           Min=floor(min(FL.TDGDFL[[1]]$TL/10))*10,
+                           Max=ceiling(max(FL.TDGDFL[[1]]$TL/10))*10,
+                           interval=Bin.size) 
+    }
   }
-  
-    if(SP=="BW")
+  if(exists('FL_Pilbara_trawl'))
   {
-    FL_dusky_NSF$FINYEAR=as.character(with(FL_dusky_NSF,
-            ifelse(Month%in%1:6,paste(year-1,"-",fn.subs(year),sep=""),
-            ifelse(Month%in%7:12,paste(year,"-",fn.subs(year+1),sep=""),NA))))
-    if(Conv.cal.mn.to.fin.mn=="YES") FL_dusky_NSF$Month=fn.month.to.fin.mn(FL_dusky_NSF$Month)
-    
-    FL_dusky_NSF$FL=round(FL_to_TL(FL_dusky_NSF$FL,a.TL,b.TL))   #convert FL to TL
-    
-    FL_NSF_observers=fn.add.missing.size2(FL_dusky_NSF,Min.FL,round(FL_to_TL(Mx.FL,a.TL,b.TL)),Bin.size)
-    
-    
-    #2.4 Wetline_WRL
-    Size.comp.Dusky.WRL=data.frame(FINYEAR="1999-00",TL=Dusky.WRL$TL)
-    Size.comp.Dusky.WRL$FINYEAR=as.character(Size.comp.Dusky.WRL$FINYEAR)
-    Size.comp.Dusky.WRL$FL=round(TL_to_FL(Dusky.WRL$TL,a.TL,b.TL))    
-    Size.comp.Dusky.WRL$Number=1
-    Size.comp.Dusky.WRL$Year=1
-    Size.comp.Dusky.WRL$Type="Fisher_measure"
-    
+    FL_Pilbara_trawl=FL_Pilbara_trawl%>%filter(TL<=Max.TL)
+    FL_Pilbara_trawl=FL_Pilbara_trawl%>%
+            mutate(FINYEAR=as.character(ifelse(Month%in%1:6,paste(year-1,"-",fn.subs(year),sep=""),
+                            ifelse(Month%in%7:12,paste(year,"-",fn.subs(year+1),sep=""),NA))))
+    Pil.trwl_observers=fn.add.missing.size3(dat=FL_Pilbara_trawl,
+                                            Min=floor(min(FL_Pilbara_trawl$TL/10,na.rm=T))*10,
+                                            Max=ceiling(max(FL_Pilbara_trawl$TL/10,na.rm=T))*10,
+                                            interval=Bin.size)
   }
-  
-  
-  #2.5 Put all size composition (as TL) data in list            
-  All.size=list(WC=TL_observers.WC,Zn1=TL_observers.Zn1,Zn2=TL_observers.Zn2)
-  All.size_7=list(WC=TL_observers.WC_7,Zn1=TL_observers.Zn1_7,Zn2=TL_observers.Zn2_7)
-  
-  
-  #drop non-representative observations in TDGDLF (other fisheries are ok)    
-  drop.obs=function(dd,ZN)
+  if(exists('FL_NSF'))
   {
-    dd$dummy=paste(dd$FINYEAR,ZN)
-    dd=subset(dd,dummy%in%This.yr.zn)
-    dd=dd[,-match('dummy',names(dd))]
-    return(dd)
+    FL_NSF=FL_NSF%>%filter(TL<=Max.TL)
+    FL_NSF=FL_NSF%>%
+      mutate(FINYEAR=as.character(ifelse(Month%in%1:6,paste(year-1,"-",fn.subs(year),sep=""),
+                                         ifelse(Month%in%7:12,paste(year,"-",fn.subs(year+1),sep=""),NA))))
+    NSF_observers=fn.add.missing.size3(dat=FL_NSF,
+                                            Min=floor(min(FL_NSF$TL/10,na.rm=T))*10,
+                                            Max=ceiling(max(FL_NSF$TL/10,na.rm=T))*10,
+                                            interval=Bin.size)
   }
-  zns=c("West","Zone1","Zone2")
-  for(i in 1:length(All.size))
+    
+  #Wetline_WRL
+  # Size.comp.Dusky.WRL=data.frame(FINYEAR="1999-00",TL=Dusky.WRL$TL)
+  # Size.comp.Dusky.WRL$FINYEAR=as.character(Size.comp.Dusky.WRL$FINYEAR)
+  # Size.comp.Dusky.WRL$FL=round(TL_to_FL(Dusky.WRL$TL,a.TL,b.TL))    
+  # Size.comp.Dusky.WRL$Number=1
+  # Size.comp.Dusky.WRL$Year=1
+  # Size.comp.Dusky.WRL$Type="Fisher_measure"
+  
+    #2.3. Put all size composition (as TL) data in list  
+  if(exists('FL.TDGDFL'))
   {
-    All.size[[i]]=drop.obs(All.size[[i]],zns[i])
-    All.size_7[[i]]=drop.obs(All.size_7[[i]],zns[i])
-  }
+    drop.obs=function(dd,ZN) #drop non-representative observations in TDGDLF (other fisheries are ok) 
+    {
+      dd$dummy=paste(dd$FINYEAR,ZN)
+      dd=subset(dd,dummy%in%This.yr.zn)
+      dd=dd[,-match('dummy',names(dd))]
+      return(dd)
+    }
+    
+    All.size=TL_observers[grep("6.5",names(TL_observers))]
+    names(All.size)=str_remove(names(All.size), ".6.5")
+    for(i in 1:length(All.size)) All.size[[i]]=drop.obs(All.size[[i]],names(All.size)[i])
+    names(All.size)=ifelse(names(All.size)=='West','WC',
+                    ifelse(names(All.size)=='Zone1','Zn1',
+                    ifelse(names(All.size)=='Zone2','Zn2',
+                    NA)))
+    
+    All.size_7=TL_observers[grep("7",names(TL_observers))]
+    names(All.size_7)=str_remove(names(All.size_7), ".7")
+    for(i in 1:length(All.size_7)) All.size_7[[i]]=drop.obs(All.size_7[[i]],names(All.size_7)[i])
+    names(All.size_7)=ifelse(names(All.size_7)=='West','WC',
+                      ifelse(names(All.size_7)=='Zone1','Zn1',
+                      ifelse(names(All.size_7)=='Zone2','Zn2',
+                      NA)))
 
- 
-  if(SP%in%c("WH","GM")) All.size=list(TDGDLF=All.size,TDGDLF_7=All.size_7)
-  if(SP=="BW")  All.size=list(TDGDLF=All.size,TDGDLF_7=All.size_7,NSF=FL_NSF_observers)
-  if(SP=="TK") All.size=list(TDGDLF=All.size,TDGDLF_7=All.size_7,Pilbara_trawl=Sandbar_FL_Pil.trwl_observers,NSF=FL_NSF_observers)
+  }
+  All.size=list(TDGDLF=All.size,TDGDLF_7=All.size_7)
+  if(exists('FL_Pilbara_trawl')) All.size$Pilbara_trawl=Pil.trwl_observers
+  if(exists('FL_NSF'))  All.size$NSF=NSF_observers
   
 
-  #2.6 Put abundance data together 
-  
-  #TDGDLF
-  if(SP %in% c("WH","BW"))
-  {
-      #monthly
-    if(exists("Ab.indx.TDGDLF.West"))Ab.indx.TDGDLF.West$zone="West"
-    Ab.indx.TDGDLF.Zn1$zone="Zone1"
-    Ab.indx.TDGDLF.Zn2$zone="Zone2"
-    if(exists("Ab.indx.TDGDLF.West"))Ab.indx.TDGDLF=rbind(Ab.indx.TDGDLF.West,Ab.indx.TDGDLF.Zn1,Ab.indx.TDGDLF.Zn2)
-    if(!exists("Ab.indx.TDGDLF.West"))Ab.indx.TDGDLF=rbind(Ab.indx.TDGDLF.Zn1,Ab.indx.TDGDLF.Zn2)
-    
-      #daily
-    Ab.indx.TDGDLF.West.daily$zone="West"
-    Ab.indx.TDGDLF.Zn1.daily$zone="Zone1"
-    Ab.indx.TDGDLF.Zn2.daily$zone="Zone2"
-    Ab.indx.TDGDLF.daily=rbind(Ab.indx.TDGDLF.West.daily,Ab.indx.TDGDLF.Zn1.daily,Ab.indx.TDGDLF.Zn2.daily)    
-  }
-  
-  if(SP=="GM")
-  {
-    #monthly
-    Ab.indx.TDGDLF.Zn2$zone="Zone2"
-    Ab.indx.TDGDLF=Ab.indx.TDGDLF.Zn2
-    
-    #daily
-    Ab.indx.TDGDLF.Zn2.daily$zone="Zone2"
-    Ab.indx.TDGDLF.daily=Ab.indx.TDGDLF.Zn2.daily
-  }
-  
-  if(SP=="TK")
-  {
-    #monthly
-    Ab.indx.TDGDLF.West$zone="West"
-    Ab.indx.TDGDLF.Zn1$zone="Zone1"
-    Ab.indx.TDGDLF=rbind(Ab.indx.TDGDLF.West,Ab.indx.TDGDLF.Zn1)
-    
-    #daily
-    Ab.indx.TDGDLF.West.daily$zone="West"
-    Ab.indx.TDGDLF.Zn1.daily$zone="Zone1"
-    Ab.indx.TDGDLF.daily=rbind(Ab.indx.TDGDLF.West.daily,Ab.indx.TDGDLF.Zn1.daily)
-  }
-  
-  
-  #Naturaliste survey
+  #3. Put abundance data together 
   if(exists('Ab.index.Srvy.FixSt'))
   {
-    Ab.index.Srvy.FixSt$FINYEAR=paste(Ab.index.Srvy.FixSt$FINYEAR,"-",fn.subs(Ab.index.Srvy.FixSt$FINYEAR+1),sep="")
+    Ab.index.Srvy.FixSt$FINYEAR=paste(Ab.index.Srvy.FixSt$yr,"-",fn.subs(Ab.index.Srvy.FixSt$yr+1),sep="")
     Naturaliste.abun=Ab.index.Srvy.FixSt
   }
-  if(exists('Size.index.Srvy.FixSt'))
-  {
-    Size.index.Srvy.FixSt$FINYEAR=paste(Size.index.Srvy.FixSt$FINYEAR,"-",fn.subs(Size.index.Srvy.FixSt$FINYEAR+1),sep="")
-    Naturaliste.size=Size.index.Srvy.FixSt
-  }
-   
-  
-  #2.7 Years with data for conventional tagging data 
-  a=Zn.rel_Conv.Tag
-  a$Finyr=with(a,ifelse(Mn.rel>6,Yr.rel+1,Yr.rel))
-  c.Tag=list(TDGDLF=data.frame(FINYEAR=paste(sort(unique(a$Finyr)),"-",fn.subs(sort(unique(a$Finyr))+1),sep="")))  
-    
-  #Add financial year to release and recapture files
-  fn.finyr.rel=function(dat)with(dat,ifelse(Mn.rel>6,Yr.rel,Yr.rel-1))
-  fn.finyr.rec=function(dat)with(dat,ifelse(Mn.rec>6,Yr.rec,Yr.rec-1))
-  fn.finyr=function(Finyr)paste(Finyr,"-",fn.subs(Finyr+1),sep="")
-  
-  Zn.rel_Conv.Tag$FinYear.rel=fn.finyr.rel(Zn.rel_Conv.Tag)
-  Zn.rec_Conv.Tag$FinYear.rec=fn.finyr.rec(Zn.rec_Conv.Tag)
-  Zn.rel_Conv.Tag$FinYear.rel=fn.finyr(Zn.rel_Conv.Tag$FinYear.rel)
-  Zn.rec_Conv.Tag$FinYear.rec=fn.finyr(Zn.rec_Conv.Tag$FinYear.rec)
-  
-  #Convert month to financial month
-  if(Conv.cal.mn.to.fin.mn=="YES")
-  {
-    Zn.rel_Conv.Tag$Mn.rel=fn.month.to.fin.mn(Zn.rel_Conv.Tag$Mn.rel)
-    Zn.rec_Conv.Tag$Mn.rec=fn.month.to.fin.mn(Zn.rec_Conv.Tag$Mn.rec)
-  }
-  
-  #Recode TG.zn
-  fn.recode=function(dat,dat1)
-  {
-    dat=aggregate(Number~TG.zn+Rel.zone+Yr.rel+Mn.rel+Age+FinYear.rel,dat,sum)
-    dat1=aggregate(Number~TG.zn+Rec.zone+Yr.rec+Mn.rec+FinYear.rec,dat1,sum)
-    
-    dat=dat[order(dat$FinYear.rel,dat$Mn.rel),]
-    dat$TG=1:nrow(dat)
-    dat1=merge(dat1,subset(dat,select=c(TG.zn,TG)),by="TG.zn",all.x=T)
-    return(list(dat=dat,dat1=dat1))
-  }
-  a=fn.recode(Zn.rel_Conv.Tag,Zn.rec_Conv.Tag)
-  Zn.rel_Conv.Tag=a$dat
-  Zn.rec_Conv.Tag=a$dat1
-  
- 
-  #2.8 Years with data for acoustic tagging data
-  
-  #Add financial year
-  fn.finyr.rel=function(dat)with(dat,ifelse(Month.rel>6,Year.rel,Year.rel-1))
-  fn.finyr.rec=function(dat)with(dat,ifelse(Month>6,Year,Year-1))
-  
-  Zn.rel_Acous.Tag$FinYear.rel=fn.finyr.rel(Zn.rel_Acous.Tag)
-  Zn.rec_Acous.Tag$FinYear.rec=fn.finyr.rec(Zn.rec_Acous.Tag)
-  Zn.rel_Acous.Tag$FinYear.rel=fn.finyr(Zn.rel_Acous.Tag$FinYear.rel)
-  Zn.rec_Acous.Tag$FinYear.rec=fn.finyr(Zn.rec_Acous.Tag$FinYear.rec)
-  
-  a.Tag=sort(unique(Zn.rec_Acous.Tag$FinYear.rec))
- 
-  #Convert month to financial month
-  if(Conv.cal.mn.to.fin.mn=="YES")
-  {
-    Zn.rel_Acous.Tag$Month.rel=fn.month.to.fin.mn(Zn.rel_Acous.Tag$Month.rel)
-    Zn.rec_Acous.Tag$Month=fn.month.to.fin.mn(Zn.rec_Acous.Tag$Month)
-  }
-  
-  #Create table of proportion of recaptures by year
-  fn.plot.prop.rec.yr=function(dat)
-  {
-    a=aggregate(Number~FinYear.rec,dat,sum)
-    a$Prop=a$Number/sum(a$Number)
-    Yr1=as.numeric(substr(min(dat$FinYear.rec),start=1,stop=4))
-    Yr1=1993
-    Yr2=as.numeric(substr(max(dat$FinYear.rec),start=1,stop=4))
-    SEQ=seq(Yr1,Yr2)
-    SEQ1=seq(Yr1+1,Yr2+1)
-    All.yrs=paste(SEQ,"-",substr(SEQ1,3,4),sep="")
-    id=All.yrs[which(!All.yrs%in%a$FinYear.rec)]
-    Add=data.frame(FinYear.rec=id,Number=0,Prop=0)
-    a=rbind(a,Add)
-    a=a[order(a$FinYear.rec),]
-    plot(1:length(a$FinYear.rec),a$Prop,xaxt='n',ylab="",xlab="",cex.axis=1.25,
-         pch=19,col=2,cex=2)
-    axis(1,1:length(a$FinYear.rec),F,tck=-0.03)
-    axis(1,seq(1,length(a$FinYear.rec),2),a$FinYear.rec[seq(1,length(a$FinYear.rec),2)],cex.axis=.9,tck=-0.06)
-  }
-  
- 
-  #set working directory for outputing data
-   HandL="C:/Matias/Analyses/Population dynamics/1."
-   DiR=paste(HandL,Name,"/",Yr.assess,"/1_Inputs/Visualise data",sep='')
-   if(!file.exists(DiR))
-   {
-     mainDir=paste(HandL,Name,"/",Yr.assess,sep="")
-     dir.create(mainDir)
-     subDir="1_Inputs"
-     dir.create(file.path(mainDir,subDir))
-     subDir="/1_Inputs/Visualise data"
-     dir.create(file.path(mainDir,subDir))
-   }
-   setwd(DiR)
 
- 
-  #Effective sample size
- Dat.eff.n=rbind(FL.TDGDFL.WC,FL.TDGDFL.Zn1,FL.TDGDFL.Zn2)
- Eff.n=list(Female=NA,Male=NA)
- fn.get.eff=function(SeX)
- {
-   aa=subset(Dat.eff.n,SEX==SeX)
-   Steps=seq(2,length(aa$TL),1)
-   fn.rand.samp.size=function(STEP) sample(aa$TL,STEP,replace=T)
-   Store.samps.size=vector('list',length(Steps))
-   for (i in 1:length(Steps)) Store.samps.size[[i]]=fn.rand.samp.size(Steps[i])
-   Dummy=data.frame(mean=Steps,sd=Steps,se=Steps)
-   for (i in 1:length(Steps))
-   {
-     Dummy$mean[i]=mean(Store.samps.size[[i]])
-     Dummy$sd[i]=sd(Store.samps.size[[i]])
-     Dummy$se[i]=Dummy$sd[i]/sqrt(Steps[i])
-   }
-   return(Dummy)
- }
- Eff.n$Female=fn.get.eff("F")
- Eff.n$Male=fn.get.eff("M")
- 
- 
- fn.plot.eff.n=function(Dummy,CL)
- {
-   plot(1:nrow(Dummy),Dummy$mean,ylim=c(min(Dummy$mean)*1,max(Dummy$mean)*1),ylab="",xlab="",
-        col=CL,pch=19,cex.axis=1.15)   
-   if(x==1) mtext("Mean TL (cm)",2,las=3,cex=1.3,line=2.2)
-   plot(1:nrow(Dummy),Dummy$sd,ylim=c(min(Dummy$sd)*1,max(Dummy$sd)*1),ylab="",xlab="",
-        col=CL,pch=19,cex.axis=1.15)
-   if(x==1) mtext("SD (cm)",2,las=3,cex=1.3,line=2.2)
-   #Dummy[match(300,Steps),1]/Dummy[length(Steps),1]
- }
- clss=c("pink","blue")
- fn.fig("Effective sample size",2400, 1800) 
- par(mfcol=c(2,2),mai=c(.6,.6,.1,.1),las=1,mgp=c(2,.6,0))
- for(x in 1:2)fn.plot.eff.n(Eff.n[[x]],clss[x])
- mtext("Sample size",1,outer=T,cex=1.3,line=-1.5)
- dev.off()
- 
-  fn.fig("Proportion.tag.recaptures",2400, 1800)
-  par(mfcol=c(1,1),las=1,mai=c(0.3,0.55,.1,.1),oma=c(2.25,2.25,.1,.1),mgp=c(1,.5,0))
-  fn.plot.prop.rec.yr(Zn.rec_Conv.Tag)
-  legend("topright",Name,bty='n',cex=1.5)
-  mtext("Financial year",1,line=1,cex=1.5,outer=T)
-  mtext("Proportion of recaptures",2,line=1,cex=1.5,outer=T,las=3)
-  dev.off()
+   
+  #4. set working directory for outputing figures
+  HandL="C:/Matias/Analyses/Population dynamics/1."
+  DiR=paste(HandL,Name,"/",Yr.assess,"/1_Inputs/Visualise data",sep='')
+  if(!file.exists(DiR))
+  {
+    mainDir=paste(HandL,Name,"/",Yr.assess,sep="")
+    dir.create(mainDir)
+    subDir="1_Inputs"
+    dir.create(file.path(mainDir,subDir))
+    subDir="/1_Inputs/Visualise data"
+    dir.create(file.path(mainDir,subDir))
+  }
+  setwd(DiR)
   
   
-  #2.9 Add missing years to prop.eff.mesh
-  #note: back fill using temporal change in 7inch upt o 2009-10
-  dum.yr=sort(as.character(unique(Data.monthly$FINYEAR)))
+  #5. Years with data for conventional tagging data
+  if(exists("Zn.rel_Conv.Tag"))
+  {
+    a=Zn.rel_Conv.Tag
+    a$Finyr=with(a,ifelse(Mn.rel>6,Yr.rel+1,Yr.rel))
+    c.Tag=list(TDGDLF=data.frame(FINYEAR=paste(sort(unique(a$Finyr)),"-",fn.subs(sort(unique(a$Finyr))+1),sep="")))  
+    
+    #Add financial year to release and recapture files
+    fn.finyr.rel=function(dat)with(dat,ifelse(Mn.rel>6,Yr.rel,Yr.rel-1))
+    fn.finyr.rec=function(dat)with(dat,ifelse(Mn.rec>6,Yr.rec,Yr.rec-1))
+    fn.finyr=function(Finyr)paste(Finyr,"-",fn.subs(Finyr+1),sep="")
+    
+    Zn.rel_Conv.Tag$FinYear.rel=fn.finyr.rel(Zn.rel_Conv.Tag)
+    Zn.rec_Conv.Tag$FinYear.rec=fn.finyr.rec(Zn.rec_Conv.Tag)
+    Zn.rel_Conv.Tag$FinYear.rel=fn.finyr(Zn.rel_Conv.Tag$FinYear.rel)
+    Zn.rec_Conv.Tag$FinYear.rec=fn.finyr(Zn.rec_Conv.Tag$FinYear.rec)
+    
+    #Recode TG.zn
+    fn.recode=function(dat,dat1)
+    {
+      dat=aggregate(Number~TG.zn+Rel.zone+Yr.rel+Mn.rel+Age+FinYear.rel,dat,sum)
+      dat1=aggregate(Number~TG.zn+Rec.zone+Yr.rec+Mn.rec+FinYear.rec,dat1,sum)
+      
+      dat=dat[order(dat$FinYear.rel,dat$Mn.rel),]
+      dat$TG=1:nrow(dat)
+      dat1=merge(dat1,subset(dat,select=c(TG.zn,TG)),by="TG.zn",all.x=T)
+      return(list(dat=dat,dat1=dat1))
+    }
+    a=fn.recode(Zn.rel_Conv.Tag,Zn.rec_Conv.Tag)
+    Zn.rel_Conv.Tag=a$dat
+    Zn.rec_Conv.Tag=a$dat1
+    
+    #Create table of proportion of recaptures by year
+    fn.plot.prop.rec.yr=function(dat)
+    {
+      a=aggregate(Number~FinYear.rec,dat,sum)
+      a$Prop=a$Number/sum(a$Number)
+      Yr1=as.numeric(substr(min(dat$FinYear.rec),start=1,stop=4))
+      Yr1=1993
+      Yr2=as.numeric(substr(max(dat$FinYear.rec),start=1,stop=4))
+      SEQ=seq(Yr1,Yr2)
+      SEQ1=seq(Yr1+1,Yr2+1)
+      All.yrs=paste(SEQ,"-",substr(SEQ1,3,4),sep="")
+      id=All.yrs[which(!All.yrs%in%a$FinYear.rec)]
+      Add=data.frame(FinYear.rec=id,Number=0,Prop=0)
+      a=rbind(a,Add)
+      a=a[order(a$FinYear.rec),]
+      plot(1:length(a$FinYear.rec),a$Prop,xaxt='n',ylab="",xlab="",cex.axis=1.25,
+           pch=19,col=2,cex=2)
+      axis(1,1:length(a$FinYear.rec),F,tck=-0.03)
+      axis(1,seq(1,length(a$FinYear.rec),2),a$FinYear.rec[seq(1,length(a$FinYear.rec),2)],cex.axis=.9,tck=-0.06)
+    }
+    fn.fig("Proportion.tag.recaptures",2400, 1800)
+    par(mfcol=c(1,1),las=1,mai=c(0.3,0.55,.1,.1),oma=c(2.25,2.25,.1,.1),mgp=c(1,.5,0))
+    fn.plot.prop.rec.yr(Zn.rec_Conv.Tag)
+    legend("topright",Name,bty='n',cex=1.5)
+    mtext("Financial year",1,line=1,cex=1.5,outer=T)
+    mtext("Proportion of recaptures",2,line=1,cex=1.5,outer=T,las=3)
+    dev.off()
+  }
+  
+  
+  #6. Years with data for acoustic tagging data
+  if(exists("Zn.rel_Acous.Tag"))
+  {
+    #Add financial year
+    fn.finyr.rel=function(dat)with(dat,ifelse(Month.rel>6,Year.rel,Year.rel-1))
+    fn.finyr.rec=function(dat)with(dat,ifelse(Month>6,Year,Year-1))
+    
+    Zn.rel_Acous.Tag$FinYear.rel=fn.finyr.rel(Zn.rel_Acous.Tag)
+    Zn.rec_Acous.Tag$FinYear.rec=fn.finyr.rec(Zn.rec_Acous.Tag)
+    Zn.rel_Acous.Tag$FinYear.rel=fn.finyr(Zn.rel_Acous.Tag$FinYear.rel)
+    Zn.rec_Acous.Tag$FinYear.rec=fn.finyr(Zn.rec_Acous.Tag$FinYear.rec)
+    
+    a.Tag=sort(unique(Zn.rec_Acous.Tag$FinYear.rec))
+    
+  }
+  
+  #7. Add missing years to prop.eff.mesh
+  #note: back fill using temporal change in 7inch upto 2009-10
+  dum.yr=sort(as.character(unique(catch$TDGDLF%>%filter(Data.set=='Data.monthly')%>%pull(FINYEAR))))
   id=dum.yr[which(!dum.yr%in%Mesh.prop.eff$finyear)]
   add.msh.eff=Mesh.prop.eff[(nrow(Mesh.prop.eff)+1):((nrow(Mesh.prop.eff))+length(id)),]
   add.msh.eff$finyear=id
@@ -992,31 +901,30 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   Mesh.prop.eff.West[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff.West,intercpt=0)
   Mesh.prop.eff.Zn1[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff.Zn1,intercpt=1)
   Mesh.prop.eff.Zn2[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff.Zn2,intercpt=0)
-  
-  
   colnames(Mesh.prop.eff)[2:3]=colnames(Mesh.prop.eff.West)[2:3]=
   colnames(Mesh.prop.eff.Zn1)[2:3]=colnames(Mesh.prop.eff.Zn2)[2:3]=c("Mesh_6.5","Mesh_7")
   
 
   #--------------- RESULTS SECTION --------------
 
+  #1. Visualize catch
+  
+  #Total color
+  tot.col="tan3"
+  
   #Zone colors
   Zns=c("Joint","North","Closed","West","Closed.metro","Zone1","Zone2")
-  Zns.leg=c("JANSF","WANCSF","Ningaloo","WCDGDLF","Metro closure","Zone1","Zone2")
-  COL.prop=c("aquamarine2","lightseagreen","seagreen4","lightgreen","olivedrab4","olivedrab3","mediumseagreen")
-  names(COL.prop)=Zns
+  Zns.leg=c("JANSF","WANCSF","Closed","WCDGDLF","Metro closure","Zone1","Zone2")
+  COL.prop=c("aquamarine2","lightseagreen",'forestgreen',"lightgreen","olivedrab4","olivedrab3","mediumseagreen")
+  names(COL.prop)=names(Zns.leg)=Zns
   
   #Biological regions colors
   Bio.col=c("dodgerblue","darkorchid4","cyan4","lightpink3")
   names(Bio.col)=c("North Coast","Gascoyne","West Coast","South Coast")
  
-  
-  #1. Visualize catch
-  LTY=rep(1,4)
-   
   fn.add=function(a)
   {
-    id=which(!YRS%in%a$FINYEAR)     
+    id=which(!YRS%in%a$FINYEAR)
     if(length(id)>0)
     {
       ADD=a
@@ -1025,386 +933,268 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
       xx=match("FINYEAR",colnames(ADD))
       ADD[,which(!1:ncol(ADD)%in%xx)]=NA
       a=rbind(a,ADD)
-      a=a[order(a$FINYEAR),]    
+      a=a[order(a$FINYEAR),]
     }
     return(a)
   }
-  
-  fn.see.Ktch=function(DAT,YRS,NAMES,where,cx.zn,cx.Titl,cx.Man,cx.axs,tck1,tck2,tck3)
+  fn.see.Ktch=function(DAT,DAT.zone,YRS,LWD,TCK)
   {
-    axis1=function()axis(1,1:length(YRS),F,tck=tck1)
-    if(!SP=="TK")THIS.yr=which(YRS=="1980-81")
-    if(SP=="TK")THIS.yr=which(YRS=="1985-86")
-    axis11=function()axis(1,seq(THIS.yr,length(YRS),10),YRS[seq(THIS.yr,length(YRS),10)],
-                          tck=tck2,cex.axis=cx.axs)
-    if(!SP=="TK") THIS.yr=which(YRS=="1975-76")
-    axis12=function()axis(1,seq(THIS.yr,length(YRS),10),F,tck=tck3)
-    
-    Single=c("GAB_trawl","WRL","WTBF","TEPS","SA_marine")
-    Byregion=c("TDGDLF","NSF","Rec","Other")
     for(i in 1:length(DAT))
     {
       a=DAT[[i]]
-      if(names(DAT)[i]%in% Single) a=aggregate(LIVEWT.c~FINYEAR,a,sum)
-      
-      if(names(DAT)[i]%in%Byregion)a=aggregate(LIVEWT.c~FINYEAR+zone,a,sum)
-      
-      if(is.numeric(a$FINYEAR[1])) a$FINYEAR=paste(a$FINYEAR,"-",fn.subs(a$FINYEAR+1),sep="") 
-      a=a[order(a$FINYEAR),]
-       if(!is.logical(a))
+      a.zn=DAT.zone[[i]]%>%filter(!is.na(zone))
+      a=a%>%
+        group_by(FINYEAR)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+        arrange(FINYEAR)
+      Ylim=c(0,max(a$LIVEWT.c))
+      if(nrow(a)==1)
       {
-        a$FINYEAR=factor(a$FINYEAR,levels=YRS)
-        if(names(DAT)[i]%in% Single)
-        {          
-          nm=NAMES[i]
-          if(NAMES[i]=="SA_marine") nm="SA_marine (whalers catch)"
-          a=fn.add(a)        
-          plot(1:length(YRS),a[,2],lwd=2,xaxt='n',ylab="",xlab="",type='l',main=nm)
-          axis1()
-          axis11()
-          if(names(DAT[i])=="Historic.TDGDLF")
+        plot(1:length(a$FINYEAR),a$LIVEWT.c,xaxt='n',ylab="",xlab="",ylim=Ylim,
+             main=names(DAT)[i],col=tot.col)
+      }else
+      {
+        a=fn.add(a)
+        plot(1:length(a$FINYEAR),a$LIVEWT.c,lwd=LWD*.75,xaxt='n',ylab="",xlab="",
+             ylim=Ylim,type='l',main=names(DAT)[i],col=tot.col)
+        if(nrow(a.zn)>0)
+        {
+          a.zn=aggregate(LIVEWT.c~FINYEAR+zone,a.zn,sum)
+          dis.z=unique(a.zn$zone)
+          for(z in 1:length(dis.z))
           {
-            IDs=c(4:8,11)
-            points(IDs,a[IDs,2],col="orange",cex=1.25,pch=19)
-            legend("topright","interpolated",col="orange",pch=19,cex=1.25,pt.cex=2,bty='n')
+            b=subset(a.zn,zone==dis.z[z])
+            b=fn.add(b)
+            lines(1:length(b$FINYEAR),b$LIVEWT.c,lwd=LWD,col=COL.prop[match(dis.z[z],names(COL.prop))])
           }
+          lines(1:length(a$FINYEAR),a$LIVEWT.c,lwd=LWD*.75,col=tot.col)
+        }
+        LGn=c('Total')
+        CLS=tot.col
+        if(nrow(a.zn)>0)
+        {
+          Cl.z=COL.prop[match(dis.z,names(COL.prop))]
+          LGn=c(LGn,Zns.leg[match(dis.z,names(Zns.leg))])
+          CLS=c(CLS,Cl.z)
+        }
+        legend('topleft',LGn,lty=1,lwd=2,col=CLS,bty='n')
+      }
+      axis(1,1:length(a$FINYEAR),F,tck=TCK)
+      axis(1,seq(1,length(a$FINYEAR),5),a$FINYEAR[seq(1,length(a$FINYEAR),5)],tck=2*TCK)
+    }
+  }
+  a=do.call(rbind,catch)
+  YR.span=sort(as.character(unique(a$FINYEAR)))
+  rm(a)
+  YRS=YR.span
+
+  
+  n.plots=length(catch)
+  WIDTH=ifelse(n.plots>5,2400,2400)
+  LENGTH=ifelse(n.plots>5,2000,2400)
+  fn.fig("All catches",WIDTH, LENGTH)
+  par(las=1)
+  smart.par(n.plots=n.plots,MAR=c(1.75,1.75,1.75,1.75),OMA=c(2,2,.1,.1),MGP=c(1.5,.6,0))
+  fn.see.Ktch(DAT=catch,
+              DAT.zone=catch.zone,
+              YRS=YR.span,
+              LWD=2.5,
+              TCK=-.02)
+  mtext("Financial year",1,line=.75,cex=1.25,outer=T)
+  mtext("Total catch (tonnes)",2,line=.4,cex=1.25,outer=T,las=3)
+  dev.off()
+  
+
+  #2. Visualize size composition                             
+  if(exists('All.size'))
+  {
+    fnx=function(x) as.numeric(substr(x,1,4))
+    fn.bub=function(DAT,COL,Scale,TCK)
+    {
+      if(nrow(DAT)==0) plot.new() else
+      {
+        #aggregate data into years
+        YRs=as.character(unique(DAT$FINYEAR))
+        this=which(!colnames(DAT)%in%c('FINYEAR','Month','Sex'))
+        SIzes=colnames(DAT[,this])
+        d=matrix(ncol=length(SIzes),nrow=length(YRs))
+        for(s in 1:length(YRs))
+        {
+          a=subset(DAT,FINYEAR==YRs[s])
+          d[s,]=colSums(a[,this])
+        }
+        colnames(d)=SIzes
+        d=cbind(FINYEAR=YRs,as.data.frame.matrix(d))
+        
+        #keep years with minimum observations
+        drop.yr=rowSums(d[,2:ncol(d)])
+        names(drop.yr)=d$FINYEAR
+        drop.yr=subset(drop.yr,drop.yr<Min.obs)
+        d=subset(d,!FINYEAR%in%names(drop.yr))
+        
+        DAT=d
+        
+        Ylabs=FinYrs
+        ID=which(!FinYrs%in%DAT$FINYEAR)
+        ADD=data.frame(FINYEAR=FinYrs[ID])
+        if(nrow(ADD)>0)
+        {
+          ADD1=DAT[1:nrow(ADD),2:ncol(DAT)]
+          ADD=cbind(ADD,ADD1)
+          ADD[,2:ncol(ADD)]=0
+          DAT=rbind(DAT,ADD)
         }
         
-        if(names(DAT)[i]%in%Byregion)
-        {
-          Tot=aggregate(LIVEWT.c~FINYEAR,a,sum)
-          
-          plot(1:length(YRS),xaxt='n',ylim=c(0,max(Tot$LIVEWT.c,na.rm=T)),
-               col='transparent',ylab="",xlab="",main=NAMES[i],cex.main=cx.Man,cex.axis=cx.axs)
-          
-          zn=unique(a$zone)
-          for(x in 1:length(zn))
-          {
-            b=subset(a,zone==zn[x])
-            b=fn.add(b)
-            b=b[order(as.character(b$FINYEAR)),]
-            lines(1:length(YRS),b[1:length(YRS),ncol(b)],lwd=3,lty=LTY[x],col=COL[[i]][match(zn[x],names(COL[[i]]))])
-          }
-          
-          #add total
-          Tot$FINYEAR=as.character(Tot$FINYEAR)
-          id=which(!YRS%in%Tot$FINYEAR)     
-          if(length(id)>0)
-          {
-            ddd=Tot[(nrow(Tot)+1):((nrow(Tot))+length(id)),]
-            ddd$FINYEAR=YRS[id]
-            Tot=rbind(Tot,ddd)
-            Tot=Tot[order(Tot$FINYEAR),]
-          }
-          lines(1:length(YRS),Tot$LIVEWT.c,lwd=3,lty=1,col=tot.col)
-          
-          legend(where[i],c(paste(zn),"Total"),lty=LTY,col=c(COL[[i]][match(zn,names(COL[[i]]))],tot.col),bty='n',cex=cx.zn,lwd=3)
-        } 
+        DAT$FINYEAR=as.character(DAT$FINYEAR)
+        DAT=DAT[order(DAT$FINYEAR),]      
+        DAT=DAT[,2:ncol(DAT)]
+        x=as.numeric(colnames(DAT))
+        y=1:nrow(DAT)
+        z=(as.matrix(DAT))      
+        n=length(y)      
+        xo=outer(x,rep(1,length=length(y)))
+        yo=t(outer(y,rep(1,length=length(x))))
+        zo=z/ rowSums(z)*Scale   
+        N=max(10,n/2)
+        matplot(yo,xo,type="n",xlab="",ylab="",xaxt='n',yaxt='n')
+        abline(v=pretty(x),lty=3,col="black")
+        for(i in 1:n) points(yo[,i],xo[,i],cex=zo[i,],pch=16,col=COL)
+        axis(1,y,F,tck=TCK)
+        axis(1,y[seq(1,length(Ylabs),5)],Ylabs[seq(1,length(Ylabs),5)],tck=TCK*2,cex.axis=1.25)
+        axis(2,x,F,tck=TCK)
+        axis(2,seq(x[1],x[length(x)],by=N),seq(x[1],x[length(x)],by=N),tck=TCK*2,cex.axis=1.25)
         
-        axis1()
-        axis11()
-        axis12()
       }
-      
     }
+  
+      #2.1 TDGDLF size comp of reported catch
+    FinYrs=sort(unique(do.call(rbind,All.size$TDGDLF)%>%pull(FINYEAR)))
+    FinYrs=paste(fnx(min(FinYrs)):(fnx(max(FinYrs))),"-",substr((fnx(min(FinYrs))+1):(fnx(max(FinYrs))+1),3,4),sep="")
     
-  }
- 
-  YR.span=sort(as.character(unique(catch$TDGDLF$FINYEAR)))
-  if(SP=="TK")YR.span=unique(sort(c("1981-82","1982-83",as.character(unique(catch$NSF$FINYEAR)),YR.span)))
-  YRS=YR.span
-  line.x=0.75; line.y=2
- 
-  if(SP=="WH")
-  {
-    PAR=function()par(mfcol=c(3,1),mai=c(.25,.1,.3,.2),oma=c(2,4,.1,1),mgp=c(1,.75,0),las=1)
-    Fisheries=c("TDGDLF","Other WA fisheries","Recreational")
-    File="Whiskery.catch"
-    where=c('topright','topright','topleft')  
-    Zn.col=COL.prop[match(c("West","Zone1","Zone2"),names(COL.prop))]
-    Bio.Cl=Bio.col[match(c("West Coast","South Coast"),names(Bio.col))]    
-    COL=list(Zn.col,Zn.col,Bio.Cl)
-    CX.zn=1.75;CX.Titl=1.75;CX.Man=1.9;CX.axs=1.5;Tck1=(-0.02);Tck2=(-0.04);Tck3=(-0.03)
-  }
-  
-  if(SP=="GM")
-  {
-    PAR=function()par(mfcol=c(3,1),mai=c(.25,.1,.3,.2),oma=c(2,4,.1,1),mgp=c(1,.75,0),las=1)
-    Fisheries=c("TDGDLF","Other WA fisheries","Recreational")
-    File="Gummy.catch"
-    where=c('topleft','topright','topleft')
-    Zn.col=COL.prop[match(c("West","Zone1","Zone2"),names(COL.prop))]
-    Bio.Cl=Bio.col    
-    COL=list(Zn.col,Zn.col,Bio.Cl)
-    
-    CX.zn=1.75;CX.Titl=1.75;CX.Man=1.9;CX.axs=1.5;Tck1=(-0.02);Tck2=(-0.04);Tck3=(-0.03)
-  }
- 
-  if(SP=="BW")
-  {
-    if(Ktch.source=="ALL") PAR=function()par(mfcol=c(4,2),mai=c(.1,.1,.3,.15),oma=c(4,4,.3,.75),mgp=c(2,.5,0),las=1)
-    if(Ktch.source=="WA.only") PAR=function()par(mfcol=c(3,2),mai=c(.1,.1,.25,.15),oma=c(4,4,1,1),mgp=c(1,.5,0),las=1)
-    
-   Fisheries=names(catch)
-   File="Dusky.catch"
-   where=c('topright','topleft','topright',"top",'topleft')
-   Zn.col=COL.prop[match(c("West","Zone1","Zone2"),names(COL.prop))]
-   Zn.colN=c(COL.prop[match(c("Closed.ningaloo","North"),names(COL.prop))],"lightcyan3")
-   Bio.Cl=Bio.col    
-   COL=list(Zn.col,Zn.colN,Zn.col,'black',Bio.Cl)
-   
-   CX.zn=1.2;CX.Titl=1.5;CX.Man=1.25;CX.axs=1.25;Tck1=(-0.01);Tck2=(-0.03);Tck3=(-0.02)
-   line.x=1.5; line.y=2
-  }
-  
-  if(SP=="TK")
-  {
-    if(Ktch.source=="ALL")  PAR=function()par(mfcol=c(3,2),mai=c(.1,.1,.2,.2),oma=c(4,4,1,1),mgp=c(1,.5,0),las=1)
-    if(Ktch.source=="WA.only")  PAR=function()par(mfcol=c(2,2),mai=c(.1,.1,.5,.3),oma=c(3,4,1.25,1),mgp=c(1,.5,0),las=1)
-    Fisheries=names(catch)
-    line.x=1.75
-   File="Sandbar.catch"
-   where=c('topleft','topleft','topleft',"topleft")
-   Zn.col=COL.prop[match(c("West","Zone1","Zone2"),names(COL.prop))]
-   Zn.colN=COL.prop[match(c("Closed","North","Joint"),names(COL.prop))]
-   Bio.Cl=Bio.col    
-   COL=list(Zn.col,Zn.colN,Zn.col,Bio.Cl)
-   
-   CX.zn=1.15;CX.Titl=1.5;CX.Man=1.25;CX.axs=1.25;Tck1=(-0.01);Tck2=(-0.03);Tck3=(-0.02)
-  }
-  
- if(SP%in%c("GM","WH")) WIDTH=LENGTH=2400
- if(SP%in%c("BW","TK"))
- {
-   WIDTH=2400
-   LENGTH=1800
- }
-  tot.col="tan3"
-  fn.fig(File,WIDTH, LENGTH)
-  PAR()
-  fn.see.Ktch(catch,YR.span,Fisheries,where,CX.zn,CX.Titl,CX.Man,CX.axs,Tck1,Tck2,Tck3)   
-  mtext("Financial year",1,line=line.x,cex=CX.Titl,outer=T)
-  mtext("Total catch (tonnes)",2,line=line.y,cex=CX.Titl,outer=T,las=3)
-  dev.off()
-  
-  #Compare historic and catch time series 
-  Ag.TDGDLF=aggregate((LIVEWT.c/1000)~FINYEAR,catch$TDGDLF,sum)
-  names(Ag.TDGDLF)[2]="LIVEWT.c"
-  Ag.TDGDLF$year=as.numeric(substr(Ag.TDGDLF$FINYEAR,1,4))
-  fn.fig("Catch_Historic & time series",2400, 2400)  
-  par(las=1,cex.axis=1.25,mgp=c(2.8,.7,0),xpd=T)
-  plot(Ag.TDGDLF$year,Ag.TDGDLF$LIVEWT.c,xlim=c(min(historic.prop.ktch$year),max(Ag.TDGDLF$year)),
-       ylim=c(0,max(c(subset(Historic.ktch,year<1975)$LIVEWT.c,Ag.TDGDLF$LIVEWT.c))),pch=19,cex=1.5,ylab="Catch (tonnes)",xlab="Financial year",
-       cex.lab=1.5)
-  points(historic.prop.ktch$year,historic.prop.ktch$LIVEWT.c,pch=21,bg='orange',col='orange',cex=1.5)
-  with(subset(Historic.ktch,year<1975),points(year,LIVEWT.c,col="orange",cex=1.5))  
-  legend("topleft",c("historic shark landings (Whitley (1944), Heald (1987), Simpfendorfer & Donohue 1998)",
-    paste("reconstructed historic",Spec,"shark landings (mean prop=",round(Mean.prop.ctch,2)," in the first",yrs.considered," years)"),
-           "model inputs"),bty="n",pch=c(21,21,21),col=c('orange','orange',"black"),
-          pt.bg=c('white','orange',"black"),cex=1,inset=c(0,-0.125))
-  dev.off()
-  
-  
-  #2. Visualize size composition                             
-  Min.yr=min(c(FL.TDGDFL.WC$year,FL.TDGDFL.Zn1$year,FL.TDGDFL.Zn2$year,
-               FL.TDGDFL.WC_7$year,FL.TDGDFL.Zn1_7$year,FL.TDGDFL.Zn2_7$year))
-  Mx.yr=max(c(FL.TDGDFL.WC$year,FL.TDGDFL.Zn1$year,FL.TDGDFL.Zn2$year,
-              FL.TDGDFL.WC_7$year,FL.TDGDFL.Zn1_7$year,FL.TDGDFL.Zn2_7$year))
-  FinYrs=paste(Min.yr:(Mx.yr-1),"-",fn.subs((Min.yr+1):Mx.yr),sep="")
-  
-  fn.bub=function(DAT,COL,Scale,bin,N)
-  {
-    if(nrow(DAT)==0) plot(1, type="n", axes=F, xlab="", ylab="")
-    
-    if(nrow(DAT)>0)
+    fn.fig("Size.comp.TDGDLF",2400, 2000)
+    par(mfcol=c(3,2),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.25,1,1),mgp=c(1,.85,0))
+    #-6.5
+    for(e in 1:length(All.size$TDGDLF))
     {
-      #aggregate data into years
-      YRs=as.character(unique(DAT$FINYEAR))
-      SIzes=colnames(DAT[,4:ncol(DAT)])
-      d=matrix(ncol=length(SIzes),nrow=length(YRs))
-      for(s in 1:length(YRs))
-      {
-        a=subset(DAT,FINYEAR==YRs[s])
-        d[s,]=colSums(a[,4:ncol(a)])
-      }
-      colnames(d)=SIzes
-      d=cbind(FINYEAR=YRs,as.data.frame.matrix(d))
-      
-        #keep years with minimum observations
-      drop.yr=rowSums(d[,2:ncol(d)])
-      names(drop.yr)=d$FINYEAR
-      drop.yr=subset(drop.yr,drop.yr<Min.obs)
-      d=subset(d,!FINYEAR%in%names(drop.yr))
-      
-      DAT=d
-      
-      Ylabs=FinYrs
-      ID=which(!FinYrs%in%DAT$FINYEAR)
-      ADD=data.frame(FINYEAR=FinYrs[ID])
-      if(nrow(ADD)>0)
-      {
-        ADD1=DAT[1:nrow(ADD),2:ncol(DAT)]
-        ADD=cbind(ADD,ADD1)
-        ADD[,2:ncol(ADD)]=0
-        DAT=rbind(DAT,ADD)
-      }
-      
-      DAT$FINYEAR=as.character(DAT$FINYEAR)
-      DAT=DAT[order(DAT$FINYEAR),]      
-      DAT=DAT[,2:ncol(DAT)]
-      x=as.numeric(colnames(DAT))
-      y=1:nrow(DAT)
-      z=(as.matrix(DAT))      
-      n=length(y)      
-      xo=outer(x,rep(1,length=length(y)))
-      yo=t(outer(y,rep(1,length=length(x))))
-      zo=z/ rowSums(z)*Scale      
-      matplot(yo,xo,type="n",xlab="",ylab="",xaxt='n',yaxt='n')
-      abline(v=pretty(x),lty=3,col="black")
-      for(i in 1:n) points(yo[,i],xo[,i],cex=zo[i,],pch=16,col=COL)
-      axis(1,y,F,tck=-0.025)
-      axis(1,y[seq(1,length(Ylabs),5)],Ylabs[seq(1,length(Ylabs),5)],tck=-0.05,cex.axis=1.25)
-      axis(2,x,F,tck=-0.025)
-      axis(2,seq(x[1],x[length(x)],by=N),seq(x[1],x[length(x)],by=N),tck=-0.05,cex.axis=CxY)
+      fn.bub(DAT=All.size$TDGDLF[[e]],COL='steelblue',Scale=7.5,TCK=-.015)
+      if(e==1) mtext('6.5 inch mesh',3)
     }
-  }
- 
-  if(SP%in%c("WH","GM")) CxY=1.5
-  if(SP%in%c("BW","TK")) CxY=0.9
-  #COLS="steelblue"
-  COLS="grey60"
-  BIN=Bin.size #bin size
-  Nl=length(All.size$TDGDLF) 
-  LEGS=c("West coast","Zone 1","Zone 2")
-  if(SP%in%c("WH","GM")) WhereLEGN="bottomright"; NN=10
-  if(SP%in%c("BW","TK")) WhereLEGN="topright"; NN=20
-  
-  #2.1 TDGDLF size comp of reported catch
-  fn.fig("Size.comp.TDGDLF",2400, 2000)
-  par(mfrow=c(3,2),las=1,mai=c(0.3,0.35,.2,.1),oma=c(2.25,2.25,.1,.1),mgp=c(1,.85,0))
-  for(e in 1:Nl)
-  {
-    fn.bub(All.size$TDGDLF[[e]],COLS,Scale=7.5,BIN,N=NN)
-    if(e==1)mtext("6.5 inch mesh",3,0,cex=1.25)
-    fn.bub(All.size$TDGDLF_[[e]],COLS,Scale=7.5,BIN,N=NN)
-    if(e==1)mtext("7 inch mesh",3,0,cex=1.25)
-    legend(WhereLEGN,LEGS[e],bty='n',cex=1.85)
-  }
-  mtext("Financial Year",1,cex=1.5,line=0.75,outer=T)
-  mtext("Total length class (cm)",2,cex=1.5,line=0.6,las=3,outer=T)
-  dev.off()
- 
-  #2.2 NSF
-  if(SP%in%c('BW',"TK"))
-  {
-    fn.fig("Size.comp.NSF",2000, 1800)
-   par(mfcol=c(1,1),las=1,mai=c(.8,1.2,.1,.1),mgp=c(1,1.5,0))
-   fn.bub(FL_NSF_observers,COLS,Scale=10,BIN,N=NN)   
-   mtext("Financial Year",1,cex=1.25,line=3)
-   mtext("Total length class (cm)",2,cex=1.25,line=4,las=3)
-   dev.off()
- }
-  
-  #2.4 Pilbara Trawl
-  if(SP=="TK")
-  {
-    FinYrs=unique(Sandbar_FL_Pil.trwl_observers$FINYEAR)
-    
-  fn.fig("Size.comp.Pilbara_trawl",2000, 1800)
-   par(las=1,mai=c(0.75,0.85,.1,.1),mgp=c(1,1.25,0))
-   fn.bub(Sandbar_FL_Pil.trwl_observers,COLS,Scale=10,BIN,N=NN)
-   mtext("Financial Year",1,cex=1.25,line=2.75)
-   mtext("Total length class (cm)",2,cex=1.25,line=2.75,las=3)
-   dev.off()
- }
-   
-  
-  #2.5 TEPS_TDGDLF
- if(SP=="BW")
- {
-   fn.fig("Size.comp.Oversized_TDGDLF",2000,1800)
-   hist(Size.comp.Dusky.TEPS_TDGLDF,xlab="FL (m)",main="Oversized dusky_TDGDLF")
-   dev.off()
-   
- }
-  
-  #2.6 Table of number of observations and shots
-  fn.table.shots=function(dat)
-  {
-    a=dat
-    if(!is.na(match('CALCULATED FL',names(a))))
+    #-7
+    for(e in 1:length(All.size$TDGDLF_7))
     {
-      names(a)[match('CALCULATED FL',names(a))]='CALCULATED.FL'
-      a$FL=with(a,ifelse(is.na(FL),CALCULATED.FL,FL))
+      fn.bub(DAT=All.size$TDGDLF_7[[e]],COL='steelblue',Scale=7.5,TCK=-.015)
+      if(e==1) mtext('7 inch mesh',3)
+      mtext(names(All.size$TDGDLF_7)[e],4,las=3,line=.35)
     }
-    a$FINYEAR=with(a,ifelse(Month>6,paste(year,"-",fn.subs(year+1),sep=""),
-                            paste(year-1,"-",fn.subs(year),sep="")))
-    a=subset(a,!is.na(FL))    
-    a$Number=1
-    Obs=aggregate(Number~FINYEAR,a,sum)
-    a$Dup=paste(a$year,a$Month,a$SHEET_NO)
-    bb=a[!duplicated(a$Dup),]
-    bb$Number=1
-    Shots=aggregate(Number~FINYEAR,bb,sum)
-    this=merge(Obs,Shots,by="FINYEAR")
-    names(this)[2:3]=c("N.observations","N.shots")
-    this$Species=unique(a$SPECIES)
-    this$Fishery="NSF"
-    this$zone=unique(dat$zone)
+    mtext("Financial Year",1,cex=1.35,line=0.75,outer=T)
+    mtext("Total length class (cm)",2,cex=1.35,line=0.5,las=3,outer=T)
+    dev.off()
     
-    return(this)
-  }
-  if(SP%in%c("BW","TK"))
-  {
-    Sandbar.NSF.size.numbers=fn.table.shots(FL_Sandbar_NSF)
-    Dusky.NSF.size.numbers=fn.table.shots(FL_dusky_NSF)
-  }
-  if(SP%in%c("WH","GM")) Size.numbers=TDGDFL.size.numbers
-  if(SP=="BW") Size.numbers=rbind(TDGDFL.size.numbers,Dusky.NSF.size.numbers)
-  if(SP=="TK") Size.numbers=rbind(TDGDFL.size.numbers,Sandbar.NSF.size.numbers)
-  
-  Size.numbers=Size.numbers[,match(c("Fishery","zone","FINYEAR",
-                "N.observations","N.shots"),names(Size.numbers))]
-  Size.numbers=Size.numbers[order(Size.numbers$FINYEAR,Size.numbers$Fishery,Size.numbers$zone),]
-  
-  Numbers.SF=reshape(Size.numbers[,-match("N.shots",names(Size.numbers))],v.names = "N.observations",
-                     idvar = c("Fishery","zone"),timevar = "FINYEAR", direction = "wide")
-  X=colnames(Numbers.SF)[3:ncol(Numbers.SF)]
-  colnames(Numbers.SF)[3:ncol(Numbers.SF)]=as.character(sapply(strsplit(X,"N.observations."), "[", 2))
-  Shots.SF=reshape(Size.numbers[,-match("N.observations",names(Size.numbers))],v.names = "N.shots",
-                   idvar = c("Fishery","zone"),timevar = "FINYEAR", direction = "wide")
-  X=colnames(Shots.SF)[3:ncol(Shots.SF)]
-  colnames(Shots.SF)[3:ncol(Shots.SF)]=as.character(sapply(strsplit(X,"N.shots."), "[", 2))
-  Numbers.SF=Numbers.SF[order(Numbers.SF$Fishery,Numbers.SF$zone),]
-  Shots.SF=Shots.SF[order(Shots.SF$Fishery,Shots.SF$zone),]
-  
-  #add total
-  dum= Numbers.SF[1,]
-  dum$zone="Total"
-  dum[,-match(c("Fishery","zone"),names(Numbers.SF))]=colSums(Numbers.SF[,-match(c("Fishery","zone"),names(Numbers.SF))],na.rm =T)
-  Numbers.SF=rbind(Numbers.SF,dum)
-  dum[,-match(c("Fishery","zone"),names(Numbers.SF))]=colSums(Shots.SF[,-match(c("Fishery","zone"),names(Shots.SF))],na.rm =T)
-  Shots.SF=rbind(Shots.SF,dum)
+      #2.2 NSF size comp of reported catch #ACA
+    if('NSF'%in%names(All.size))
+    {
+      fn.fig("Size.comp.NSF",2400, 2000)
+      par(mfcol=c(1,1),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.5,1,1),mgp=c(1,.65,0))
+      fn.bub(DAT=All.size$NSF,COL='steelblue',Scale=7.5,TCK=-.01)
+      mtext("Financial Year",1,cex=1.75,line=0.75,outer=T)
+      mtext("Total length class (cm)",2,cex=1.75,line=0.95,las=3,outer=T)
+      dev.off()
+    }
     
-  #remove NAs
-  Numbers.SF[is.na(Numbers.SF)]=""
-  Shots.SF[is.na(Shots.SF)]=""
- 
-  #create nice table 
-  fn.word.table(WD=getwd(),TBL=Numbers.SF,Doc.nm="Size.comp.n.observations",caption=NA,paragph=NA,
-               HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
-               Zebra='NO',Zebra.col='grey60',Grid.col='black',
-               Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
- 
-  fn.word.table(WD=getwd(),TBL=Shots.SF,Doc.nm="Size.comp.n.shots",caption=NA,paragph=NA,
-               HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
-               Zebra='NO',Zebra.col='grey60',Grid.col='black',
-               Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
- 
- write.csv(Numbers.SF,"Numbers.SF.csv",row.names=F)
- write.csv(Shots.SF,"Shots.SF.csv",row.names=F)
- 
+      #2.3 Pilbara trawl size comp of reported catch
+    if('Pilbara_trawl'%in%names(All.size))
+    {
+      #FinYrs=sort(unique(All.size$Pilbara_trawl%>%pull(FINYEAR)))
+      #FinYrs=paste(fnx(min(FinYrs)):(fnx(max(FinYrs))),"-",substr((fnx(min(FinYrs))+1):(fnx(max(FinYrs))+1),3,4),sep="")
+       fn.fig("Size.comp.Pilbara.trawl",2400, 2000)
+      par(mfcol=c(1,1),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.5,1,1),mgp=c(1,.65,0))
+      fn.bub(DAT=All.size$Pilbara_trawl,COL='steelblue',Scale=7.5,TCK=-.01)
+      mtext("Financial Year",1,cex=1.75,line=0.75,outer=T)
+      mtext("Total length class (cm)",2,cex=1.75,line=0.95,las=3,outer=T)
+      dev.off()
+    }
+  }
 
+    #Table of number of observations and shots
+  if(exists('TDGDFL.size.numbers'))
+  {
+    Size.numbers=TDGDFL.size.numbers
+    fn.table.shots=function(dat,FSHRY)
+    {
+      a=dat
+      if(!is.na(match('CALCULATED FL',names(a))))
+      {
+        names(a)[match('CALCULATED FL',names(a))]='CALCULATED.FL'
+        a$FL=with(a,ifelse(is.na(FL),CALCULATED.FL,FL))
+      }
+      a$FINYEAR=with(a,ifelse(Month>6,paste(year,"-",fn.subs(year+1),sep=""),
+                              paste(year-1,"-",fn.subs(year),sep="")))
+      a=subset(a,!is.na(FL))    
+      a$Number=1
+      Obs=aggregate(Number~FINYEAR,a,sum)
+      a$Dup=paste(a$year,a$Month,a$SHEET_NO)
+      bb=a[!duplicated(a$Dup),]
+      bb$Number=1
+      Shots=aggregate(Number~FINYEAR,bb,sum)
+      this=merge(Obs,Shots,by="FINYEAR")
+      names(this)[2:3]=c("N.observations","N.shots")
+      this$Species=unique(a$SPECIES)
+      this$Fishery=FSHRY
+      this$zone=unique(dat$zone)
+      
+      return(this)
+    }
+    if(exists('FL_NSF'))
+    {
+      NSF.size.numbers=fn.table.shots(FL_NSF,FSHRY="NSF")
+      Size.numbers=rbind(Size.numbers,NSF.size.numbers)
+    }
+    if(exists('FL_Pilbara_trawl'))
+    {
+      Pilbara_trawl.size.numbers=fn.table.shots(FL_Pilbara_trawl,FSHRY="Pilbara trawl")
+      Size.numbers=rbind(Size.numbers,Pilbara_trawl.size.numbers)
+    }
+    
+    Size.numbers=Size.numbers[,match(c("Fishery","zone","FINYEAR",
+                                       "N.observations","N.shots"),names(Size.numbers))]
+    Size.numbers=Size.numbers[order(Size.numbers$FINYEAR,Size.numbers$Fishery,Size.numbers$zone),]
+    Numbers.SF=reshape(Size.numbers[,-match("N.shots",names(Size.numbers))],v.names = "N.observations",
+                       idvar = c("Fishery","zone"),timevar = "FINYEAR", direction = "wide")
+    X=colnames(Numbers.SF)[3:ncol(Numbers.SF)]
+    colnames(Numbers.SF)[3:ncol(Numbers.SF)]=as.character(sapply(strsplit(X,"N.observations."), "[", 2))
+    Shots.SF=reshape(Size.numbers[,-match("N.observations",names(Size.numbers))],v.names = "N.shots",
+                     idvar = c("Fishery","zone"),timevar = "FINYEAR", direction = "wide")
+    X=colnames(Shots.SF)[3:ncol(Shots.SF)]
+    colnames(Shots.SF)[3:ncol(Shots.SF)]=as.character(sapply(strsplit(X,"N.shots."), "[", 2))
+    Numbers.SF=Numbers.SF[order(Numbers.SF$Fishery,Numbers.SF$zone),]
+    Shots.SF=Shots.SF[order(Shots.SF$Fishery,Shots.SF$zone),]
+    
+    #add total
+    dum= Numbers.SF[1,]
+    dum$zone="Total"
+    dum[,-match(c("Fishery","zone"),names(Numbers.SF))]=colSums(Numbers.SF[,-match(c("Fishery","zone"),names(Numbers.SF))],na.rm =T)
+    Numbers.SF=rbind(Numbers.SF,dum)
+    dum[,-match(c("Fishery","zone"),names(Numbers.SF))]=colSums(Shots.SF[,-match(c("Fishery","zone"),names(Shots.SF))],na.rm =T)
+    Shots.SF=rbind(Shots.SF,dum)
+    
+    #remove NAs
+    Numbers.SF[is.na(Numbers.SF)]=""
+    Shots.SF[is.na(Shots.SF)]=""
+    
+    #create nice table 
+    fn.word.table(WD=getwd(),TBL=Numbers.SF,Doc.nm="Size.comp.n.observations",caption=NA,paragph=NA,
+                  HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+                  Zebra='NO',Zebra.col='grey60',Grid.col='black',
+                  Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+    fn.word.table(WD=getwd(),TBL=Shots.SF,Doc.nm="Size.comp.n.shots",caption=NA,paragph=NA,
+                  HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+                  Zebra='NO',Zebra.col='grey60',Grid.col='black',
+                  Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+    write.csv(Numbers.SF,"Numbers.SF.csv",row.names=F)
+    write.csv(Shots.SF,"Shots.SF.csv",row.names=F)
+  }
+
+ 
   #3. Visualize mean weights
  if(exists("Avr.wt.yr.zn"))
  {
@@ -1418,7 +1208,7 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
           ylab="",xlab="",pch=19,cex=3,cex.axis=1,col="transparent",xlim=c(0,N[length(N)]+0.5))
      
      jit=c(0,.1,.2)
-     CLOS=Zn.col
+     CLOS=COL.prop[match(c("West","Zone1","Zone2"),names(COL.prop))]
      
      for(x in 1:length(zn))
      {
@@ -1432,42 +1222,23 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
        segments(N1,a$mean,N1,a$mean+SD,lwd=2,col=CLOS[x])
        axis(1,N,F,tck=-0.015)    
      }
-     axis(1,seq(1,length(N),2),a$Finyear[seq(1,length(N),2)],tck=-0.025,cex.axis=1.25)
+     axis(1,seq(1,length(N),2),a$Finyear[seq(1,length(N),2)],tck=-0.02,cex.axis=1.25)
      legend('bottomleft',zn,pch=19,col=CLOS,pt.cex=1.5,cex=1.2,bty='n')
    }
-   
    fn.fig("Avg.wgt.zn",2000,2000)
-   par(mfcol=c(1,1),las=1,mai=c(0.45,0.35,.1,.15),oma=c(2.25,2.25,.1,.1),mgp=c(1,.5,0))
+   par(mfcol=c(1,1),las=1,mai=c(0.45,0.35,.1,.15),oma=c(1,2.25,.1,.1),mgp=c(1,.65,0))
    fn.see.avg.wgt()
-   mtext("Relative live weight",2,line=0,cex=1.5,las=3,outer=T)
-   mtext("Financial Year",1,cex=1.5,line=0.5,outer=T)
+   mtext("Relative live weight",2,line=.5,cex=1.5,las=3,outer=T)
+   mtext("Financial Year",1,cex=1.5,line=0,outer=T)
    dev.off()
  }
- fn.see.avg.wgt=function()
- {
-   a=Avr.wt.yr
-   N=1:length(unique(a$Finyear))
-   SD=a$mean*(a$CV)
-   plot(N,a$mean,ylim=c(0,max(a$mean+SD)*1.05),main="",cex.main=1.25,xaxt='n',
-        ylab="",xlab="",pch=19,cex=2,cex.axis=1,col="steelblue",xlim=c(0,N[length(N)]+0.5))
-   segments(N,a$mean,N,a$mean-SD,lwd=2,col="steelblue")
-   segments(N,a$mean,N,a$mean+SD,lwd=2,col="steelblue")
-   axis(1,seq(1,length(N),1),labels =F)
-   axis(1,seq(1,length(N),2),a$Finyear[seq(1,length(N),2)],tck=-0.02,cex.axis=1)
- }
- fn.fig("Avg.wgt",2000,2000)
- par(mfcol=c(1,1),las=1,mai=c(0.45,0.35,.1,.15),oma=c(2.25,2.25,.1,.1),mgp=c(1,.5,0))
- fn.see.avg.wgt()
- mtext("Relative live weight",2,line=0.5,cex=1.5,las=3,outer=T)
- mtext("Financial Year",1,cex=1.5,line=0.5,outer=T)
- dev.off()
-  
 
+  
   #4. Select effort years
   Eff.zn=subset(Eff.zn,FINYEAR%in%YR.span)
   Eff.total=data.frame(FINYEAR=Eff.zn$FINYEAR,Total=Eff.zn$West+Eff.zn$Zone1+Eff.zn$Zone2)
   
-
+  #ACA
   #5. Visualize data availability
   Yrs=YR.span #Exploitation years
   fn.search.yr=function(finyear,Y)
@@ -1811,9 +1582,17 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   fn.exp.size(dat=All.size,Level='annual.by.zone')
   
  
-  #avg weight    
+  #avg weight 
+    #TDGDLF
   if(exists('Avr.wt.yr.zn'))write.csv(Avr.wt.yr.zn,"ktch.avg.weight.annual.by.zone.csv",row.names=F) 
-  write.csv(Avr.wt.yr,"ktch.avg.weight.annual.csv",row.names=F)
+  if(exists('Avr.wt.yr')) write.csv(Avr.wt.yr,"ktch.avg.weight.annual.csv",row.names=F)
+    #Naturaliste survey 
+  if(exists('Size.index.Srvy.FixSt'))
+  {
+    Size.index.Srvy.FixSt$FINYEAR=paste(Size.index.Srvy.FixSt$FINYEAR,"-",fn.subs(Size.index.Srvy.FixSt$FINYEAR+1),sep="")
+    write.csv(Size.index.Srvy.FixSt,"size.annual.survey.csv",row.names=F)
+  }
+
   
   
   #TDGLDF cpue
@@ -1821,18 +1600,21 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   if(exists("Ab.folly.TDGDLF.all")) write.csv(Ab.folly.TDGDLF.all,"cpue.annual.TDGDLF.folly.csv",row.names=F)
  
     #by zone      
-  write.csv(Ab.indx.TDGDLF,"cpue.annual.by.zone.TDGDLF.csv",row.names=F)
-  write.csv(Ab.indx.TDGDLF.daily,"cpue.annual.by.zone.TDGDLF.daily.csv",row.names=F)
+  if(exists('Ab.indx.TDGDLF')) write.csv(Ab.indx.TDGDLF,"cpue.annual.by.zone.TDGDLF.csv",row.names=F)
+  if(exists('Ab.indx.TDGDLF.daily')) write.csv(Ab.indx.TDGDLF.daily,"cpue.annual.by.zone.TDGDLF.daily.csv",row.names=F)
   
     #zones combined
-  write.csv(Ab.indx.TDGDLF.all,"cpue.annual.TDGDLF.csv",row.names=F)
-  write.csv(Ab.indx.TDGDLF.all.daily,"cpue.annual.TDGDLF.daily.csv",row.names=F)
+  if(exists('Ab.indx.TDGDLF.all')) write.csv(Ab.indx.TDGDLF.all,"cpue.annual.TDGDLF.csv",row.names=F)
+  if(exists('Ab.indx.TDGDLF.all.daily')) write.csv(Ab.indx.TDGDLF.all.daily,"cpue.annual.TDGDLF.daily.csv",row.names=F)
 
  
   #Naturaliste survey     
   if(exists('Naturaliste.abun')) write.csv(Naturaliste.abun,"cpue.annual.survey.csv",row.names=F)
-  if(exists('Naturaliste.size')) write.csv(Naturaliste.size,"size.annual.survey.csv",row.names=F)
+  
 
+  #NSF cpue     
+  if(exists('Ab.indx.NSF')) write.csv(Ab.indx.NSF,"cpue.annual.NSF.csv",row.names=F)
+  
 
   #Conventional tagging
   
@@ -1910,11 +1692,12 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
  
 }
 
-fn.input.data(Name='Sandbar shark',SP="TK",Species=18007,
+fn.input.data(Name='Sandbar shark',SP="TK",Species=18007,  
                   First.year="1975-76",Last.year="2017-18",
                   Min.obs=10,Min.shts=10,
                   What.Efrt="km.gn.hours",
-                  Bin.size=5)  #move this to Run.model.R
+                  Bin.size=5,
+                  Yr.assess=2021)  #move this to Run.model.R
 
 
 fn.input.data.old=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size,What.Efrt)
