@@ -301,6 +301,14 @@ KtCh.zone=Get.ktch$Zone
 fn.extract.dat=function(STRING,nm.Dat) grepl(STRING, nm.Dat, perl = TRUE)
 fn.rename.dat=function(x,y) str_remove_all(x, paste(y, collapse = "|"))
 
+
+fn.input.data(Name='Sandbar shark',SP="TK",Species=18007,  #move this to Run.model.R
+              First.year="1975-76",Last.year="2017-18",
+              Min.obs=10,Min.shts=10,
+              What.Efrt="km.gn.hours",
+              Bin.size=5,
+              Yr.assess=2021)  
+
 #this is run for each assessed species and some argumetns are global, defined in Assessemnt.R
 fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,What.Efrt,Bin.size,Yr.assess)   
 {
@@ -363,6 +371,8 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     Srvy.FixSt=Dat[match(iid,nm.Dat)]
     Ab.index.Srvy.FixSt=Srvy.FixSt$.Srvy.FixSt.csv
     Size.index.Srvy.FixSt=Srvy.FixSt$.Srvy.FixSt_size.csv
+    Ab.index.Srvy.FixSt$FINYEAR=paste(Ab.index.Srvy.FixSt$yr,"-",fn.subs(Ab.index.Srvy.FixSt$yr+1),sep="")
+    Size.index.Srvy.FixSt$FINYEAR=paste(Size.index.Srvy.FixSt$yr,"-",fn.subs(Size.index.Srvy.FixSt$yr+1),sep="")
   }
   
 
@@ -691,7 +701,7 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
    
  }
  
-  if(exists('FL.TDGDFL'))   #ACA
+  if(exists('FL.TDGDFL'))   
   {
     #keep observation within logical size range
     for(n in 1:length(FL.TDGDFL)) FL.TDGDFL[[n]]=FL.TDGDFL[[n]]%>%filter(TL<=Max.TL)
@@ -770,11 +780,8 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   
 
   #3. Put abundance data together 
-  if(exists('Ab.index.Srvy.FixSt'))
-  {
-    Ab.index.Srvy.FixSt$FINYEAR=paste(Ab.index.Srvy.FixSt$yr,"-",fn.subs(Ab.index.Srvy.FixSt$yr+1),sep="")
-    Naturaliste.abun=Ab.index.Srvy.FixSt
-  }
+  if(exists('Ab.index.Srvy.FixSt')) Naturaliste.abun=Ab.index.Srvy.FixSt
+  
 
    
   #4. set working directory for outputing figures
@@ -1090,7 +1097,7 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     mtext("Total length class (cm)",2,cex=1.35,line=0.5,las=3,outer=T)
     dev.off()
     
-      #2.2 NSF size comp of reported catch #ACA
+      #2.2 NSF size comp of reported catch
     if('NSF'%in%names(All.size))
     {
       fn.fig("Size.comp.NSF",2400, 2000)
@@ -1238,220 +1245,114 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   Eff.zn=subset(Eff.zn,FINYEAR%in%YR.span)
   Eff.total=data.frame(FINYEAR=Eff.zn$FINYEAR,Total=Eff.zn$West+Eff.zn$Zone1+Eff.zn$Zone2)
   
-  #ACA
+  
   #5. Visualize data availability
-  Yrs=YR.span #Exploitation years
-  fn.search.yr=function(finyear,Y)
+  visualize.dat=function(d.list)   
   {
-    DAT=data.frame(FINYEAR=as.character(finyear),Occur=Y)
-    ID=which(!Yrs%in%finyear)
-    if(length(ID)>0)
+    cum.plots=rep(NA,length(d.list))
+    for(l in 1:length(d.list)) cum.plots[l]=length(d.list[[l]])
+    cum.plots=cumsum(cum.plots)
+    n.rows=cum.plots[length(cum.plots)]
+    LABS=vector('list',length(d.list))
+    plot(as.numeric(substr(YR.span,1,4)),as.numeric(substr(YR.span,1,4)),ylim=c(1,n.rows),yaxt='n',col='transparent',ylab='',xlab='')
+    All.cols=matrix(hcl.colors(length(d.list)*2,palette = 'Geyser'),ncol=2,byrow=T)
+    for(l in 1:length(d.list))
     {
-      add=data.frame(FINYEAR=Yrs[ID])
-      add$Occur=NA    
-      DAT=rbind(DAT,add)
-    }
-    DAT$FINYEAR=factor(DAT$FINYEAR,levels=Yrs)
-    DAT=DAT[order(DAT$FINYEAR),]
-    return(DAT)
-  }
-  
-  visualize.dat=function(CATCH,SIZE,ABUNDANCE,C.TAGS,A.TAGS,AVG.wt,YLIM,LABS)   
-  {
-    n.kt=length(CATCH)
-    n.sz=length(SIZE)
-    n.ab=1
-    n.c.T=length(C.TAGS)
-    n.a.T=length(A.TAGS)
-    
-    CATCH$Rec=subset(CATCH$Rec,FINYEAR%in%YRS)
-    
-    #1. Years with catch
-    Catch.data=vector('list',length(CATCH))
-    for (p in 1:n.kt) Catch.data[[p]]=fn.search.yr(unique(CATCH[[p]]$FINYEAR),p)
-    
-    #2. Years with size composition
-    Size.data=vector('list',length(SIZE))
-    for (d in 1:n.sz)
-    {
-       if(class(SIZE[[d]])=='list'& length(SIZE[[d]])>1)Size.data[[d]]=fn.search.yr(unique(do.call(rbind,SIZE[[d]])$FINYEAR),d+p)
-      if(class(SIZE[[d]])=='data.frame')Size.data[[d]]=fn.search.yr(unique(SIZE[[d]]$FINYEAR),d+p)
-    }
-    
-    #3. Years with average weight data
-   # Yrs.avg.wt=fn.search.yr(as.character(AVG.wt),1+p+d)
-        
-    #4. Years with abundance index
-    Abundance.data=vector('list',length(ABUNDANCE))
-    for (f in 1:n.ab) Abundance.data[[f]]=fn.search.yr(unique(as.character(ABUNDANCE$Finyear)),f+p+d)
-        
-    #5. Years with conventional tagging
-    ConvTag.data=vector('list',length(C.TAGS))
-    for (g in 1:n.c.T) ConvTag.data[[g]]=fn.search.yr(unique(as.character(C.TAGS[[g]]$FINYEAR)),g+f+p+d)
-    
-    #6. Years with  acoustic tagging
-    AcousTag.data=fn.search.yr(as.character(A.TAGS),1+g+f+p+d)
-     
-    #average weight
-    Yrs.avrg.w=fn.search.yr(AVG.wt,1+g+f+p+d+1)
-    
-    #7. Years iwth effort
-    Yrs.efrt=fn.search.yr(as.character(Eff.total$FINYEAR),1+g+f+p+d+2) 
-    
-    #8. Plot data
-    X=1:length(Yrs)
-    plot(X,X,ylim=YLIM,yaxt='n',ylab="",col="transparent",xaxt='n',xlab="")
-    
-    #add catch
-    for(q in 1:n.kt) points(X,Catch.data[[q]]$Occur,cex=4,pch="-",col=COL[[1]][q])
-    
-    #add size comp
-    for(q in 1:n.sz) 
-    {
-      a=Size.data[[q]]$Occur
-      if(length(a)>length(X))a=a[1:(length(a)-1)]
-      points(X,a,cex=4,pch="-",col=COL[[2]][q])
-    }
-    
-    #add abundance
-    for(q in 1:n.ab)
-    {
-      a=Abundance.data[[q]]$Occur      #to remove last year of data if >2012-13
-      if(length(a)>length(X))a=a[1:(length(a)-1)]
-      if(length(a)>length(X))a=a[1:(length(a)-1)]
-      points(X,a,cex=4,pch="-",col=COL[[3]][q])
-    }
-    
-    #add Conv.Tag
-    if(add.conv.tag=="YES")
-    {
-      for(q in 1:n.c.T)
+      dd=d.list[[l]]
+      LABS[[l]]=names(d.list)[l]
+      dummy=rep(NA,length(dd))
+      colfunc <- function(n,col1,col2) colorRampPalette(c(col1, col2))(n)
+      COL=colfunc(length(dd),col1=All.cols[l,1],col2=All.cols[l,2])
+      for(ll in 1:length(dd))
       {
-        a=ConvTag.data[[q]]$Occur
-        if(length(a)>length(X))a=a[1:(length(a)-1)]
-        if(length(a)>length(X))a=a[1:(length(a)-1)]
-        points(X,a,cex=4,pch="-",col=COL[[4]][q])
+        if(length(dd)>1)dummy[ll]=paste(LABS[[l]]," (",names(dd)[ll],")",sep='')
+        if(is.character(dd[[ll]]))x=dd[[ll]] else
+        {
+          colnames(dd[[ll]])=tolower(colnames(dd[[ll]]))
+          x=dd[[ll]]$finyear
+        }
+        x=as.numeric(substr(unique(x),1,4))
+        if(l==1) y=ll
+        if(l>1) y=cum.plots[l-1]+ll
+        points(x,rep(y,length(x)),cex=6,pch="-",col=COL[ll])
+        rm(x)
       }
+      if(length(dd)>1) LABS[[l]]=dummy
     }
-    
-    #add Acous.Tag
-    if(add.conv.tag=="YES") points(X,AcousTag.data$Occur[1:length(X)],cex=4,pch="-",col=COL$acoustic.t)
-    if(add.conv.tag=="NO") points(X,AcousTag.data$Occur[1:length(X)]-1,cex=4,pch="-",col=COL$acoustic.t)
-   
-    #add average weight
-    points(X,Yrs.avrg.w$Occur,cex=4,pch="-",col="pink")
-    
-    #add effort
-    if(add.effort=="YES")points(X,Yrs.efrt$Occur,cex=4,pch="-",col="orange")
-   
-    axis(1,X,F,tck=-0.01)
-    axis(1,seq(1,length(Yrs),10),Yrs[seq(1,length(Yrs),10)],tck=-0.04)
-    axis(2,1:YLIM[2],LABS[1:length(1:YLIM[2])],las=2,cex.axis=1)
-    mtext("Financial year",1,cex=1.75,line=2.2)
-   }
+    axis(2,1:n.rows,unlist(LABS),las=2,cex.axis=1)
+    mtext("Financial year",1,cex=1.25,line=1.75)
+  }
   
-  PAR=function()par(mai=c(.3,1.55,.1,.1),oma=c(2,2,.1,.1))
-  COL=list(catch=c("brown","brown2","brown3","firebrick1","brown4","chocolate",
-                   "coral","coral2","chocolate4","darkred","red"),
-           size=c("forestgreen","darkgreen","chartreuse","darkolivegreen1","chartreuse3"),
-           abundance="gold",conv.t="blue4",acoustic.t="deepskyblue")
-  LWD=10
-
-
-  if(SP%in%c("WH","GM"))
-  {
-    if(add.conv.tag=="YES")  YLIm=c(0.5,8)
-    if(add.conv.tag=="NO")  YLIm=c(0.5,7)
-  }
-  if(SP=="BW")
-  {
-    if(Ktch.source=="ALL") YLIm=c(0.5,14)
-    if(Ktch.source=="WA.only") YLIm=c(0.5,11)
-  }    
-  if(SP=="TK")
-  {
-    if(Ktch.source=="ALL") YLIm=c(0.5,11)
-    if(Ktch.source=="WA.only") YLIm=c(0.5,10)
-  }
-    
-  if(add.effort=="YES") YLIm[2]=YLIm[2]+1
-
-  if(!add.conv.tag=="NO")
-  {
-    if(add.effort=="YES")
-    {
-      lAbs=c(paste("Catch (",names(catch),")",sep=""),paste("Size comp. (",names(All.size[1]),")",sep=""),
-             "Stand. cpue (TDGDLF)","Conv. tag.","Acous. tag.","Effort (TDGDLF)")
-    }
-    if(add.effort=="NO")
-    {
-      lAbs=c(paste("Catch (",names(catch),")",sep=""),paste("Size comp. (",names(All.size[1]),")",sep=""),
-             "Stand. cpue (TDGDLF)","Conv. tag.","Acous. tag.","Avrg.w")
-    }
-  }
-  if(add.conv.tag=="NO")
-  {
-    lAbs=c(paste("Catch (",names(catch),")",sep=""),paste("Size comp. (",names(All.size[1]),")",sep=""),
-           "Stand. cpue (TDGDLF)","Acous. tag.","Effort (TDGDLF)")
-  }
-
   fn.fig("avail.dat",2400,1400)
-  PAR()
-  #par(mai=c(.7,2.1,.1,.1))
-  visualize.dat(CATCH=catch,SIZE=All.size[1],ABUNDANCE=rbind(Ab.indx.TDGDLF.all,Ab.indx.TDGDLF.all.daily),
-                C.TAGS=c.Tag,A.TAGS=a.Tag,AVG.wt=unique(Avr.wt.yr$Finyear),YLIM=YLIm,LABS=lAbs)   
+  par(mar=c(3,2,.1,.1),oma=c(.1,9,.1,.1),las=1,mgp=c(1.5,.6,0))
+  Abun=list(TDGLDF=rbind(Ab.indx.TDGDLF.all,Ab.indx.TDGDLF.all.daily))
+  if(exists('Ab.indx.NSF')) Abun$NSF=Ab.indx.NSF
+  if(exists('Naturaliste.abun')) Abun$Survey=Naturaliste.abun
+  visualize.dat(d.list=list(Catch=catch,
+                            'Catch size comp (TDGDLF)'=list(FINYEAR=unique(do.call(rbind,All.size$TDGDLF)$FINYEAR)),
+                            'Catch mean wt (TDGDLF)'=list(Avr.wt.yr%>%distinct(Finyear)),
+                            Abundance=Abun,
+                            'Survey mean size'=list(FINYEAR=Size.index.Srvy.FixSt$FINYEAR),
+                            'Conv tag'=c.Tag,
+                            'Acous tag'=list(FINYEAR=a.Tag)))   
   dev.off()
 
   
-  #Table of released indivuals with conventional tags
-  TBL.conv.rel=merge(Zn.rel_Conv.Tag_size_adu[,-match("TG.zn",names(Zn.rel_Conv.Tag_size_adu))],
-                     Zn.rel_Conv.Tag_size_juv[,-match("TG.zn",names(Zn.rel_Conv.Tag_size_juv))],
-                     by=c("Rel.zone","Yr.rel"),all=T)
-  names(TBL.conv.rel)[match(c("Number.x","Number.y"),
-          names(TBL.conv.rel))]=c("Adult.N","Juvenile.N")
-  TBL.conv.rel=TBL.conv.rel[,-match(c("size.group.x",
-            "size.group.y"),names(TBL.conv.rel))]
-  TBL.conv.rel[is.na(TBL.conv.rel)]=0
-  write.csv(TBL.conv.rel,"TBL.conv.releases.csv",row.names=F)
-  fn.word.table(WD=getwd(),TBL=TBL.conv.rel,Doc.nm="TBL.conv.releases",caption=NA,paragph=NA,
-                HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
-                Zebra='NO',Zebra.col='grey60',Grid.col='black',
-                Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
   
-  
-  #Plot acoustic tag recaptures by year
-  Rep.Recap=subset(Rep.Recap,!is.na(year.rel))
-  i.yrs=sort(unique(Rep.Recap$year.rec))
-  Y.rng=range(c(Rep.Recap$RELLATDECDEG,Rep.Recap$RECLATDECDEG),na.rm=T)
-  X.rng=range(c(Rep.Recap$RELLNGDECDEG,Rep.Recap$RECLNGDECDEG),na.rm=T)
-  
-  fn.fig("Acoustic.tags.rel.rec.map",2400,2400)
-  par(mfcol=c(ceiling(length(i.yrs)/2),2),las=1,mai=c(1,1,.1,.1),oma=c(.1,.1,.1,.1))
-  dummy=Rep.Recap
-  for(i.yr in 1:length(i.yrs))
+  #6. Table of released indivuals with conventional tags
+  if(exists('Zn.rel_Conv.Tag_size_adu'))
   {
-    recs=subset(dummy,year.rec==i.yrs[i.yr])
-    na.rcs=subset(recs,is.na(RECLATDECDEG))
-    if(nrow(recs)>0)
-    {
-      rels=subset(dummy,year.rel<=i.yrs[i.yr])
-      plot(rels$RELLNGDECDEG,rels$RELLATDECDEG,ylim=Y.rng,xlim=X.rng,ylab="",xlab="",pch=19)
-      points(recs$RECLNGDECDEG,recs$RECLATDECDEG,col=2,pch=4,cex=1.75)
-      if(nrow(na.rcs)==0) Rc.lg=paste(nrow(recs),"recaptured")
-      if(nrow(na.rcs)>0) Rc.lg=paste(nrow(recs),"recaptured (",nrow(na.rcs),"without rec. info)")
-      legend('top',c(paste(nrow(rels),"with tags"),Rc.lg),bty='n',col=c(1,2),
-             text.col=c(1,2),pch=c(19,4),title=paste(i.yrs[i.yr]),cex=1.2)
-      dummy=subset(dummy,!ATAG_NO%in%recs$ATAG_NO)
-    }
-    
+    TBL.conv.rel=merge(Zn.rel_Conv.Tag_size_adu[,-match("TG.zn",names(Zn.rel_Conv.Tag_size_adu))],
+                       Zn.rel_Conv.Tag_size_juv[,-match("TG.zn",names(Zn.rel_Conv.Tag_size_juv))],
+                       by=c("Rel.zone","Yr.rel"),all=T)
+    names(TBL.conv.rel)[match(c("Number.x","Number.y"),
+                              names(TBL.conv.rel))]=c("Adult.N","Juvenile.N")
+    TBL.conv.rel=TBL.conv.rel[,-match(c("size.group.x",
+                                        "size.group.y"),names(TBL.conv.rel))]
+    TBL.conv.rel[is.na(TBL.conv.rel)]=0
+    write.csv(TBL.conv.rel,"TBL.conv.releases.csv",row.names=F)
+    fn.word.table(WD=getwd(),TBL=TBL.conv.rel,Doc.nm="TBL.conv.releases",caption=NA,paragph=NA,
+                  HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
+                  Zebra='NO',Zebra.col='grey60',Grid.col='black',
+                  Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
   }
-  mtext("Longitude",1,-2,outer=T,cex=1.75)
-  mtext("Latitude",2,-2,las=3,outer=T,cex=1.75)
-  dev.off()
+  
+  
+  #7. Plot acoustic tag recaptures by year
+  if(exists('Rep.Recap'))
+  {
+    Rep.Recap=subset(Rep.Recap,!is.na(year.rel))
+    i.yrs=sort(unique(Rep.Recap$year.rec))
+    Y.rng=range(c(Rep.Recap$RELLATDECDEG,Rep.Recap$RECLATDECDEG),na.rm=T)
+    X.rng=range(c(Rep.Recap$RELLNGDECDEG,Rep.Recap$RECLNGDECDEG),na.rm=T)
+    
+    fn.fig("Acoustic.tags.rel.rec.map",2400,2400)
+    par(mfcol=c(ceiling(length(i.yrs)/2),2),las=1,mai=c(1,1,.1,.1),oma=c(.1,.1,.1,.1))
+    dummy=Rep.Recap
+    for(i.yr in 1:length(i.yrs))
+    {
+      recs=subset(dummy,year.rec==i.yrs[i.yr])
+      na.rcs=subset(recs,is.na(RECLATDECDEG))
+      if(nrow(recs)>0)
+      {
+        rels=subset(dummy,year.rel<=i.yrs[i.yr])
+        plot(rels$RELLNGDECDEG,rels$RELLATDECDEG,ylim=Y.rng,xlim=X.rng,ylab="",xlab="",pch=19)
+        points(recs$RECLNGDECDEG,recs$RECLATDECDEG,col=2,pch=4,cex=1.75)
+        if(nrow(na.rcs)==0) Rc.lg=paste(nrow(recs),"recaptured")
+        if(nrow(na.rcs)>0) Rc.lg=paste(nrow(recs),"recaptured (",nrow(na.rcs),"without rec. info)")
+        legend('top',c(paste(nrow(rels),"with tags"),Rc.lg),bty='n',col=c(1,2),
+               text.col=c(1,2),pch=c(19,4),title=paste(i.yrs[i.yr]),cex=1.2)
+        dummy=subset(dummy,!ATAG_NO%in%recs$ATAG_NO)
+      }
+      
+    }
+    mtext("Longitude",1,-2,outer=T,cex=1.75)
+    mtext("Latitude",2,-2,las=3,outer=T,cex=1.75)
+    dev.off()
+  }
  
 
 # Export data for population dynamics modelling ---------------------------
-                                                    #REVIEW THIS, seems un necessary....
   HandL="C:/Matias/Data/Population dynamics/Data inputs for models/"
   DiR=paste(HandL,str_remove(Name, ' shark'),"/",Yr.assess,sep='')
   if(!file.exists(DiR)) dir.create(DiR)
@@ -1463,216 +1364,218 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
    {
      if(Level=='annual')
      {
-       a=aggregate(LIVEWT.c~FINYEAR,DAT,sum)
-       write.csv(a,paste(VAR,".",Level,".",SOURCE,".csv",sep=""),row.names=F)
+       a=aggregate(LIVEWT.c~FINYEAR,DAT[[i]],sum)
+       write.csv(a,paste(VAR,".",Level,".",SOURCE[i],".csv",sep=""),row.names=F)
      }
        
      if(Level=='annual.by.zone')
      {
-        if(!is.null(DAT$zone))
+        if(!is.null(DAT[[i]]$zone))
         {
-          a=aggregate(LIVEWT.c~FINYEAR+zone,DAT,sum)
-          write.csv(a,paste(VAR,".",Level,".",SOURCE,".csv",sep=""),row.names=F)
+          DAT[[i]]$zone=with(DAT[[i]],ifelse(is.na(zone),SOURCE[i],zone))
+          a=aggregate(LIVEWT.c~FINYEAR+zone,DAT[[i]],sum)
+          write.csv(a,paste(VAR,".",Level,".",SOURCE[i],".csv",sep=""),row.names=F)
         }
     }
     }
  }
  
   #Catch
-  for(i in 1:length(catch))
-  {
-   fn.agg.at.level.and.exprt(catch[[i]],'annual',"ktch",names(catch)[i])
-   fn.agg.at.level.and.exprt(catch[[i]],'annual.by.zone',"ktch",names(catch)[i])   
- }
+  fn.agg.at.level.and.exprt(DAT=catch,
+                            Level='annual',
+                            VAR="ktch",
+                            SOURCE=names(catch))
+  fn.agg.at.level.and.exprt(DAT=catch.zone,
+                            Level='annual.by.zone',
+                            VAR="ktch",
+                            SOURCE=names(catch.zone))   
  
+
   #Effort
   write.csv(Eff.zn,"effort.annual.by.zone.TDGDLF.csv",row.names=F) 
   write.csv(Eff.total,"effort.annual.TDGDLF.csv",row.names=F)
- 
 
-  #Size composition    
-  fn.exp.size=function(dat,Level)
-  {
-    n=length(dat)
-    for( i in 1:n)
-    {
-      a=dat[[i]]
-      if(class(a)=="data.frame") 
-      {
-        write.csv(a,paste("size.comp.",names(dat)[i],".csv",sep=""),row.names=F)
-      }
-      if(class(a)=="list"& length(a)>1)
-      {
-        if(Level=='annual')
-        {
-          a=do.call(rbind,a)
-          YRs=as.character(unique(a$FINYEAR))
-          SIzes=colnames(a[,4:ncol(a)])
-          d=matrix(ncol=length(SIzes),nrow=length(YRs))
-          d.f=d.m=d
-          for(s in 1:length(YRs))
-          {
-            ddat=subset(a,FINYEAR==YRs[s])
-            ddat.f=subset(ddat,Sex=="F")
-            ddat.m=subset(ddat,Sex=="M")
-            
-            d[s,]=colSums(ddat[,4:ncol(ddat)])
-            d.f[s,]=colSums(ddat.f[,4:ncol(ddat.f)])
-            d.m[s,]=colSums(ddat.m[,4:ncol(ddat.m)])
-          }
-          #sexes combined
-          colnames(d)=SIzes
-          a=cbind(FINYEAR=YRs,as.data.frame.matrix(d))
-          write.csv(a,paste("size.comp.",Level,".",names(dat)[i],".csv",sep=""),row.names=F)
-          
-          #by sex
-          colnames(d.f)=colnames(d.m)=SIzes
-          a=cbind(FINYEAR=YRs,as.data.frame.matrix(d.f))
-          write.csv(a,paste("size.comp.fem.",Level,".",names(dat)[i],".csv",sep=""),row.names=F)
-          
-          a=cbind(FINYEAR=YRs,as.data.frame.matrix(d.m))
-          write.csv(a,paste("size.comp.mal.",Level,".",names(dat)[i],".csv",sep=""),row.names=F)
-          
-        }
-          
-        if(Level=='annual.by.zone') 
-        {
-          ss=names(a)
-          for(p in 1:length(ss))
-          {
-            b=a[[p]]
-            if(nrow(b)>0)
-            {
-              YRs=as.character(unique(b$FINYEAR))
-              SIzes=colnames(b[,4:ncol(b)])
-              d=matrix(ncol=length(SIzes),nrow=length(YRs))
-              d.f=d.m=d
-              for(s in 1:length(YRs))
-              {      
-                ddat=subset(b,FINYEAR==YRs[s])
-                ddat.f=subset(ddat,Sex=="F")
-                ddat.m=subset(ddat,Sex=="M")
-                
-                d[s,]=colSums(ddat[,4:ncol(ddat)])
-                d.f[s,]=colSums(ddat.f[,4:ncol(ddat.f)])
-                d.m[s,]=colSums(ddat.m[,4:ncol(ddat.m)])
-                
-              }
-              
-              #sexes combined
-              colnames(d)=SIzes
-              b=cbind(FINYEAR=YRs,as.data.frame.matrix(d))
-              write.csv(b,paste("size.comp.annual.",ss[p],".",names(dat)[i],".csv",sep=""),row.names=F)
-              
-              #by sex
-              colnames(d.f)=colnames(d.m)=SIzes
-              b=cbind(FINYEAR=YRs,as.data.frame.matrix(d.f))
-              write.csv(b,paste("size.comp.annual.fem.",ss[p],".",names(dat)[i],".csv",sep=""),row.names=F)
-              
-              b=cbind(FINYEAR=YRs,as.data.frame.matrix(d.m))
-              write.csv(b,paste("size.comp.annual.mal.",ss[p],".",names(dat)[i],".csv",sep=""),row.names=F)
-            }
-              
-          }
-        }
-      }
-    }
-  }
-  fn.exp.size(dat=All.size,Level='annual')
-  fn.exp.size(dat=All.size,Level='annual.by.zone')
-  
- 
+   
   #avg weight 
     #TDGDLF
   if(exists('Avr.wt.yr.zn'))write.csv(Avr.wt.yr.zn,"ktch.avg.weight.annual.by.zone.csv",row.names=F) 
   if(exists('Avr.wt.yr')) write.csv(Avr.wt.yr,"ktch.avg.weight.annual.csv",row.names=F)
     #Naturaliste survey 
-  if(exists('Size.index.Srvy.FixSt'))
-  {
-    Size.index.Srvy.FixSt$FINYEAR=paste(Size.index.Srvy.FixSt$FINYEAR,"-",fn.subs(Size.index.Srvy.FixSt$FINYEAR+1),sep="")
-    write.csv(Size.index.Srvy.FixSt,"size.annual.survey.csv",row.names=F)
-  }
-
+  if(exists('Size.index.Srvy.FixSt')) write.csv(Size.index.Srvy.FixSt,"size.annual.survey.csv",row.names=F)
   
   
   #TDGLDF cpue
     #folly
   if(exists("Ab.folly.TDGDLF.all")) write.csv(Ab.folly.TDGDLF.all,"cpue.annual.TDGDLF.folly.csv",row.names=F)
- 
     #by zone      
   if(exists('Ab.indx.TDGDLF')) write.csv(Ab.indx.TDGDLF,"cpue.annual.by.zone.TDGDLF.csv",row.names=F)
   if(exists('Ab.indx.TDGDLF.daily')) write.csv(Ab.indx.TDGDLF.daily,"cpue.annual.by.zone.TDGDLF.daily.csv",row.names=F)
-  
     #zones combined
   if(exists('Ab.indx.TDGDLF.all')) write.csv(Ab.indx.TDGDLF.all,"cpue.annual.TDGDLF.csv",row.names=F)
   if(exists('Ab.indx.TDGDLF.all.daily')) write.csv(Ab.indx.TDGDLF.all.daily,"cpue.annual.TDGDLF.daily.csv",row.names=F)
 
- 
   #Naturaliste survey     
   if(exists('Naturaliste.abun')) write.csv(Naturaliste.abun,"cpue.annual.survey.csv",row.names=F)
-  
 
   #NSF cpue     
   if(exists('Ab.indx.NSF')) write.csv(Ab.indx.NSF,"cpue.annual.NSF.csv",row.names=F)
+ 
+  #ACA
+  #Size composition 
+  if(exists('All.size'))
+  {
+    fn.exp.size=function(dat,Level)
+    {
+      n=length(dat)
+      for( i in 1:n)
+      {
+        a=dat[[i]]
+        if(class(a)=="data.frame") 
+        {
+          write.csv(a,paste("size.comp.",names(dat)[i],".csv",sep=""),row.names=F)
+        }
+        if(class(a)=="list"& length(a)>1)
+        {
+          if(Level=='annual')
+          {
+            a=do.call(rbind,a)
+            YRs=as.character(unique(a$FINYEAR))
+            SIzes=colnames(a[,4:ncol(a)])
+            d=matrix(ncol=length(SIzes),nrow=length(YRs))
+            d.f=d.m=d
+            for(s in 1:length(YRs))
+            {
+              ddat=subset(a,FINYEAR==YRs[s])
+              ddat.f=subset(ddat,Sex=="F")
+              ddat.m=subset(ddat,Sex=="M")
+              
+              d[s,]=colSums(ddat[,4:ncol(ddat)])
+              d.f[s,]=colSums(ddat.f[,4:ncol(ddat.f)])
+              d.m[s,]=colSums(ddat.m[,4:ncol(ddat.m)])
+            }
+            #sexes combined
+            colnames(d)=SIzes
+            a=cbind(FINYEAR=YRs,as.data.frame.matrix(d))
+            write.csv(a,paste("size.comp.",Level,".",names(dat)[i],".csv",sep=""),row.names=F)
+            
+            #by sex
+            colnames(d.f)=colnames(d.m)=SIzes
+            a=cbind(FINYEAR=YRs,as.data.frame.matrix(d.f))
+            write.csv(a,paste("size.comp.fem.",Level,".",names(dat)[i],".csv",sep=""),row.names=F)
+            
+            a=cbind(FINYEAR=YRs,as.data.frame.matrix(d.m))
+            write.csv(a,paste("size.comp.mal.",Level,".",names(dat)[i],".csv",sep=""),row.names=F)
+            
+          }
+          
+          if(Level=='annual.by.zone') 
+          {
+            ss=names(a)
+            for(p in 1:length(ss))
+            {
+              b=a[[p]]
+              if(nrow(b)>0)
+              {
+                YRs=as.character(unique(b$FINYEAR))
+                SIzes=colnames(b[,4:ncol(b)])
+                d=matrix(ncol=length(SIzes),nrow=length(YRs))
+                d.f=d.m=d
+                for(s in 1:length(YRs))
+                {      
+                  ddat=subset(b,FINYEAR==YRs[s])
+                  ddat.f=subset(ddat,Sex=="F")
+                  ddat.m=subset(ddat,Sex=="M")
+                  
+                  d[s,]=colSums(ddat[,4:ncol(ddat)])
+                  d.f[s,]=colSums(ddat.f[,4:ncol(ddat.f)])
+                  d.m[s,]=colSums(ddat.m[,4:ncol(ddat.m)])
+                  
+                }
+                
+                #sexes combined
+                colnames(d)=SIzes
+                b=cbind(FINYEAR=YRs,as.data.frame.matrix(d))
+                write.csv(b,paste("size.comp.annual.",ss[p],".",names(dat)[i],".csv",sep=""),row.names=F)
+                
+                #by sex
+                colnames(d.f)=colnames(d.m)=SIzes
+                b=cbind(FINYEAR=YRs,as.data.frame.matrix(d.f))
+                write.csv(b,paste("size.comp.annual.fem.",ss[p],".",names(dat)[i],".csv",sep=""),row.names=F)
+                
+                b=cbind(FINYEAR=YRs,as.data.frame.matrix(d.m))
+                write.csv(b,paste("size.comp.annual.mal.",ss[p],".",names(dat)[i],".csv",sep=""),row.names=F)
+              }
+              
+            }
+          }
+        }
+      }
+    }
+    fn.exp.size(dat=All.size,Level='annual')
+    fn.exp.size(dat=All.size,Level='annual.by.zone')
+  }
   
 
   #Conventional tagging
   
   #Individual-based model
-  write.csv(Rel_rec_Conv.Tag,"Ind_based_model.csv",row.names=F)
+  if(exists('Rel_rec_Conv.Tag')) write.csv(Rel_rec_Conv.Tag,"Ind_based_model.csv",row.names=F)
   
   
   #1. At age
   #note: this function puts in SS3 format
-  tagging.fn=function(dat,THESE,THOSE,type,txt)
+  if(exists('Zn.rel_Conv.Tag'))
   {
-    dat=dat[,match(THESE,names(dat))]
-    if(type=='rel')
+    tagging.fn=function(dat,THESE,THOSE,type,txt)
     {
-      dat$gender=0
-      dat=dat[,match(c("TG","Rel.zone","FinYear.rel","Mn.rel","gender","Age","Number"),names(dat))]
+      dat=dat[,match(THESE,names(dat))]
+      if(type=='rel')
+      {
+        dat$gender=0
+        dat=dat[,match(c("TG","Rel.zone","FinYear.rel","Mn.rel","gender","Age","Number"),names(dat))]
+      }
+      
+      if(type=='rec')dat=dat[,match(c("TG","FinYear.rec","Mn.rec","Rec.zone","Number"),names(dat))]
+      names(dat)=THOSE
+      write.csv(dat,paste(txt,"csv",sep=""),row.names=F)
     }
     
-    if(type=='rec')dat=dat[,match(c("TG","FinYear.rec","Mn.rec","Rec.zone","Number"),names(dat))]
-    names(dat)=THOSE
-    write.csv(dat,paste(txt,"csv",sep=""),row.names=F)
-  }
-  
     #releases
-  these=c("TG","Rel.zone","FinYear.rel","Mn.rel","Age","Number")
-  those=c("TG","area","yr","season","gender","Age","Nrelease")  
-  tagging.fn(Zn.rel_Conv.Tag,these,those,'rel','conv.tag.rel.')
-   
+    these=c("TG","Rel.zone","FinYear.rel","Mn.rel","Age","Number")
+    those=c("TG","area","yr","season","gender","Age","Nrelease")  
+    tagging.fn(Zn.rel_Conv.Tag,these,those,'rel','conv.tag.rel.')
+    
     #recaptures
-  these=c("TG","Rec.zone","FinYear.rec","Mn.rec","Number")
-  those=c("TG","year","season","area","Number")
-  tagging.fn(Zn.rec_Conv.Tag,these,those,'rec',"conv.tag.reca.")
+    these=c("TG","Rec.zone","FinYear.rec","Mn.rec","Number")
+    those=c("TG","year","season","area","Number")
+    tagging.fn(Zn.rec_Conv.Tag,these,those,'rec',"conv.tag.reca.")
+  }
   
 
   #2. At size
     #all
-  write.csv(Zn.rel_Conv.Tag_size,"Zn.rel_Conv.Tag_size.csv",row.names=F)
-  write.csv(Zn.rec_Conv.Tag_size,"Zn.rec_Conv.Tag_size.csv",row.names=F)
+  if(exists('Zn.rel_Conv.Tag_size')) write.csv(Zn.rel_Conv.Tag_size,"Zn.rel_Conv.Tag_size.csv",row.names=F)
+  if(exists('Zn.rec_Conv.Tag_size')) write.csv(Zn.rec_Conv.Tag_size,"Zn.rec_Conv.Tag_size.csv",row.names=F)
 
     #juveniles and adults
-  write.csv(Zn.rel_Conv.Tag_size_adu,"Zn.rel_Conv.Tag_size_adu.csv",row.names=F)
-  write.csv(Zn.rel_Conv.Tag_size_juv,"Zn.rel_Conv.Tag_size_juv.csv",row.names=F)
-  write.csv(Zn.rec_Conv.Tag_size_adu,"Zn.rec_Conv.Tag_size_adu.csv",row.names=F)
-  write.csv(Zn.rec_Conv.Tag_size_juv,"Zn.rec_Conv.Tag_size_juv.csv",row.names=F)
-  write.csv(Smallest_size_tagged,"Smallest_size_tagged.csv",row.names=F)
+  if(exists('Zn.rel_Conv.Tag_size_adu')) write.csv(Zn.rel_Conv.Tag_size_adu,"Zn.rel_Conv.Tag_size_adu.csv",row.names=F)
+  if(exists('Zn.rel_Conv.Tag_size_juv')) write.csv(Zn.rel_Conv.Tag_size_juv,"Zn.rel_Conv.Tag_size_juv.csv",row.names=F)
+  if(exists('Zn.rec_Conv.Tag_size_adu')) write.csv(Zn.rec_Conv.Tag_size_adu,"Zn.rec_Conv.Tag_size_adu.csv",row.names=F)
+  if(exists('Zn.rec_Conv.Tag_size_juv')) write.csv(Zn.rec_Conv.Tag_size_juv,"Zn.rec_Conv.Tag_size_juv.csv",row.names=F)
+  if(exists('Smallest_size_tagged')) write.csv(Smallest_size_tagged,"Smallest_size_tagged.csv",row.names=F)
 
 
   #Acoustic tagging 
     #releases
-  write.csv(Zn.rel_Acous.Tag,"acous.tag.rel.csv",row.names=F)  
-  write.csv(Zn.rel_Acous.Tag.prop,"acous.tag.rel.prop.csv",row.names=F)
+  if(exists('Zn.rel_Acous.Tag')) write.csv(Zn.rel_Acous.Tag,"acous.tag.rel.csv",row.names=F)  
+  if(exists('Zn.rel_Acous.Tag.prop')) write.csv(Zn.rel_Acous.Tag.prop,"acous.tag.rel.prop.csv",row.names=F)
   
     #recaptures
-  write.csv(Zn.rec_Acous.Tag,"acous.tag.reca.csv",row.names=F)
-  write.csv(Zn.rec_Acous.Tag.prop,"acous.tag.reca.prop.csv",row.names=F)
+  if(exists('Zn.rec_Acous.Tag')) write.csv(Zn.rec_Acous.Tag,"acous.tag.reca.csv",row.names=F)
+  if(exists('Zn.rec_Acous.Tag.prop')) write.csv(Zn.rec_Acous.Tag.prop,"acous.tag.reca.prop.csv",row.names=F)
 
     #Individual-based model
-  write.csv(Indiv_based_Acous.Tag,"acous.tag.reca.indv.based.csv",row.names=F)
+  if(exists('Indiv_based_Acous.Tag')) write.csv(Indiv_based_Acous.Tag,"acous.tag.reca.indv.based.csv",row.names=F)
 
 
   #Age and growth 
@@ -1680,24 +1583,19 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
  
  
   #Recapture information from acoustic tags
-  write.csv(Rep.Recap,"Acoustic.tag.rel.rec.csv",row.names=F) 
+  if(exists('Rep.Recap')) write.csv(Rep.Recap,"Acoustic.tag.rel.rec.csv",row.names=F) 
  
   
   #Mesh proportional effort
-  write.csv(Mesh.prop.eff,"Mesh.prop.eff.csv",row.names=F)
-  write.csv(Mesh.prop.eff.West,"Mesh.prop.eff.West.csv",row.names=F)
-  write.csv(Mesh.prop.eff.Zn1,"Mesh.prop.eff.Zn1.csv",row.names=F)
-  write.csv(Mesh.prop.eff.Zn2,"Mesh.prop.eff.Zn2.csv",row.names=F)
+  if(exists('Mesh.prop.eff')) write.csv(Mesh.prop.eff,"Mesh.prop.eff.csv",row.names=F)
+  if(exists('Mesh.prop.eff.West')) write.csv(Mesh.prop.eff.West,"Mesh.prop.eff.West.csv",row.names=F)
+  if(exists('Mesh.prop.eff.Zn1')) write.csv(Mesh.prop.eff.Zn1,"Mesh.prop.eff.Zn1.csv",row.names=F)
+  if(exists('Mesh.prop.eff.Zn2')) write.csv(Mesh.prop.eff.Zn2,"Mesh.prop.eff.Zn2.csv",row.names=F)
   
  
 }
 
-fn.input.data(Name='Sandbar shark',SP="TK",Species=18007,  
-                  First.year="1975-76",Last.year="2017-18",
-                  Min.obs=10,Min.shts=10,
-                  What.Efrt="km.gn.hours",
-                  Bin.size=5,
-                  Yr.assess=2021)  #move this to Run.model.R
+
 
 
 fn.input.data.old=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size,What.Efrt)
