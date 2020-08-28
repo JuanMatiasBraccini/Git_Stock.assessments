@@ -11,8 +11,8 @@
 
 
 #source Handy function for plotting
-source.hnld="C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/"
-fn.source=function(script)source(paste(source.hnld,script,sep=""))
+#source.hnld="C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/"
+#fn.source=function(script)source(paste(source.hnld,script,sep=""))
 fn.source("fn.fig.R")
 library(expm)
 library(MASS)
@@ -21,10 +21,9 @@ if(First.run=="YES")
 {
   set.seed(999)  #for reproducibility
   
-# Section A: BRING IN INPUT DATA -------------------------------------------
-  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Organise data.R")
-  fn.input.data(SP=species,Yr.assess=AssessYr,Conv.cal.mn.to.fin.mn="NO",           
-                Historic.Ktch="NO",Bin.size=TL.bins.cm,What.Efrt=What.Effort)  
+
+  # fn.input.data.old(SP=species,Yr.assess=AssessYr,Conv.cal.mn.to.fin.mn="NO",           
+  #               Historic.Ktch="NO",Bin.size=TL.bins.cm,What.Efrt=What.Effort)  
   
   #Read in all input data files created by fn.input.data()
   if(file.exists(".Rhistory"))file.remove(".Rhistory") #remove the created '.Rhistory' from the folder to read in all .csv files
@@ -375,6 +374,12 @@ if(First.run=="YES")
 
 # Section B: BRING IN PARAMETERS ------------------------------------------
   hndl=paste("C:/Matias/Analyses/Population dynamics/1.",Spec," shark/",sep='')
+  
+  
+  #add this bit which is from 'Other species'
+  #Life history param for demography
+  LH.par=read.csv("C:/Matias/Data/Life history parameters/Life_History_other_sharks.csv",stringsAsFactors=F)
+  
   
     #B.1 Source all input parameters
   source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Organise input parameters.R")
@@ -1919,7 +1924,7 @@ if(First.run=="YES")
       La.lista$q_daily=Yr_q_daily
       
       #Catch in tonnes
-      La.lista$CATCH=Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]/1000   
+      La.lista$CATCH=Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]/unitS   
       
       #add future years 
       La.lista$CATCH=c(La.lista$CATCH,Ktch.future(La.lista$CATCH))
@@ -2145,13 +2150,13 @@ if(First.run=="YES")
       {
         if(d$Ktch.sx.r=="Observed")
         {
-          La.lista$ct_F=(Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]*(1-Prop.males.ktch))/1000
-          La.lista$ct_M=(Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]*Prop.males.ktch)/1000
+          La.lista$ct_F=(Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]*(1-Prop.males.ktch))/unitS
+          La.lista$ct_M=(Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]*Prop.males.ktch)/unitS
         }
         if(d$Ktch.sx.r=="Equal")
         {
-          La.lista$ct_F=(Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]*0.5)/1000
-          La.lista$ct_M=(Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]*0.5)/1000
+          La.lista$ct_F=(Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]*0.5)/unitS
+          La.lista$ct_M=(Ktch.All.1975[,match('LIVEWT.c',names(Ktch.All.1975))]*0.5)/unitS
         }
         
         # add future years of catch by sex
@@ -2166,23 +2171,23 @@ if(First.run=="YES")
       {
         if(d$Ktch.sx.r=="Observed")
         {
-          Ktch.F.WC=(1-Prop.males.ktch.wst)*Ktch.All.West.1975[,match('West',names(Ktch.All.West.1975))]/1000
-          Ktch.F.zn1=(1-Prop.males.ktch.zn1)*Ktch.All.zn1.1975[,match('Zone1',names(Ktch.All.zn1.1975))]/1000
-          Ktch.F.zn2=(1-Prop.males.ktch.zn2)*Ktch.All.zn2.1975[,match('Zone2',names(Ktch.All.zn2.1975))]/1000
+          Ktch.F.WC=(1-Prop.males.ktch.wst)*Ktch.All.West.1975[,match('West',names(Ktch.All.West.1975))]/unitS
+          Ktch.F.zn1=(1-Prop.males.ktch.zn1)*Ktch.All.zn1.1975[,match('Zone1',names(Ktch.All.zn1.1975))]/unitS
+          Ktch.F.zn2=(1-Prop.males.ktch.zn2)*Ktch.All.zn2.1975[,match('Zone2',names(Ktch.All.zn2.1975))]/unitS
           
-          Ktch.M.WC=Prop.males.ktch.wst*Ktch.All.West.1975[,match('West',names(Ktch.All.West.1975))]/1000
-          Ktch.M.zn1=Prop.males.ktch.zn1*Ktch.All.zn1.1975[,match('Zone1',names(Ktch.All.zn1.1975))]/1000
-          Ktch.M.zn2=Prop.males.ktch.zn2*Ktch.All.zn2.1975[,match('Zone2',names(Ktch.All.zn2.1975))]/1000
+          Ktch.M.WC=Prop.males.ktch.wst*Ktch.All.West.1975[,match('West',names(Ktch.All.West.1975))]/unitS
+          Ktch.M.zn1=Prop.males.ktch.zn1*Ktch.All.zn1.1975[,match('Zone1',names(Ktch.All.zn1.1975))]/unitS
+          Ktch.M.zn2=Prop.males.ktch.zn2*Ktch.All.zn2.1975[,match('Zone2',names(Ktch.All.zn2.1975))]/unitS
         }
         if(d$Ktch.sx.r=="Equal")
         {
-          Ktch.F.WC=0.5*Ktch.All.West.1975[,match('West',names(Ktch.All.West.1975))]/1000
-          Ktch.F.zn1=0.5*Ktch.All.zn1.1975[,match('Zone1',names(Ktch.All.zn1.1975))]/1000
-          Ktch.F.zn2=0.5*Ktch.All.zn2.1975[,match('Zone2',names(Ktch.All.zn2.1975))]/1000
+          Ktch.F.WC=0.5*Ktch.All.West.1975[,match('West',names(Ktch.All.West.1975))]/unitS
+          Ktch.F.zn1=0.5*Ktch.All.zn1.1975[,match('Zone1',names(Ktch.All.zn1.1975))]/unitS
+          Ktch.F.zn2=0.5*Ktch.All.zn2.1975[,match('Zone2',names(Ktch.All.zn2.1975))]/unitS
           
-          Ktch.M.WC=0.5*Ktch.All.West.1975[,match('West',names(Ktch.All.West.1975))]/1000
-          Ktch.M.zn1=0.5*Ktch.All.zn1.1975[,match('Zone1',names(Ktch.All.zn1.1975))]/1000
-          Ktch.M.zn2=0.5*Ktch.All.zn2.1975[,match('Zone2',names(Ktch.All.zn2.1975))]/1000
+          Ktch.M.WC=0.5*Ktch.All.West.1975[,match('West',names(Ktch.All.West.1975))]/unitS
+          Ktch.M.zn1=0.5*Ktch.All.zn1.1975[,match('Zone1',names(Ktch.All.zn1.1975))]/unitS
+          Ktch.M.zn2=0.5*Ktch.All.zn2.1975[,match('Zone2',names(Ktch.All.zn2.1975))]/unitS
         }
         #add future years to base case
         Ktch.F.WC=c(Ktch.F.WC,Ktch.future(Ktch.F.WC))
@@ -2420,7 +2425,7 @@ if(First.run=="YES")
   par(xpd=T,las=1,mgp=c(2.5,1,0),mai=c(1,1,.1,1.25))
   yrs.ktch.cpue=1:length(Ktch.All.1975$FINYEAR)
   XX=Ktch.All.1975$LIVEWT.c
-  if(nchar(max(round(Ktch.All.1975$LIVEWT.c)))>=5) XX=XX/1000
+  if(nchar(max(round(Ktch.All.1975$LIVEWT.c)))>=5) XX=XX/unitS
   plot(yrs.ktch.cpue,XX,type='l',ylab="",xlab="",xaxt='n',lwd=2,cex.axis=1.25,ylim=c(0,max(XX)))
   par(new=T)
   plot(yrs.ktch.cpue,Cpue.all$Mean, axes=F, xlab=NA, ylab=NA,pch=21,bg=2,cex=2,cex.axis=1.25,ylim=c(0,max(Cpue.all$Mean)))
@@ -4897,11 +4902,11 @@ for( i in 1:nrow(Scenarios))
       for(kk in 1:length(kg.to.tons))
       {
         ID.kk=match(kg.to.tons[kk],names(MOD))
-        if(!is.na(ID.kk))MOD[[ID.kk]]=MOD[[ID.kk]]/1000
+        if(!is.na(ID.kk))MOD[[ID.kk]]=MOD[[ID.kk]]/unitS
       }
       STD$name=as.character(STD$name)
-      STD$value=with(STD,ifelse(name%in%kg.to.tons,value/1000,value))
-      STD$std.dev=with(STD,ifelse(name%in%kg.to.tons,std.dev/1000,std.dev))
+      STD$value=with(STD,ifelse(name%in%kg.to.tons,value/unitS,value))
+      STD$std.dev=with(STD,ifelse(name%in%kg.to.tons,std.dev/unitS,std.dev))
     }
 
     #set yrs
@@ -5162,11 +5167,11 @@ if(Run.all.Scenarios=="YES")
       for(kk in 1:length(kg.to.tons))
       {
         ID.kk=match(kg.to.tons[kk],names(MOD))
-        if(!is.na(ID.kk))MOD[[ID.kk]]=MOD[[ID.kk]]/1000
+        if(!is.na(ID.kk))MOD[[ID.kk]]=MOD[[ID.kk]]/unitS
       }
       STD$name=as.character(STD$name)
-      STD$value=with(STD,ifelse(name%in%kg.to.tons,value/1000,value))
-      STD$std.dev=with(STD,ifelse(name%in%kg.to.tons,std.dev/1000,std.dev))
+      STD$value=with(STD,ifelse(name%in%kg.to.tons,value/unitS,value))
+      STD$std.dev=with(STD,ifelse(name%in%kg.to.tons,std.dev/unitS,std.dev))
     }
     
     #set yrs

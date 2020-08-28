@@ -1018,9 +1018,7 @@ for(l in 1:length(List.sp))
 
 # 4. Define modelling arguments -------------------------------
 
-  #What effort to use?
-#What.Effort="km.gn.days" 
-What.Effort="km.gn.hours" 
+
 
 
   #Select acoustic tagging model

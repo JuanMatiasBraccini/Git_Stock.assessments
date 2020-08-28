@@ -1,38 +1,38 @@
-# a few things missing, search for MISSING
-# where is the aggregation by year done and is adding missing intermediate years??
+#------------- Script for bringing in all shark data 
 
-# Script for bringing in all shark data
 library(stringr)
-if(!"tidyr" %in% (.packages()))library(tidyr)
+library(tidyr)
 library(Hmisc)
+library(dplyr)
+options(stringsAsFactors = FALSE) 
 
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
-
-fn.fig=function(NAME,Width,Height,Do.tiff="YES",Do.jpeg="NO")
+if(!exists('fn.word.table')) source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
+if(!exists('fn.fig')) fn.fig=function(NAME,Width,Height,Do.tiff="YES",Do.jpeg="NO")
 {
   if(Do.tiff=="YES") tiff(file=paste(NAME,".tiff",sep=""),width=Width,height=Height,units="px",res=300,compression="lzw")
   if(Do.jpeg=="YES") jpeg(file=paste(NAME,".jpeg",sep=""),width=Width,height=Height,units="px",res=300)
 }
-smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
-All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv",stringsAsFactors = F)
-All.species.names=All.species.names%>%
-  mutate(Name=tolower(Name))%>%
-  rename(SNAME=Name)
+if(!exists('smart.par')) smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 
-Dat.repository='C:/Matias/Analyses/Data_outs/'
-  
 fn.bring.all.data=function(path)
 {
-  temp.wd=paste(Dat.repository,path,sep='')
-  Files=list.files(temp.wd)
-  setwd(temp.wd)
-  Files1=lapply(Files,read.csv)
-  names(Files1)= str_remove(Files, path)
-  return(Files1)
+  if(path%in%list.files(Dat.repository))
+  {
+    temp.wd=paste(Dat.repository,path,sep='')
+    Files=list.files(temp.wd)
+    setwd(temp.wd)
+    Files1=lapply(Files,read.csv)
+    names(Files1)= str_remove(Files, path)
+    return(Files1)
+  }
 }
+
 fn.subs=function(YEAR) substr(YEAR,start=3,stop=4)
+
 fn.finyr=function(Finyr)paste(Finyr-1,"-",fn.subs(Finyr),sep="")
+
 fn.month.to.fin.mn=function(dat)ifelse(dat>6,dat-6,dat+6)
+
 fn.exp.his=function(dat,dat1)
 {
   dat2=expand.grid(FINYEAR=dat$FINYEAR,MONTH=1:12)
@@ -42,275 +42,12 @@ fn.exp.his=function(dat,dat1)
   dat2$LIVEWT.c=dat2$LIVEWT.c*dat2$prop
   return(dat2[,-match("prop",names(dat2))])
 }
-fn.in=function(NM) read.csv(paste(Dat.repository,NM,sep=""),stringsAsFactors = F)
-
-#1. Import Total effort
-  #TDGDLF
-Effort.monthly=fn.in(NM='Annual.total.eff.days.csv') 
-Effort.monthly_blocks=fn.in("Effort.monthly.csv")
-Effort.daily_blocks=fn.in("Effort.daily.csv")
-  #NSF
-Effort.monthly.north=fn.in(NM='Annual.total.eff_NSF.csv') 
-Effort.monthly.north_blocks=fn.in("Effort.monthly.NSF.csv")
-Effort.daily.north_blocks=fn.in("Effort.daily.NSF.csv")
-
-#2. Import Catch
-fn.import.catch.data=function(KTCH.UNITS)
-{
-  #2.1. Commercial
-    #2.1.1 Catch_WA Fisheries
-  #..Historic
-  Historic.ktch=fn.in(NM='recons_Hist.expnd.csv')%>%filter(!FINYEAR=='1975-76')
-  #..Ammended reported commercial catch including discards
-  Data.monthly=fn.in(NM='recons_Data.monthly.csv')
-  Data.monthly.north=fn.in(NM='recons_Data.monthly.north.csv')
-  #..TEPS
-  Greynurse.ktch=fn.in(NM='recons_Greynurse.ktch.csv')
-  TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
-  #..Droplines Western Rock Lobster
-  WRL.ktch=fn.in(NM='Wetline_rocklobster.csv')
-  
-    #2.1.2. Catch of non WA Fisheries
-  #..Taiwanese gillnet and longline
-  Taiwan.gillnet.ktch=fn.in(NM='recons_Taiwan.gillnet.ktch.csv')
-  Taiwan.longline.ktch=fn.in(NM='recons_Taiwan.longline.ktch.csv')
-  Taiwan.gillnet.ktch$Method="Pelagic.gillnet"
-  Taiwan.longline.ktch$Method="Longline"
-  Taiwan=rbind(Taiwan.longline.ktch,Taiwan.gillnet.ktch)%>%
-          mutate(Region="North")%>%
-          mutate(year=as.numeric(substr(FINYEAR,1,4)))
-  #..Indonesian illegal fishing in Australia waters
-  Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv')
-  Indo_total.annual.ktch=Indo_total.annual.ktch%>%filter(!is.na(SPECIES))
-  #..AFMA's GAB & SBT fisheries
-  GAB.trawl_catch=fn.in(NM='recons_GAB.trawl_catch.csv') 
-  WTBF_catch=fn.in(NM='recons_WTBF_catch.csv') 
-  #..SA Marine Scalefish fishery
-  Whaler_SA=fn.in(NM='recons_Whaler_SA.csv') 
-  
-  #2.2. WA Recreational catch
-  Rec.ktch=fn.in(NM='recons_recreational.csv')  
-  Rec.ktch=Rec.ktch%>%mutate(Region=ifelse(zone%in%c('Gascoyne','North Coast'),'North','South'),
-                             year=as.numeric(substr(FINYEAR,1,4)),
-                             Common.Name=tolower(Common.Name))
-  
-  
-  #Combine data sets
-    #Add TDGDLF and NSF
-  Data.monthly$Region="South"
-  Data.monthly.north$Region="North"
-  Data.monthly$Data.set="Data.monthly"
-  Data.monthly.north$Data.set="Data.monthly.north"
-  Tot.ktch=rbind(subset(Data.monthly,select=c(SPECIES,FishCubeCode,FINYEAR,Region,Data.set,LIVEWT.c,BLOCKX,METHOD,zone)),
-                 subset(Data.monthly.north,select=c(SPECIES,FishCubeCode,FINYEAR,Region,Data.set,LIVEWT.c,BLOCKX,METHOD,zone)))%>%
-    left_join(All.species.names,by='SPECIES')%>%     #add species names
-    mutate(finyear=as.numeric(substr(FINYEAR,1,4)))%>%    
-    mutate(SPECIES=ifelse(SPECIES%in%c(23002,23001,23900),23900,SPECIES),  #combine sawsharks as reported by species and as 'sawsharks'
-           SNAME=ifelse(SNAME%in%c("southern sawshark","common sawshark","sawsharks"),"sawsharks",SNAME),
-           Name=SNAME)
-  
-    #Add Recreational
-  a=Rec.ktch%>%
-    rename(finyear=year)%>%
-    mutate(BLOCKX=NA,
-           zone=case_when(zone%in%c("North Coast","Gascoyne Coast")~'North',
-                          zone=="West Coast"~'West',
-                          zone=="South Coast"~'Zone1'),
-           Common.Name=ifelse(Common.Name=="dogfishes","spurdogs",
-                       ifelse(Common.Name=="greynurse shark","grey nurse shark",
-                       ifelse(Common.Name=="thresher shark","thresher sharks",
-                       ifelse(Common.Name=="bronze whaler","copper shark",
-                       ifelse(Common.Name=="dusky whaler","dusky shark",
-                       ifelse(Common.Name=="gummy sharks","gummy shark",
-                              Common.Name)))))))%>%
-    filter(Common.Name%in%unique(Tot.ktch$SNAME))%>%
-    left_join(All.species.names,by=c('Common.Name'='SNAME'))%>%
-    mutate(SNAME=Common.Name,
-           Name=Common.Name,
-           METHOD='Rec.line',
-           Data.set="Recreational",
-           FishCubeCode="Recreational")%>%
-    dplyr::select(names(Tot.ktch))
-  Tot.ktch=rbind(Tot.ktch,a)
- 
-    #Add Taiwanese
-  a=Taiwan%>%
-    left_join(All.species.names,by='SPECIES')%>%
-    rename(finyear=year)%>%
-    mutate(BLOCKX=NA,
-           Name=SNAME,
-           Type="Taiwan",
-           Data.set="Taiwan",
-           METHOD=Method,
-           FishCubeCode="Taiwan")%>%
-    dplyr::select(names(Tot.ktch))%>%
-    filter(SPECIES%in%unique(Tot.ktch$SPECIES))
-  Tot.ktch=rbind(Tot.ktch,a)
-  
-  #Add Indonesian fishing incursions
-  a=Indo_total.annual.ktch%>%
-          left_join(All.species.names,by='SPECIES')%>%
-          mutate(BLOCKX=NA,
-                 Region="North",
-                 finyear=as.numeric(substr(FINYEAR,1,4)),
-                 Name=SNAME,
-                 Type="Indonesia",
-                 Data.set="Indonesia",
-                 METHOD=NA,
-                 FishCubeCode="Indo")%>%
-          dplyr::select(names(Tot.ktch))%>%
-          filter(SPECIES%in%unique(Tot.ktch$SPECIES))
-  Tot.ktch=rbind(Tot.ktch,a)
-  
-  #Add TEP interactions        
-  a=Greynurse.ktch%>%
-          left_join(All.species.names,by='SPECIES')%>%
-          mutate(BLOCKX=NA,
-                 Region="South",
-                 finyear=as.numeric(substr(FINYEAR,1,4)),
-                 Name=SNAME,
-                 Type="TEP_greynurse",
-                 Data.set="TEP_greynurse",
-                 METHOD='GN',
-                 FishCubeCode="TEP")%>%
-          dplyr::select(names(Tot.ktch))
-  Tot.ktch=rbind(Tot.ktch,a)
-  
-  a=TEPS_dusky%>%
-    left_join(All.species.names,by='SPECIES')%>%
-    mutate(BLOCKX=NA,
-           Region="South",
-           finyear=as.numeric(substr(FINYEAR,1,4)),
-           Name=SNAME,
-           Type="TEP_dusky",
-           Data.set="TEP_dusky",
-           METHOD='GN',
-           FishCubeCode="TEP")%>%
-    dplyr::select(names(Tot.ktch))
-  Tot.ktch=rbind(Tot.ktch,a)
-  
-  #Add WRL        
-  a=WRL.ktch%>%
-          left_join(All.species.names,by='SPECIES')%>%
-          mutate(BLOCKX=NA,
-                 Region="South",
-                 finyear=as.numeric(substr(FINYEAR,1,4)),
-                 Name=SNAME,
-                 Type="WRL",
-                 Data.set="WRL",
-                 METHOD='LL',
-                 FishCubeCode="WRL")%>%
-          dplyr::select(names(Tot.ktch))
-  Tot.ktch=rbind(Tot.ktch,a)
-  
-  
-  #Add historic  
-  a=Historic.ktch%>%
-        left_join(All.species.names,by='SPECIES')%>%
-        mutate(BLOCKX=NA,
-               Region="South",
-               finyear=as.numeric(substr(FINYEAR,1,4)),
-               Type="Commercial",
-               Data.set="Historic",
-               METHOD=NA,
-               FishCubeCode="Historic",
-               SNAME=ifelse(SNAME%in%c('southern sawshark','common sawshark'),'sawsharks',SNAME),
-               SPECIES=ifelse(SPECIES%in%c(23001,23002),23900,SPECIES),
-               Name=SNAME)%>%
-        dplyr::select(names(Tot.ktch))%>%
-        filter(SPECIES%in%unique(Tot.ktch$SPECIES))
-  Tot.ktch=rbind(Tot.ktch,a)
-  
-  #Add GAB
-  a=GAB.trawl_catch%>%
-          left_join(All.species.names,by='SPECIES')%>%
-          mutate(BLOCKX=NA,
-                 Region="South",
-                 finyear=as.numeric(substr(FINYEAR,1,4)),
-                 Name=SNAME,
-                 Type="GAB",
-                 Data.set="GAB.trawl",
-                 METHOD="trawl",
-                 FishCubeCode="GAB")%>%
-          dplyr::select(names(Tot.ktch))%>%
-          filter(SPECIES%in%unique(Tot.ktch$SPECIES))
-  Tot.ktch=rbind(Tot.ktch,a)
-  
-  #Add WTBF
-  a=WTBF_catch%>%
-        left_join(All.species.names,by='SPECIES')%>%
-        mutate(BLOCKX=NA,
-               Region="South",
-               finyear=as.numeric(substr(FINYEAR,1,4)),
-               Name=SNAME,
-               Type="WTB",
-               Data.set="WTBF",
-               METHOD="line",
-               FishCubeCode="WTB")%>%
-        dplyr::select(names(Tot.ktch))%>%
-        filter(SPECIES%in%unique(Tot.ktch$SPECIES))
-  Tot.ktch=rbind(Tot.ktch,a)
-  
-  #Add Whaler_SA (SA Marine Scalefish Fishery)
-  a=Whaler_SA%>%
-        left_join(All.species.names,by='SPECIES')%>%
-        mutate(BLOCKX=NA,
-               Region="South",
-               finyear=as.numeric(substr(FINYEAR,1,4)),
-               Name=SNAME,
-               Type="SA MSF",
-               Data.set="SA MSF",
-               METHOD="line",
-               FishCubeCode="SA MSF")%>%
-        dplyr::select(names(Tot.ktch))%>%
-        filter(SPECIES%in%unique(Tot.ktch$SPECIES))
-  Tot.ktch=rbind(Tot.ktch,a)
-  
-  
-  #Catch in tonnes
-  if(KTCH.UNITS=="TONNES")Tot.ktch=Tot.ktch%>%mutate(LIVEWT.c=LIVEWT.c/1000) 
-  
-  
-  #Change bull to pigeye shark as bull not likely to be taken (Heupel & McAuley 2007 page  84)
-  Tot.ktch=Tot.ktch%>%
-    mutate(SPECIES=ifelse(SPECIES==18021,18026,SPECIES),
-           SNAME=ifelse(SNAME=='bull shark','pigeye shark',SNAME),
-           Name=ifelse(Name=='bull shark','pigeye shark',Name))
-  
-  
-  #Aggregate by year and fishery
-    Tot.ktch.zone=Tot.ktch%>%
-      mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
-             Name=ifelse(SPECIES%in%c(22999,31000),"unidentified sharks",SNAME))%>%
-      group_by(SPECIES,Name,FishCubeCode,Data.set,finyear,FINYEAR,Region,zone)%>%
-      summarise(LIVEWT.c=sum(LIVEWT.c))
-
-    Tot.ktch=Tot.ktch%>%
-      mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
-             Name=ifelse(SPECIES%in%c(22999,31000),"unidentified sharks",SNAME))%>%
-      group_by(SPECIES,Name,FishCubeCode,Data.set,finyear,FINYEAR,Region)%>%
-      summarise(LIVEWT.c=sum(LIVEWT.c))
-  
-  return(list(Total=Tot.ktch,Zone=Tot.ktch.zone))
-}
-Get.ktch=fn.import.catch.data(KTCH.UNITS='TONNES')    #this should only be run once!!, move to Assessment.R before going into each species
-KtCh=Get.ktch$Total
-KtCh.zone=Get.ktch$Zone
-
 
 fn.extract.dat=function(STRING,nm.Dat) grepl(STRING, nm.Dat, perl = TRUE)
+
 fn.rename.dat=function(x,y) str_remove_all(x, paste(y, collapse = "|"))
 
-
-fn.input.data(Name='Sandbar shark',SP="TK",Species=18007,  #move this to Run.model.R
-              First.year="1975-76",Last.year="2017-18",
-              Min.obs=10,Min.shts=10,
-              What.Efrt="km.gn.hours",
-              Bin.size=5,
-              Yr.assess=2021)  
-
-#this is run for each assessed species and some argumetns are global, defined in Assessemnt.R
-fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,What.Efrt,Bin.size,Yr.assess)   
+fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,Min.shts,What.Efrt,Bin.size,Yr.assess)   
 {
   #----DATA SECTION------ 
   
@@ -324,8 +61,9 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   catch.zone=KtCh.zone%>%filter(SPECIES%in%Species & FINYEAR%in%Used.yrs)
   
   #3. Bring in all species-specific data files
-  Dat=fn.bring.all.data(path=Name)
-  nm.Dat=names(Dat)
+  nm.Dat=''
+  Dat=fn.bring.all.data(path=capitalize(Name.inputs))
+  if(!is.null(Dat)) nm.Dat=names(Dat)
   
     #3.1 RELATIVE ABUNDANCE    
       #3.1.1  TDGDLF  
@@ -340,8 +78,11 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     
     Ab.indx.TDGDLF.all=Ab.indx.TDGDLF$all
     Ab.indx.TDGDLF=Ab.indx.TDGDLF[names(Ab.indx.TDGDLF) != "all"] 
-    for(z in 1:length(Ab.indx.TDGDLF)) Ab.indx.TDGDLF[[z]]$zone=capitalize(names(Ab.indx.TDGDLF)[z])
-    Ab.indx.TDGDLF=do.call(rbind,Ab.indx.TDGDLF)
+    if(length(Ab.indx.TDGDLF)==0) rm(Ab.indx.TDGDLF) else
+    {
+      for(z in 1:length(Ab.indx.TDGDLF)) Ab.indx.TDGDLF[[z]]$zone=capitalize(names(Ab.indx.TDGDLF)[z])
+      Ab.indx.TDGDLF=do.call(rbind,Ab.indx.TDGDLF)
+    }
   }
   
   #daily
@@ -355,9 +96,11 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     
     Ab.indx.TDGDLF.all.daily=Ab.indx.TDGDLF.daily$all
     Ab.indx.TDGDLF.daily=Ab.indx.TDGDLF.daily[names(Ab.indx.TDGDLF.daily) != "all"] 
-    for(z in 1:length(Ab.indx.TDGDLF.daily)) Ab.indx.TDGDLF.daily[[z]]$zone=capitalize(names(Ab.indx.TDGDLF.daily)[z])
-    Ab.indx.TDGDLF.daily=do.call(rbind,Ab.indx.TDGDLF.daily)
-    
+    if(length( Ab.indx.TDGDLF.daily)==0) rm( Ab.indx.TDGDLF.daily) else
+    {
+      for(z in 1:length(Ab.indx.TDGDLF.daily)) Ab.indx.TDGDLF.daily[[z]]$zone=capitalize(names(Ab.indx.TDGDLF.daily)[z])
+      Ab.indx.TDGDLF.daily=do.call(rbind,Ab.indx.TDGDLF.daily)
+    }
   }
   
       #3.1.2  NSF  
@@ -371,6 +114,7 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     Srvy.FixSt=Dat[match(iid,nm.Dat)]
     Ab.index.Srvy.FixSt=Srvy.FixSt$.Srvy.FixSt.csv
     Size.index.Srvy.FixSt=Srvy.FixSt$.Srvy.FixSt_size.csv
+    Ab.index.Srvy.FixSt$CV=Ab.index.Srvy.FixSt$CV/100
     Ab.index.Srvy.FixSt$FINYEAR=paste(Ab.index.Srvy.FixSt$yr,"-",fn.subs(Ab.index.Srvy.FixSt$yr+1),sep="")
     Size.index.Srvy.FixSt$FINYEAR=paste(Size.index.Srvy.FixSt$yr,"-",fn.subs(Size.index.Srvy.FixSt$yr+1),sep="")
   }
@@ -402,6 +146,11 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     
     iid=nm.Dat[fn.extract.dat(STRING="(?=.*Numb_obs_size.freq.TDGDLF)",nm.Dat)]
     TDGDFL.size.numbers= Dat[match(iid,nm.Dat)]$`_Size_composition_Numb_obs_size.freq.TDGDLF.csv`
+    
+    if(nrow(do.call(rbind,FL.TDGDFL))==0)
+    {
+      rm(FL.TDGDFL,TDGDFL.size.numbers)
+    }
   }
   
   #keep years with at least 10 observations from at least 10 shots by zone
@@ -422,7 +171,7 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   if(length(iid)>0) FL_NSF= Dat[match(iid,nm.Dat)]$`_Size_composition_NSF.LONGLINE.csv`
 
       #3.2.6 TEPS_TDGLDF
-  if(Name=="Dusky shark") Size.comp.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #from Comments in TDGDLF returns
+  if(Name=="dusky shark") Size.comp.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #from Comments in TDGDLF returns
   
 
     #3.3. TAGGING
@@ -500,8 +249,11 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     names(Avr.wt.yr.zn)=Nms
     Avr.wt.yr=Avr.wt.yr.zn$all
     Avr.wt.yr.zn=Avr.wt.yr.zn[names(Avr.wt.yr.zn) != "all"] 
-    for(z in 1:length(Avr.wt.yr.zn)) Avr.wt.yr.zn[[z]]$zone=capitalize(names(Avr.wt.yr.zn)[z])
-    Avr.wt.yr.zn=do.call(rbind,Avr.wt.yr.zn)
+    if(length(Avr.wt.yr.zn)==0) rm(Avr.wt.yr.zn) else
+    {
+      for(z in 1:length(Avr.wt.yr.zn)) Avr.wt.yr.zn[[z]]$zone=capitalize(names(Avr.wt.yr.zn)[z])
+      Avr.wt.yr.zn=do.call(rbind,Avr.wt.yr.zn)
+    }
   }
   
 
@@ -519,7 +271,11 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   Mesh.prop.eff.Zn2=read.csv("C:/Matias/Analyses/Catch and effort/mesh.proportional.effort.Zone2.csv",stringsAsFactors=F)
   
 
-  
+    #3.8. Gillnet selectivity  
+  iid=nm.Dat[fn.extract.dat(STRING="(?=.*gillnet.selectivity)",nm.Dat)]
+  if(length(iid)>0) Gillnet.selectivity=Dat[match(iid,nm.Dat)]$`_gillnet.selectivity.csv`
+
+
  
   #----PARAMETERS SECTIONS ------- 
   LH.par=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')%>%filter(SPECIES==Species)
@@ -674,68 +430,87 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   }
   fn.add.missing.size3=function(dat,Min,Max,interval)
   {
-   Rango=c(Min,Max)
-   SEQ=seq(Rango[1],Rango[2],interval)
-   dat=dat[order(dat$year),]
-   dat$TL.bin=floor(dat$TL/interval)*interval
-   dat$TL.bin=factor(dat$TL.bin,levels=SEQ)
-   dat$Sex=dat$SEX
-   dat$Number=1
-   dat=subset(dat,!Sex=="U")
+    Rango=c(Min,Max)
+    SEQ=seq(Rango[1],Rango[2],interval)
+    Table=dat%>%
+          rename(Sex=SEX)%>%
+          filter(!is.na(Sex) | !Sex=="U")%>%
+          mutate(TL.bin=floor(TL/interval)*interval)%>%
+          group_by(TL.bin,FINYEAR,Month,Sex)%>%
+          summarise(N=n())
+   add.msn=SEQ[which(!SEQ%in%Table$TL.bin)]  
+   if(length(add.msn)>0)
+   {
+     addd=Table[1:length(add.msn),]
+     addd$N=0
+     addd$TL.bin=add.msn
+     Table=rbind(Table,addd)
+   }
+   Table=Table%>%
+     spread(TL.bin,N,fill=0)%>%
+     data.frame%>%
+     arrange(Sex,FINYEAR,Month)%>%
+     filter(!is.na(FINYEAR))
    
-   dat=aggregate(Number~TL.bin+Month+FINYEAR+Sex,dat,sum)
-   
-   dat2=subset(dat,Number>0,select=c(TL.bin,FINYEAR,Number,Month,Sex))
-   Table=reshape(dat2,v.names = "Number", idvar = c("FINYEAR","Month","Sex"),timevar = "TL.bin", direction = "wide")
-   X=colnames(Table)[4:ncol(Table)]
-   colnames(Table)[4:ncol(Table)]=as.character(sapply(strsplit(X,"Number."), "[", 2))
-   ID=which(!levels(dat$TL.bin)%in%colnames(Table)[4:ncol(Table)])
-   ADD=levels(dat$TL.bin)[ID]
-   ADD1=as.data.frame(matrix(nrow=nrow(Table),ncol=length(ADD)))
-   names(ADD1)=ADD
-   Table=cbind(Table,ADD1)
-   Table=Table[,c(1:3,match(levels(dat$TL.bin),names(Table)))]
-   Table[is.na(Table)]=0 
-   Table=Table[order(Table$Sex,Table$FINYEAR,Table$Month),]
+   colnames(Table)[-match(c("FINYEAR","Month","Sex"),colnames(Table))]=
+     str_remove_all(colnames(Table)[-match(c("FINYEAR","Month","Sex"),colnames(Table))], "X")
    return(Table)
    
  }
  
   if(exists('FL.TDGDFL'))   
   {
-    #keep observation within logical size range
+    #keep observation within logical size range and a Min.obs
     for(n in 1:length(FL.TDGDFL)) FL.TDGDFL[[n]]=FL.TDGDFL[[n]]%>%filter(TL<=Max.TL)
     
-    TL_observers=FL.TDGDFL
+    TL_observers=vector('list',length(FL.TDGDFL))
+    names(TL_observers)=names(FL.TDGDFL)
+    dummy=do.call(rbind,FL.TDGDFL)
+    MIN=min(dummy$TL/10,na.rm=T)
+    MAX=max(dummy$TL/10,na.rm=T)
     for(n in 1:length(FL.TDGDFL))
     {
-      TL_observers[[n]]=fn.add.missing.size3(dat=FL.TDGDFL[[n]],
-                           Min=floor(min(FL.TDGDFL[[1]]$TL/10))*10,
-                           Max=ceiling(max(FL.TDGDFL[[1]]$TL/10))*10,
-                           interval=Bin.size) 
+      if(nrow(FL.TDGDFL[[n]])>Min.obs)
+      {
+        a=fn.add.missing.size3(dat=FL.TDGDFL[[n]],
+                               Min=floor(MIN)*10,
+                               Max=ceiling(MAX)*10,
+                               interval=Bin.size)
+        ag=a[,-(2:3)]%>%
+            group_by(FINYEAR) %>% 
+            summarise_each(sum)
+        
+        ag=ag[which(rowSums(ag[,-1])>Min.obs),]
+        a=a%>%filter(FINYEAR%in%ag$FINYEAR)
+        TL_observers[[n]]=a
+      }
     }
+    TL_observers <- TL_observers[!sapply(TL_observers,is.null)]
+    TL_observers <- TL_observers[sapply(TL_observers,nrow)>0]
   }
   if(exists('FL_Pilbara_trawl'))
   {
     FL_Pilbara_trawl=FL_Pilbara_trawl%>%filter(TL<=Max.TL)
-    FL_Pilbara_trawl=FL_Pilbara_trawl%>%
-            mutate(FINYEAR=as.character(ifelse(Month%in%1:6,paste(year-1,"-",fn.subs(year),sep=""),
-                            ifelse(Month%in%7:12,paste(year,"-",fn.subs(year+1),sep=""),NA))))
-    Pil.trwl_observers=fn.add.missing.size3(dat=FL_Pilbara_trawl,
-                                            Min=floor(min(FL_Pilbara_trawl$TL/10,na.rm=T))*10,
-                                            Max=ceiling(max(FL_Pilbara_trawl$TL/10,na.rm=T))*10,
-                                            interval=Bin.size)
+    if(nrow(FL_Pilbara_trawl)>=Min.obs)
+    {
+      Pil.trwl_observers=fn.add.missing.size3(dat=FL_Pilbara_trawl,
+                                              Min=floor(min(FL_Pilbara_trawl$TL/10,na.rm=T))*10,
+                                              Max=ceiling(max(FL_Pilbara_trawl$TL/10,na.rm=T))*10,
+                                              interval=Bin.size)
+    }else rm(FL_Pilbara_trawl)
+
   }
   if(exists('FL_NSF'))
   {
     FL_NSF=FL_NSF%>%filter(TL<=Max.TL)
-    FL_NSF=FL_NSF%>%
-      mutate(FINYEAR=as.character(ifelse(Month%in%1:6,paste(year-1,"-",fn.subs(year),sep=""),
-                                         ifelse(Month%in%7:12,paste(year,"-",fn.subs(year+1),sep=""),NA))))
-    NSF_observers=fn.add.missing.size3(dat=FL_NSF,
-                                            Min=floor(min(FL_NSF$TL/10,na.rm=T))*10,
-                                            Max=ceiling(max(FL_NSF$TL/10,na.rm=T))*10,
-                                            interval=Bin.size)
+    if(nrow(FL_NSF)>=Min.obs)
+    {
+      NSF_observers=fn.add.missing.size3(dat=FL_NSF,
+                                         Min=floor(min(FL_NSF$TL/10,na.rm=T))*10,
+                                         Max=ceiling(max(FL_NSF$TL/10,na.rm=T))*10,
+                                         interval=Bin.size)
+    }else rm(FL_NSF)
+
   }
     
   #Wetline_WRL
@@ -758,32 +533,60 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     }
     
     All.size=TL_observers[grep("6.5",names(TL_observers))]
-    names(All.size)=str_remove(names(All.size), ".6.5")
-    for(i in 1:length(All.size)) All.size[[i]]=drop.obs(All.size[[i]],names(All.size)[i])
-    names(All.size)=ifelse(names(All.size)=='West','WC',
-                    ifelse(names(All.size)=='Zone1','Zn1',
-                    ifelse(names(All.size)=='Zone2','Zn2',
-                    NA)))
+    if(length(All.size)>0)
+    {
+      names(All.size)=str_remove(names(All.size), ".6.5")
+      for(i in 1:length(All.size)) All.size[[i]]=drop.obs(All.size[[i]],names(All.size)[i])
+      names(All.size)=ifelse(names(All.size)=='West','WC',
+                      ifelse(names(All.size)=='Zone1','Zn1',
+                      ifelse(names(All.size)=='Zone2','Zn2',
+                      NA)))
+      All.size=list(TDGDLF=All.size) 
+    }
+    if(length(All.size)==0) rm(All.size)
     
     All.size_7=TL_observers[grep("7",names(TL_observers))]
-    names(All.size_7)=str_remove(names(All.size_7), ".7")
-    for(i in 1:length(All.size_7)) All.size_7[[i]]=drop.obs(All.size_7[[i]],names(All.size_7)[i])
-    names(All.size_7)=ifelse(names(All.size_7)=='West','WC',
-                      ifelse(names(All.size_7)=='Zone1','Zn1',
-                      ifelse(names(All.size_7)=='Zone2','Zn2',
-                      NA)))
+    if(length(All.size_7)>0)
+    {
+      names(All.size_7)=str_remove(names(All.size_7), ".7")
+      for(i in 1:length(All.size_7)) All.size_7[[i]]=drop.obs(All.size_7[[i]],names(All.size_7)[i])
+      names(All.size_7)=ifelse(names(All.size_7)=='West','WC',
+                        ifelse(names(All.size_7)=='Zone1','Zn1',
+                        ifelse(names(All.size_7)=='Zone2','Zn2',
+                        NA))) 
+      All.size_7=All.size_7[sapply(All.size_7, nrow)>0]
+      if(length(All.size_7)>0)
+      {
+        if(exists('All.size')) All.size$TDGDLF_7=All.size_7
+        if(!exists('All.size')) All.size=list(TDGDLF_7=All.size_7)
+      }
+        
+    }
 
   }
-  All.size=list(TDGDLF=All.size,TDGDLF_7=All.size_7)
-  if(exists('FL_Pilbara_trawl')) All.size$Pilbara_trawl=Pil.trwl_observers
-  if(exists('FL_NSF'))  All.size$NSF=NSF_observers
   
+  if(exists('FL_Pilbara_trawl'))
+  {
+    if(exists('All.size')) All.size$Pilbara_trawl=Pil.trwl_observers
+    if(!exists('All.size')) All.size=list(Pilbara_trawl=Pil.trwl_observers)
+  }
+  if(exists('FL_NSF'))
+  {
+    if(exists('All.size')) All.size$NSF=NSF_observers
+    if(!exists('All.size')) All.size=list(NSF=NSF_observers)
+  }
+  if(exists('All.size'))
+  {
+    All.size=All.size[sapply(All.size, length)>0]
+    if(length(All.size)==0) rm(All.size)
+  }
+  if(exists('All.size_7')) rm(All.size_7)
 
+  
   #3. Put abundance data together 
   if(exists('Ab.index.Srvy.FixSt')) Naturaliste.abun=Ab.index.Srvy.FixSt
   
 
-   
   #4. set working directory for outputing figures
   HandL="C:/Matias/Analyses/Population dynamics/1."
   DiR=paste(HandL,Name,"/",Yr.assess,"/1_Inputs/Visualise data",sep='')
@@ -879,37 +682,42 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   
   #7. Add missing years to prop.eff.mesh
   #note: back fill using temporal change in 7inch upto 2009-10
-  dum.yr=sort(as.character(unique(catch$TDGDLF%>%filter(Data.set=='Data.monthly')%>%pull(FINYEAR))))
-  id=dum.yr[which(!dum.yr%in%Mesh.prop.eff$finyear)]
-  add.msh.eff=Mesh.prop.eff[(nrow(Mesh.prop.eff)+1):((nrow(Mesh.prop.eff))+length(id)),]
-  add.msh.eff$finyear=id
-  
-  Mesh.prop.eff=rbind(add.msh.eff,Mesh.prop.eff)
-  Mesh.prop.eff.West=rbind(add.msh.eff,Mesh.prop.eff.West)
-  Mesh.prop.eff.Zn1=rbind(add.msh.eff,Mesh.prop.eff.Zn1)
-  Mesh.prop.eff.Zn2=rbind(add.msh.eff,Mesh.prop.eff.Zn2)
-  
-  bck.fil.yrs=match(c("2005-06","2006-07","2007-08",
-                      "2008-09","2009-10"),Mesh.prop.eff$finyear)
-  fn.bck.fil=function(a,intercpt)
+  if('TDGDLF'%in%names(catch))
   {
-    a$yr=1:nrow(a)
-    a$OFFSET=intercpt
-    DaTt=a[bck.fil.yrs,]
+    dum.yr=sort(as.character(unique(catch$TDGDLF%>%filter(Data.set=='Data.monthly')%>%pull(FINYEAR))))
+    id=dum.yr[which(!dum.yr%in%Mesh.prop.eff$finyear)]
+    add.msh.eff=Mesh.prop.eff[(nrow(Mesh.prop.eff)+1):((nrow(Mesh.prop.eff))+length(id)),]
+    add.msh.eff$finyear=id
+    
+    Mesh.prop.eff=rbind(add.msh.eff,Mesh.prop.eff)
+    Mesh.prop.eff.West=rbind(add.msh.eff,Mesh.prop.eff.West)
+    Mesh.prop.eff.Zn1=rbind(add.msh.eff,Mesh.prop.eff.Zn1)
+    Mesh.prop.eff.Zn2=rbind(add.msh.eff,Mesh.prop.eff.Zn2)
+    
+    bck.fil.yrs=match(c("2005-06","2006-07","2007-08",
+                        "2008-09","2009-10"),Mesh.prop.eff$finyear)
+    fn.bck.fil=function(a,intercpt)
+    {
+      a$yr=1:nrow(a)
+      a$OFFSET=intercpt
+      DaTt=a[bck.fil.yrs,]
       #set intercept 
-    Model=lm(X165~0+yr,offset=OFFSET,DaTt)
-    NEWDAT=data.frame(yr=a[1:(bck.fil.yrs[1]-1),]$yr,
-                      OFFSET=unique(a$OFFSET))
-    P_6.5=predict(Model,newdata = NEWDAT)
-    P_7=1-P_6.5
-    return(data.frame(X165=P_6.5,X178=P_7))
+      Model=lm(X165~0+yr,offset=OFFSET,DaTt)
+      NEWDAT=data.frame(yr=a[1:(bck.fil.yrs[1]-1),]$yr,
+                        OFFSET=unique(a$OFFSET))
+      P_6.5=predict(Model,newdata = NEWDAT)
+      P_7=1-P_6.5
+      return(data.frame(X165=P_6.5,X178=P_7))
+    }
+    Mesh.prop.eff[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff,intercpt=0)
+    Mesh.prop.eff.West[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff.West,intercpt=0)
+    Mesh.prop.eff.Zn1[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff.Zn1,intercpt=1)
+    Mesh.prop.eff.Zn2[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff.Zn2,intercpt=0)
+    colnames(Mesh.prop.eff)[2:3]=colnames(Mesh.prop.eff.West)[2:3]=
+      colnames(Mesh.prop.eff.Zn1)[2:3]=colnames(Mesh.prop.eff.Zn2)[2:3]=c("Mesh_6.5","Mesh_7")
+    
   }
-  Mesh.prop.eff[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff,intercpt=0)
-  Mesh.prop.eff.West[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff.West,intercpt=0)
-  Mesh.prop.eff.Zn1[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff.Zn1,intercpt=1)
-  Mesh.prop.eff.Zn2[1:length(id),2:3]=fn.bck.fil(Mesh.prop.eff.Zn2,intercpt=0)
-  colnames(Mesh.prop.eff)[2:3]=colnames(Mesh.prop.eff.West)[2:3]=
-  colnames(Mesh.prop.eff.Zn1)[2:3]=colnames(Mesh.prop.eff.Zn2)[2:3]=c("Mesh_6.5","Mesh_7")
+  
   
 
   #--------------- RESULTS SECTION --------------
@@ -1018,10 +826,16 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     fnx=function(x) as.numeric(substr(x,1,4))
     fn.bub=function(DAT,COL,Scale,TCK)
     {
-      if(nrow(DAT)==0) plot.new() else
+      if(nrow(DAT)==0)
+      {
+        plot.new()
+        legend('center',paste("No observations"),cex=1.25,text.col='steelblue',bty='n')
+        return(1)
+      }
+         else
       {
         #aggregate data into years
-        YRs=as.character(unique(DAT$FINYEAR))
+        YRs=unique(DAT$FINYEAR)
         this=which(!colnames(DAT)%in%c('FINYEAR','Month','Sex'))
         SIzes=colnames(DAT[,this])
         d=matrix(ncol=length(SIzes),nrow=length(YRs))
@@ -1039,67 +853,193 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
         drop.yr=subset(drop.yr,drop.yr<Min.obs)
         d=subset(d,!FINYEAR%in%names(drop.yr))
         
-        DAT=d
-        
-        Ylabs=FinYrs
-        ID=which(!FinYrs%in%DAT$FINYEAR)
-        ADD=data.frame(FINYEAR=FinYrs[ID])
-        if(nrow(ADD)>0)
+        if(nrow(d)==0)
         {
-          ADD1=DAT[1:nrow(ADD),2:ncol(DAT)]
-          ADD=cbind(ADD,ADD1)
-          ADD[,2:ncol(ADD)]=0
-          DAT=rbind(DAT,ADD)
+          plot.new()
+          legend('center',paste("Less than",Min.obs,"observations"),
+                 cex=1.25,text.col='steelblue',bty='n')
+          return(1)
+        }else
+        {
+          DAT=d
+          Ylabs=FinYrs
+          ID=which(!FinYrs%in%DAT$FINYEAR)
+          ADD=data.frame(FINYEAR=FinYrs[ID])
+          if(nrow(ADD)>0)
+          {
+            ADD1=DAT[1:nrow(ADD),2:ncol(DAT)]
+            ADD=cbind(ADD,ADD1)
+            ADD[,2:ncol(ADD)]=0
+            DAT=rbind(DAT,ADD)
+          }
+          DAT$FINYEAR=as.character(DAT$FINYEAR)
+          DAT=DAT[order(DAT$FINYEAR),]
+          DAT=DAT[,2:ncol(DAT)]
+          x=as.numeric(colnames(DAT))
+          y=1:nrow(DAT)
+          z=(as.matrix(DAT))      
+          n=length(y)      
+          xo=outer(x,rep(1,length=length(y)))
+          yo=t(outer(y,rep(1,length=length(x))))
+          zo=z/ rowSums(z)*Scale   
+          N=max(10,n/2)
+          matplot(yo,xo,type="n",xlab="",ylab="",xaxt='n',yaxt='n')
+          #abline(v=pretty(x),lty=3,col="black")
+          for(i in 1:n) points(yo[,i],xo[,i],cex=zo[i,],pch=16,col=COL)
+          axis(1,y,F,tck=TCK)
+          axis(2,x,F,tck=TCK)
+          
+          if(length(Ylabs)>10)
+          {
+             Labx=y[seq(1,length(Ylabs),5)]
+             Labx.lgn=Ylabs[seq(1,length(Ylabs),5)]
+          }else
+          {
+            Labx=y[seq(1,length(Ylabs),1)]
+            Labx.lgn=Ylabs[seq(1,length(Ylabs),1)]
+          }
+
+            
+          axis(1,Labx,Labx.lgn,tck=TCK*2,cex.axis=1.25)
+
+          axis(2,seq(x[1],x[length(x)],by=N),seq(x[1],x[length(x)],by=N),tck=TCK*2,cex.axis=1.25)
+          legend('topright',paste('n=',sum(z)),bty='n')
+          return(0)
         }
-        
-        DAT$FINYEAR=as.character(DAT$FINYEAR)
-        DAT=DAT[order(DAT$FINYEAR),]      
-        DAT=DAT[,2:ncol(DAT)]
-        x=as.numeric(colnames(DAT))
-        y=1:nrow(DAT)
-        z=(as.matrix(DAT))      
-        n=length(y)      
-        xo=outer(x,rep(1,length=length(y)))
-        yo=t(outer(y,rep(1,length=length(x))))
-        zo=z/ rowSums(z)*Scale   
-        N=max(10,n/2)
-        matplot(yo,xo,type="n",xlab="",ylab="",xaxt='n',yaxt='n')
-        abline(v=pretty(x),lty=3,col="black")
-        for(i in 1:n) points(yo[,i],xo[,i],cex=zo[i,],pch=16,col=COL)
-        axis(1,y,F,tck=TCK)
-        axis(1,y[seq(1,length(Ylabs),5)],Ylabs[seq(1,length(Ylabs),5)],tck=TCK*2,cex.axis=1.25)
-        axis(2,x,F,tck=TCK)
-        axis(2,seq(x[1],x[length(x)],by=N),seq(x[1],x[length(x)],by=N),tck=TCK*2,cex.axis=1.25)
-        
       }
     }
   
       #2.1 TDGDLF size comp of reported catch
-    FinYrs=sort(unique(do.call(rbind,All.size$TDGDLF)%>%pull(FINYEAR)))
-    FinYrs=paste(fnx(min(FinYrs)):(fnx(max(FinYrs))),"-",substr((fnx(min(FinYrs))+1):(fnx(max(FinYrs))+1),3,4),sep="")
+    if(sum(c('TDGDLF','TDGDLF_7')%in%names(All.size))>0)
+    {
+      a=NULL
+      b=NULL
+      if('TDGDLF'%in%names(All.size)) a=do.call(rbind,All.size$TDGDLF)
+      if('TDGDLF_7'%in%names(All.size)) b=do.call(rbind,All.size$TDGDLF_7)
+      FinYrs=rbind(a,b)
+      FinYrs=sort(as.character(unique(FinYrs%>%pull(FINYEAR))))
+      FinYrs=paste(fnx(min(FinYrs)):(fnx(max(FinYrs))),"-",
+                   substr((fnx(min(FinYrs))+1):(fnx(max(FinYrs))+1),3,4),sep="")
+      
+      if(sum(c('TDGDLF','TDGDLF_7')%in%names(All.size))==2)
+      {
+        fn.fig("Size.comp.TDGDLF",2400, 2000)
+        par(mfcol=c(3,2),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.25,1,1),mgp=c(1,.85,0))
+        #-6.5
+        DROP_6.5=vector('list',length(All.size$TDGDLF))
+        for(e in 1:length(All.size$TDGDLF))
+        {
+          DROP_6.5[[e]]=fn.bub(DAT=All.size$TDGDLF[[e]],COL='steelblue',Scale=7.5,TCK=-.015)
+          if(e==1) mtext('6.5 inch mesh',3)
+        }
+        if(e<3)
+        {
+          misin=3-length(All.size$TDGDLF)
+          for(m in 1:misin)
+          {
+            plot.new()
+            legend('center',paste("No observations"),cex=1.25,text.col='steelblue',bty='n')
+          }
+        }
+        
+        #-7
+        DROP_7=vector('list',length(All.size$TDGDLF_7))
+        for(e in 1:length(All.size$TDGDLF_7))
+        {
+          DROP_7[[e]]=fn.bub(DAT=All.size$TDGDLF_7[[e]],COL='steelblue',Scale=7.5,TCK=-.015)
+          if(e==1) mtext('7 inch mesh',3)
+          mtext(names(All.size$TDGDLF_7)[e],4,las=3,line=.35)
+        }
+        if(e<3)
+        {
+          misin=3-length(All.size$TDGDLF_7)
+          for(m in 1:misin)
+          {
+            plot.new()
+            legend('center',paste("No observations"),cex=1.25,text.col='steelblue',bty='n')
+          }
+        }
+        mtext("Financial Year",1,cex=1.35,line=0.75,outer=T)
+        mtext("Total length class (cm)",2,cex=1.35,line=0.5,las=3,outer=T)
+        dev.off()
+        
+        if(sum(c(unlist(DROP_6.5),unlist(DROP_7)))==length(All.size$TDGDLF)+length(All.size$TDGDLF_7))
+        {
+          rm(All.size,TDGDFL.size.numbers)
+        }
+        
+      }
+      if('TDGDLF'%in%names(All.size)& ! 'TDGDLF_7'%in%names(All.size))
+      {
+        fn.fig("Size.comp.TDGDLF",2400, 2000)
+        par(mfcol=c(3,1),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.25,1,1),mgp=c(1,.85,0))
+        #-6.5
+        DROP_6.5=vector('list',length(All.size$TDGDLF))
+        for(e in 1:length(All.size$TDGDLF))
+        {
+          DROP_6.5[[e]]=fn.bub(DAT=All.size$TDGDLF[[e]],COL='steelblue',Scale=7.5,TCK=-.015)
+          if(e==1) mtext('6.5 inch mesh',3)
+        }
+        if(e<3)
+        {
+          misin=3-length(All.size$TDGDLF)
+          for(m in 1:length(misin))
+          {
+            plot.new()
+            legend('center',paste("No observations"),cex=1.25,text.col='steelblue',bty='n')
+          }
+        }
+         mtext("Financial Year",1,cex=1.35,line=0.75,outer=T)
+        mtext("Total length class (cm)",2,cex=1.35,line=0.5,las=3,outer=T)
+        dev.off()
+        
+        if(sum(unlist(DROP_6.5))==length(All.size$TDGDLF))
+        {
+          rm(All.size,TDGDFL.size.numbers)
+        }
+        
+      }
+      if(!'TDGDLF'%in%names(All.size)&  'TDGDLF_7'%in%names(All.size))
+      {
+        fn.fig("Size.comp.TDGDLF",2400, 2000)
+        par(mfcol=c(3,1),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.25,1,1),mgp=c(1,.85,0))
+        #-7
+        DROP_7=vector('list',length(All.size$TDGDLF_7))
+        for(e in 1:length(All.size$TDGDLF_7))
+        {
+          DROP_7[[e]]=fn.bub(DAT=All.size$TDGDLF_7[[e]],COL='steelblue',Scale=7.5,TCK=-.015)
+          if(e==1) mtext('7 inch mesh',3)
+          mtext(names(All.size$TDGDLF_7)[e],4,las=3,line=.35)
+        }
+        if(e<3)
+        {
+          misin=3-length(All.size$TDGDLF)
+          for(m in 1:length(misin))
+          {
+            plot.new()
+            legend('center',paste("No observations"),cex=1.25,text.col='steelblue',bty='n')
+          }
+        }
+        mtext("Financial Year",1,cex=1.35,line=0.75,outer=T)
+        mtext("Total length class (cm)",2,cex=1.35,line=0.5,las=3,outer=T)
+        mtext("Financial Year",1,cex=1.35,line=0.75,outer=T)
+        mtext("Total length class (cm)",2,cex=1.35,line=0.5,las=3,outer=T)
+        dev.off()
+        
+        if(sum(unlist(DROP_7))==length(All.size$TDGDLF_7))
+        {
+          rm(All.size,TDGDFL.size.numbers)
+        }
+      }
+    }
     
-    fn.fig("Size.comp.TDGDLF",2400, 2000)
-    par(mfcol=c(3,2),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.25,1,1),mgp=c(1,.85,0))
-    #-6.5
-    for(e in 1:length(All.size$TDGDLF))
-    {
-      fn.bub(DAT=All.size$TDGDLF[[e]],COL='steelblue',Scale=7.5,TCK=-.015)
-      if(e==1) mtext('6.5 inch mesh',3)
-    }
-    #-7
-    for(e in 1:length(All.size$TDGDLF_7))
-    {
-      fn.bub(DAT=All.size$TDGDLF_7[[e]],COL='steelblue',Scale=7.5,TCK=-.015)
-      if(e==1) mtext('7 inch mesh',3)
-      mtext(names(All.size$TDGDLF_7)[e],4,las=3,line=.35)
-    }
-    mtext("Financial Year",1,cex=1.35,line=0.75,outer=T)
-    mtext("Total length class (cm)",2,cex=1.35,line=0.5,las=3,outer=T)
-    dev.off()
     
       #2.2 NSF size comp of reported catch
     if('NSF'%in%names(All.size))
     {
+      FinYrs=sort(as.character(unique(All.size$NSF$FINYEAR)))
+      FinYrs=paste(fnx(min(FinYrs)):(fnx(max(FinYrs))),"-",
+                   substr((fnx(min(FinYrs))+1):(fnx(max(FinYrs))+1),3,4),sep="")
       fn.fig("Size.comp.NSF",2400, 2000)
       par(mfcol=c(1,1),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.5,1,1),mgp=c(1,.65,0))
       fn.bub(DAT=All.size$NSF,COL='steelblue',Scale=7.5,TCK=-.01)
@@ -1111,9 +1051,10 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
       #2.3 Pilbara trawl size comp of reported catch
     if('Pilbara_trawl'%in%names(All.size))
     {
-      #FinYrs=sort(unique(All.size$Pilbara_trawl%>%pull(FINYEAR)))
-      #FinYrs=paste(fnx(min(FinYrs)):(fnx(max(FinYrs))),"-",substr((fnx(min(FinYrs))+1):(fnx(max(FinYrs))+1),3,4),sep="")
-       fn.fig("Size.comp.Pilbara.trawl",2400, 2000)
+      FinYrs=sort(as.character(unique(All.size$Pilbara_trawl$FINYEAR)))
+      FinYrs=paste(fnx(min(FinYrs)):(fnx(max(FinYrs))),"-",
+                   substr((fnx(min(FinYrs))+1):(fnx(max(FinYrs))+1),3,4),sep="")
+      fn.fig("Size.comp.Pilbara.trawl",2400, 2000)
       par(mfcol=c(1,1),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.5,1,1),mgp=c(1,.65,0))
       fn.bub(DAT=All.size$Pilbara_trawl,COL='steelblue',Scale=7.5,TCK=-.01)
       mtext("Financial Year",1,cex=1.75,line=0.75,outer=T)
@@ -1125,18 +1066,11 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     #Table of number of observations and shots
   if(exists('TDGDFL.size.numbers'))
   {
-    Size.numbers=TDGDFL.size.numbers
+    Size.numbers=TDGDFL.size.numbers%>%dplyr::select(-Species)
+    
     fn.table.shots=function(dat,FSHRY)
     {
       a=dat
-      if(!is.na(match('CALCULATED FL',names(a))))
-      {
-        names(a)[match('CALCULATED FL',names(a))]='CALCULATED.FL'
-        a$FL=with(a,ifelse(is.na(FL),CALCULATED.FL,FL))
-      }
-      a$FINYEAR=with(a,ifelse(Month>6,paste(year,"-",fn.subs(year+1),sep=""),
-                              paste(year-1,"-",fn.subs(year),sep="")))
-      a=subset(a,!is.na(FL))    
       a$Number=1
       Obs=aggregate(Number~FINYEAR,a,sum)
       a$Dup=paste(a$year,a$Month,a$SHEET_NO)
@@ -1147,13 +1081,14 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
       names(this)[2:3]=c("N.observations","N.shots")
       this$Species=unique(a$SPECIES)
       this$Fishery=FSHRY
-      this$zone=unique(dat$zone)
+      this$zone=FSHRY
       
       return(this)
     }
+
     if(exists('FL_NSF'))
     {
-      NSF.size.numbers=fn.table.shots(FL_NSF,FSHRY="NSF")
+      NSF.size.numbers=fn.table.shots(dat=FL_NSF,FSHRY="NSF")
       Size.numbers=rbind(Size.numbers,NSF.size.numbers)
     }
     if(exists('FL_Pilbara_trawl'))
@@ -1282,19 +1217,48 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     axis(2,1:n.rows,unlist(LABS),las=2,cex.axis=1)
     mtext("Financial year",1,cex=1.25,line=1.75)
   }
+  cpue_tdgdlf.monthly=NULL
+  cpue_tdgdlf.daily=NULL
+  if(exists('Ab.indx.TDGDLF.all')) cpue_tdgdlf.monthly=Ab.indx.TDGDLF.all
+  if(exists('Ab.indx.TDGDLF.all.daily')) cpue_tdgdlf.daily=Ab.indx.TDGDLF.all.daily
+  if(!is.null(cpue_tdgdlf.monthly)|!is.null(cpue_tdgdlf.daily)) Abun=list(TDGLDF=rbind(cpue_tdgdlf.monthly,
+                                                                                              cpue_tdgdlf.daily))
+  if(exists('Ab.indx.NSF'))
+  {
+    if(exists('Abun'))Abun$NSF=Ab.indx.NSF
+    if(!exists('Abun'))Abun=list(NSF=Ab.indx.NSF)
+  }
+    
+  if(exists('Naturaliste.abun'))
+  {
+    if(exists('Abun')) Abun$Survey=Naturaliste.abun
+    if(!exists('Abun')) Abun=list(Survey=Naturaliste.abun)
+  }
+  
+  d.list=list(Catch=catch) 
+  if(exists('All.size'))
+  {
+    if(sum(c('TDGDLF','TDGDLF_7')%in%names(All.size))>0)
+    {
+      d.list$'Catch size comp (TDGDLF)'=list(FINYEAR=unique(do.call(rbind,All.size$TDGDLF)$FINYEAR))
+    }else
+    {
+      d.list$'Catch size comp (NSF)'=list(FINYEAR=unique(All.size$NSF$FINYEAR))
+    }
+  }
+  if(exists('Avr.wt.yr'))d.list$'Catch mean wt (TDGDLF)'=list(Avr.wt.yr%>%distinct(Finyear))
+  if(exists('Abun'))
+  {
+    d.list$Abundance=Abun
+    if(length(d.list$Abundance)==1) names(d.list)[match('Abundance',names(d.list))]=paste("Abundance (",names(d.list$Abundance),")",sep='')
+  }
+  if(exists('Size.index.Srvy.FixSt'))d.list$'Survey mean size'=list(FINYEAR=Size.index.Srvy.FixSt$FINYEAR)
+  if(exists('c.Tag'))d.list$'Conv tag'=c.Tag
+  if(exists('a.Tag'))d.list$'Acous tag'=list(FINYEAR=a.Tag)
   
   fn.fig("avail.dat",2400,1400)
-  par(mar=c(3,2,.1,.1),oma=c(.1,9,.1,.1),las=1,mgp=c(1.5,.6,0))
-  Abun=list(TDGLDF=rbind(Ab.indx.TDGDLF.all,Ab.indx.TDGDLF.all.daily))
-  if(exists('Ab.indx.NSF')) Abun$NSF=Ab.indx.NSF
-  if(exists('Naturaliste.abun')) Abun$Survey=Naturaliste.abun
-  visualize.dat(d.list=list(Catch=catch,
-                            'Catch size comp (TDGDLF)'=list(FINYEAR=unique(do.call(rbind,All.size$TDGDLF)$FINYEAR)),
-                            'Catch mean wt (TDGDLF)'=list(Avr.wt.yr%>%distinct(Finyear)),
-                            Abundance=Abun,
-                            'Survey mean size'=list(FINYEAR=Size.index.Srvy.FixSt$FINYEAR),
-                            'Conv tag'=c.Tag,
-                            'Acous tag'=list(FINYEAR=a.Tag)))   
+  par(mar=c(3,2,.1,.1),oma=c(.1,9,.1,1),las=1,mgp=c(1.5,.6,0))
+  visualize.dat(d.list)   
   dev.off()
 
   
@@ -1354,7 +1318,7 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
 
 # Export data for population dynamics modelling ---------------------------
   HandL="C:/Matias/Data/Population dynamics/Data inputs for models/"
-  DiR=paste(HandL,str_remove(Name, ' shark'),"/",Yr.assess,sep='')
+  DiR=paste(HandL,str_remove(capitalize(Name), ' shark'),"/",Yr.assess,sep='')
   if(!file.exists(DiR)) dir.create(DiR)
   setwd(DiR)
   
@@ -1420,7 +1384,6 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   #NSF cpue     
   if(exists('Ab.indx.NSF')) write.csv(Ab.indx.NSF,"cpue.annual.NSF.csv",row.names=F)
  
-  #ACA
   #Size composition 
   if(exists('All.size'))
   {
@@ -1430,16 +1393,42 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
       for( i in 1:n)
       {
         a=dat[[i]]
+        
         if(class(a)=="data.frame") 
         {
+          YRs=sort(as.character(unique(a$FINYEAR)))
+          SIzes=colnames(a[,4:ncol(a)])
+          d=matrix(ncol=length(SIzes),nrow=length(YRs))
+          d.f=d.m=d
+          for(s in 1:length(YRs))
+          {
+            ddat=subset(a,FINYEAR==YRs[s])
+            ddat.f=subset(ddat,Sex=="F")
+            ddat.m=subset(ddat,Sex=="M")
+            
+            d[s,]=colSums(ddat[,4:ncol(ddat)])
+            d.f[s,]=colSums(ddat.f[,4:ncol(ddat.f)])
+            d.m[s,]=colSums(ddat.m[,4:ncol(ddat.m)])
+          }
+          #sexes combined
+          colnames(d)=SIzes
+          a=cbind(FINYEAR=YRs,as.data.frame.matrix(d))
           write.csv(a,paste("size.comp.",names(dat)[i],".csv",sep=""),row.names=F)
+          #by sex
+          colnames(d.f)=colnames(d.m)=SIzes
+          a=cbind(FINYEAR=YRs,as.data.frame.matrix(d.f))
+          write.csv(a,paste("size.comp.fem.",names(dat)[i],".csv",sep=""),row.names=F)
+          
+          a=cbind(FINYEAR=YRs,as.data.frame.matrix(d.m))
+          write.csv(a,paste("size.comp.mal.",names(dat)[i],".csv",sep=""),row.names=F)
         }
-        if(class(a)=="list"& length(a)>1)
+        
+        if(class(a)=="list" & length(a)>0)
         {
           if(Level=='annual')
           {
             a=do.call(rbind,a)
-            YRs=as.character(unique(a$FINYEAR))
+            YRs=sort(as.character(unique(a$FINYEAR)))
             SIzes=colnames(a[,4:ncol(a)])
             d=matrix(ncol=length(SIzes),nrow=length(YRs))
             d.f=d.m=d
@@ -1476,7 +1465,7 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
               b=a[[p]]
               if(nrow(b)>0)
               {
-                YRs=as.character(unique(b$FINYEAR))
+                YRs=sort(as.character(unique(b$FINYEAR)))
                 SIzes=colnames(b[,4:ncol(b)])
                 d=matrix(ncol=length(SIzes),nrow=length(YRs))
                 d.f=d.m=d
@@ -1515,14 +1504,10 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     fn.exp.size(dat=All.size,Level='annual.by.zone')
   }
   
-
   #Conventional tagging
-  
-  #Individual-based model
+    #1. Individual-based model
   if(exists('Rel_rec_Conv.Tag')) write.csv(Rel_rec_Conv.Tag,"Ind_based_model.csv",row.names=F)
-  
-  
-  #1. At age
+    #2. At age
   #note: this function puts in SS3 format
   if(exists('Zn.rel_Conv.Tag'))
   {
@@ -1550,41 +1535,31 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
     those=c("TG","year","season","area","Number")
     tagging.fn(Zn.rec_Conv.Tag,these,those,'rec',"conv.tag.reca.")
   }
-  
-
-  #2. At size
-    #all
+    #3. At size
+      #all
   if(exists('Zn.rel_Conv.Tag_size')) write.csv(Zn.rel_Conv.Tag_size,"Zn.rel_Conv.Tag_size.csv",row.names=F)
   if(exists('Zn.rec_Conv.Tag_size')) write.csv(Zn.rec_Conv.Tag_size,"Zn.rec_Conv.Tag_size.csv",row.names=F)
-
-    #juveniles and adults
+      #juveniles and adults
   if(exists('Zn.rel_Conv.Tag_size_adu')) write.csv(Zn.rel_Conv.Tag_size_adu,"Zn.rel_Conv.Tag_size_adu.csv",row.names=F)
   if(exists('Zn.rel_Conv.Tag_size_juv')) write.csv(Zn.rel_Conv.Tag_size_juv,"Zn.rel_Conv.Tag_size_juv.csv",row.names=F)
   if(exists('Zn.rec_Conv.Tag_size_adu')) write.csv(Zn.rec_Conv.Tag_size_adu,"Zn.rec_Conv.Tag_size_adu.csv",row.names=F)
   if(exists('Zn.rec_Conv.Tag_size_juv')) write.csv(Zn.rec_Conv.Tag_size_juv,"Zn.rec_Conv.Tag_size_juv.csv",row.names=F)
   if(exists('Smallest_size_tagged')) write.csv(Smallest_size_tagged,"Smallest_size_tagged.csv",row.names=F)
 
-
   #Acoustic tagging 
     #releases
   if(exists('Zn.rel_Acous.Tag')) write.csv(Zn.rel_Acous.Tag,"acous.tag.rel.csv",row.names=F)  
   if(exists('Zn.rel_Acous.Tag.prop')) write.csv(Zn.rel_Acous.Tag.prop,"acous.tag.rel.prop.csv",row.names=F)
-  
     #recaptures
   if(exists('Zn.rec_Acous.Tag')) write.csv(Zn.rec_Acous.Tag,"acous.tag.reca.csv",row.names=F)
   if(exists('Zn.rec_Acous.Tag.prop')) write.csv(Zn.rec_Acous.Tag.prop,"acous.tag.reca.prop.csv",row.names=F)
-
     #Individual-based model
   if(exists('Indiv_based_Acous.Tag')) write.csv(Indiv_based_Acous.Tag,"acous.tag.reca.indv.based.csv",row.names=F)
-
-
-  #Age and growth 
-  if(exists('Age.growth'))  write.csv(Age.growth,"Age.growth.csv",row.names=F)
- 
- 
   #Recapture information from acoustic tags
   if(exists('Rep.Recap')) write.csv(Rep.Recap,"Acoustic.tag.rel.rec.csv",row.names=F) 
- 
+  
+  #Age and growth 
+  if(exists('Age.growth'))  write.csv(Age.growth,"Age.growth.csv",row.names=F)
   
   #Mesh proportional effort
   if(exists('Mesh.prop.eff')) write.csv(Mesh.prop.eff,"Mesh.prop.eff.csv",row.names=F)
@@ -1592,13 +1567,12 @@ fn.input.data=function(Name,SP,Species,First.year,Last.year,Min.obs,Min.shts,Wha
   if(exists('Mesh.prop.eff.Zn1')) write.csv(Mesh.prop.eff.Zn1,"Mesh.prop.eff.Zn1.csv",row.names=F)
   if(exists('Mesh.prop.eff.Zn2')) write.csv(Mesh.prop.eff.Zn2,"Mesh.prop.eff.Zn2.csv",row.names=F)
   
- 
+  #Gillnet selectivity
+  if(exists('Gillnet.selectivity'))  write.csv(Gillnet.selectivity,"Gillnet.selectivity.csv",row.names=F)
+  
 }
 
-
-
-
-fn.input.data.old=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size,What.Efrt)
+fn.input.data.old=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size,What.Efrt) #previous version
 {
   source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
   source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/fn.fig.R")
@@ -1679,7 +1653,7 @@ fn.input.data.old=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.
   Whaler_SA=fn.in(NM='recons_Whaler_SA.csv')
 
   #Indonesian illegal fishing in Australia waters
-  Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv')         #MISSING: ADD to catch for sandbar and dusky!!
+  Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv')         
 
 
   #Proportion of gummies by region
