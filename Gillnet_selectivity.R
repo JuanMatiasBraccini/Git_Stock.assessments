@@ -67,6 +67,8 @@ LFQ.south=read.csv("C:/Matias/Analyses/Selectivity_Gillnet/out.LFQ.south.csv")
 SP.names=read.csv('C:/Matias/Data/Species_names_shark.only.csv')
 SP.codes=read.csv('C:/Matias/Data/Species.code.csv')
 
+#5. Life history
+LH=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')
 
 # PARAMETERS  -------------------------------------------------------------------
 
@@ -177,7 +179,6 @@ if(Preliminary) ggplot(Exp.net.WA,aes(tl,fl,shape=name, colour=name, fill=name))
 
 
 #Conversion FL to TL for records with no TL
-LH=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')
 TL_FL=data.frame(name=c('Angel Shark','Dusky shark','Gummy Shark','Pencil shark',
            'PortJackson shark','Sandbar shark','Smooth hammerhead','Spurdogs',
            'Whiskery shark','Tiger shark','Sliteye shark'))%>%
@@ -417,6 +418,45 @@ Combined.family=left_join(Combined.family,drop.one.mesh,by=c('Species','Mesh.siz
         filter(is.na(Drop))%>%dplyr::select(-Drop)
 
 
+#Get length at age 
+LatAge=vector('list',length(n.sp))
+names(LatAge)=n.sp
+LatAge.family=vector('list',length(n.sp.family))
+names(LatAge.family)=n.sp.family
+
+len.at.age=function(Lo,Linf,k,Age.max)
+{
+  VonB=data.frame(Age=0:Age.max)
+  VonB$TL=10*(Lo+(Linf-Lo)*(1-exp(-k*VonB$Age))) 
+  return(VonB)
+}
+
+LH=LH%>%left_join(SP.names,by='SPECIES')
+  
+
+for(s in 1:length(n.sp)) 
+{
+  ii=n.sp[s]
+  ii=ifelse(ii=="Southern sawshark","Common sawshark",
+     ifelse(ii=="Spikey dogfish","Spurdogs",ii))
+  this.par=LH%>%filter(Name==ii) 
+  if(is.na(this.par$Max_Age_max)) this.par$Max_Age_max=this.par$Max_Age*1.3
+  LatAge[[s]]=with(this.par,len.at.age(Lo=LF_o,Linf=FL_inf/.85,k=K,Age.max=Max_Age_max))
+}
+
+for(s in 1:length(n.sp.family)) 
+{
+  ii=n.sp.family[s]
+  this.par=LH%>%filter(Family==ii)%>%
+    mutate(Max_Age_max=ifelse(is.na(Max_Age_max),Max_Age*1.3,Max_Age_max))%>%
+    group_by(Family)%>%
+    summarise(LF_o=mean(LF_o,na.rm=T),
+              FL_inf=mean(FL_inf,na.rm=T),
+              K=mean(K,na.rm=T),
+              Max_Age_max=mean(Max_Age_max,na.rm=T))
+  LatAge.family[[s]]=with(this.par,len.at.age(Lo=LF_o,Linf=FL_inf/.85,k=K,Age.max=Max_Age_max))
+}  
+
 
 #--3. Estimate selectivity parameters 
 #note: shark size in mm
@@ -424,12 +464,12 @@ Combined.family=left_join(Combined.family,drop.one.mesh,by=c('Species','Mesh.siz
   #3.1 Millar & Holst 1997 
 Fitfunction='gillnetfit'
 #Fitfunction='NetFit'  #not used because it doesn't have gamma implemented
-PlotLens=seq(Min.length+Size.Interval/2,Max.length-Size.Interval/2,by=Size.Interval)  #length sequence to plot (midpoints, in mm)  
+PlotLens=seq(Min.length+Size.Interval/2,Max.length-Size.Interval/2,by=Size.Interval)  #midpoints, 50 mm intervals  
 Rtype=c("norm.loc","norm.sca","gamma","lognorm")   #consider this selection curves: normal fixed spread, 
                                                    #       normal spread proportional to mesh size,
                                                    #       gamma, lognormal
 #Fit functions
-Millar.Holst=function(d,size.int)
+Millar.Holst=function(d,size.int,length.at.age)
 {
   #Create size bins
   d=d%>%mutate(Size.class=size.int*floor(Length/size.int)+size.int/2)
@@ -458,6 +498,7 @@ Millar.Holst=function(d,size.int)
                                   rel=pwr,
                                   plots=c(F,F),
                                   plotlens=PlotLens,
+                                  plotlens_age=length.at.age,
                                   details=T)
       Equal.power[[f]]$Warnings=warnings()
       reset.warnings()
@@ -492,6 +533,7 @@ Millar.Holst=function(d,size.int)
                                   rel=pwr,
                                   plots=c(F,F),
                                   plotlens=PlotLens,
+                                  plotlens_age=length.at.age,
                                   details=T)
       Prop.power[[f]]$Warnings=warnings()
       reset.warnings()
@@ -519,7 +561,8 @@ Fit.M_H=vector('list',length(n.sp))
 names(Fit.M_H)=n.sp
 for(s in 1:length(n.sp))  
 {
-  Fit.M_H[[s]]=Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),size.int=Size.Interval)
+  Fit.M_H[[s]]=Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),
+                            size.int=Size.Interval,length.at.age=LatAge[[s]]$TL) #ACA, Millar.Host not outputting correctly the predicted length.at.age 
 }
 
   #family
@@ -527,7 +570,8 @@ Fit.M_H.family=vector('list',length(n.sp.family))
 names(Fit.M_H.family)=n.sp.family
 for(s in 1:length(n.sp.family))  
 {
-  Fit.M_H.family[[s]]=Millar.Holst(d=Combined.family%>%filter(Species==n.sp.family[s]),size.int=Size.Interval)
+  Fit.M_H.family[[s]]=Millar.Holst(d=Combined.family%>%filter(Species==n.sp.family[s]),
+                            size.int=Size.Interval,length.at.age=LatAge.family[[s]]$TL)
 }
 
 
@@ -588,6 +632,9 @@ pred.Kirkwood.Walker=function(theta,pred.len,Mesh)
 {
   Theta1=exp(theta[1])
   Theta2=exp(theta[2])
+  if(!16.5%in%Mesh) Mesh=c(Mesh,16.5)
+  if(!17.8%in%Mesh) Mesh=c(Mesh,17.8)
+  Mesh=sort(Mesh)
   
   d1=data.frame(Size.class=rep(pred.len,times=length(Mesh)),
                 Mesh.size=rep(Mesh,each=length(pred.len)))%>%
@@ -603,34 +650,75 @@ pred.Kirkwood.Walker=function(theta,pred.len,Mesh)
 theta.list=vector('list',length(n.sp))
 names(theta.list)=n.sp
 Fit.K_W=Pred.sel.K_W=theta.list
+Pred.sel.K_W_len.at.age=Pred.sel.K_W
+Pred.sel.K_W.family=vector('list',length(n.sp.family))
+names(Pred.sel.K_W.family)=n.sp.family
+Pred.sel.K_W.family_len.at.age=Pred.sel.K_W.family
 
 # initial parameter values
 theta.list$`Gummy shark`=c(Theta1=log(80),Theta2=log(29000))
 for(s in 1:length(theta.list)) theta.list[[s]]=jitter(theta.list$`Gummy shark`,factor=1)
 
-# fit model
+# fit model and make predictions
+  #1. Species
 for(s in 1:length(n.sp))
 {
-  theta=theta.list[[s]]
-  
   #. objfun to minimize
+  theta=theta.list[[s]]
   fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
+                                                  size.int=Size.Interval,
+                                                  theta)$negLL
+  
+  #. fit model
+  dummy=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
+  
+  #. predict selectivity   
+    #PlotLens
+  Pred.sel.K_W[[s]]=pred.Kirkwood.Walker(theta=dummy$par,
+                                         pred.len=PlotLens,
+                                         Mesh=Combined%>%
+                                                filter(Species==n.sp[s])%>%
+                                                distinct(Mesh.size)%>%
+                                                pull(Mesh.size))
+    #Lengts at age
+  Pred.sel.K_W_len.at.age[[s]]=pred.Kirkwood.Walker(theta=dummy$par,
+                                         pred.len=LatAge[[s]]$TL,
+                                         Mesh=Combined%>%
+                                           filter(Species==n.sp[s])%>%
+                                           distinct(Mesh.size)%>%
+                                           pull(Mesh.size))
+  rm(dummy)
+}
+
+#2. Family
+for(s in 1:length(n.sp.family)) 
+{
+  #. objfun to minimize
+  theta=theta.list[[s]]
+  fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=Combined.family%>%filter(Species==n.sp.family[s]),
                                                   size.int=Size.Interval,
                                                   theta)$negLL
   
   #. fit model
   Fit.K_W[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
   
-  
-  #. predict selectivity
-  Pred.sel.K_W[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W[[s]]$par,
-                                         pred.len=PlotLens,
-                                         Mesh=Combined%>%
-                                                filter(Species==n.sp[s])%>%
-                                                distinct(Mesh.size)%>%
-                                                pull(Mesh.size))
-  
+  #. predict selectivity   
+    #PlotLens
+  Pred.sel.K_W.family[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W[[s]]$par,
+                                                pred.len=PlotLens,
+                                                Mesh=Combined%>%
+                                                  filter(Species==n.sp[s])%>%
+                                                  distinct(Mesh.size)%>%
+                                                  pull(Mesh.size))
+    #Lengts at age
+  Pred.sel.K_W.family_len.at.age[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W[[s]]$par,
+                                                pred.len=LatAge.family[[s]]$TL,
+                                                Mesh=Combined%>%
+                                                  filter(Species==n.sp[s])%>%
+                                                  distinct(Mesh.size)%>%
+                                                  pull(Mesh.size))
 }
+
 
 # Calculate confidence intervals thru bootstrapping 
 n.boot=1:1000
@@ -716,22 +804,66 @@ for(s in 1:length(n.sp.family))
 
 
 # EXPORT SELECTIVITY OGIVES  ------------------------------------------------------------------
-  #species
-out.sel=function(d,BEST,NM)
+out.sel=function(d,BEST,NM,La)
 {
-  if(BEST$Fishing.power=="Equal.power") DAT=d$Equal.power
-  if(BEST$Fishing.power=="Prop.power")  DAT=d$Prop.power
+  DAT=d$Equal.power     #set to equal power so all meshes go to 1
+  #if(BEST$Fishing.power=="Equal.power") DAT=d$Equal.power
+  #if(BEST$Fishing.power=="Prop.power")  DAT=d$Prop.power
   id=match(BEST$Model,names(DAT))
   
   dat=DAT[[id]]$rselect
   colnames(dat)=DAT[[id]]$meshsizes
   dat=as.data.frame(cbind(TL.mm=DAT[[id]]$plotlens,dat))
   write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',NM,'/',NM,"_gillnet.selectivity",".csv",sep=''),row.names = F)
+  
+  #lenght at age
+  dat=DAT[[id]]$rselect_age
+  colnames(dat)=DAT[[id]]$meshsizes
+  dd=data.frame(TL.mm=La$TL,Age=La$Age)
+  dat=cbind(dd,dat)
+  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
+  
 }
-for(s in 1:length(n.sp))  out.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s])
+  #species
+for(s in 1:length(n.sp))
+{
+  out.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s],La=LatAge[[s]])
+  
+  #Also export K&W
+  dat=Pred.sel.K_W[[s]]%>%rename(TL.mm=Size.class)
+  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',n.sp[s],'/',n.sp[s],
+                      "_gillnet.selectivity.K&W",".csv",sep=''),row.names = F)
+  
+    #length at age
+  dat=Pred.sel.K_W_len.at.age[[s]]%>%
+    left_join(LatAge[[s]],by=c("Size.class"="TL"))%>%
+    rename(TL.mm=Size.class)
+  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',n.sp[s],'/',n.sp[s],
+                      "_gillnet.selectivity.K&W_len.age",".csv",sep=''),row.names = F)
+  
+}
+
 
   #family
-for(s in 1:length(n.sp.family))  out.sel(d=Fit.M_H.family[[s]],BEST=Best.fit.family[[s]],NM=n.sp.family[s])
+for(s in 1:length(n.sp.family))
+{
+  out.sel(d=Fit.M_H.family[[s]],BEST=Best.fit.family[[s]],NM=n.sp.family[s])
+  
+  #Also export K&W
+  dat=Pred.sel.K_W.family[[s]]%>%rename(TL.mm=Size.class)
+  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',n.sp.family[s],'/',n.sp.family[s],
+                      "_gillnet.selectivity.K&W",".csv",sep=''),row.names = F)
+  
+  
+    #length at age
+  dat=Pred.sel.K_W.family_len.at.age[[s]]%>%
+    left_join(LatAge[[s]],by=c("Size.class"="TL"))%>%
+    rename(TL.mm=Size.class)
+  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',n.sp.family[s],'/',n.sp.family[s],
+                      "_gillnet.selectivity.K&W_len.age",".csv",sep=''),row.names = F)
+  
+}
+  
 
 
 

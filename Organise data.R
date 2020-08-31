@@ -274,6 +274,10 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     #3.8. Gillnet selectivity  
   iid=nm.Dat[fn.extract.dat(STRING="(?=.*gillnet.selectivity)",nm.Dat)]
   if(length(iid)>0) Gillnet.selectivity=Dat[match(iid,nm.Dat)]$`_gillnet.selectivity.csv`
+  
+  iid=nm.Dat[fn.extract.dat(STRING="(?=.*gillnet.selectivity.K&W)",nm.Dat)]
+  if(length(iid)>0) Gillnet.selectivity.K_W=Dat[match(iid,nm.Dat)]$`_gillnet.selectivity.K&W.csv`
+  
 
 
  
@@ -1569,6 +1573,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   
   #Gillnet selectivity
   if(exists('Gillnet.selectivity'))  write.csv(Gillnet.selectivity,"Gillnet.selectivity.csv",row.names=F)
+  if(exists('Gillnet.selectivity.K_W'))  write.csv(Gillnet.selectivity.K_W,"Gillnet.selectivity.K_W.csv",row.names=F)
   
 }
 

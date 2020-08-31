@@ -1,7 +1,7 @@
 #####################Original functions (glm approach) #############
 require(msm)
 gillnetfit=function(data,meshsizes,type="norm.loc",rel=NULL,
-                    plots=c(T,T),plotlens=NULL,details=F)
+                    plots=c(T,T),plotlens=NULL,plotlens_age=NULL,details=F)
 {
   if(sum(sort(meshsizes)==meshsizes)!=length(meshsizes))
     stop("Mesh sizes must be ascending order")
@@ -78,7 +78,9 @@ gillnetfit=function(data,meshsizes,type="norm.loc",rel=NULL,
                                  "mode(mesh1)","std_dev(mesh1)")  },
          stop(paste("\n",type, "not recognised, possible curve types are ", 
                     "\"norm.loc\", \"norm.sca\", \"gamma\", and \"lognorm\"")))
-  rselect=rcurves(type,meshsizes,rel,pars,plotlens) 
+  rselect=rcurves(type,meshsizes,rel,pars,plotlens)
+  rselect_age=rcurves(type,meshsizes,rel,pars,plotlens_age)
+  
   devres=matrix(resid(fit,type="deviance"),nrow(data),ncol(data[,-1]))
   if(plots[1]) plot.curves(type,plotlens,rselect)
   if(plots[2]) plot.resids(devres,meshsizes,data[,1])
@@ -92,7 +94,7 @@ gillnetfit=function(data,meshsizes,type="norm.loc",rel=NULL,
   }else 
   {
     return(list(fit.type=fit.type,gear.pars=gear.pars,fit.stats=g.o.f,
-                devres=devres,rselect=rselect,
+                devres=devres,rselect=rselect,rselect_age=rselect_age,
                 type=type,meshsizes=meshsizes,plotlens=plotlens,lens=data[,1]))
   }
 }

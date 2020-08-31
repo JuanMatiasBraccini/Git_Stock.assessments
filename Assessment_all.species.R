@@ -63,6 +63,7 @@ library(MCDA)
 library(sfsmisc)   # p values from rlm
 library(ReporteRs)
 
+
 #---DEFINE GLOBALS----- 
 
 #Year of assessment 
@@ -775,6 +776,7 @@ for(l in 1:N.sp)
   TEMP=LH$Temperature,
   BwT=LH$b_w8t,
   AwT=LH$a_w8t,
+  TLmax=LH$Max.TL,
   Lzero=LH$LF_o,
   NsimSS=1000,
   r.prior="USER",  #demography
@@ -1956,28 +1958,49 @@ for(l in 1:N.sp)
   if('Gillnet.selectivity.csv'%in%Files)
   {
     GN.sel=read.csv(paste(temp.wd,'/Gillnet.selectivity.csv',sep=''))
+    if(!("X16.5"%in%names(GN.sel)&&"X17.8"%in%names(GN.sel))) 
+      {GN.sel=read.csv(paste(temp.wd,'/Gillnet.selectivity.K_W.csv',sep=''))} #use K&W if mesh not in Millar
   }else
   {
     #allocate family selectivity
     this.sel=Sel.equivalence%>%filter(Name==Nm)
     temp.wd=paste(Dat.repository,this.sel$Equivalence,sep='')
     GN.sel=read.csv(paste(temp.wd,'/',this.sel$Equivalence,'_Gillnet.selectivity.csv',sep=''))
+    if(!("X16.5"%in%names(GN.sel)&&"X17.8"%in%names(GN.sel))) 
+    {GN.sel=read.csv(paste(temp.wd,'/',this.sel$Equivalence,'_Gillnet.selectivity.K&W.csv',sep=''))} #use K&W if mesh not in Millar
+    
   }
     
   #2. Extract relevant selectivity and convert to age
   Lo=List.sp[[l]]$Lzero
   Linf=List.sp[[l]]$Growth.F$FL_inf/.85
   k=List.sp[[l]]$Growth.F$k
+  TLmax=List.sp[[l]]$TLmax
+  VonB=data.frame(Age=seq(0,List.sp[[l]]$Max.age.F[2],.01))
+  VonB$TL=Lo+(Linf-Lo)*(1-exp(-k*VonB$Age))  
 
-  ii=which(names(GN.sel)%in%c("TL.mm","X16.5","X17.8"))
+
+  ii=which(names(GN.sel)%in%c("TL.mm","X16.5","X17.8")) 
   if(length(ii)>1)
   {
     GN.sel=GN.sel[,ii]
+    GN.sel=GN.sel%>%
+      mutate(Sum.sel=X16.5+X17.8,
+             Sel.combined=Sum.sel/max(Sum.sel),
+             TL=TL.mm/10)%>%
+      filter(TL>=Lo & TL<=Linf)%>%
+      mutate(indx=VonB$TL[max.col(-abs(outer(TL,VonB$TL,"-")))])%>%
+      left_join(VonB,by=c('indx'='TL'))%>%
+      mutate(Age=round(Age))
+    
+    
+    
+    #inverse of Von B
     Sum.sel=rowSums(GN.sel[-1])
     GN.sel=GN.sel%>%
       mutate(Sel.combined=Sum.sel/max(Sum.sel),
              TL=TL.mm/10)%>%
-      filter(TL>=Lo & TL<=Linf)%>%
+      filter(TL>=Lo & TL<=TLmax)%>%
       mutate(Age=log(1-((TL-Lo)/(Linf-Lo)))/(-k))
     
     #round ages
@@ -1997,14 +2020,14 @@ for(l in 1:N.sp)
             mutate(TL=ifelse(is.na(TL),na.approx(TL),TL),
                    Sel.combined=ifelse(is.na(Sel.combined),na.approx(Sel.combined),Sel.combined))
     }
-    
+    GN.sel=GN.sel%>%mutate(Sel.combined=Sel.combined/max(Sel.combined))
     Selectivity.at.size[[l]]=GN.sel[,c('TL','Sel.combined')]
     Selectivity.at.age[[l]]=GN.sel[,c('Age','Sel.combined')]
   }
 }
 
 
-
+#ACA
 #---Calculate steepness -----------------------------------------------------------------------
 M.averaging="mean"  #setting to 'min' yields too high values of steepness
 store.species.steepness=vector('list',N.sp)
