@@ -638,6 +638,7 @@ N.sp=length(Keep.species)
 
 
 #---Outputs for 'other species assessment' paper ------------------------------------------------------  
+colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
 do.other.ass.paper=FALSE
 if(do.other.ass.paper)
 {
@@ -661,7 +662,6 @@ if(do.other.ass.paper)
         TRUE  ~ "Commercial"))
   all.yrs=min(Tot.ktch$finyear):max(KtCh$finyear)
   Fishry.type=sort(unique(Tot.ktch$Type))
-  colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
   COLs.type=colfunc(length(Fishry.type))
   names(COLs.type)=Fishry.type
   All.N.sp=sort(unique(Tot.ktch$Name))
@@ -1784,6 +1784,9 @@ if(First.run=="YES")
 
 #---Build r prior -----------------------------------------------------------------------
 M.averaging="min"   #this yields rmax
+store.species.r=vector('list',N.sp)
+names(store.species.r)=Keep.species
+
 if(First.run=="YES")
 {
   fun.rprior.dist=function(Nsims,K,LINF,K.sd,LINF.sd,k.Linf.cor,Amax,MAT,FecunditY,Cycle,BWT,AWT,LO)
@@ -1905,6 +1908,7 @@ if(First.run=="YES")
     out.r=data.frame(shape=r.prior.dist$shape,rate=r.prior.dist$rate,
                      mean=r.prior.dist$mean,sd=r.prior.dist$sd)
     write.csv(out.r,'r.prior.csv',row.names = F)
+    store.species.r[[l]]=r.prior.dist
     
     out.M=r.prior.dist$M
     for(ss in 1:length(out.M))
@@ -1913,7 +1917,15 @@ if(First.run=="YES")
       write(Hdr,file = "M.dat",append=T,sep = "\t")
       write(as.matrix(out.M[[ss]]),file = "M.dat",sep = "\t",append=T)
     }
+    rm(r.prior.dist)
   }})
+}else
+{
+  for(l in 1:N.sp) 
+  {
+    store.species.r[[l]]=read.csv(paste("C:/Matias/Analyses/Population dynamics/1.",capitalize(List.sp[[l]]$Name),"/",
+                                         AssessYr,"/demography/r.prior.csv",sep=''))
+  }
 }
 
 
@@ -1921,21 +1933,16 @@ if(First.run=="YES")
 #---Assign Resilience -----------------------------------------------------------------------
 RESILIENCE=vector('list',N.sp)
 names(RESILIENCE)=names(List.sp)
-r.prior=NULL
 for(r in 1:length(RESILIENCE))
 {
-  sp.r=read.csv(paste("C:/Matias/Analyses/Population dynamics/1.",capitalize(List.sp[[r]]$Name),"/",
-                      AssessYr,"/demography/r.prior.csv",sep=''))
-  row.names(sp.r)=List.sp[[r]]$Name
-  r.prior=rbind(r.prior,sp.r)
-  RESILIENCE[[r]]=with(sp.r,ifelse(mean>=0.6,"High",
+  RESILIENCE[[r]]=with(store.species.r[[r]],ifelse(mean>=0.6,"High",
                             ifelse(mean<0.6 & mean>=0.2,'Medium',
                             ifelse(mean<0.2 & mean>=0.1,'Low',
                             'Very low'))))
 }
 
-#ACA
-# ---Convert selectivity at size to selectivity at age -----------------------------------------------------------------------
+
+# ---Extract selectivity at age -----------------------------------------------------------------------
 Sel.equivalence=data.frame(
       Name=c("Copper","Great hammerhead","Scalloped hammerhead",
              "Grey nurse","Wobbegongs",
@@ -1945,93 +1952,82 @@ Sel.equivalence=data.frame(
                     rep("Hexanchidae",2),
                     "Common sawshark",
                     rep('Carcharhinidae',6)))
-Selectivity.at.size=vector('list',N.sp)
-names(Selectivity.at.size)=Keep.species
-Selectivity.at.age=Selectivity.at.size
+Selectivity.at.age=vector('list',N.sp)
+names(Selectivity.at.age)=Keep.species
 HandL="C:/Matias/Data/Population dynamics/Data inputs for models/"
 for(l in 1:N.sp)
 {
-  #1. Read in selectivity data
-  Nm=capitalize(str_remove(names(Selectivity.at.size)[l]," shark"))
+  #1. Read in selectivity at age data
+  Nm=capitalize(str_remove(names(Selectivity.at.age)[l]," shark"))
   temp.wd=paste(HandL,Nm,'/',AssessYr,sep='')
   Files=list.files(temp.wd)
-  if('Gillnet.selectivity.csv'%in%Files)
+  if('Gillnet.selectivity_len.age.csv'%in%Files)
   {
-    GN.sel=read.csv(paste(temp.wd,'/Gillnet.selectivity.csv',sep=''))
-    if(!("X16.5"%in%names(GN.sel)&&"X17.8"%in%names(GN.sel))) 
-      {GN.sel=read.csv(paste(temp.wd,'/Gillnet.selectivity.K_W.csv',sep=''))} #use K&W if mesh not in Millar
+    GN.sel.at.age=read.csv(paste(temp.wd,'/Gillnet.selectivity_len.age.csv',sep=''))
   }else
   {
     #allocate family selectivity
     this.sel=Sel.equivalence%>%filter(Name==Nm)
     temp.wd=paste(Dat.repository,this.sel$Equivalence,sep='')
-    GN.sel=read.csv(paste(temp.wd,'/',this.sel$Equivalence,'_Gillnet.selectivity.csv',sep=''))
-    if(!("X16.5"%in%names(GN.sel)&&"X17.8"%in%names(GN.sel))) 
-    {GN.sel=read.csv(paste(temp.wd,'/',this.sel$Equivalence,'_Gillnet.selectivity.K&W.csv',sep=''))} #use K&W if mesh not in Millar
-    
+    GN.sel.at.age=read.csv(paste(temp.wd,'/',this.sel$Equivalence,
+                                 '_Gillnet.selectivity_len.age.csv',sep=''))
   }
-    
-  #2. Extract relevant selectivity and convert to age
-  Lo=List.sp[[l]]$Lzero
-  Linf=List.sp[[l]]$Growth.F$FL_inf/.85
-  k=List.sp[[l]]$Growth.F$k
-  TLmax=List.sp[[l]]$TLmax
-  VonB=data.frame(Age=seq(0,List.sp[[l]]$Max.age.F[2],.01))
-  VonB$TL=Lo+(Linf-Lo)*(1-exp(-k*VonB$Age))  
-
-
-  ii=which(names(GN.sel)%in%c("TL.mm","X16.5","X17.8")) 
-  if(length(ii)>1)
+  
+  #2. Get combined selectivity
+  GN.sel.at.age=GN.sel.at.age%>%
+    mutate(Sum.sel=X16.5+X17.8,
+           Sel.combined=Sum.sel/max(Sum.sel),
+           Sel.combined=Sel.combined/max(Sel.combined),
+           TL=TL.mm/10)
+  Selectivity.at.age[[l]]=GN.sel.at.age[,c('TL','Age','Sel.combined')]
+}
+#display selectivities
+if(First.run=="YES")
+{
+  fn.fig('C:\\Matias\\Analyses\\Population dynamics\\growth.and.selectivity',2400,2000) 
+  smart.par(n.plots=N.sp,MAR=c(2,3,1,1),OMA=c(2.5,1,.05,2.5),MGP=c(1.8,.5,0))
+  par(cex.lab=1.5,las=1)
+  for(l in 1:N.sp)
   {
-    GN.sel=GN.sel[,ii]
-    GN.sel=GN.sel%>%
-      mutate(Sum.sel=X16.5+X17.8,
-             Sel.combined=Sum.sel/max(Sum.sel),
-             TL=TL.mm/10)%>%
-      filter(TL>=Lo & TL<=Linf)%>%
-      mutate(indx=VonB$TL[max.col(-abs(outer(TL,VonB$TL,"-")))])%>%
-      left_join(VonB,by=c('indx'='TL'))%>%
-      mutate(Age=round(Age))
+    with(Selectivity.at.age[[l]],plot(Age,Sel.combined,col=2,ylim=c(0,1),
+                                      pch=19,main=names(Selectivity.at.age)[l],ylab='',xlab=""))
+    par(new = TRUE)
+    with(Selectivity.at.age[[l]],plot(Age,TL,type='l',lwd=2,
+                                      xaxt = "n", yaxt = "n",
+                                      ylab = "", xlab = ""))
+    axis(side = 4)
     
-    
-    
-    #inverse of Von B
-    Sum.sel=rowSums(GN.sel[-1])
-    GN.sel=GN.sel%>%
-      mutate(Sel.combined=Sum.sel/max(Sum.sel),
-             TL=TL.mm/10)%>%
-      filter(TL>=Lo & TL<=TLmax)%>%
-      mutate(Age=log(1-((TL-Lo)/(Linf-Lo)))/(-k))
-    
-    #round ages
-    GN.sel$Age=round(GN.sel$Age)
-    which.min(abs(GN.sel$Age-1))
-    AgEs=1:floor(max(GN.sel$Age))
-    thiss=sapply(AgEs,function(x) which.min(abs(GN.sel$Age-x)))
-    GN.sel=GN.sel[thiss,]%>%distinct(Age,.keep_all = T)
-    msin=AgEs[which(!AgEs%in%GN.sel$Age)]
-    if(length(msin)>0)
-    {
-      adds=GN.sel[1:length(msin),]
-      adds[,]=NA
-      adds$Age=msin
-      GN.sel=rbind(GN.sel,adds)%>%
-            arrange(Age)%>%
-            mutate(TL=ifelse(is.na(TL),na.approx(TL),TL),
-                   Sel.combined=ifelse(is.na(Sel.combined),na.approx(Sel.combined),Sel.combined))
-    }
-    GN.sel=GN.sel%>%mutate(Sel.combined=Sel.combined/max(Sel.combined))
-    Selectivity.at.size[[l]]=GN.sel[,c('TL','Sel.combined')]
-    Selectivity.at.age[[l]]=GN.sel[,c('Age','Sel.combined')]
   }
+  mtext("Age", side = 1, line = 1,outer=T)
+  mtext("Selectivity", side = 2, line = -.5,las=3,col=2,outer=T)
+  mtext("TL", side = 4, line = 1,outer=T,las=3)
+  dev.off()
+  
+  fn.fig('C:\\Matias\\Analyses\\Population dynamics\\growth.and.selectivity2',2400,2000) 
+  smart.par(n.plots=N.sp,MAR=c(2,3,1,1),OMA=c(2.5,1,.05,2.5),MGP=c(1.8,.5,0))
+  par(cex.lab=1.5,las=1)
+  for(l in 1:N.sp)
+  {
+    with(Selectivity.at.age[[l]],plot(TL,Sel.combined,col=2,ylim=c(0,1),
+                                      pch=19,main=names(Selectivity.at.age)[l],ylab='',xlab=""))
+    par(new = TRUE)
+    with(Selectivity.at.age[[l]],plot(TL,Age,type='l',lwd=2,
+                                      xaxt = "n", yaxt = "n",
+                                      ylab = "", xlab = ""))
+    axis(side = 4)
+    
+  }
+  mtext("TL", side = 1, line = 1,outer=T)
+  mtext("Selectivity", side = 2, line = -.5,las=3,col=2,outer=T)
+  mtext("Age", side = 4, line = 1,outer=T,las=3)
+  dev.off()
 }
 
-
-#ACA
 #---Calculate steepness -----------------------------------------------------------------------
 M.averaging="mean"  #setting to 'min' yields too high values of steepness
 store.species.steepness=vector('list',N.sp)
-names(store.species.steepness)=Specs$SP.group
+names(store.species.steepness)=Keep.species
+
 if(First.run=="YES")
 {
   system.time(for(l in 1: N.sp) 
@@ -2047,28 +2043,43 @@ if(First.run=="YES")
      if(is.na(List.sp[[l]]$Growth.F$FL_inf.sd)) List.sp[[l]]$Growth.F$FL_inf.sd=0.038*List.sp[[l]]$Growth.F$FL_inf  
     if(is.na(List.sp[[l]]$Growth.F$k.sd)) List.sp[[l]]$Growth.F$k.sd=0.088*List.sp[[l]]$Growth.F$k     
     
-    #ACA, not reading in life history pa
     #Fishing mortality set at 0 so selectivity has no effect
     k.Linf.cor=List.sp[[l]]$k.Linf.cor
+    RESAMP="YES"
+    if(names(List.sp)[l]%in%c("grey nurse shark","spurdogs")) RESAMP="NO"
     steepNs=with(List.sp[[l]],fun.steepness(Nsims=2*NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf/.85,
                                                Linf.sd=Growth.F$FL_inf.sd/.85,k.sd=Growth.F$k.sd,
                                                first.age=0,sel.age=SEL,F.mult=0,
                                                Amax=Max.age.F,MAT=unlist(Age.50.mat),
                                                FecunditY=Fecundity,Cycle=Breed.cycle,
                                                sexratio=0.5,spawn.time = 0,
-                                               AWT=AwT,BWT=BwT,LO=Lzero/.85))
+                                               AWT=AwT,BWT=BwT,LO=Lzero/.85,
+                                               Resamp=RESAMP))
     
-    #out.r=data.frame(shape=r.prior.dist$shape,rate=r.prior.dist$rate,
-    #                 mean=r.prior.dist$mean,sd=r.prior.dist$sd)
-    #write.csv(out.r,'r.prior.csv',row.names = F) 
+    out.h=data.frame(shape=steepNs$shape,rate=steepNs$rate,
+                     mean=steepNs$mean,sd=steepNs$sd)
+    write.csv(out.h,'h.prior.csv',row.names = F) 
     store.species.steepness[[l]]=steepNs
+    rm(steepNs)
   })  
   
+}else
+{
+  for(l in 1: N.sp)
+  {
+    store.species.steepness[[l]]=read.csv(paste("C:/Matias/Analyses/Population dynamics/1.",capitalize(List.sp[[l]]$Name),"/",
+                                                AssessYr,"/steepness/h.prior.csv",sep=''))
+  }
+}
+
+#ACA
+if(First.run=="YES")
+{
   #show steepness
   COl.all.sp=colfunc(length(store.species.steepness))
   names(COl.all.sp)=names(store.species.steepness)  
   
-  fn.fig('C:/Matias/Data/Population dynamics/Steepness',2400,2400) 
+  fn.fig('C:/Matias/Analyses/Population dynamics/Steepness',2400,2400) 
   plot(1:10,xlim=c(0,1),ylim=c(0,20),col='transparent',xlab="Steepness",yaxt='n',ylab="Density")
   for(s in 1:length(store.species.steepness))
   {
@@ -2078,16 +2089,8 @@ if(First.run=="YES")
   }
   legend('topright',names(COl.all.sp),lty=1,lwd=2,col=COl.all.sp,bty='n')
   dev.off()
-}else
-{
-  sp.r=read.csv(paste("C:/Matias/Analyses/Population dynamics/1.",capitalize(List.sp[[r]]$Name),"/",
-                      AssessYr,"/demography/r.prior.csv",sep=''))
   
-  store.species.steepness=
 }
-
-
-
 
 #---Show Total catch and cpue together------------------------------------------------------
 fn.fig(paste(hNdl,'/Outputs/Figure_Catch and cpue',sep=''),2400,1800) 

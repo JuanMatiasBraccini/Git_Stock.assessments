@@ -273,14 +273,14 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
 
     #3.8. Gillnet selectivity  
   iid=nm.Dat[fn.extract.dat(STRING="(?=.*gillnet.selectivity)",nm.Dat)]
-  if(length(iid)>0) Gillnet.selectivity=Dat[match(iid,nm.Dat)]$`_gillnet.selectivity.csv`
-  
-  iid=nm.Dat[fn.extract.dat(STRING="(?=.*gillnet.selectivity.K&W)",nm.Dat)]
-  if(length(iid)>0) Gillnet.selectivity.K_W=Dat[match(iid,nm.Dat)]$`_gillnet.selectivity.K&W.csv`
+  if(length(iid)>0)
+  {
+    Gillnet.selectivity=Dat[match(iid,nm.Dat)]$`_gillnet.selectivity.csv`
+    Gillnet.selectivity_len.age=Dat[match(iid,nm.Dat)]$`_gillnet.selectivity_len.age.csv`
+  }
+    
   
 
-
- 
   #----PARAMETERS SECTIONS ------- 
   LH.par=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')%>%filter(SPECIES==Species)
   a.TL=LH.par$a_FL.to.TL
@@ -1324,6 +1324,8 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   HandL="C:/Matias/Data/Population dynamics/Data inputs for models/"
   DiR=paste(HandL,str_remove(capitalize(Name), ' shark'),"/",Yr.assess,sep='')
   if(!file.exists(DiR)) dir.create(DiR)
+  
+  ff=do.call(file.remove, list(list.files(DiR, full.names = TRUE))) #remove all files
   setwd(DiR)
   
   fn.agg.at.level.and.exprt=function(DAT,Level,VAR,SOURCE)
@@ -1573,8 +1575,8 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   
   #Gillnet selectivity
   if(exists('Gillnet.selectivity'))  write.csv(Gillnet.selectivity,"Gillnet.selectivity.csv",row.names=F)
-  if(exists('Gillnet.selectivity.K_W'))  write.csv(Gillnet.selectivity.K_W,"Gillnet.selectivity.K_W.csv",row.names=F)
-  
+  if(exists('Gillnet.selectivity_len.age'))  write.csv(Gillnet.selectivity_len.age,"Gillnet.selectivity_len.age.csv",row.names=F)
+
 }
 
 fn.input.data.old=function(SP,Yr.assess,Conv.cal.mn.to.fin.mn,Historic.Ktch,Bin.size,What.Efrt) #previous version

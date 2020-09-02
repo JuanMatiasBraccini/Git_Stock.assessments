@@ -32,6 +32,8 @@ source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/NextGenerat
 source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/SelnCurveDefinitions.R") #These can be extended by the user
 
 
+Do.K_W=FALSE   #some issues with data in par estimation (e.g. gummy, smooth HH)
+
 # DATA  -------------------------------------------------------------------
 
 #1. WA Fisheries experimental mesh selectivity studies 
@@ -562,7 +564,7 @@ names(Fit.M_H)=n.sp
 for(s in 1:length(n.sp))  
 {
   Fit.M_H[[s]]=Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),
-                            size.int=Size.Interval,length.at.age=LatAge[[s]]$TL) #ACA, Millar.Host not outputting correctly the predicted length.at.age 
+                            size.int=Size.Interval,length.at.age=LatAge[[s]]$TL)
 }
 
   #family
@@ -575,194 +577,189 @@ for(s in 1:length(n.sp.family))
 }
 
 
+if(Do.K_W)
+{
   #3.2 Kirkwood & Walker
-Selectivty.Kirkwood.Walker=function(d,size.int,theta)
-{
-  #Create size bins
-  d=d%>%mutate(Size.class=size.int*floor(Length/size.int)+size.int/2)
+  Selectivty.Kirkwood.Walker=function(d,size.int,theta)
+  {
+    #Create size bins
+    d=d%>%mutate(Size.class=size.int*floor(Length/size.int)+size.int/2)
+    
+    #Tabulate observations by mid size class and mesh size
+    tab=d%>%
+      group_by(Mesh.size,Size.class)%>%
+      summarise(n=n())%>%
+      spread(Mesh.size,n,fill=0)%>%
+      data.frame
+    row.names(tab)=tab$Size.class
+    tab=tab[,-1]
+    
+    
+    #Calculate relative selectivity
+    Theta1=exp(theta[1])
+    Theta2=exp(theta[2])
+    d=d%>%
+      mutate(alpha.beta=Theta1*Mesh.size,
+             beta=-0.5*((alpha.beta)-((alpha.beta*alpha.beta+4*Theta2)^0.5)),
+             alpha=alpha.beta/beta,
+             Rel.sel=((Size.class/(alpha*beta))^alpha)*(exp(alpha-(Size.class/beta))))
+    
+    
+    #Log likelihood
+    S.ij=d%>%
+      distinct(Size.class,Mesh.size,.keep_all = T)%>%
+      dplyr::select(Size.class,Mesh.size,Rel.sel)%>%
+      spread(Mesh.size,Rel.sel,fill = 0)
+    row.names(S.ij)=S.ij$Size.class
+    S.ij=S.ij[,-1]
+    
+    mu.j=rowSums(tab)/rowSums(S.ij)
+    mu.j=sapply(mu.j,function(x) max(x,0.1))
+    mu.j.prop=mu.j/sum(mu.j)
+    
+    
+    #predicted numbers
+    sum.n=colSums(tab)
+    NN=ncol(S.ij)
+    tab.pred=(S.ij*matrix(rep(mu.j.prop,NN),ncol=NN)*matrix(rep(sum.n,each=nrow(S.ij)),ncol=NN))/
+      (matrix(rep(colSums(S.ij*matrix(rep(mu.j.prop,NN))),each=nrow(S.ij)),ncol=NN))
+    
+    
+    #Gamma log like
+    negLL=min(-sum(tab*(log(mu.j*S.ij))-(mu.j*S.ij),na.rm=T),1e100)
+    
+    return(list(negLL=negLL,d=d,observed=tab,predicted=tab.pred))
+    
+  }
   
-  #Tabulate observations by mid size class and mesh size
-  tab=d%>%
-    group_by(Mesh.size,Size.class)%>%
-    summarise(n=n())%>%
-    spread(Mesh.size,n,fill=0)%>%
-    data.frame
-  row.names(tab)=tab$Size.class
-  tab=tab[,-1]
+  pred.Kirkwood.Walker=function(theta,pred.len,Mesh)
+  {
+    Theta1=exp(theta[1])
+    Theta2=exp(theta[2])
+    if(!16.5%in%Mesh) Mesh=c(Mesh,16.5)
+    if(!17.8%in%Mesh) Mesh=c(Mesh,17.8)
+    Mesh=sort(Mesh)
+    
+    d1=data.frame(Size.class=rep(pred.len,times=length(Mesh)),
+                  Mesh.size=rep(Mesh,each=length(pred.len)))%>%
+      mutate(alpha.beta=Theta1*Mesh.size,
+             beta=-0.5*((alpha.beta)-((alpha.beta*alpha.beta+4*Theta2)^0.5)),
+             alpha=alpha.beta/beta,
+             Rel.sel=((Size.class/(alpha*beta))^alpha)*(exp(alpha-(Size.class/beta))))%>%
+      dplyr::select(-c('alpha.beta','beta','alpha'))%>%
+      spread(Mesh.size,Rel.sel)
+    return(d1)
+  }
   
+  theta.list=vector('list',length(n.sp))
+  names(theta.list)=n.sp
+  Fit.K_W=Pred.sel.K_W=theta.list
+  Pred.sel.K_W_len.at.age=Pred.sel.K_W
+  Pred.sel.K_W.family=vector('list',length(n.sp.family))
+  names(Pred.sel.K_W.family)=n.sp.family
+  Pred.sel.K_W.family_len.at.age=Fit.K_W.family=Pred.sel.K_W.family
   
-  #Calculate relative selectivity
-  Theta1=exp(theta[1])
-  Theta2=exp(theta[2])
-  d=d%>%
-    mutate(alpha.beta=Theta1*Mesh.size,
-           beta=-0.5*((alpha.beta)-((alpha.beta*alpha.beta+4*Theta2)^0.5)),
-           alpha=alpha.beta/beta,
-           Rel.sel=((Size.class/(alpha*beta))^alpha)*(exp(alpha-(Size.class/beta))))
-  
-  
-  #Log likelihood
-  S.ij=d%>%
-    distinct(Size.class,Mesh.size,.keep_all = T)%>%
-    dplyr::select(Size.class,Mesh.size,Rel.sel)%>%
-    spread(Mesh.size,Rel.sel,fill = 0)
-  row.names(S.ij)=S.ij$Size.class
-  S.ij=S.ij[,-1]
-  
-  mu.j=rowSums(tab)/rowSums(S.ij)
-  mu.j=sapply(mu.j,function(x) max(x,0.1))
-  mu.j.prop=mu.j/sum(mu.j)
-  
-  
-  #predicted numbers
-  sum.n=colSums(tab)
-  NN=ncol(S.ij)
-  tab.pred=(S.ij*matrix(rep(mu.j.prop,NN),ncol=NN)*matrix(rep(sum.n,each=nrow(S.ij)),ncol=NN))/
-    (matrix(rep(colSums(S.ij*matrix(rep(mu.j.prop,NN))),each=nrow(S.ij)),ncol=NN))
-  
-  
-  #Gamma log like
-  negLL=min(-sum(tab*(log(mu.j*S.ij))-(mu.j*S.ij),na.rm=T),1e100)
-  
-  return(list(negLL=negLL,d=d,observed=tab,predicted=tab.pred))
-  
-}
-
-pred.Kirkwood.Walker=function(theta,pred.len,Mesh)
-{
-  Theta1=exp(theta[1])
-  Theta2=exp(theta[2])
-  if(!16.5%in%Mesh) Mesh=c(Mesh,16.5)
-  if(!17.8%in%Mesh) Mesh=c(Mesh,17.8)
-  Mesh=sort(Mesh)
-  
-  d1=data.frame(Size.class=rep(pred.len,times=length(Mesh)),
-                Mesh.size=rep(Mesh,each=length(pred.len)))%>%
-    mutate(alpha.beta=Theta1*Mesh.size,
-           beta=-0.5*((alpha.beta)-((alpha.beta*alpha.beta+4*Theta2)^0.5)),
-           alpha=alpha.beta/beta,
-           Rel.sel=((Size.class/(alpha*beta))^alpha)*(exp(alpha-(Size.class/beta))))%>%
-    dplyr::select(-c('alpha.beta','beta','alpha'))%>%
-    spread(Mesh.size,Rel.sel)
-  return(d1)
-}
-
-theta.list=vector('list',length(n.sp))
-names(theta.list)=n.sp
-Fit.K_W=Pred.sel.K_W=theta.list
-Pred.sel.K_W_len.at.age=Pred.sel.K_W
-Pred.sel.K_W.family=vector('list',length(n.sp.family))
-names(Pred.sel.K_W.family)=n.sp.family
-Pred.sel.K_W.family_len.at.age=Pred.sel.K_W.family
-
-# initial parameter values
-theta.list$`Gummy shark`=c(Theta1=log(80),Theta2=log(29000))
-for(s in 1:length(theta.list)) theta.list[[s]]=jitter(theta.list$`Gummy shark`,factor=1)
-
-# fit model and make predictions
+  # initial parameter values
+  theta.list$`Gummy shark`=c(Theta1=log(180),Theta2=log(29000))
+  for(s in 1:length(theta.list)) theta.list[[s]]=jitter(theta.list$`Gummy shark`,factor=.25)
+  theta.list$`Smooth hammerhead`=c(Theta1=4.5,Theta2=14.5) 
+  # fit model and make predictions
   #1. Species
-for(s in 1:length(n.sp))
-{
-  #. objfun to minimize
-  theta=theta.list[[s]]
-  fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
-                                                  size.int=Size.Interval,
-                                                  theta)$negLL
-  
-  #. fit model
-  dummy=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
-  
-  #. predict selectivity   
+  for(s in 1:length(n.sp))
+  {
+    #. objfun to minimize
+    theta=theta.list[[s]]
+    D=Combined%>%filter(Species==n.sp[s])
+    if(n.sp[s]=="Smooth hammerhead") D=Combined%>%filter(Species==n.sp[s])%>%filter(!Mesh.size==15.2) #not converging with this mesh size
+    fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=D,size.int=Size.Interval,theta)$negLL
+    
+    #. fit model
+    Fit.K_W[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
+    
+    #. predict selectivity   
     #PlotLens
-  Pred.sel.K_W[[s]]=pred.Kirkwood.Walker(theta=dummy$par,
-                                         pred.len=PlotLens,
-                                         Mesh=Combined%>%
-                                                filter(Species==n.sp[s])%>%
-                                                distinct(Mesh.size)%>%
-                                                pull(Mesh.size))
+    Pred.sel.K_W[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W[[s]]$par,
+                                           pred.len=PlotLens,
+                                           Mesh=Combined%>%
+                                             filter(Species==n.sp[s])%>%
+                                             distinct(Mesh.size)%>%
+                                             pull(Mesh.size))
     #Lengts at age
-  Pred.sel.K_W_len.at.age[[s]]=pred.Kirkwood.Walker(theta=dummy$par,
-                                         pred.len=LatAge[[s]]$TL,
-                                         Mesh=Combined%>%
-                                           filter(Species==n.sp[s])%>%
-                                           distinct(Mesh.size)%>%
-                                           pull(Mesh.size))
-  rm(dummy)
-}
-
-#2. Family
-for(s in 1:length(n.sp.family)) 
-{
-  #. objfun to minimize
-  theta=theta.list[[s]]
-  fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=Combined.family%>%filter(Species==n.sp.family[s]),
-                                                  size.int=Size.Interval,
-                                                  theta)$negLL
+    Pred.sel.K_W_len.at.age[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W[[s]]$par,
+                                                      pred.len=LatAge[[s]]$TL,
+                                                      Mesh=Combined%>%
+                                                        filter(Species==n.sp[s])%>%
+                                                        distinct(Mesh.size)%>%
+                                                        pull(Mesh.size))
+    rm(D)
+  }
   
-  #. fit model
-  Fit.K_W[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
-  
-  #. predict selectivity   
+  #2. Family
+  for(s in 1:length(n.sp.family)) 
+  {
+    #. objfun to minimize
+    theta=theta.list[[s]]
+    fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=Combined.family%>%filter(Species==n.sp.family[s]),
+                                                    size.int=Size.Interval,
+                                                    theta)$negLL
+    
+    #. fit model
+    Fit.K_W.family[[s]]=nlminb(theta.list[[s]], fn_ob, gradient = NULL)
+    
+    #. predict selectivity   
     #PlotLens
-  Pred.sel.K_W.family[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W[[s]]$par,
-                                                pred.len=PlotLens,
-                                                Mesh=Combined%>%
-                                                  filter(Species==n.sp[s])%>%
-                                                  distinct(Mesh.size)%>%
-                                                  pull(Mesh.size))
+    Pred.sel.K_W.family[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W.family[[s]]$par,
+                                                  pred.len=PlotLens,
+                                                  Mesh=Combined%>%
+                                                    filter(Species==n.sp[s])%>%
+                                                    distinct(Mesh.size)%>%
+                                                    pull(Mesh.size))
     #Lengts at age
-  Pred.sel.K_W.family_len.at.age[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W[[s]]$par,
-                                                pred.len=LatAge.family[[s]]$TL,
-                                                Mesh=Combined%>%
-                                                  filter(Species==n.sp[s])%>%
-                                                  distinct(Mesh.size)%>%
-                                                  pull(Mesh.size))
-}
-
-
-# Calculate confidence intervals thru bootstrapping 
-n.boot=1:1000
-cl <- makeCluster(detectCores()-1)
-registerDoParallel(cl)
-system.time({
-  Fit.K_W.CI=foreach(s=1:length(n.sp),.packages=c('tidyverse','doParallel','Biobase')) %dopar%
-    {
-      boot=foreach(n=n.boot,.packages=c('doParallel','splitstackshape','tidyverse')) %dopar%
+    Pred.sel.K_W.family_len.at.age[[s]]=pred.Kirkwood.Walker(theta=Fit.K_W.family[[s]]$par,
+                                                             pred.len=LatAge.family[[s]]$TL,
+                                                             Mesh=Combined%>%
+                                                               filter(Species==n.sp[s])%>%
+                                                               distinct(Mesh.size)%>%
+                                                               pull(Mesh.size))
+  }
+  
+  
+  # Calculate confidence intervals thru bootstrapping 
+  n.boot=1:1000
+  cl <- makeCluster(detectCores()-1)
+  registerDoParallel(cl)
+  system.time({
+    Fit.K_W.CI=foreach(s=1:length(n.sp),.packages=c('tidyverse','doParallel','Biobase')) %dopar%
       {
-          theta=theta.list[[s]]
-          
-          #bootstrapped sample
-          d.samp=Combined%>%filter(Species==n.sp[s]) 
-          d.samp=stratified(d.samp, "Mesh.size",size=nrow(d.samp),replace=TRUE)
-          
-          #. objfun to minimize
-          fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=d.samp,
-                                                          size.int=Size.Interval,
-                                                          theta)$negLL
-          
-          #. fit model
-          return(nlminb(theta.list[[s]], fn_ob, gradient = NULL))
+        boot=foreach(n=n.boot,.packages=c('doParallel','splitstackshape','tidyverse')) %dopar%
+          {
+            theta=theta.list[[s]]
+            
+            #bootstrapped sample
+            d.samp=Combined%>%filter(Species==n.sp[s]) 
+            d.samp=stratified(d.samp, "Mesh.size",size=nrow(d.samp),replace=TRUE)
+            
+            #. objfun to minimize
+            fn_ob=function(theta)Selectivty.Kirkwood.Walker(d=d.samp,
+                                                            size.int=Size.Interval,
+                                                            theta)$negLL
+            
+            #. fit model
+            return(nlminb(theta.list[[s]], fn_ob, gradient = NULL))
+          }
+        return(exp(do.call(rbind,subListExtract(boot,"par"))))
       }
-      return(exp(do.call(rbind,subListExtract(boot,"par"))))
-    }
-})    #takes 0.4 sec per iteration per species
-names(Fit.K_W.CI)=n.sp
-stopCluster(cl)
-
-
-  #3.3. Select best fit   
-  #Species
-K.and.W_Dev=data.frame(Species=n.sp,Model='Gamma_K&W',Deviance=NA)
-K.and.W_Residuals=vector('list',length(n.sp))
-names(K.and.W_Residuals)=n.sp
-for(s in 1:length(n.sp))
-{
-  dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
-                                   size.int=Size.Interval,
-                                   Fit.K_W[[s]]$par)
-  K.and.W_Dev$Deviance[s]=sum((dummy$observed-dummy$predicted)^2)
-  K.and.W_Residuals[[s]]=dummy$observed-dummy$predicted
+  })    #takes 0.4 sec per iteration per species
+  names(Fit.K_W.CI)=n.sp
+  stopCluster(cl)
+  
 }
+
+
+
+  #3.3. Select best fit  
+
+  #Species
 Best.fit=vector('list',length(n.sp))
 names(Best.fit)=n.sp
 for(s in 1:length(n.sp))
@@ -778,8 +775,22 @@ for(s in 1:length(n.sp))
   Tab1=Tab[which.min(Tab[,2]),-3]%>%mutate(Fishing.power="Equal.power")%>%rename(Dev=Equal_dev)
   Tab2=Tab[which.min(Tab[,3]),-2]%>%mutate(Fishing.power="Prop.power")%>%rename(Dev=Prop_dev)
   Tab3=rbind(Tab1,Tab2)
-#  Tab3=rbind(Tab1,Tab2,data.frame(Model="K&W",Dev=K.and.W_Dev$Deviance[s],Fishing.power='')) #removed K&W as only Angel shark selected but poor fit
+  #  Tab3=rbind(Tab1,Tab2,data.frame(Model="K&W",Dev=K.and.W_Dev$Deviance[s],Fishing.power='')) #removed K&W as only Angel shark selected but poor fit
   Best.fit[[s]]=Tab3[which.min(Tab3[,2]),]
+}
+if(Do.K_W)
+{
+  K.and.W_Dev=data.frame(Species=n.sp,Model='Gamma_K&W',Deviance=NA)
+  K.and.W_Residuals=vector('list',length(n.sp))
+  names(K.and.W_Residuals)=n.sp
+  for(s in 1:length(n.sp))
+  {
+    dummy=Selectivty.Kirkwood.Walker(d=Combined%>%filter(Species==n.sp[s]),
+                                     size.int=Size.Interval,
+                                     Fit.K_W[[s]]$par)
+    K.and.W_Dev$Deviance[s]=sum((dummy$observed-dummy$predicted)^2)
+    K.and.W_Residuals[[s]]=dummy$observed-dummy$predicted
+  }
 }
 
   #Family
@@ -802,66 +813,114 @@ for(s in 1:length(n.sp.family))
 }
 
 
-
+#ACA
 # EXPORT SELECTIVITY OGIVES  ------------------------------------------------------------------
+
+#function for predicting selectivity
+pred.normal.fixed=function(l,k,m,sigma) exp(-((l-k*m)^2)/(2*(sigma)^2))
+pred.normal.prop=function(l,m,a1,a2) exp(-(((l- a1*m)^2)/(2*a2*m^2)))
+pred.gamma=function(l,m,k,alpha) ((l/((alpha-1)*k*m))^(alpha-1))*exp(alpha-1-(l/(k*m)))
+pred.lognormal=function(l,m,m1,mu,sigma) (1/l)*exp(mu+(log(m/m1))-((sigma^2)/2)-((log(l)-mu-log(m/m1))^2)/(2*(sigma^2)))
+
+#function for exporting
 out.sel=function(d,BEST,NM,La)
 {
-  DAT=d$Equal.power     #set to equal power so all meshes go to 1
+  DAT=d$Equal.power     #set to 'equal power' so all meshes go to 1
   #if(BEST$Fishing.power=="Equal.power") DAT=d$Equal.power
   #if(BEST$Fishing.power=="Prop.power")  DAT=d$Prop.power
+  
   id=match(BEST$Model,names(DAT))
   
-  dat=DAT[[id]]$rselect
-  colnames(dat)=DAT[[id]]$meshsizes
-  dat=as.data.frame(cbind(TL.mm=DAT[[id]]$plotlens,dat))
+  #predict and export selectivity
+    #Plotlen
+  dat=data.frame(TL.mm=DAT[[id]]$plotlens)
+  Pars=d$Equal.power[[id]]$gear.pars
+  if(BEST$Model=="norm.loc")
+  {
+    k=Pars[match("k",rownames(Pars)),1]
+    sigma=Pars[match("sigma",rownames(Pars)),1] 
+    dat$'15.2'=pred.normal.fixed(l=dat$TL.mm,k,m=15.2,sigma)
+    dat$'16.5'=pred.normal.fixed(l=dat$TL.mm,k,m=16.5,sigma)
+    dat$'17.8'=pred.normal.fixed(l=dat$TL.mm,k,m=17.8,sigma)
+  }
+  if(BEST$Model=="norm.sca")
+  {
+    a1=Pars[match("k1",rownames(Pars)),1]
+    a2=Pars[match("k2",rownames(Pars)),1] 
+    dat$'15.2'=pred.normal.prop(l=dat$TL.mm,m=15.2,a1,a2)
+    dat$'16.5'=pred.normal.prop(l=dat$TL.mm,m=16.5,a1,a2)
+    dat$'17.8'=pred.normal.prop(l=dat$TL.mm,m=17.8,a1,a2)
+  }
+  if(BEST$Model=="gamma")
+  {
+    k=Pars[match("k",rownames(Pars)),1]
+    alpha=Pars[match("alpha",rownames(Pars)),1] 
+    dat$'15.2'=pred.gamma(l=dat$TL.mm,m=15.2,k,alpha)
+    dat$'16.5'=pred.gamma(l=dat$TL.mm,m=16.5,k,alpha)
+    dat$'17.8'=pred.gamma(l=dat$TL.mm,m=17.8,k,alpha)
+  }
+  if(BEST$Model=="lognorm")
+  {
+    m1=min(DAT[[id]]$meshsizes)
+    mu=Pars[grep('mu1',rownames(Pars)),1]
+    sigma=Pars[grep('sigma',rownames(Pars)),1] 
+    dat$'15.2'=pred.lognormal(l=dat$TL.mm,m=15.2,m1,mu,sigma)
+    dat$'16.5'=pred.lognormal(l=dat$TL.mm,m=16.5,m1,mu,sigma)
+    dat$'17.8'=pred.lognormal(l=dat$TL.mm,m=17.8,m1,mu,sigma)
+  }
   write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',NM,'/',NM,"_gillnet.selectivity",".csv",sep=''),row.names = F)
   
-  #lenght at age
-  dat=DAT[[id]]$rselect_age
-  colnames(dat)=DAT[[id]]$meshsizes
-  dd=data.frame(TL.mm=La$TL,Age=La$Age)
-  dat=cbind(dd,dat)
+    #lenght at age
+  dat=data.frame(TL.mm=La$TL,Age=La$Age)
+  Pars=d$Equal.power[[id]]$gear.pars
+  if(BEST$Model=="norm.loc")
+  {
+    k=Pars[match("k",rownames(Pars)),1]
+    sigma=Pars[match("sigma",rownames(Pars)),1] 
+    dat$'15.2'=pred.normal.fixed(l=dat$TL.mm,k,m=15.2,sigma)
+    dat$'16.5'=pred.normal.fixed(l=dat$TL.mm,k,m=16.5,sigma)
+    dat$'17.8'=pred.normal.fixed(l=dat$TL.mm,k,m=17.8,sigma)
+  }
+  if(BEST$Model=="norm.sca")
+  {
+    a1=Pars[match("k1",rownames(Pars)),1]
+    a2=Pars[match("k2",rownames(Pars)),1] 
+    dat$'15.2'=pred.normal.prop(l=dat$TL.mm,m=15.2,a1,a2)
+    dat$'16.5'=pred.normal.prop(l=dat$TL.mm,m=16.5,a1,a2)
+    dat$'17.8'=pred.normal.prop(l=dat$TL.mm,m=17.8,a1,a2)
+  }
+  if(BEST$Model=="gamma")
+  {
+    k=Pars[match("k",rownames(Pars)),1]
+    alpha=Pars[match("alpha",rownames(Pars)),1] 
+    dat$'15.2'=pred.gamma(l=dat$TL.mm,m=15.2,k,alpha)
+    dat$'16.5'=pred.gamma(l=dat$TL.mm,m=16.5,k,alpha)
+    dat$'17.8'=pred.gamma(l=dat$TL.mm,m=17.8,k,alpha)
+  }
+  if(BEST$Model=="lognorm")
+  {
+    m1=min(DAT[[id]]$meshsizes)
+    mu=Pars[grep('mu1',rownames(Pars)),1]
+    sigma=Pars[grep('sigma',rownames(Pars)),1] 
+    dat$'15.2'=pred.lognormal(l=dat$TL.mm,m=15.2,m1,mu,sigma)
+    dat$'16.5'=pred.lognormal(l=dat$TL.mm,m=16.5,m1,mu,sigma)
+    dat$'17.8'=pred.lognormal(l=dat$TL.mm,m=17.8,m1,mu,sigma)
+  }
   write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
-  
 }
+
   #species
 for(s in 1:length(n.sp))
 {
-  out.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s],La=LatAge[[s]])
-  
-  #Also export K&W
-  dat=Pred.sel.K_W[[s]]%>%rename(TL.mm=Size.class)
-  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',n.sp[s],'/',n.sp[s],
-                      "_gillnet.selectivity.K&W",".csv",sep=''),row.names = F)
-  
-    #length at age
-  dat=Pred.sel.K_W_len.at.age[[s]]%>%
-    left_join(LatAge[[s]],by=c("Size.class"="TL"))%>%
-    rename(TL.mm=Size.class)
-  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',n.sp[s],'/',n.sp[s],
-                      "_gillnet.selectivity.K&W_len.age",".csv",sep=''),row.names = F)
-  
+  out.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],
+          NM=n.sp[s],La=LatAge[[s]])
 }
-
 
   #family
 for(s in 1:length(n.sp.family))
 {
-  out.sel(d=Fit.M_H.family[[s]],BEST=Best.fit.family[[s]],NM=n.sp.family[s])
-  
-  #Also export K&W
-  dat=Pred.sel.K_W.family[[s]]%>%rename(TL.mm=Size.class)
-  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',n.sp.family[s],'/',n.sp.family[s],
-                      "_gillnet.selectivity.K&W",".csv",sep=''),row.names = F)
-  
-  
-    #length at age
-  dat=Pred.sel.K_W.family_len.at.age[[s]]%>%
-    left_join(LatAge[[s]],by=c("Size.class"="TL"))%>%
-    rename(TL.mm=Size.class)
-  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',n.sp.family[s],'/',n.sp.family[s],
-                      "_gillnet.selectivity.K&W_len.age",".csv",sep=''),row.names = F)
-  
+  out.sel(d=Fit.M_H.family[[s]],BEST=Best.fit.family[[s]],
+          NM=n.sp.family[s],La=LatAge.family[[s]])
 }
   
 
@@ -1045,35 +1104,39 @@ if(do.paper.figures)
                                              Model)))))%>%
     dplyr::select(Species,Model,Equal_Param1,Equal_Param2,Equal_Deviance,
                   Prop_Param1,Prop_Param2,Prop_Deviance)
-  Table2=data.frame(Species=n.sp,
-                    Theta1=NA,Theta1.LOW95=NA,Theta1.UP95=NA,
-                    Theta2=NA,Theta2.LOW95=NA,Theta2.UP95=NA)   #add K&W 
-  for(s in 1:length(n.sp))
+  if(Do.K_W) #add K&W 
   {
-    dummy=Fit.K_W.CI[[s]]
-    Table2$Theta1[s]=round(quantile(dummy[,"Theta1"],probs=0.5),1)
-    Table2$Theta1.LOW95[s]=round(quantile(dummy[,"Theta1"],probs=0.025),1)
-    Table2$Theta1.UP95[s]=round(quantile(dummy[,"Theta1"],probs=0.975),1)
-    Table2$Theta2[s]=round(quantile(dummy[,"Theta2"],probs=0.5),1)
-    Table2$Theta2.LOW95[s]=round(quantile(dummy[,"Theta2"],probs=0.025),1)
-    Table2$Theta2.UP95[s]=round(quantile(dummy[,"Theta2"],probs=0.975),1)
+    Table2=data.frame(Species=n.sp,
+                      Theta1=NA,Theta1.LOW95=NA,Theta1.UP95=NA,
+                      Theta2=NA,Theta2.LOW95=NA,Theta2.UP95=NA)   
+    for(s in 1:length(n.sp))
+    {
+      dummy=Fit.K_W.CI[[s]]
+      Table2$Theta1[s]=round(quantile(dummy[,"Theta1"],probs=0.5),1)
+      Table2$Theta1.LOW95[s]=round(quantile(dummy[,"Theta1"],probs=0.025),1)
+      Table2$Theta1.UP95[s]=round(quantile(dummy[,"Theta1"],probs=0.975),1)
+      Table2$Theta2[s]=round(quantile(dummy[,"Theta2"],probs=0.5),1)
+      Table2$Theta2.LOW95[s]=round(quantile(dummy[,"Theta2"],probs=0.025),1)
+      Table2$Theta2.UP95[s]=round(quantile(dummy[,"Theta2"],probs=0.975),1)
+    }
+    Table2=Table2%>%mutate(Theta1.SE=fn.rnd((Theta1.UP95-Theta1)/1.96),
+                           Theta2.SE=fn.rnd((Theta2.UP95-Theta2)/1.96),
+                           Theta1=fn.rnd(Theta1),
+                           Theta2=fn.rnd(Theta2))
+    Add.K.and.W=K.and.W_Dev%>%
+      mutate(Equal_Param1=paste(Table2$Theta1," (",Table2$Theta1.SE,")",sep=''),
+             Equal_Param2=paste(Table2$Theta2," (",Table2$Theta2.SE,")",sep=''),
+             Prop_Param1=NA,
+             Prop_Param2=NA,
+             Prop_Deviance=NA,
+             Deviance=fn.rnd(Deviance))%>%
+      rename(Equal_Deviance=Deviance)%>%
+      dplyr::select(names(Table.mod.fit))
+    
+    Table.mod.fit=rbind(Table.mod.fit,Add.K.and.W)%>%
+      arrange(Species)
+    
   }
-  Table2=Table2%>%mutate(Theta1.SE=fn.rnd((Theta1.UP95-Theta1)/1.96),
-                         Theta2.SE=fn.rnd((Theta2.UP95-Theta2)/1.96),
-                         Theta1=fn.rnd(Theta1),
-                         Theta2=fn.rnd(Theta2))
-  Add.K.and.W=K.and.W_Dev%>%
-    mutate(Equal_Param1=paste(Table2$Theta1," (",Table2$Theta1.SE,")",sep=''),
-           Equal_Param2=paste(Table2$Theta2," (",Table2$Theta2.SE,")",sep=''),
-           Prop_Param1=NA,
-           Prop_Param2=NA,
-           Prop_Deviance=NA,
-           Deviance=fn.rnd(Deviance))%>%
-    rename(Equal_Deviance=Deviance)%>%
-    dplyr::select(names(Table.mod.fit))
-  
-  Table.mod.fit=rbind(Table.mod.fit,Add.K.and.W)%>%
-                  arrange(Species)
   
   Table.mod.fit$Species[duplicated(Table.mod.fit$Species)] <- ""
   Table.mod.fit[is.na(Table.mod.fit)] <- ""
@@ -1233,8 +1296,7 @@ if(do.paper.figures)
   }
   
   #Observed vs predicted number at size by mesh for Kirkwood & Walker
-  do.K.W.fit=FALSE
-  if(do.K.W.fit)
+  if(Do.K_W)
   {
     tiff(file=paste("Each species/Fit/K&W/Deviance residual plot.tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
     smart.par(length(n.sp),MAR=c(1.5,1.2,1,.1),OMA=c(1.75,3,.1,1),MGP=c(1,.5,0))
@@ -1278,7 +1340,14 @@ if(do.paper.figures)
   }
   }
 
-  #Plot Observed size frequency VS estimated selectivity 
+  #Plot Observed size frequency VS estimated selectivity
+  Cols.type=c('brown','red','forestgreen','orange')
+  names(Cols.type)=Rtype
+  if(Do.K_W)
+  {
+    Cols.type=c(Cols.type,'steelblue')
+    names(Cols.type)=c(Rtype,"K&W")
+  }
   fn.freq.obs.pred=function(d,d.KW=NULL,NME,MAR,OMA)
   {
     #Calculated expected population frequency
@@ -1318,7 +1387,7 @@ if(do.paper.figures)
       N.fish.caught$'K&W'=(Expnd.N.mesh*Expnd.Rel.prop.in.pop*Pred.sel)/Sum.prod
     }
     
-    #Plot by mesxh
+    #Plot by mesh
     n=ncol(d$tab)-1
     smart.par(n,MAR,OMA,MGP=c(1,.5,0))
     Msh=substr(names(d$tab)[-1],2,10)
@@ -1340,15 +1409,15 @@ if(do.paper.figures)
     mtext("Total length (mm)",1,outer=T,line=.45,cex=1.2)
     mtext(NME,3,outer=T,line=-.75,cex=1.2)
   }
-  Cols.type=c('brown','red','forestgreen','orange','steelblue')
-  names(Cols.type)=c(Rtype,"K&W")
   
     #species
   for(s in 1:length(n.sp))
   {
     tiff(file=paste("Each species/Fit/species/Observed.vs.pred_",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
+    dummy=NULL
+    if(Do.K_W) dummy=  Pred.sel.K_W[[s]]
     fn.freq.obs.pred(d=Fit.M_H[[s]],
-                     d.KW=Pred.sel.K_W[[s]],
+                     d.KW=dummy,
                      NME=names(Fit.M_H)[s],
                      MAR=c(1.2,1.75,1,1),
                      OMA=c(1.75,1.75,.75,.75))
@@ -1366,6 +1435,17 @@ if(do.paper.figures)
     dev.off()
   }
 
+  #Extract model for each mesh
+  Mode.normal=function(m,k) m*k
+  Mode.gamma=function(m,k,alpha) (alpha-1)*k*m
+  Mode.lognormal=function(m,mu,sigma,m1) exp(mu-sigma^2)*(m/m1)
+  
+  #Example for gummy
+  #Fit.M_H$`Gummy shark`$Equal.power$norm.sca$gear.pars
+  #Mode.normal(m=16.5,k=74.89336)
+  #Mode.gamma(m=16.5,k=1.571537,alpha=49.218688)
+  #Mode.lognormal(m=16.5,mu=6.6617214,sigma=0.1460648,m1=10.2)
+  
   
   #Display best model selectivity
   
@@ -1419,7 +1499,7 @@ if(do.paper.figures)
   
 
   #Plot each species' selectivity separately for K&W
-  if(do.K.W.fit)
+  if(Do.K_W)
   {
     #Get predicted selectivity
     fn.plt.Sel=function(Dat,theta)
