@@ -23,7 +23,7 @@
 
 #2. Annual effort for "Kimberley.GBF.annual.effort"
 
-
+options(dplyr.summarise.inform = FALSE)
 library(tidyverse)
 library(readxl)
 library(lubridate)
@@ -31,8 +31,8 @@ library(tm)
 
 # 1 -------------------PARAMETERS SECTION------------------------------------
 
-Asses.year=2019    #enter year of assessment
-Last.yr.ktch="2017-18"  #enter year of last complete catches
+Asses.year=2020    #enter year of assessment
+Last.yr.ktch="2018-19"  #enter year of last complete catches
 
 Shark.protection.yr=2007   #Commercial protection in non-shark fisheries came in November 2006 (Heupel & McAuley 2007 page 74)
 

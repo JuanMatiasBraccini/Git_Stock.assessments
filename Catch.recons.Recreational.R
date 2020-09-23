@@ -3,6 +3,7 @@
 # Annual updates:
         # For each new I-survey, get data from Karina
         # Update Charter boat data each year
+        # Update WA.population
 
 
 #notes: This script uses I-Survey (boat-based) point estimates to reconstruct
@@ -32,7 +33,7 @@
 #   may change slightly as there may be some differences between the extract provided and fishcube 
 # The variables Kept, Released and Total have always been estimates with decimals, 
 #   but rounded to integers for publication / release – and should have been rounded in the extract 
-
+options(dplyr.summarise.inform = FALSE)
 
 library(tidyverse)
 library(readxl)
