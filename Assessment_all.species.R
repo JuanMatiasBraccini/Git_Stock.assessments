@@ -275,6 +275,8 @@ fn.import.catch.data=function(KTCH.UNITS)
   WTBF_catch=fn.in(NM='recons_WTBF_catch.csv') 
   #..SA Marine Scalefish fishery
   Whaler_SA=fn.in(NM='recons_Whaler_SA.csv') 
+  #..NT catches
+  NT_catch=fn.in(NM='recons_NT_catch.csv') 
   
   #2.2. WA Recreational catch
   Rec.ktch=fn.in(NM='recons_recreational.csv')  
@@ -438,6 +440,22 @@ fn.import.catch.data=function(KTCH.UNITS)
     dplyr::select(names(Tot.ktch))%>%
     filter(SPECIES%in%unique(Tot.ktch$SPECIES))
   Tot.ktch=rbind(Tot.ktch,a)
+  
+  # Add NT_catch
+  a=NT_catch%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    mutate(BLOCKX=NA,
+           Region="North",
+           finyear=as.numeric(substr(FINYEAR,1,4)),
+           Name=SNAME,
+           Type="NT",
+           Data.set="NT",
+           METHOD="line",
+           FishCubeCode="NT")%>%
+    dplyr::select(names(Tot.ktch))%>%
+    filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+  Tot.ktch=rbind(Tot.ktch,a)
+  
   
   #Add Whaler_SA (SA Marine Scalefish Fishery)
   a=Whaler_SA%>%

@@ -114,7 +114,9 @@ Calculate.discarding_catch=read_excel(fn.hndl('Calculate.discarding.xlsx'), shee
          FINYEAR=Financial.Year,
          Group=Species.Group)
 
-  #Non-WA fisheries
+  #Non-WA fisheries 
+NT_dusky_sandbar=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "NT commercial") #catch in tonnes, source NT Thor Saunders & Michael Usher
+NT_dusky_sandbar.IUU=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "IUU")
 Whaler_SA=read.csv(fn.hndl("SA_marine_scalefish_whaler_ktch.csv"))  #catch in tonnes; source SARDI's Angelo Tsolos, Paul Rogers
 AFMA_GAB_WTB= read.csv(fn.hndl('AFMA_GAB.trawl_WTB.csv'))  #catch in kg; source: AFMA data request; Kehani Manson
 #WTBF_catch=read.csv(fn.hndl("WTBF_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
@@ -565,11 +567,15 @@ Indo_MOU.annual.trips.prop=data.frame(year=c(1975:2019),
 Indo_missed.appr.rate=1.75  
 
 
-#Observed banjo and wegefish
+#-- 2.2.5 Observed banjo and wegefish
 prop_banjo_wedge_north=read.csv(fn.hndl('prop_banjo_wedge_north.csv'))
 prop_banjo_wedge_south=read.csv(fn.hndl('prop_banjo_wedge_south.csv'))
 
+
+#-- 2.2.6 M. Antarcticus proportion of all gummy sharks
 Gummies.prop=read.csv("C:/Matias/Analyses/Catch and effort/Gummies.prop.csv",stringsAsFactors=F)
+
+
 
 # 3 -------------------PROCEDURE SECTION------------------------------------
 
@@ -1496,8 +1502,27 @@ GAB.trawl_catch=AFMA_GAB_WTB%>%
   
 
 
+  #-- 3.2.3 NT catches 
+NT_dusky_sandbar.IUU= NT_dusky_sandbar.IUU%>%
+  gather(species,LIVEWT.c,-Year)%>%
+  mutate(FINYEAR=paste(Year,substr(Year+1,3,4),sep='-'),
+         LIVEWT.c=LIVEWT.c*1000,                                   #convert to kg
+         SPECIES=case_when(species=='C. plumbeus'~18007,
+                           species=='C. obscurus'~18003)) %>%
+  dplyr::select(names(GAB.trawl_catch)) 
+NT_dusky_sandbar= NT_dusky_sandbar%>%
+          mutate(FINYEAR=paste(year,substr(year+1,3,4),sep='-'),
+                 LIVEWT.c=catch_kg,
+                 SPECIES=case_when(tolower(species)=='sandbar shark'~18007,
+                                   tolower(species)=='dusky whaler'~18003))%>%
+          dplyr::select(names(GAB.trawl_catch))
 
-  #-- 3.2.3 SA Marine Scalefish fishery     
+NT_catch=rbind(NT_dusky_sandbar,NT_dusky_sandbar.IUU)%>%
+          group_by(FINYEAR,SPECIES)%>%
+          summarise(LIVEWT.c=sum(LIVEWT.c))
+
+
+  #-- 3.2.4 SA Marine Scalefish fishery     
   #split dusky from bronzy                      
 Whaler_SA=Whaler_SA%>%
           rename(LIVEWT.c=Live_wt.tons.)%>%
@@ -1510,7 +1535,7 @@ Whaler_SA=Whaler_SA[rep(1:N.SA,each=2),]%>%
                          LIVEWT.c*Whaler_SA_bronzie.prop))
 
 
-#-- 3.2.4 Indonesian illegal fishing in Australia waters             
+#-- 3.2.5 Indonesian illegal fishing in Australia waters             
 
 Indo_apprehensions=rbind(Indo_apprehensions.Stacey,Indo_apprehensions)
 Missn.appr=which(is.na(Indo_apprehensions$Apprehensions))
@@ -1721,7 +1746,12 @@ GAB.trawl_catch$zone="Zone2"
 fn.out(d=GAB.trawl_catch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_GAB.trawl_catch.csv')
 WTBF_catch$zone=NA
 fn.out(d=WTBF_catch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_WTBF_catch.csv')
- 
+
+
+  #NT catches
+NT_catch$zone=NA
+fn.out(d=NT_catch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_NT_catch.csv')
+
   #SA Marine Scalefish fishery
 Whaler_SA$zone=NA
 fn.out(d=Whaler_SA%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Whaler_SA.csv')
