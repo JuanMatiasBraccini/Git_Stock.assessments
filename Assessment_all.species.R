@@ -28,7 +28,7 @@
 # Size-based Catch curve (for some species, there's NSF size compo, not used at the moment)
 
 rm(list=ls(all=TRUE))
-
+options(dplyr.summarise.inform = FALSE)
 options(stringsAsFactors = FALSE) 
 
 library(rlist)
@@ -103,6 +103,12 @@ Min.yrs=5
 if(KTCH.UNITS=="KGS") Min.ktch=5000 
 if(KTCH.UNITS=="TONNES") Min.ktch=5
 
+#PSA
+PSA.min.tons=5
+PSA.min.years=5
+PSA.max.ton=50
+Low.risk=2.64  #risk thresholds from Micheli et al 2014
+medium.risk=3.18
 
 #Size composition
   #Initial bin size
@@ -237,7 +243,7 @@ Effort.monthly.north_blocks=fn.in("Effort.monthly.NSF.csv")
 Effort.daily.north_blocks=fn.in("Effort.daily.NSF.csv")
 
 
-#3. Import Catch
+#3. Import Total Catch
 Mode <- function(x)
 {
   ux <- unique(x)
@@ -532,6 +538,21 @@ if(First.run=="YES")
   
   PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv',stringsAsFactors=F)
   
+  PSA.list=PSA.list%>%filter(!Species%in%assessed.elsewhere)
+  
+  #which species not to set availability and ecounterability to 1 
+  psa.ktch=KtCh.method%>%
+    filter(Name%in%PSA.list$Species)%>%
+    group_by(Name,FINYEAR)%>%
+    summarise(catch=sum(LIVEWT.c))%>%
+    spread(Name,catch,fill=0)
+  aa=as.matrix(psa.ktch[,-1])
+  psa.species.max.ever=names(which(apply(aa,2,max)>=PSA.max.ton))
+  aa[aa<=PSA.min.tons]=0
+  aa[aa>PSA.min.tons]=1
+  psa.species.series=names(which(colSums(aa)>PSA.min.years))
+  species.meeting.condition=intersect(psa.species.series,psa.species.max.ever)
+  
   #replace missing gear info with most common value
   Agg=KtCh.method%>%
     group_by(FishCubeCode) %>%
@@ -571,8 +592,9 @@ if(First.run=="YES")
   UniSp=unique(KtCh$Name)
   UniSp=subset(UniSp,!UniSp%in%names(Indicator.species))
   PSA.list=PSA.list%>%filter(Species%in%UniSp)
-  PSA.fn=function(d,Low.risk=2.64,medium.risk=3.18,Exprt)  #risk thresholds from Micheli et al 2014
+  PSA.fn=function(d,line.sep,txt.size,Exprt)  
   {
+    set.seed(101)
     PSA=data.frame(Species=d$Species,
                    Productivity=rep(NA,nrow(d)),
                    Susceptibility=rep(NA,nrow(d)),
@@ -616,7 +638,7 @@ if(First.run=="YES")
     p=ggplot(PSA,
              aes(Productivity, Susceptibility, label = Species,colour = Vulnerability, fill = Vulnerability)) +
       geom_point(shape = 21, size = 6,colour="black") + 
-      geom_text_repel(segment.colour='black',col='black',box.padding = 0.5) + 
+      geom_text_repel(segment.colour='black',col='black',box.padding = line.sep,size=txt.size) + 
       scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
       xlim(0.75,3.25)+ylim(0.75,3.25)+
       theme(panel.background = element_blank(),
@@ -632,7 +654,8 @@ if(First.run=="YES")
     
     return(as.character(PSA%>%filter(Vulnerability=="high")%>%pull(Species)))
   }
-  Keep.species=PSA.fn(d=PSA.list,Exprt="C:/Matias/Analyses/Population dynamics/PSA/Figure 2_PSA.tiff")
+  Keep.species=PSA.fn(d=PSA.list,line.sep=.35, txt.size=3.5,
+                      Exprt="C:/Matias/Analyses/Population dynamics/PSA/Figure 2_PSA.tiff")
   Keep.species=tolower(Keep.species)
   Keep.species=sort(c(Keep.species,names(Indicator.species)))
   Drop.species=UniSp[which(!UniSp%in%Keep.species)]
