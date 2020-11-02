@@ -1,5 +1,7 @@
 #-- Script for reconstructing time series of recreational catch of sharks in WA
 
+#missing: consider "#Perth metro pilot survey (Claire Smallwood)"
+
 # Annual updates:
         # For each new I-survey, get data from Karina
         # Update Charter boat data each year
@@ -87,6 +89,10 @@ I.survey.years=unique(Rec.fish.catch$FinYear)
   # K_HHs = number of households that reported a Kept catch 
   # R = released, T = Total 
 Shore.based=read.csv("C:/Matias/Data/Catch and Effort/Recreational/statewide shark 2000_01.csv",stringsAsFactors=F)
+
+#Perth metro pilot survey (Claire Smallwood)
+Shore.based.metro.pilot=read.csv('C:/Matias/Data/Catch and Effort/Recreational/RawCatch_Sharks_Export.csv',stringsAsFactors=F)
+
 
 # Charter boats
 Charter=read_excel("C:\\Matias\\Data\\Catch and Effort\\Charter\\Charter.xlsx",sheet ='Data')
