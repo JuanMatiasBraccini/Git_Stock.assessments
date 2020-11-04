@@ -2,35 +2,28 @@
 
 #notes:
 # observer data must have at least Min.obs.per.block & Min.shots.per.block
-# Ratio estimator method used with all years combined. Model-based by species not 
-#       used due to small sample sizes for most species
+# Ratio estimator method used with all years combined.  
+# Model-based by species not used due to small sample sizes for most species
 # Uncertainty determined using bootstrapping (as bootstrap resamples the shots, 
 #       the procedure is self-weighting, i.e more weight is given to more 
 #       commonly sampled blocks)
-# Rare discarded species were grouped as 'other' and then multiplied by proportion
+# Rarely discarded species were grouped as 'other' and then multiplied by proportion
 # Longlines: Very few blocks (4 observed blocks only) so few observations and too 
 #           much extrapolated!! Hence, grouped commercial LL and GN and use observed GN
-
-# Longline was removed from analysis because doesn't meet min observed shot selection criteria 
-#      (at most 2 shots per block and only 5 blocks)
 
 
 #To do:
 #  Add post capture mortality to total discard calculation
-#  Run Sensitivity tests
+#  Run Sensitivity tests on key assumptions
 # Update Discarding csv file with Parks Australia findings
 # Tabulate effort coverage from the observer data
 # combine GN and LL total catch by year block
 # Show porportion of effort observed by year/gear. 
 
-#Note: no point in showing precision and bias because the universe (i.e. the actual
-#       observations) is a small proportion of the total effort
-
-
 
 rm(list=ls(all=TRUE))
 
-
+options(stringsAsFactors = FALSE)
 library(rlang)
 #library(dplyr)
 #library(tidyr)
@@ -80,7 +73,7 @@ Dat_total=Dat_total %>% filter(METHOD=="GN")
 Comm.disc.sp=read.csv("C:/Matias/Analyses/Ecosystem indices and multivariate/Shark-bycatch/SPECIES+PCS+FATE.csv",stringsAsFactors = F)
 
 #Length weight relationships
-setwd('C:/Matias/Analyses/Reconstruction_total bycatch TDGDLF')
+setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF')
 
 Len.wei=read.csv("length.weights.csv",stringsAsFactors = F)
 
