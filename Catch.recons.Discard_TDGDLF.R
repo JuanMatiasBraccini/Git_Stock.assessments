@@ -11,22 +11,10 @@
 # Longlines: Very few blocks (4 observed blocks only) so few observations and too 
 #           much extrapolated!! Hence, grouped commercial LL and GN and use observed GN
 
-
-#To do:
-#  Add post capture mortality to total discard calculation
-#  Run Sensitivity tests on key assumptions
-# Update Discarding csv file with Parks Australia findings
-# Tabulate effort coverage from the observer data
-# combine GN and LL total catch by year block
-# Show porportion of effort observed by year/gear. 
-
-
 rm(list=ls(all=TRUE))
 
 options(stringsAsFactors = FALSE)
 library(rlang)
-#library(dplyr)
-#library(tidyr)
 library(tidyverse)
 library(doParallel)
 library(zoo)
@@ -54,29 +42,23 @@ Dat_obs=Dat_obs %>% filter(Method=="GN")
 
 #Catch and effort data   
 Dat_total=read.csv('C:\\Matias\\Analyses\\Data_outs\\Data.monthly.csv',stringsAsFactors = F)
-Dat_total=Dat_total %>% filter(LAT<=(-26) & Estuary=="NO") %>%
-                        mutate(YEAR=YEAR.c,
-                               BLOCK=BLOCKX,
-                               Catch=LIVEWT.c,
-                               BLOCK=ifelse(BLOCK>=96000,paste(floor(abs(LAT)),(floor(LONG)-100)*10,sep=""),BLOCK),
-                               BLOCK=substring(BLOCK,1,4)) %>%
-                        select(-c(ZnID,MonthlyID,ZoneID,YEAR.c,blockxFC,CONDITN,
-                                  Factor,RSCommonName,RSSpeciesId,LANDWT,LIVEWT,
-                                  FisheryZone,FisheryCode,Landing.Port,BDAYS,licence,
-                                  Factor.c,LIVEWT.orgnl,LIVEWT.c,VesselID,BlockAveID,AnnualVesselAveID,
-                                  BlockID,Reporter,Sch.or.DogS,LIVEWT.reap,Tot.shk.livewt,
-                                  Shark.other.livewt,Reporter.old,Spec.old,Sname.old,NETLEN.c)) 
-Dat_total.LL=Dat_total %>% filter(METHOD=="LL")
-Dat_total=Dat_total %>% filter(METHOD=="GN")
+
+
+#Species names
+All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for catch
+
 
 #Discarded/retained
 Comm.disc.sp=read.csv("C:/Matias/Analyses/Ecosystem indices and multivariate/Shark-bycatch/SPECIES+PCS+FATE.csv",stringsAsFactors = F)
 
+
 #Length weight relationships
-setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF')
+Len.wei=read.csv("C:/Matias/Data/Life history parameters/length.weights.csv",stringsAsFactors = F)
 
-Len.wei=read.csv("length.weights.csv",stringsAsFactors = F)
 
+#Post capture mortality
+PCM.north=read.csv('C:/Matias/Analyses/Reconstruction_catch_commercial/TableS1.PCM_North.csv')
+PCM.south=read.csv('C:/Matias/Analyses/Reconstruction_catch_commercial/TableS1.PCM_South.csv')
 
 
 # 2. Parameter ---------------------------------------------------------
@@ -92,61 +74,105 @@ n.boot=1e3
 
 Group_rare_criteria=0.02    #criteria for grouping rare species (proportion of catch)    
 
-Commercial.sp=subset(Comm.disc.sp,FATE=="C" & NATURE=="S")$SPECIES
+Commercial.sp=subset(Comm.disc.sp,FATE=="C" & NATURE%in%c("S","R"))$SPECIES
 
 
 
-#Use only observed GN. Combine the total catch of GN and LL 
-DATA_obs=list(GN=Dat_obs,LL=Dat_obs.LL)
-DATA_total=list(GN=Dat_total,LL=Dat_total.LL)  
+# Manipulate catch ---------------------------------------------------------
+setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF')
+
+Dat_total=Dat_total %>% filter(LAT<=(-26) & Estuary=="NO") %>%
+      mutate(YEAR=YEAR.c,
+             BLOCK=BLOCKX,
+             Catch=LIVEWT.c,
+             BLOCK=ifelse(BLOCK>=96000,paste(floor(abs(LAT)),(floor(LONG)-100)*10,sep=""),BLOCK),
+             BLOCK=substring(BLOCK,1,4)) %>%
+      select(-c(ZnID,MonthlyID,ZoneID,YEAR.c,blockxFC,CONDITN,
+                Factor,RSCommonName,RSSpeciesId,LANDWT,LIVEWT,
+                FisheryZone,FisheryCode,Landing.Port,BDAYS,licence,
+                Factor.c,LIVEWT.orgnl,LIVEWT.c,VesselID,BlockAveID,AnnualVesselAveID,
+                BlockID,Reporter,Sch.or.DogS,LIVEWT.reap,Tot.shk.livewt,
+                Shark.other.livewt,Reporter.old,Spec.old,Sname.old,NETLEN.c))%>% 
+    left_join(All.species.names,by='SPECIES')
+Dat_total.LL=Dat_total %>% filter(METHOD=="LL")
+Percent.ktch.ll=100*sum(Dat_total.LL$Catch)/sum(Dat_total$Catch)
+Dat_total=Dat_total %>% filter(METHOD=="GN")  #other methods discarded are catch is negligible and not expected to have discards (e.g. handline)
+
+  #keep only elasmobranch species
+DATA_total=list(GN=Dat_total%>%filter(SPECIES<50000),
+                LL=Dat_total.LL%>%filter(SPECIES<50000))  
+
+#Proportion of observed LL
+prop.obs.LL=length(unique(Dat_obs.LL$SHEET_NO))/(length(unique(Dat_obs.LL$SHEET_NO))+length(unique(Dat_obs$SHEET_NO)))
 
 
-
-# 3. Procedure ---------------------------------------------------------
+# Manipulate observer data  ---------------------------------------------------------
+Dat_obs=Dat_obs%>%
+      left_join(All.species.names%>%rename(Species=SPECIES),by=c('SPECIES'='SP'))%>%
+  mutate(Name=ifelse(is.na(Name),COMMON_NAME,Name),
+         Scien.nm=ifelse(is.na(Scien.nm),SCIENTIFIC_NAME,Scien.nm))
+DATA_obs=list(GN=Dat_obs) #Use only observed GN as LL has very few observations
 
 #define discarded/retained sp
 for(i in 1:length(DATA_obs)) DATA_obs[[i]]$Discarded=with(DATA_obs[[i]],
                                           ifelse(SPECIES%in%Commercial.sp,"Retained","Discarded"))
 
-#Show overal observed discarded and retained species by year   #Replace by this infographic: https://twitter.com/ISSF/status/1147943595942526978?s=03
+#Show overal observed discarded and retained species by year   #nice infographic: https://twitter.com/ISSF/status/1147943595942526978?s=03
 fun.horiz.bar=function(d)
 {
-  d$dummy=with(d,ifelse(Discarded=="Retained","Retained",SPECIES))
-  TAB=table(d$dummy)
-  TAB=TAB/sum(TAB)
-  TAB=sort(TAB)
-  a=barplot(TAB,horiz=T,xlim=c(0,1),las=1)
-  box()
+  d=d%>%
+    mutate(dummy=ifelse(Discarded=="Retained","Retained",Name))%>%
+    group_by(dummy)%>%
+    tally%>%
+    mutate(Percent=100*n/sum(n),
+           Label=ifelse(Percent>1,'','<1%'))%>%
+    data.frame%>%
+    arrange(-Percent)
+  d%>%
+  ggplot(aes(x =  reorder(dummy, Percent),y = Percent)) + 
+    geom_bar(colour = "black",stat = "identity")+coord_flip()+
+    geom_text(aes(label=Label), position=position_dodge(width=0.9), hjust=-0.5)+
+    theme_classic()+
+    theme(axis.title.y=element_blank(),
+          axis.text=element_text(size=14),
+          axis.title=element_text(size=16),
+          panel.border = element_rect(colour = "black", fill=NA, size=1))
+  return(d)
+
 }
-axlbl=c("Gillnet","Longline")
-jpeg("Results/Figure1_observed.proportions.jpg",width=2400,height=2400,units="px",res=300)
-par(mfcol=c(1,2),mar=c(1,2.5,1,1),oma=c(1,2.75,1,1),mgp=c(1.5,.4,0))
-for(i in 1:length(DATA_obs))
-{
-  fun.horiz.bar(d=DATA_obs[[i]])
-  mtext(axlbl[i],3)
-}
-mtext("Proportion",1,outer=T)
-dev.off()
+for(i in 1:length(DATA_obs))  Tabl.obs.GN=fun.horiz.bar(d=DATA_obs[[i]])
+ggsave('Results/Figure2_observed.percentage_gillnet.tiff', width = 8,height = 10,compression = "lzw")
+Discarded.SP=DATA_obs$GN%>%
+              filter(Discarded=='Discarded')%>%
+              distinct(SPECIES,.keep_all = T)%>%
+              pull(SPECIES)
 
 
-#fill in missing length info 
+# Fill in missing FL info  ---------------------------------------------------------
 #note: first use TL, then sample from species distribution, finally overall mean
 UniK.sp=table(DATA_obs$GN$SPECIES)
 UniK.sp=UniK.sp[UniK.sp>3]
 UniK.sp=names(UniK.sp)
-pdf("Results/Preliminary/lengths.pdf")
+pdf("Results/Preliminary/size.frequency_observed.pdf")
 for(u in 1:length(UniK.sp))
 {
   a=subset(DATA_obs$GN,SPECIES==UniK.sp[u] & !is.na(FL))
-  if(nrow(a)>2)hist(a$FL,main=UniK.sp[u],col=2)
+  if(nrow(a)>2)hist(a$FL,main=a$Name[1],col=2, xlab="FL (cm)")
 }
 dev.off()
 
-  #1. proportion of TL
+  #1. Set to NA FL or TL records less than size at birth
+size.birth=30 #FL, in cm
+for(i in 1:length(DATA_obs))
+{
+  DATA_obs[[i]]$FL=with(DATA_obs[[i]],ifelse(FL<size.birth,NA,FL))
+  DATA_obs[[i]]$TL=with(DATA_obs[[i]],ifelse(TL<(size.birth/.85),NA,TL))
+}
+  
+  #2. Derive FL as a proportion of TL
 for(i in 1:length(DATA_obs)) DATA_obs[[i]]$FL=with(DATA_obs[[i]],ifelse(is.na(FL),TL*.875,FL))
 
-  #2. samples from species distribution
+  #3. samples from species distribution
 fn.samp.dist=function(d)
 {
   d=subset(d,FL>20)
@@ -164,7 +190,7 @@ for(i in 1:length(DATA_obs))
       if(length(d$FL[!is.na(d$FL)])>2)Prob=fn.samp.dist(d)
       if(length(Prob$density)>2)
       {
-        id=which (is.na(DATA_obs$FL) & DATA_obs$SPECIES==all.sp[s])
+        id=which (is.na(DATA_obs[[i]]$FL) & DATA_obs[[i]]$SPECIES==all.sp[s])
         DATA_obs[[i]]$FL[id]=sample(Prob$breaks[-1],
                                 length(DATA_obs[[i]]$FL[id]),
                                 replace=T,prob=Prob$density/sum(Prob$density))
@@ -173,29 +199,35 @@ for(i in 1:length(DATA_obs))
   }
 }
 
-  #3. overall mean
+  #4. overall mean (only 2 records, Crocodile shark & Grey reef shark)
 for(i in 1:length(DATA_obs)) DATA_obs[[i]]$FL[is.na(DATA_obs[[i]]$FL)]=mean(DATA_obs[[i]]$FL,na.rm=T)
 
-pdf("Results/Preliminary/lengths_ammended.pdf")
+pdf("Results/Preliminary/size.frequency_ammended.pdf")
 for(u in 1:length(UniK.sp))
 {
   a=subset(DATA_obs$GN,SPECIES==UniK.sp[u] & !is.na(FL))
-  if(nrow(a)>2)hist(a$FL,main=UniK.sp[u],col=2)
+  if(nrow(a)>2)hist(a$FL,main=a$Name[1],col=2, xlab="FL (cm)")
 }
 dev.off()
 
-#Convert number to weight               
-#note: calculate discard ratio using weight as total catch is in weight
-Len.wei=Len.wei%>%select(c(SPECIES,a,b))
+# Convert numbers to weight  ---------------------------------------------------------
+#note: calculate discard ratio using weight because total catch is in weight.
+#       Use FL and a, b parameters for fork length
+Len.wei=Len.wei%>%
+          select(c(SPECIES,a_w8t,b_w8t,Source,Comments))
 for(i in 1:length(DATA_obs))
 {
-  DATA_obs[[i]]=merge(DATA_obs[[i]],Len.wei,by="SPECIES",all.x=T)
-  DATA_obs[[i]]$Catch=with(DATA_obs[[i]],b*(FL)^a)
+  DATA_obs[[i]]=DATA_obs[[i]]%>%
+                 left_join(Len.wei,by="SPECIES")%>%
+                 mutate(Catch=a_w8t*(FL)^b_w8t)
+
 }
 
-
-#group rare species
-  #tabulate rare species
+# Remove white shark and 'other shark' from observations ---------------------------------------------------------
+#note: 2 very large white sharks acounts for a great proportion of discarded tonnage
+for(i in 1:length(DATA_obs))  DATA_obs[[i]]=DATA_obs[[i]]%>%filter(!SPECIES%in%c('WP','XX'))
+ 
+# group rare species  ---------------------------------------------------------
 for(i in 1:length(DATA_obs))
 {
   Tab.sp=prop.table(with(subset(DATA_obs[[i]],Discarded=="Discarded"),table(SPECIES)))
@@ -204,15 +236,13 @@ for(i in 1:length(DATA_obs))
   DATA_obs[[i]]$SPECIES=with(DATA_obs[[i]],ifelse(SPECIES%in%Rare.sp,"Grouped",SPECIES))
 }
 
-
-  #Discarded_sp used to calculate discarded species proportions
+# Define discarded_sp used to calculate discarded species proportions-------------------------------------------
 for(i in 1:length(DATA_obs))
 {
   DATA_obs[[i]]$Discarded_sp=with(DATA_obs[[i]],ifelse(Discarded=="Retained","Retained",SPECIES))
 }
 
-
-#3.1 Data exploration
+# Data exploration-------------------------------------------
 if(do.explrtn=="YES")
 {
   A=with(Dat_obs[!duplicated(Dat_obs$SHEET_NO),],table(BLOCK))
@@ -267,7 +297,7 @@ if(do.explrtn=="YES")
 rm(DATA,Dat_obs,Dat_obs.LL,Dat_total,Dat_total.LL,DATA.bio,DATA.ecosystems)
 
 
-#3.2 Get stratified observed discarded and retained catch (R_h)
+# Get stratified observed discarded and retained catch (D_h)-------------------------------------------
 STRATA_obs=function(d,Strata)
 {
   #select minimum number of observations for use in analysis
@@ -315,9 +345,8 @@ STRATA_obs=function(d,Strata)
 Obs_ratio.strata=STRATA_obs(d=DATA_obs$GN,Strata=c("Discarded_sp",STRTA.obs.disc))
 write.csv(Obs_ratio.strata$dat,"Results/Table1_observed.ratios.csv",row.names = F)
 
-
-
-#3.3 Get stratified total reported retained catch (Y_h)
+#ACA. how do I consider longline catch?
+# Get stratified total reported retained catch (Y_h)-------------------------------------------
 STRATA_total=function(d,Strata)
 {
   if(!"YEAR"%in%Strata) Strata=c("YEAR",Strata)
@@ -330,7 +359,66 @@ STRATA_total=function(d,Strata)
 Total_strata=STRATA_total(d=DATA_total$GN,Strata=STRTA.reported.ret)
 
 
-#3.4 Annual discards by species (sum(R_h x Y_h))       
+# Add post capture mortality-------------------------------------------
+  #from commercial catch reconstruction
+PCM=rbind(PCM.north,PCM.south)%>%
+  distinct(Name,.keep_all = T)%>%
+  dplyr::select(-c(Trawl,LL))%>%
+  rename(PCM=GN)%>%
+  left_join(All.species.names%>%dplyr::select(-c(Scien.nm,Family,SPECIES)),by='Name')%>%
+  rename(SPECIES=SP)
+
+  #collated by Agustin from literature
+this.PCM=Tabl.obs.GN%>%
+  filter(!dummy=='Retained')%>%
+  pull(dummy)
+this.PCM=DATA_obs$GN%>%
+  filter(Name%in%this.PCM)%>%
+  distinct(Name,.keep_all = T)%>%
+  pull(SPECIES)
+add.PCM=Comm.disc.sp%>%
+  filter(!is.na(PCS) & NATURE%in%c("R","S") & SPECIES%in%this.PCM)%>%
+  mutate(PCM=1-PCS)%>%
+  dplyr::select(SPECIES,COMMON_NAME,SCIENTIFIC_NAME,PCM)%>%
+  rename(Name=COMMON_NAME,
+         Scien.nm=SCIENTIFIC_NAME)%>%
+  dplyr::select(names(PCM))
+
+PCM=rbind(PCM,add.PCM)%>%
+  filter(SPECIES%in%Discarded.SP)
+
+
+  #add PCM for remaining discarded speices
+    #Angel Shark, from Braccini et al 2012; 
+    #Brown-banded catshark, set at average of Rusty and Varied carpetshark from Braccini et al 2012
+    #Crocodile shark, no information available, set = to mako shark from Braccini et al 2012 as precaution
+    # Southern fiddler ray no available information, set at 10% due to hardiness
+    #Sliteye shark, set at 1, always dead when brought aboard
+    #Guitarfish & shovelnose ray, set equal to Whitespot shovelnose 
+    #Spotted shovelnose, set equal to Whitespot shovelnose
+    #Dwarf spotted wobbegong, set equal to Cobbler Wobbegong from Comm.disc.sp
+    #White shark, set = to mako shark from Braccini et al 2012 
+    #Whitespot shovelnose, Braodhurst & Cullis 2020 (immediate mortality)+25%
+PCM.remaining=data.frame(
+  Name=c("Angel Shark","Brown-banded catshark","Crocodile shark",            
+         "Southern fiddler ray","Sliteye shark","Guitarfish & shovelnose ray",
+         "Spotted shovelnose","Dwarf spotted wobbegong","White shark",               
+         "Whitespot shovelnose","Other shark"),
+  Scien.nm=c("Squatina australis","Chiloscyllium punctatum","Pseudocarcharias kamoharai",
+             "Trygonorrhina dumerilii","Loxodon macrorhinus","Families Rhinobatidae & Rhynchobatidae",
+             "Aptychotrema timorensis","Orectolobus parvimaculatus","Carcharodon Carcharias",
+             "Rhynchobatus australiae",""),
+  PCM=c(1-0.595,1-mean(c(0.771,0.687)),1-0.242,
+        1-.9,1,(0.29+0.29*.25),
+        (0.29+0.29*.25),0.057,1-0.242,
+        (0.29+0.29*.25),NA),
+  SPECIES=c("AU","BC","CR","FR","SE","SH","SS","WM","WP","WR","XX"))
+
+PCM=rbind(PCM,PCM.remaining)%>%
+  distinct(SPECIES,.keep.all=T)
+
+#MISSING: add PCM!!!!!!!!!!!!!
+# Annual discards by species (sum(R_h x Y_h)) -------------------------------------------
 fn.total=function(disc.dat,tot.dat)
 {
   #combine observed ratios and total reported catch
@@ -401,7 +489,8 @@ interpolated.blocks=fn.number.interpolated(disc.dat=Obs_ratio.strata,tot.dat=Tot
 write.csv(interpolated.blocks,"Results/Table2_interpolated.blocks.csv",row.names=F)
 
 
-#3.5 Uncertainty thru non-parametric bootstrap    Takes 0.002 secs per iteration
+# Uncertainty thru non-parametric bootstrap  -------------------------------------------
+#note: Takes 0.002 secs per iteration
 cl<-makeCluster(detectCores()-1)
 registerDoParallel(cl)
 clusterCall(cl, function() {
@@ -450,7 +539,12 @@ rm(store)
 stopCluster(cl) 
 
 
-# 4. Report ---------------------------------------------------------
+# Report ---------------------------------------------------------
+
+#Table of PCM and weights
+Table_S.2=left_join( Len.wei,PCM,by='SPECIES')
+write.csv(Table_S.2,"Results/Table_S.2.csv",row.names=F)
+
 
 #Put results in right format, aggregate blocks and extract median, ci    
 fn.agg.block=function(d)
@@ -576,7 +670,9 @@ mtext("Year",1,0.7,outer=T,cex=1.25)
 mtext("Total discard (tonnes)",2,0.5,outer=T,las=3,cex=1.25)
 dev.off()
 
-#Output total discard estimates
+
+# Export total discard estimates-----------------------------------------------------------------------
+#MISSING: export to where comm catch recons export (i.e. each species folder!!!)
   #total
 colnames(Stats$Total$total.discarded)=yrs
 write.csv(Stats$Total$total.discarded,
