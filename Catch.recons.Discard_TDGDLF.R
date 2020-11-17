@@ -19,6 +19,7 @@ library(tidyverse)
 library(doParallel)
 library(zoo)
 library(abind)
+library(stringr)
 
 User="Matias"
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
@@ -53,8 +54,11 @@ Comm.disc.sp=read.csv("C:/Matias/Analyses/Ecosystem indices and multivariate/Sha
 
 
 #Length weight relationships
-Len.wei=read.csv("C:/Matias/Data/Life history parameters/length.weights.csv",stringsAsFactors = F)
+Len.wei=read.csv("C:/Matias/Data/Length_Weights/length.weights.csv",stringsAsFactors = F)
 
+#Weight ranges
+Wei.range=read.csv("C:/Matias/Data/Length_Weights/Data.Ranges.csv")
+Wei.range.names=read.csv("C:/Matias/Data/Length_Weights/Species.names.csv")
 
 #Post capture mortality
 PCM.north=read.csv('C:/Matias/Analyses/Reconstruction_catch_commercial/TableS1.PCM_North.csv')
@@ -68,7 +72,7 @@ Min.shots.per.block=5  #minimum number of shots per block for use in ratio estim
 
 do.explrtn="NO"
 STRTA.obs.disc=c("BLOCK")       #aggregating strata for observer data
-STRTA.reported.ret=c("BLOCK")   #aggregating strata for total reported retained catch
+STRTA.reported.ret=c("BLOCK")   #aggregating strata for total landed retained catch
 
 n.boot=1e3
 
@@ -226,7 +230,23 @@ for(i in 1:length(DATA_obs))
 # Remove white shark and 'other shark' from observations ---------------------------------------------------------
 #note: 2 very large white sharks acounts for a great proportion of discarded tonnage
 for(i in 1:length(DATA_obs))  DATA_obs[[i]]=DATA_obs[[i]]%>%filter(!SPECIES%in%c('WP','XX'))
- 
+
+#Reset min and maximum weights is nonsense
+Wei.range=Wei.range%>%left_join(Wei.range.names,by=c("Sname"))
+Wei.range=subset(Wei.range,!(is.na(SPECIES)|is.na(TW.min)|is.na(TW.max)))
+for(i in 1:length(DATA_obs))
+{
+  DATA_obs[[i]]=left_join(DATA_obs[[i]],Wei.range,by=c('Species'='SPECIES'))
+  
+  DATA_obs[[i]]=DATA_obs[[i]]%>%
+                  mutate(Catch=case_when(!is.na(TW.max) & Catch> TW.max ~ TW.max,
+                                         !is.na(TW.min) & Catch< TW.min ~ TW.min,
+                                         TRUE~Catch))
+}
+  
+
+
+
 # group rare species  ---------------------------------------------------------
 for(i in 1:length(DATA_obs))
 {
@@ -297,7 +317,7 @@ if(do.explrtn=="YES")
 rm(DATA,Dat_obs,Dat_obs.LL,Dat_total,Dat_total.LL,DATA.bio,DATA.ecosystems)
 
 
-# Get stratified observed discarded and retained catch (D_h)-------------------------------------------
+# Get discard ratio by block and species (D_i_h)-------------------------------------------
 STRATA_obs=function(d,Strata)
 {
   #select minimum number of observations for use in analysis
@@ -345,18 +365,20 @@ STRATA_obs=function(d,Strata)
 Obs_ratio.strata=STRATA_obs(d=DATA_obs$GN,Strata=c("Discarded_sp",STRTA.obs.disc))
 write.csv(Obs_ratio.strata$dat,"Results/Table1_observed.ratios.csv",row.names = F)
 
-#ACA. how do I consider longline catch?
+
 # Get stratified total reported retained catch (Y_h)-------------------------------------------
-STRATA_total=function(d,Strata)
+STRATA_total=function(d.gn,d.ll,Strata)
 {
   if(!"YEAR"%in%Strata) Strata=c("YEAR",Strata)
+  d=rbind(d.gn%>%dplyr::select(YEAR,BLOCK,Catch),d.ll%>%dplyr::select(YEAR,BLOCK,Catch))
+  
   a=d %>%
     group_by(.dots=Strata) %>%
     summarise(total.retained = sum(Catch))%>%
     as.data.frame
   return(a)
 }
-Total_strata=STRATA_total(d=DATA_total$GN,Strata=STRTA.reported.ret)
+Total_strata=STRATA_total(d.gn=DATA_total$GN,d.ll=DATA_total$LL,Strata=STRTA.reported.ret)
 
 
 # Add post capture mortality-------------------------------------------
@@ -399,27 +421,37 @@ PCM=rbind(PCM,add.PCM)%>%
     #Dwarf spotted wobbegong, set equal to Cobbler Wobbegong from Comm.disc.sp
     #White shark, set = to mako shark from Braccini et al 2012 
     #Whitespot shovelnose, Braodhurst & Cullis 2020 (immediate mortality)+25%
+    #Cobbler wobbegong, set equal to Orectolobus parvimaculatus
+    #Spikey dogfish, set equal to Squalus spp.
+    # Stingrays, set equal to Myliobatidae
 PCM.remaining=data.frame(
   Name=c("Angel Shark","Brown-banded catshark","Crocodile shark",            
          "Southern fiddler ray","Sliteye shark","Guitarfish & shovelnose ray",
          "Spotted shovelnose","Dwarf spotted wobbegong","White shark",               
-         "Whitespot shovelnose","Other shark"),
+         "Whitespot shovelnose","Other shark",
+         'Cobbler wobbegong','Spikey dogfish','Stingrays'),
   Scien.nm=c("Squatina australis","Chiloscyllium punctatum","Pseudocarcharias kamoharai",
              "Trygonorrhina dumerilii","Loxodon macrorhinus","Families Rhinobatidae & Rhynchobatidae",
              "Aptychotrema timorensis","Orectolobus parvimaculatus","Carcharodon Carcharias",
-             "Rhynchobatus australiae",""),
+             "Rhynchobatus australiae","",
+             "Sutorectus tentaculatus","Squalus megalops","Dasyatidae"),
   PCM=c(1-0.595,1-mean(c(0.771,0.687)),1-0.242,
         1-.9,1,(0.29+0.29*.25),
         (0.29+0.29*.25),0.057,1-0.242,
-        (0.29+0.29*.25),NA),
-  SPECIES=c("AU","BC","CR","FR","SE","SH","SS","WM","WP","WR","XX"))
+        (0.29+0.29*.25),NA,
+        0.0570,0.1729,0.1460),
+  SPECIES=c("AU","BC","CR","FR","SE","SH","SS","WM","WP","WR","XX",
+            "PD","SR","WC"))
+
+
 
 PCM=rbind(PCM,PCM.remaining)%>%
-  distinct(SPECIES,.keep.all=T)
+  filter(!Name=='Spur Dog')
 
-#MISSING: add PCM!!!!!!!!!!!!!
-# Annual discards by species (sum(R_h x Y_h)) -------------------------------------------
-fn.total=function(disc.dat,tot.dat)
+  
+
+# Annual discards by species (sum(D_i_h x P_i x Y_h)) -------------------------------------------
+fn.total=function(disc.dat,tot.dat,pcm)
 {
   #combine observed ratios and total reported catch
   Total.discard=merge(disc.dat$dat,tot.dat,by=STRTA.reported.ret,all.y=T)
@@ -468,10 +500,24 @@ fn.total=function(disc.dat,tot.dat)
     Total.discard=Total.discard[,-match("total.Grouped",names(Total.discard))]
   }
   Total.discard=Total.discard[,-match("Retained",names(Total.discard))]
+  
+  #Add Post capture mortality
+  id=colnames(Total.discard)
+  id=id[-match(c("BLOCK","YEAR","total.retained"),id)]
+
+  for(s in 1:length(id))
+  {
+    this=match(id[s],colnames(Total.discard))
+    this.pcm=pcm%>%filter(SPECIES==str_remove(id[s], "total."))%>%pull(PCM)
+    Total.discard[,this]=Total.discard[,this]*this.pcm
+  }
+  
   return(Total.discard)
 }
-Tot.discard.result=fn.total(disc.dat=Obs_ratio.strata,tot.dat=Total_strata)
-
+Tot.discard.result=fn.total(disc.dat=Obs_ratio.strata,
+                            tot.dat=Total_strata,
+                            pcm=PCM)
+#ACA.
 #show blocks interpolated by species
 fn.number.interpolated=function(disc.dat,tot.dat)
 {
