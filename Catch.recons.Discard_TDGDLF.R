@@ -9,7 +9,7 @@
 #       commonly sampled blocks)
 # Rarely discarded species were grouped as 'other' and then multiplied by proportion
 # Longlines: Very few blocks (4 observed blocks only) so few observations and too 
-#           much extrapolated!! Hence, grouped commercial LL and GN and use observed GN
+#           much extrapolation...Hence, grouped commercial LL and GN and used observed GN ratio
 
 rm(list=ls(all=TRUE))
 
@@ -80,7 +80,7 @@ Group_rare_criteria=0.02    #criteria for grouping rare species (proportion of c
 
 Commercial.sp=subset(Comm.disc.sp,FATE=="C" & NATURE%in%c("S","R"))$SPECIES
 
-
+do.sensitivity=FALSE
 
 # Manipulate catch ---------------------------------------------------------
 setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF')
@@ -318,7 +318,7 @@ rm(DATA,Dat_obs,Dat_obs.LL,Dat_total,Dat_total.LL,DATA.bio,DATA.ecosystems)
 
 
 # Get discard ratio by block and species (D_i_h)-------------------------------------------
-STRATA_obs=function(d,Strata)
+STRATA_obs=function(d,Strata,Min.obs.per.block,Min.shots.per.block)
 {
   #select minimum number of observations for use in analysis
   tt <- table(d$BLOCK)
@@ -362,7 +362,10 @@ STRATA_obs=function(d,Strata)
   
   return(list(dat=a,prop=prop,vars=paste(Vars,".ratio",sep="")))
 }
-Obs_ratio.strata=STRATA_obs(d=DATA_obs$GN,Strata=c("Discarded_sp",STRTA.obs.disc))
+Obs_ratio.strata=STRATA_obs(d=DATA_obs$GN,
+                            Strata=c("Discarded_sp",STRTA.obs.disc),
+                            Min.obs.per.block=Min.obs.per.block,
+                            Min.shots.per.block=Min.shots.per.block)
 write.csv(Obs_ratio.strata$dat,"Results/Table1_observed.ratios.csv",row.names = F)
 
 
@@ -517,7 +520,39 @@ fn.total=function(disc.dat,tot.dat,pcm)
 Tot.discard.result=fn.total(disc.dat=Obs_ratio.strata,
                             tot.dat=Total_strata,
                             pcm=PCM)
-#ACA.
+
+# Sensitivity tests ---------------------------------------------------------
+if(do.sensitivity)
+{
+  #S1: PCM set at 1.5 base case
+  PCM.S1=PCM%>%
+    mutate(PCM=1.5*PCM)
+  S1=fn.total(disc.dat=Obs_ratio.strata,
+              tot.dat=Total_strata,
+              pcm=PCM.S1)
+  
+  #S2: Min obs per block = 20 & min shots per block = 10 
+  Obs_ratio.strata.S2=STRATA_obs(d=DATA_obs$GN,
+                                 Strata=c("Discarded_sp",STRTA.obs.disc),
+                                 Min.obs.per.block=20,
+                                 Min.shots.per.block=10)
+  S2=fn.total(disc.dat=Obs_ratio.strata.S2,
+              tot.dat=Total_strata,
+              pcm=PCM)
+  
+  
+  #S3: Min obs per block = 5 & min shots per block = 2
+  Obs_ratio.strata.S3=STRATA_obs(d=DATA_obs$GN,
+                                 Strata=c("Discarded_sp",STRTA.obs.disc),
+                                 Min.obs.per.block=5,
+                                 Min.shots.per.block=2)
+  S3=fn.total(disc.dat=Obs_ratio.strata.S3,
+              tot.dat=Total_strata,
+              pcm=PCM)
+  #ACA.
+  #S4: unobserved blocks imputed from random sample of observed blocks
+}
+
 #show blocks interpolated by species
 fn.number.interpolated=function(disc.dat,tot.dat)
 {
@@ -569,7 +604,10 @@ system.time({
     Dat_obs.boot <- Dat_obs.boot[rep(row.names(Dat_obs.boot), Dat_obs.boot$Rep), ]
     
     #bootstrapped stratified observed R_h
-    Obs_ratio.strata.boot=STRATA_obs(d=Dat_obs.boot,Strata=c("Discarded_sp",STRTA.obs.disc))
+    Obs_ratio.strata.boot=STRATA_obs(d=Dat_obs.boot,
+                                     Strata=c("Discarded_sp",STRTA.obs.disc),
+                                     Min.obs.per.block=Min.obs.per.block,
+                                     Min.shots.per.block=Min.shots.per.block)
     
     #total discards (sum(R_h x Y_h))   
     Tot.discard.boot=fn.total(disc.dat=Obs_ratio.strata.boot,tot.dat=Total_strata)
@@ -583,6 +621,8 @@ system.time({
 })
 rm(store)
 stopCluster(cl) 
+
+
 
 
 # Report ---------------------------------------------------------
@@ -683,7 +723,7 @@ fn.plt.prop=function(d,d.ret,CL,LWd)
 }
 YMAX=1
 #YMAX=max(c(unlist(Stats$Total$total.retained),unlist(Stats$Total$total.discarded)))
-jpeg("Results/Figure2_total.jpg",width=2400,height=2400,units="px",res=300)
+jpeg("Results/Total.jpg",width=2400,height=2400,units="px",res=300)
 par(mfcol=c(1,1),mar=c(1.5,1,1,1),oma=c(1,3,1,1),mgp=c(1,.6,0),las=1)
 fn.plt.prop(d=Stats$Total$total.discarded,d.ret=Stats$Total$total.retained[id.med,],CL=Col.totl,LWd=3)
 mtext("Proportion",2,1.5,las=3,outer=T,cex=1.5)

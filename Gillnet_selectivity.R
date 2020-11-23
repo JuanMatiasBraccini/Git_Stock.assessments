@@ -13,6 +13,8 @@
 #         Explore sandbar second peak for large mesh (see if fishing deeper, see Density all selected species_data set combined.tiff)
 #         Squalidae is bi modal (2 different species??)
 #         Compare published selectivities with those estimated here
+#         Add Terry's 1970s, 1980s, and 1990s data
+#         Make sure all carcharhinids are included when doing analysis by family
 
 
 
