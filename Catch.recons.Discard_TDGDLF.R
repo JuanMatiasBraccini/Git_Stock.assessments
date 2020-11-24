@@ -20,6 +20,7 @@ library(doParallel)
 library(zoo)
 library(abind)
 library(stringr)
+library(Hmisc)
 
 User="Matias"
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
@@ -36,7 +37,7 @@ Res.ves=c("HAM","HOU","NAT","FLIN","RV BREAKSEA","RV Gannet","RV GANNET","RV SNI
 Dat_obs=DATA %>% filter(Mid.Lat<=(-26) & !BOAT%in%Res.ves & Taxa=='Elasmobranch' & !COMMON_NAME=='WHALE')  %>% 
                  select(c(SHEET_NO,date,Month,year,BOAT,zone,BLOCK,SOAK.TIME,MESH_SIZE,
                         MESH_DROP,NET_LENGTH,Mid.Lat,Mid.Long,Method,SPECIES,
-                        COMMON_NAME,SCIENTIFIC_NAME,TL,FL,Number)) 
+                        COMMON_NAME,SCIENTIFIC_NAME,CAES_Code,TL,FL,Disc.width,Number)) 
 Dat_obs.LL=Dat_obs %>% filter(Method=="LL")
 Dat_obs=Dat_obs %>% filter(Method=="GN")
 
@@ -82,8 +83,15 @@ Commercial.sp=subset(Comm.disc.sp,FATE=="C" & NATURE%in%c("S","R"))$SPECIES
 
 do.sensitivity=FALSE
 
+Stingrays=35000:40000
+
 # Manipulate catch ---------------------------------------------------------
 setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF')
+
+All.species.names=All.species.names%>%
+                    mutate(Name=case_when(Name=='PortJackson shark'~'Port Jackson shark',
+                                          TRUE~Name),
+                           Name=capitalize(tolower(Name)))
 
 Dat_total=Dat_total %>% filter(LAT<=(-26) & Estuary=="NO") %>%
       mutate(YEAR=YEAR.c,
@@ -146,10 +154,21 @@ fun.horiz.bar=function(d)
 }
 for(i in 1:length(DATA_obs))  Tabl.obs.GN=fun.horiz.bar(d=DATA_obs[[i]])
 ggsave('Results/Figure2_observed.percentage_gillnet.tiff', width = 8,height = 10,compression = "lzw")
+
 Discarded.SP=DATA_obs$GN%>%
               filter(Discarded=='Discarded')%>%
               distinct(SPECIES,.keep_all = T)%>%
               pull(SPECIES)
+
+
+# Set FL to disc width for stingrays for computational purposes----------------------------------------
+Stingrays=35000:40000
+for(i in 1:length(DATA_obs))
+{
+  DATA_obs[[i]]=DATA_obs[[i]]%>%
+    mutate(FL=ifelse(CAES_Code%in%Stingrays,Disc.width,FL),
+           TL=ifelse(CAES_Code%in%Stingrays,NA,TL))
+}
 
 
 # Fill in missing FL info  ---------------------------------------------------------
@@ -204,7 +223,19 @@ for(i in 1:length(DATA_obs))
 }
 
   #4. overall mean (only 2 records, Crocodile shark & Grey reef shark)
-for(i in 1:length(DATA_obs)) DATA_obs[[i]]$FL[is.na(DATA_obs[[i]]$FL)]=mean(DATA_obs[[i]]$FL,na.rm=T)
+for(i in 1:length(DATA_obs))
+{
+  Mn.eagle.ray=mean(DATA_obs[[i]]%>%filter(CAES_Code%in%Stingrays)%>%pull(FL),na.rm=T)
+  Mn.whaler=mean(DATA_obs[[i]]%>%filter(CAES_Code%in%18001:18036)%>%pull(FL),na.rm=T)
+  
+  DATA_obs[[i]]=DATA_obs[[i]]%>%
+    mutate(FL=ifelse(is.na(FL) & COMMON_NAME=="Stingrays", Mn.eagle.ray,
+              ifelse(is.na(FL) & COMMON_NAME=="Crocodile shark",Mn.whaler,
+              ifelse(is.na(FL) & COMMON_NAME=="Grey reef shark",Mn.whaler,
+              FL))))
+}
+  
+  
 
 pdf("Results/Preliminary/size.frequency_ammended.pdf")
 for(u in 1:length(UniK.sp))
@@ -454,7 +485,7 @@ PCM=rbind(PCM,PCM.remaining)%>%
   
 
 # Annual discards by species (sum(D_i_h x P_i x Y_h)) -------------------------------------------
-fn.total=function(disc.dat,tot.dat,pcm)
+fn.total=function(disc.dat,tot.dat,pcm,Impute)
 {
   #combine observed ratios and total reported catch
   Total.discard=merge(disc.dat$dat,tot.dat,by=STRTA.reported.ret,all.y=T)
@@ -464,8 +495,22 @@ fn.total=function(disc.dat,tot.dat,pcm)
   for(v in 1:length(Vars)) 
   {
     id=match(Vars[v],names(Total.discard))
-    Total.discard[,id]=ifelse(is.na(Total.discard[,id]),
-              na.approx(zoo(Total.discard[,id])),Total.discard[,id]) 
+    
+    if(Impute=='linear')
+    {
+      Total.discard[,id]=ifelse(is.na(Total.discard[,id]),
+                                na.approx(zoo(Total.discard[,id])),
+                                Total.discard[,id]) 
+    }
+    if(Impute=='random')
+    {
+      set.seed(666)
+      x=Total.discard[,id]
+      nn=length(x[is.na(x)])
+      x[is.na(x)] <- sample(x[!is.na(x)], nn, replace = TRUE)
+      Total.discard[,id]=x
+    }
+     
   }
   
   #multiply ratio by total
@@ -487,7 +532,20 @@ fn.total=function(disc.dat,tot.dat,pcm)
     for(v in 1:length(Vars)) 
     {
       id=match(Vars[v],names(dummy))
-      dummy[,id]=ifelse(is.na(dummy[,id]),na.approx(zoo(dummy[,id])),dummy[,id]) 
+      
+      if(Impute=='linear')
+      {
+        dummy[,id]=ifelse(is.na(dummy[,id]),na.approx(zoo(dummy[,id])),dummy[,id])
+      }
+      if(Impute=='random')
+      {
+        set.seed(666)
+        x=dummy[,id]
+        nn=length(x[is.na(x)])
+        x[is.na(x)] <- sample(x[!is.na(x)], nn, replace = TRUE)
+        dummy[,id]=x
+      }
+       
     }
     
     #multiply ratio by total
@@ -519,7 +577,8 @@ fn.total=function(disc.dat,tot.dat,pcm)
 }
 Tot.discard.result=fn.total(disc.dat=Obs_ratio.strata,
                             tot.dat=Total_strata,
-                            pcm=PCM)
+                            pcm=PCM,
+                            Impute='linear')
 
 # Sensitivity tests ---------------------------------------------------------
 if(do.sensitivity)
@@ -529,7 +588,8 @@ if(do.sensitivity)
     mutate(PCM=1.5*PCM)
   S1=fn.total(disc.dat=Obs_ratio.strata,
               tot.dat=Total_strata,
-              pcm=PCM.S1)
+              pcm=PCM.S1,
+              Impute='linear')
   
   #S2: Min obs per block = 20 & min shots per block = 10 
   Obs_ratio.strata.S2=STRATA_obs(d=DATA_obs$GN,
@@ -538,7 +598,8 @@ if(do.sensitivity)
                                  Min.shots.per.block=10)
   S2=fn.total(disc.dat=Obs_ratio.strata.S2,
               tot.dat=Total_strata,
-              pcm=PCM)
+              pcm=PCM,
+              Impute='linear')
   
   
   #S3: Min obs per block = 5 & min shots per block = 2
@@ -548,11 +609,68 @@ if(do.sensitivity)
                                  Min.shots.per.block=2)
   S3=fn.total(disc.dat=Obs_ratio.strata.S3,
               tot.dat=Total_strata,
-              pcm=PCM)
-  #ACA.
+              pcm=PCM,
+              Impute='linear')
+  
   #S4: unobserved blocks imputed from random sample of observed blocks
-}
+  S4=fn.total(disc.dat=Obs_ratio.strata,
+              tot.dat=Total_strata,
+              pcm=PCM,
+              Impute='random')
+  
+  
+  #Display scenarios
+  this.sp.sen=colnames(Tot.discard.result)
+  this.sp.sen=this.sp.sen[-match(c("BLOCK","YEAR","total.retained"),this.sp.sen)]
+  fn.plt.sens=function(BC,s1,s2,s3,s4)
+  {
+    names(BC)[3]='catch'
+    BC=BC%>%group_by(YEAR)%>%summarise(catch=sum(catch/1000))
+    
+    names(s1)[3]='catch'
+    s1=s1%>%group_by(YEAR)%>%summarise(catch=sum(catch/1000))
+    
+    names(s2)[3]='catch'
+    s2=s2%>%group_by(YEAR)%>%summarise(catch=sum(catch/1000))
+    
+    names(s3)[3]='catch'
+    s3=s3%>%group_by(YEAR)%>%summarise(catch=sum(catch/1000))
+    
+    names(s4)[3]='catch'
+    s4=s4%>%group_by(YEAR)%>%summarise(catch=sum(catch/1000))
+    
+    Ymax=max(c(max(BC$catch),max(s1$catch),max(s2$catch),max(s3$catch),max(s4$catch)))
+    
+    plot(BC$YEAR,BC$catch,ylim=c(0,Ymax),ylab='',xlab='',type='l',lwd=2)
+    lines(s1$YEAR,s1$catch,lwd=2,col=2)
+    lines(s2$YEAR,s2$catch,lwd=2,col=3)
+    lines(s3$YEAR,s3$catch,lwd=2,col=4)
+    lines(s4$YEAR,s4$catch,lwd=2,col=5)
 
+  }
+  tiff(file="Results/Figure_S.1_sensitivity.tiff",width = 2400, height = 2400,
+       units = "px", res = 300, compression = "lzw")    
+  smart.par(n.plots=length(this.sp.sen),MAR=c(1,2,2,1),OMA=c(2,2,.1,.1),MGP=c(1,.6,0))
+  par(las=1)
+  for(i in 1:length(this.sp.sen))
+  {
+    fn.plt.sens(BC=Tot.discard.result[,c('BLOCK','YEAR',this.sp.sen[i])],
+                s1=S1[,c('BLOCK','YEAR',this.sp.sen[i])],
+                s2=S2[,c('BLOCK','YEAR',this.sp.sen[i])],
+                s3=S3[,c('BLOCK','YEAR',this.sp.sen[i])],
+                s4=S4[,c('BLOCK','YEAR',this.sp.sen[i])])
+    lgn=All.species.names%>%
+            filter(SP==unlist(strsplit(this.sp.sen[i], ".", fixed = TRUE))[2])%>%
+            pull(Name)
+    mtext(lgn,3,cex=.8) 
+  }
+  mtext("Year",1,0.7,outer=T,cex=1.25)
+  mtext("Total discard (tonnes)",2,0.5,outer=T,las=3,cex=1.25)
+  plot.new()
+  legend("top",c("Base case","S1","S2","S3","S4"),lty=1,lwd=2,bty='n',col=1:5)
+  dev.off()
+}
+#ACA
 #show blocks interpolated by species
 fn.number.interpolated=function(disc.dat,tot.dat)
 {
@@ -610,7 +728,10 @@ system.time({
                                      Min.shots.per.block=Min.shots.per.block)
     
     #total discards (sum(R_h x Y_h))   
-    Tot.discard.boot=fn.total(disc.dat=Obs_ratio.strata.boot,tot.dat=Total_strata)
+    Tot.discard.boot=fn.total(disc.dat=Obs_ratio.strata.boot,
+                              tot.dat=Total_strata,
+                              pcm=PCM,
+                              Impute='linear')
     
     rm(Dat_obs.boot)
     return(Tot.discard.boot)
