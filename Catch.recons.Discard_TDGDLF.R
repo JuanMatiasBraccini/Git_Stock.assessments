@@ -31,26 +31,26 @@ source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R")
 
 # 1. Data ---------------------------------------------------------
 
-#Observers data
-#keep only elasmobranchs from observed commercial boats
+# Observers data
 Res.ves=c("HAM","HOU","NAT","FLIN","RV BREAKSEA","RV Gannet","RV GANNET","RV SNIPE 2")
-Dat_obs=DATA %>% filter(Mid.Lat<=(-26) & !BOAT%in%Res.ves & Taxa=='Elasmobranch' & !COMMON_NAME=='WHALE')  %>% 
-                 select(c(SHEET_NO,date,Month,year,BOAT,zone,BLOCK,SOAK.TIME,MESH_SIZE,
-                        MESH_DROP,NET_LENGTH,Mid.Lat,Mid.Long,Method,SPECIES,
-                        COMMON_NAME,SCIENTIFIC_NAME,CAES_Code,TL,FL,Disc.width,Number)) 
+Dat_obs=DATA %>%
+          filter(Mid.Lat<=(-26) & !BOAT%in%Res.ves & Taxa%in%c('Elasmobranch','Teleost') & !COMMON_NAME=='WHALE')  %>% 
+          dplyr::select(c(SHEET_NO,date,Month,year,BOAT,zone,BLOCK,SOAK.TIME,MESH_SIZE,
+                   MESH_DROP,NET_LENGTH,Mid.Lat,Mid.Long,Method,SPECIES,Taxa,
+                   COMMON_NAME,SCIENTIFIC_NAME,CAES_Code,TL,FL,Disc.width,Number)) 
 Dat_obs.LL=Dat_obs %>% filter(Method=="LL")
 Dat_obs=Dat_obs %>% filter(Method=="GN")
 
 
-#Catch and effort data   
+# Commercial catch data   
 Dat_total=read.csv('C:\\Matias\\Analyses\\Data_outs\\Data.monthly.csv',stringsAsFactors = F)
 
 
-#Species names
+# Species names
 All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for catch
 
 
-#Discarded/retained
+#List of discarded/retained species
 Comm.disc.sp=read.csv("C:/Matias/Analyses/Ecosystem indices and multivariate/Shark-bycatch/SPECIES+PCS+FATE.csv",stringsAsFactors = F)
 
 
@@ -75,31 +75,32 @@ do.explrtn="NO"
 STRTA.obs.disc=c("BLOCK")       #aggregating strata for observer data
 STRTA.reported.ret=c("BLOCK")   #aggregating strata for total landed retained catch
 
-n.boot=1e3
+n.boot=1e4
 
 Group_rare_criteria=0.02    #criteria for grouping rare species (proportion of catch)    
 
-Commercial.sp=subset(Comm.disc.sp,FATE=="C" & NATURE%in%c("S","R"))$SPECIES
+Commercial.sp=subset(Comm.disc.sp,FATE=="C" & NATURE%in%c("S","R","T"))$SPECIES
 
 do.sensitivity=FALSE
+do.paper=FALSE
 
 Stingrays=35000:40000
 
-# Manipulate catch ---------------------------------------------------------
+# Manipulate species names ---------------------------------------------------------
 setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF')
-
 All.species.names=All.species.names%>%
-                    mutate(Name=case_when(Name=='PortJackson shark'~'Port Jackson shark',
-                                          TRUE~Name),
-                           Name=capitalize(tolower(Name)))
+                    mutate(Name=capitalize(tolower(Name)),
+                           Name=case_when(Name=='Port jackson shark'~'Port Jackson shark',
+                                          TRUE~Name))
 
+# Manipulate commercial catch ---------------------------------------------------------
 Dat_total=Dat_total %>% filter(LAT<=(-26) & Estuary=="NO") %>%
       mutate(YEAR=YEAR.c,
              BLOCK=BLOCKX,
              Catch=LIVEWT.c,
              BLOCK=ifelse(BLOCK>=96000,paste(floor(abs(LAT)),(floor(LONG)-100)*10,sep=""),BLOCK),
              BLOCK=substring(BLOCK,1,4)) %>%
-      select(-c(ZnID,MonthlyID,ZoneID,YEAR.c,blockxFC,CONDITN,
+      dplyr::select(-c(ZnID,MonthlyID,ZoneID,YEAR.c,blockxFC,CONDITN,
                 Factor,RSCommonName,RSSpeciesId,LANDWT,LIVEWT,
                 FisheryZone,FisheryCode,Landing.Port,BDAYS,licence,
                 Factor.c,LIVEWT.orgnl,LIVEWT.c,VesselID,BlockAveID,AnnualVesselAveID,
@@ -120,6 +121,10 @@ prop.obs.LL=length(unique(Dat_obs.LL$SHEET_NO))/(length(unique(Dat_obs.LL$SHEET_
 
 # Manipulate observer data  ---------------------------------------------------------
 Dat_obs=Dat_obs%>%
+      mutate(COMMON_NAME=ifelse(SPECIES=='PD','Spurdogs',COMMON_NAME),
+             SCIENTIFIC_NAME=ifelse(SPECIES=='PD','Squalus spp.',SCIENTIFIC_NAME),
+             CAES_Code=ifelse(SPECIES=='PD',20000,CAES_Code),
+             SPECIES=ifelse(SPECIES=='PD','SD',SPECIES))%>%
       left_join(All.species.names%>%rename(Species=SPECIES),by=c('SPECIES'='SP'))%>%
   mutate(Name=ifelse(is.na(Name),COMMON_NAME,Name),
          Scien.nm=ifelse(is.na(Scien.nm),SCIENTIFIC_NAME,Scien.nm))
@@ -130,31 +135,66 @@ for(i in 1:length(DATA_obs)) DATA_obs[[i]]$Discarded=with(DATA_obs[[i]],
                                           ifelse(SPECIES%in%Commercial.sp,"Retained","Discarded"))
 
 #Show overal observed discarded and retained species by year   #nice infographic: https://twitter.com/ISSF/status/1147943595942526978?s=03
-fun.horiz.bar=function(d)
+colfunc <- colorRampPalette(c("brown4","brown1","orange","yellow"))
+fun.horiz.bar=function(d,gear)
 {
-  d=d%>%
-    mutate(dummy=ifelse(Discarded=="Retained","Retained",Name))%>%
+  n=nrow(d%>%
+    filter(Taxa=="Elasmobranch" & Discarded=="Discarded")%>%
+    distinct(SPECIES))
+  d1=d%>%
+    mutate(taxa=ifelse(Discarded=="Retained","Elasmobranch",Taxa),
+           dummy=ifelse(Discarded=="Retained","Retained",Name))%>%
+    filter(taxa=='Elasmobranch')%>%
     group_by(dummy)%>%
     tally%>%
     mutate(Percent=100*n/sum(n),
-           Label=ifelse(Percent>1,'','<1%'))%>%
+           Label=ifelse(Percent>=.1 & Percent<1,'<1%',
+                        ifelse(Percent<.1,'<0.1%','')),
+           Percent.original=Percent,
+           Percent=ifelse(Percent<0.1,0.1,Percent))%>%
     data.frame%>%
-    arrange(-Percent)
-  d%>%
-  ggplot(aes(x =  reorder(dummy, Percent),y = Percent)) + 
-    geom_bar(colour = "black",stat = "identity")+coord_flip()+
+    arrange(-Percent)%>%
+    mutate(dummy=reorder(dummy, Percent),
+           grp=ifelse(dummy=='Retained',"#228B22",
+               ifelse(!dummy=='Retained' & Percent.original>=1,"#8B2323",
+               ifelse(!dummy=='Retained' & Percent.original<1 & Percent.original>0.1,"#FF4A39",
+                      "#FF9A06"))))
+
+  d1%>%
+  ggplot(aes(x =  dummy,y = Percent)) + 
+    geom_bar(fill = d1$grp,stat = "identity")+coord_flip()+
     geom_text(aes(label=Label), position=position_dodge(width=0.9), hjust=-0.5)+
     theme_classic()+
     theme(axis.title.y=element_blank(),
           axis.text=element_text(size=14),
           axis.title=element_text(size=16),
           panel.border = element_rect(colour = "black", fill=NA, size=1))
-  return(d)
+  ggsave(paste('Results/Figure2_observed.percentage_',gear,'.tiff',sep=''), 
+         width = 8,height = 10,compression = "lzw")
+  
+  d1=d1%>%mutate(Label=ifelse(Percent>1,round(Percent,2),'<1%'))
+  return(d1)
 
 }
-for(i in 1:length(DATA_obs))  Tabl.obs.GN=fun.horiz.bar(d=DATA_obs[[i]])
-ggsave('Results/Figure2_observed.percentage_gillnet.tiff', width = 8,height = 10,compression = "lzw")
+for(i in 1:length(DATA_obs))  Tabl.obs.GN=fun.horiz.bar(d=DATA_obs[[i]],gear=names(DATA_obs)[i])
 
+
+#Table of discarded and observed species
+# Table.disc.obs=DATA_obs$GN%>%
+#               distinct(SPECIES,.keep_all = T)%>%
+#               dplyr::select(Name,Scien.nm,Discarded,Taxa)%>%
+#               rename(Fate=Discarded)%>%
+#               arrange(Taxa,Fate,Name)
+Table.disc.obs=DATA_obs$GN%>%
+              group_by(COMMON_NAME,SCIENTIFIC_NAME,Taxa,Discarded)%>%
+              tally()%>%
+              arrange(Taxa,Discarded,COMMON_NAME)  
+  
+#Keep only elasmobranchs from observed commercial boats
+for(i in 1:length(DATA_obs)) DATA_obs[[i]]=subset(DATA_obs[[i]],Taxa=='Elasmobranch')
+
+
+#Extract discarded species
 Discarded.SP=DATA_obs$GN%>%
               filter(Discarded=='Discarded')%>%
               distinct(SPECIES,.keep_all = T)%>%
@@ -208,6 +248,7 @@ for(i in 1:length(DATA_obs))
   for(s in 1:length(all.sp)) 
   {
     d=subset(DATA_obs[[i]],SPECIES==all.sp[s])
+
     if(sum(is.na(d$FL))>0 & sum(!is.na(d$FL))>0)
     {
       if(length(d$FL[!is.na(d$FL)])>2)Prob=fn.samp.dist(d)
@@ -219,21 +260,28 @@ for(i in 1:length(DATA_obs))
                                 replace=T,prob=Prob$density/sum(Prob$density))
       }
     }
+    
+    if(all.sp[s]=="SR")  #set stingrays equal to eagle ray
+    {
+      Prob=fn.samp.dist(d=subset(DATA_obs[[i]],SPECIES=='ER'))
+      id=which (is.na(DATA_obs[[i]]$FL) & DATA_obs[[i]]$SPECIES==all.sp[s])
+      DATA_obs[[i]]$FL[id]=sample(Prob$breaks[-1],
+                                  length(DATA_obs[[i]]$FL[id]),
+                                  replace=T,prob=Prob$density/sum(Prob$density))
+      
+    }
   }
 }
 
-  #4. overall mean (only 2 records, Crocodile shark & Grey reef shark)
+  #4. overall mean (only 2 records, Crocodile shark & Grey reef shark) 
 for(i in 1:length(DATA_obs))
 {
-  Mn.eagle.ray=mean(DATA_obs[[i]]%>%filter(CAES_Code%in%Stingrays)%>%pull(FL),na.rm=T)
   Mn.whaler=mean(DATA_obs[[i]]%>%filter(CAES_Code%in%18001:18036)%>%pull(FL),na.rm=T)
-  
   DATA_obs[[i]]=DATA_obs[[i]]%>%
-    mutate(FL=ifelse(is.na(FL) & COMMON_NAME=="Stingrays", Mn.eagle.ray,
-              ifelse(is.na(FL) & COMMON_NAME=="Crocodile shark",Mn.whaler,
+    mutate(FL=ifelse(is.na(FL) & COMMON_NAME=="Crocodile shark",Mn.whaler,
               ifelse(is.na(FL) & COMMON_NAME=="Grey reef shark",Mn.whaler,
-              FL))))
-}
+              FL)))
+  }
   
   
 
@@ -249,7 +297,7 @@ dev.off()
 #note: calculate discard ratio using weight because total catch is in weight.
 #       Use FL and a, b parameters for fork length
 Len.wei=Len.wei%>%
-          select(c(SPECIES,a_w8t,b_w8t,Source,Comments))
+          dplyr::select(c(SPECIES,a_w8t,b_w8t,Source,Comments))
 for(i in 1:length(DATA_obs))
 {
   DATA_obs[[i]]=DATA_obs[[i]]%>%
@@ -258,9 +306,9 @@ for(i in 1:length(DATA_obs))
 
 }
 
-# Remove white shark and 'other shark' from observations ---------------------------------------------------------
+# Remove white shark, greynurse and 'other shark' from observations ---------------------------------------------------------
 #note: 2 very large white sharks acounts for a great proportion of discarded tonnage
-for(i in 1:length(DATA_obs))  DATA_obs[[i]]=DATA_obs[[i]]%>%filter(!SPECIES%in%c('WP','XX'))
+for(i in 1:length(DATA_obs))  DATA_obs[[i]]=DATA_obs[[i]]%>%filter(!SPECIES%in%c('WP','GN','XX'))
 
 #Reset min and maximum weights is nonsense
 Wei.range=Wei.range%>%left_join(Wei.range.names,by=c("Sname"))
@@ -345,7 +393,7 @@ if(do.explrtn=="YES")
 }
 
 #remove stuff
-rm(DATA,Dat_obs,Dat_obs.LL,Dat_total,Dat_total.LL,DATA.bio,DATA.ecosystems)
+rm(DATA,Dat_obs,Dat_obs.LL,Dat_total.LL,DATA.bio,DATA.ecosystems)
 
 
 # Get discard ratio by block and species (D_i_h)-------------------------------------------
@@ -480,13 +528,15 @@ PCM.remaining=data.frame(
 
 
 PCM=rbind(PCM,PCM.remaining)%>%
-  filter(!Name=='Spur Dog')
+  filter(!Name=='Spur Dog')%>%
+  mutate(PCM=ifelse(SPECIES=="PJ",2*PCM,PCM))   # bump up PCM for Port Jackson sharks
 
   
 
 # Annual discards by species (sum(D_i_h x P_i x Y_h)) -------------------------------------------
 fn.total=function(disc.dat,tot.dat,pcm,Impute)
 {
+  set.seed(666)
   #combine observed ratios and total reported catch
   Total.discard=merge(disc.dat$dat,tot.dat,by=STRTA.reported.ret,all.y=T)
   
@@ -583,9 +633,9 @@ Tot.discard.result=fn.total(disc.dat=Obs_ratio.strata,
 # Sensitivity tests ---------------------------------------------------------
 if(do.sensitivity)
 {
-  #S1: PCM set at 1.5 base case
+  #S1: PCM set at 100%
   PCM.S1=PCM%>%
-    mutate(PCM=1.5*PCM)
+    mutate(PCM=1)
   S1=fn.total(disc.dat=Obs_ratio.strata,
               tot.dat=Total_strata,
               pcm=PCM.S1,
@@ -620,8 +670,11 @@ if(do.sensitivity)
   
   
   #Display scenarios
+  colfunc <- colorRampPalette(c("brown3","darkorange"))
+  col.scen=colfunc(4)
   this.sp.sen=colnames(Tot.discard.result)
   this.sp.sen=this.sp.sen[-match(c("BLOCK","YEAR","total.retained"),this.sp.sen)]
+  this.sp.sen=sort(this.sp.sen)
   fn.plt.sens=function(BC,s1,s2,s3,s4)
   {
     names(BC)[3]='catch'
@@ -640,15 +693,31 @@ if(do.sensitivity)
     s4=s4%>%group_by(YEAR)%>%summarise(catch=sum(catch/1000))
     
     Ymax=max(c(max(BC$catch),max(s1$catch),max(s2$catch),max(s3$catch),max(s4$catch)))
+    Ymin=min(c(min(BC$catch),min(s1$catch),min(s2$catch),min(s3$catch),min(s4$catch)))
     
-    plot(BC$YEAR,BC$catch,ylim=c(0,Ymax),ylab='',xlab='',type='l',lwd=2)
-    lines(s1$YEAR,s1$catch,lwd=2,col=2)
-    lines(s2$YEAR,s2$catch,lwd=2,col=3)
-    lines(s3$YEAR,s3$catch,lwd=2,col=4)
-    lines(s4$YEAR,s4$catch,lwd=2,col=5)
+    plot(BC$YEAR,log(BC$catch),ylim=c(min(log(BC$catch)),log(Ymax)),
+         ylab='',xlab='',type='l',lwd=2,yaxt='n')
+    lines(s1$YEAR,log(s1$catch),lwd=2,col=col.scen[1],lty=3)
+    lines(s2$YEAR,log(s2$catch),lwd=2,col=col.scen[2],lty=3)
+    lines(s3$YEAR,log(s3$catch),lwd=2,col=col.scen[3],lty=3)
+    lines(s4$YEAR,log(s4$catch),lwd=2,col=col.scen[4],lty=3)
+    if(min(s1$catch)>max(BC$catch))
+    {
+      AX=c(round(quantile(BC$catch,probs=c(0.1,.5)),1),10*round(seq(min(s1$catch),round(max(s1$catch)),length.out = 3)/10))
+      LBL=round(AX)
+    }else
+    {
+      AX=seq(Ymin,Ymax,length.out=5)
+      LBL=round(AX,2)
+      LBL=ifelse(LBL<0.01,'<0.01',LBL)
+    }
+      
+    
+    axis(2,at=log(AX),labels = LBL)
+    
 
   }
-  tiff(file="Results/Figure_S.1_sensitivity.tiff",width = 2400, height = 2400,
+  tiff(file="Results/Figure4_Sensitivity.tiff",width = 2400, height = 2400,
        units = "px", res = 300, compression = "lzw")    
   smart.par(n.plots=length(this.sp.sen),MAR=c(1,2,2,1),OMA=c(2,2,.1,.1),MGP=c(1,.6,0))
   par(las=1)
@@ -662,34 +731,40 @@ if(do.sensitivity)
     lgn=All.species.names%>%
             filter(SP==unlist(strsplit(this.sp.sen[i], ".", fixed = TRUE))[2])%>%
             pull(Name)
-    mtext(lgn,3,cex=.8) 
+    mtext(lgn,3,cex=.95) 
   }
-  mtext("Year",1,0.7,outer=T,cex=1.25)
-  mtext("Total discard (tonnes)",2,0.5,outer=T,las=3,cex=1.25)
-  plot.new()
-  legend("top",c("Base case","S1","S2","S3","S4"),lty=1,lwd=2,bty='n',col=1:5)
+  mtext("Year",1,1,outer=T,cex=1.15)
+  mtext("Total discard (tonnes)",2,0.7,outer=T,las=3,cex=1.15)
+
+  legend("bottom",c("Base case","S1","S2","S3","S4"),lty=c(1,rep(3,4)),lwd=2.5,
+         bty='n',col=c("#000000",col.scen),cex=1.15)
   dev.off()
 }
-#ACA
-#show blocks interpolated by species
-fn.number.interpolated=function(disc.dat,tot.dat)
-{
-  tot.dat=tot.dat[!duplicated(tot.dat$BLOCK),]
-  
-  #combine observed ratios and total reported catch
-  Total.discard=merge(disc.dat$dat,tot.dat,by=STRTA.reported.ret,all.y=T)
-  
-  #count NAs by species
-  return(Total.discard %>% select (-c(BLOCK, total.retained,YEAR)) %>%
-           summarise_all(list(~sum(is.na(.))))%>%
-           as.data.frame)
-}
-interpolated.blocks=fn.number.interpolated(disc.dat=Obs_ratio.strata,tot.dat=Total_strata)
-write.csv(interpolated.blocks,"Results/Table2_interpolated.blocks.csv",row.names=F)
+
+# Show blocks interpolated by species ---------------------------------------------------------
+fished.yrs.blocks=DATA_total$GN%>%
+              dplyr::select(BLOCK,YEAR)%>%
+              mutate(yr_blk=paste(YEAR,BLOCK))%>%
+              distinct(yr_blk)%>%pull(yr_blk)
+observed.yrs.blocks=DATA_obs$GN%>%
+              dplyr::select(BLOCK,year)%>%
+              mutate(yr_blk=paste(year,BLOCK))%>%
+              distinct(yr_blk)%>%pull(yr_blk)
+interpolated.yrs.blocks=fished.yrs.blocks[which(!fished.yrs.blocks%in%observed.yrs.blocks)]
+write.csv(interpolated.yrs.blocks,"Results/Table_interpolated.year_blocks.csv",row.names=F)
+write.csv(fished.yrs.blocks,"Results/Table_total.year_blocks.csv",row.names=F)
+
+fished.blocks=unique(DATA_total$GN$BLOCK)
+observed.blocks=unique(DATA_obs$GN$BLOCK)
+interpolated.blocks=fished.blocks[which(!fished.blocks%in%observed.blocks)]
+write.csv(interpolated.blocks,"Results/Table_interpolated.blocks.csv",row.names=F)
+write.csv(fished.blocks,"Results/Table_total.blocks.csv",row.names=F)
 
 
+  
 # Uncertainty thru non-parametric bootstrap  -------------------------------------------
-#note: Takes 0.002 secs per iteration
+#note: Takes 0.4 secs per iteration
+set.seed(666)
 cl<-makeCluster(detectCores()-1)
 registerDoParallel(cl)
 clusterCall(cl, function() {
@@ -697,9 +772,10 @@ clusterCall(cl, function() {
   library(tidyr)
   library(rlang)
   library(zoo)
+  library(stringr)
+  library(tcltk)
 })
 Results=Tot.discard.result
-set.seed(666)
 system.time({
   #minimum data for analysis
   tt <- table(DATA_obs$GN$BLOCK)
@@ -732,7 +808,6 @@ system.time({
                               tot.dat=Total_strata,
                               pcm=PCM,
                               Impute='linear')
-    
     rm(Dat_obs.boot)
     return(Tot.discard.boot)
   }
@@ -746,150 +821,371 @@ stopCluster(cl)
 
 
 
+
 # Report ---------------------------------------------------------
-
-#Table of PCM and weights
-Table_S.2=left_join( Len.wei,PCM,by='SPECIES')
-write.csv(Table_S.2,"Results/Table_S.2.csv",row.names=F)
-
-
-#Put results in right format, aggregate blocks and extract median, ci    
-fn.agg.block=function(d)
+if(do.paper)
 {
-  dummy=vector('list',n.boot)
-  for(n in 1:n.boot)
+  tabulate.obs.eff=FALSE
+  if(tabulate.obs.eff)
   {
-    Var=subset(names(d[[n]]),!names(d[[n]])%in%c("BLOCK","YEAR"))
-    Var.ag=paste('cbind(',paste(Var,collapse=','),")",sep='')
-    Formula=as.formula(paste(Var.ag,"YEAR",sep="~"))
-    dummy[[n]]=aggregate(Formula,d[[n]],sum)
+    Effort_total=read.csv('C:\\Matias\\Analyses\\Data_outs\\Effort.monthly.csv',stringsAsFactors = F)
+    Effort_total.daily=read.csv('C:\\Matias\\Analyses\\Data_outs\\Effort.daily.csv',stringsAsFactors = F)
   }
-  return(dummy)
-}
-
-fn.add.missing=function(d,VAR)
-{
-  VAR=subset(VAR,!VAR%in%c("BLOCK"))
-  VAR1=subset(VAR,!VAR%in%c("YEAR","total.retained"))
-  for(n in 1:n.boot)
+  
+  
+  #Figure 1. Map
+  do.map=FALSE
+  if(do.map)
   {
-    id=which(!VAR%in%names(d[[n]]))
-    if(length(id>0))
+    library(yarrr)
+    Total.effort.year.block=Effort_total%>%
+      filter(METHOD=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & YEAR.c>=1993)%>%
+      mutate(LAT=-round(abs(LAT)),
+             LAT=LAT-.5,
+             LONG=LONG+.5)%>%
+      group_by(Same.return,VESSEL,zone,YEAR.c,LAT,LONG)%>%
+      summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
+      group_by(YEAR.c,LAT,LONG)%>%
+      summarise(effort=sum(effort))%>%
+      rename(year=YEAR.c)%>%
+      filter(year<2006)
+    
+    Total.effort.year.block_daily=Effort_total.daily%>%
+      filter(method=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & !is.na(Km.Gillnet.Hours.c))%>%
+      mutate(LAT=-round(abs(LAT)),
+             LONG=round(LONG),
+             LAT=LAT-.5,
+             LONG=LONG+.5)%>%
+      group_by(date,vessel,zone,year.c,LAT,LONG)%>%
+      summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
+      group_by(year.c,LAT,LONG)%>%
+      summarise(effort=sum(effort,na.rm=T))%>%
+      rename(year=year.c)
+    
+    Spatial.effort=rbind(Total.effort.year.block,Total.effort.year.block_daily)%>%
+      group_by(LAT,LONG)%>%
+      summarise(effort=sum(effort,na.rm=T))%>%
+      filter(!is.na(LAT)| !is.na(LONG))%>%
+      spread(LAT,effort)
+    X=Spatial.effort$LONG
+    Y=as.numeric(colnames(Spatial.effort)[-1])
+    Z=as.matrix(Spatial.effort[,-1])
+    
+    
+    library(PBSmapping)
+    data(worldLLhigh)
+    library(rgdal)
+    source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R")
+    
+    SDGDLL_zone1=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/SDGDLL_zone1.shp", layer="SDGDLL_zone1") 
+    SDGDLL_zone2=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/SDGDLL_zone2.shp", layer="SDGDLL_zone2") 
+    WCDGDLL=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/WCDGDLL.shp", layer="WCDGDLL") 
+    Bathymetry_120=read.table("C:/Matias/Data/Mapping/get_data112_120.cgi")
+    Bathymetry_138=read.table("C:/Matias/Data/Mapping/get_data120.05_138.cgi")
+    
+    Bathymetry=rbind(Bathymetry_120,Bathymetry_138)%>%
+      arrange(V1,V2)%>%
+      filter(V1 >= South.WA.long[1] & V1 <=South.WA.long[2])%>%
+      filter(V2 >= South.WA.lat[1] & V2 <=South.WA.lat[2])
+    xbat=unique(Bathymetry$V1)
+    ybat=unique(Bathymetry$V2)
+    reshaped=as.matrix(Bathymetry%>%spread(V2,V3))
+    
+    
+    South.WA.long=c(109,129)
+    South.WA.lat=c(-37,-26)
+    Xlim=floor(c(min(X),max(X)))
+    Ylim=floor(c(min(Y),max(Y)))
+    
+    colfunc <- colorRampPalette(c("cyan3","deepskyblue3"))
+    COLn=colfunc(3)
+    
+    
+    tiff(file="Results/Figure1.tiff",width=2400,height=2400,units="px",res=300,compression="lzw")
+    par(mfcol=c(1,1),mar=c(1,1,.5,.5),oma=c(3,3,1,.3),las=1,mgp=c(.04,.65,0))
+    plot(1,xlim=Xlim,ylim=Ylim,xlab="",ylab="",axes=F,main="")
+    
+    #effort
+    image(x=X, y=Y, z=Z,add=T)
+    
+    axis(side = 1, seq(112,129,1),labels =F, tck = .96,col="grey40",lty=3)
+    axis(side = 2, seq(South.WA.lat[1],South.WA.lat[2],1),labels =F, tck = 1,col="grey40",lty=3)
+    
+    #shots
+    kk=DATA_obs$GN%>%distinct(SHEET_NO,.keep_all = T)%>%dplyr::select(Mid.Lat,Mid.Long)
+    points(kk$Mid.Long,kk$Mid.Lat,pch=21, cex = .9,
+           bg=transparent("green2",.8),col=transparent("black",.7))
+    
+    #axis
+    axis(side = 1, seq(South.WA.long[1],South.WA.long[2],1),labels =F, tck = -.01)
+    axis(side = 2, seq(South.WA.lat[1],South.WA.lat[2],1),labels = F, tck = -.01)
+    axis(side = 1, seq(112,129,2),labels =seq(112,129,2), tck = -.015)
+    axis(side = 2, seq(South.WA.lat[1],South.WA.lat[2],2), 
+         labels = -seq(South.WA.lat[1],South.WA.lat[2],2), tck = -.015)
+    
+    #bathymetry
+    contour(xbat, ybat, reshaped[,2:ncol(reshaped)],ylim=South.WA.lat,xlim=South.WA.long, zlim=c(-1,-100),
+            nlevels = 1,labcex=1,labels=c("100",""),lty = 1,col="gray20",add=T)
+    polygon(WAcoast$Longitude,WAcoast$Latitude, col="grey80") 
+    box()
+    mtext(expression(paste("Longitude (",degree,"E)",sep="")),side=1,line=1,font=1,las=0,cex=1.35,outer=T)
+    mtext(expression(paste("Latitude (",degree,"S)",sep="")),side=2,line=1,font=1,las=0,cex=1.35,outer=T)
+    
+    #Inset Australia
+    par(fig=c(.6,1,.475,.975), new = T,mgp=c(.1,.4,0))
+    plotMap(worldLLhigh, xlim=South.WA.long,ylim=c(-39,-13),plt = c(.1, 1, 0.075, 1),
+            col="Black",tck = 0.025, tckMinor = 0.0125, xlab="",ylab="",axes=F)
+    box()
+    plot(WCDGDLL,add=T,col=COLn[1])
+    plot(SDGDLL_zone1,add=T,col=COLn[2])
+    plot(SDGDLL_zone2,add=T,col=COLn[3])
+    CL.txt='midnightblue'
+    text(123,-24,"Western",col='white', cex=1.5)
+    text(123,-27,"Australia",col='white', cex=1.5)
+    
+    text(112.5,-29,"WCDGDLF",col=CL.txt,cex=.85,srt=-70)
+    text(114,-35.25,"JASDGDLF",col=CL.txt,cex=.85,srt=-60)
+    text(113,-36,"(Zone 1)",col=CL.txt,cex=.85,srt=-60)
+    text(123.7437,-35,"JASDGDLF",col=CL.txt,cex=.85)
+    text(123.7437,-36.25,"(Zone 2)",col=CL.txt,cex=.85)
+    
+    dev.off()
+  }
+  
+  #Table 2. List of retained and discarded species
+  write.csv(Table.disc.obs,"Results/Table_2.csv",row.names=F)
+  
+  #Table of PCM and weights  
+  Table_S.2=left_join(Len.wei,
+                      All.species.names[,-match('SPECIES',names(All.species.names))],by=c('SPECIES'='SP'))%>%
+    filter(!is.na(Name))%>%
+    full_join(PCM[,-match(c('Name','Scien.nm'),names(PCM))],by='SPECIES')%>%
+    dplyr::select(Name,Scien.nm,PCM,a_w8t,b_w8t,Source)%>%
+    mutate(PCM=ifelse(is.na(PCM),'',PCM))
+  write.csv(Table_S.2,"Results/Table_S.2.csv",row.names=F)
+  
+  # Table of effort coverage 
+  #note: Show porportion of effort observed by year for gillnet
+  if(tabulate.obs.eff)
+  {
+    Total.effort.year=Effort_total%>%
+      filter(METHOD=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & YEAR.c>=1993)%>%
+      group_by(Same.return,VESSEL,zone,YEAR.c)%>%
+      summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
+      group_by(YEAR.c)%>%
+      summarise(effort=sum(effort))%>%
+      rename(year=YEAR.c)%>%
+      filter(year<2006)
+    
+    Total.effort.year_daily=Effort_total.daily%>%
+      filter(method=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & !is.na(Km.Gillnet.Hours.c))%>%
+      group_by(date,vessel,zone,year.c)%>%
+      summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
+      group_by(year.c)%>%
+      summarise(effort=sum(effort,na.rm=T))%>%
+      rename(year=year.c)
+    
+    Total.effort.year=rbind(Total.effort.year,Total.effort.year_daily)
+    
+ 
+    Obs.effort.year=DATA_obs$GN%>%
+      mutate(effort=NET_LENGTH*SOAK.TIME)%>%
+      distinct(SHEET_NO,.keep_all = T)%>%
+      group_by(BOAT)%>%
+      mutate(mean.effort=mean(effort,na.rm=T))%>%
+      mutate(effort=case_when(is.na(effort)~mean.effort,
+                              TRUE~effort))%>%
+      group_by(year)%>%
+      summarise(effort.obs=sum(effort))
+
+    
+    Table_S.1=left_join(Total.effort.year,Obs.effort.year,by='year')%>%
+      mutate(Percent.obs=100*effort.obs/effort)
+    
+    tiff(file="Results/FigureS1_observed.effort.tiff",width = 2000, height = 2000,
+         units = "px", res = 300, compression = "lzw") 
+    par(mar=c(2.5,2.5,1,1),oma=c(1,1,.1,.1),mgp=c(1.5,.5,0),las=1,cex.lab=1.25)
+    plot(Table_S.1$year,Table_S.1$Percent.obs,ylab="Percentage observed",xlab="Year",
+         pch=21,bg="brown1",cex=2)
+    dev.off()
+  }
+  
+  
+  #Put results in right format, aggregate blocks and extract median, ci    
+  fn.agg.block=function(d)
+  {
+    dummy=vector('list',n.boot)
+    for(n in 1:n.boot)
     {
-      iid=which(!VAR1%in%names(d[[n]]))
-      dummy=as.data.frame(d[[n]][,rep(1,length(iid))])
-      names(dummy)=VAR1[iid]
-      dummy[,]=0
-      d[[n]]=cbind(d[[n]],dummy)
+      Var=subset(names(d[[n]]),!names(d[[n]])%in%c("BLOCK","YEAR"))
+      Var.ag=paste('cbind(',paste(Var,collapse=','),")",sep='')
+      Formula=as.formula(paste(Var.ag,"YEAR",sep="~"))
+      dummy[[n]]=aggregate(Formula,d[[n]],sum)
     }
-    d[[n]]=d[[n]][,match(VAR,names(d[[n]]))]
+    return(dummy)
   }
-  return(d)
-}
-
-#aggregate blocks and add missing species     #0.018 sec per iteration
-system.time({ 
-  Results.show=fn.add.missing(d=fn.agg.block(d=Results),VAR=names(Tot.discard.result))
-})
-
-# Stats
-PRBS=c(.025,.5,.975)
-Stat.list=list(Species="Species",Total="Total")
-Stats=Stat.list
-fn.stats=function(d,how)
-{
-  if(how=="Species")
+  
+  fn.add.missing=function(d,VAR)
   {
-    all.matrix <- abind(d, along=3)
-    Store=vector('list',ncol(all.matrix))
-    names(Store)=colnames(all.matrix)
-    for(nm in 2:ncol(all.matrix)) Store[[nm]]=apply(all.matrix[,nm,],1,function(x) quantile(x/1000,probs=PRBS)) #in tonnes
+    VAR=subset(VAR,!VAR%in%c("BLOCK"))
+    VAR1=subset(VAR,!VAR%in%c("YEAR","total.retained"))
+    for(n in 1:n.boot)
+    {
+      id=which(!VAR%in%names(d[[n]]))
+      if(length(id>0))
+      {
+        iid=which(!VAR1%in%names(d[[n]]))
+        dummy=as.data.frame(d[[n]][,rep(1,length(iid))])
+        names(dummy)=VAR1[iid]
+        dummy[,]=0
+        d[[n]]=cbind(d[[n]],dummy)
+      }
+      d[[n]]=d[[n]][,match(VAR,names(d[[n]]))]
+    }
+    return(d)
   }
-  if(how=="Total")
+  
+  #aggregate blocks and add missing species     #0.018 sec per iteration
+  system.time({ 
+    Results.show=fn.add.missing(d=fn.agg.block(d=Results),VAR=names(Tot.discard.result))
+  })
+  
+  # Stats
+  PRBS=c(.025,.5,.975)
+  Stat.list=list(Species="Species",Total="Total")
+  Stats=Stat.list
+  fn.stats=function(d,how)
   {
-    id.var=which(!colnames(d[[1]])%in%c("total.retained","total.retained","YEAR"))
-    for(n in 1:n.boot) d[[n]]$total.discarded=rowSums(d[[n]][,id.var])
-    all.matrix <- abind(d, along=3)
-    These=c("YEAR","total.discarded","total.retained")
-    Store=vector('list',length(These))
-    names(Store)=These
-    id.these=match(These,colnames(d[[1]]))
-    for(nm in 2:length(id.these)) Store[[nm]]=apply(all.matrix[,id.these[nm],],1,function(x) quantile(x/1000,probs=PRBS))
+    if(how=="Species")
+    {
+      all.matrix <- abind(d, along=3)
+      Store=vector('list',ncol(all.matrix))
+      names(Store)=colnames(all.matrix)
+      for(nm in 2:ncol(all.matrix)) Store[[nm]]=apply(all.matrix[,nm,],1,function(x) quantile(x/1000,probs=PRBS)) #in tonnes
+    }
+    if(how=="Total")
+    {
+      id.var=which(!colnames(d[[1]])%in%c("total.retained","total.retained","YEAR"))
+      for(n in 1:n.boot) d[[n]]$total.discarded=rowSums(d[[n]][,id.var])
+      all.matrix <- abind(d, along=3)
+      These=c("YEAR","total.discarded","total.retained")
+      Store=vector('list',length(These))
+      names(Store)=These
+      id.these=match(These,colnames(d[[1]]))
+      for(nm in 2:length(id.these)) Store[[nm]]=apply(all.matrix[,id.these[nm],],1,function(x) quantile(x/1000,probs=PRBS))
+    }
+    Store$YEAR=all.matrix[,,1][,1]
+    
+    return(Store)
   }
-  Store$YEAR=all.matrix[,,1][,1]
+  for(l in 1:length(Stats)) Stats[[l]]=fn.stats(d=Results.show,how=Stat.list[[l]])
+  
+  
+  #Plot statistics
+  yrs=sort(unique(DATA_total$GN$YEAR))
+  Col.totl="black"
+  Col.totl.retained="grey60"
+  
+  #plotting function
+  id.med=match("50%",rownames(Stats$Species[[2]]))
+  id.low=match("2.5%",rownames(Stats$Species[[2]]))
+  id.up=match("97.5%",rownames(Stats$Species[[2]]))
 
-   return(Store)
+  #By species  
+  fn.plt=function(d,CL,LWd,what)
+  {
+    plot(yrs,yrs,col='transparent',ylim=c(0,YMAX),ann=F)
+    if(what=='polygon')
+    {
+      polygon(x=c(yrs,rev(yrs)),y=c(d[id.low,],rev(d[id.up,])),
+              col=adjustcolor(CL, alpha.f = 0.30), border = adjustcolor(CL, alpha.f = 0.60))
+      lines(yrs,d[id.med,],lwd=LWd,col=CL)
+    }
+    if(what=='points')
+    {
+      segments(yrs,d[id.low,],yrs,d[id.up,],col="grey50")
+      points(yrs,d[id.med,],pch=19,col=CL,cex=.8)
+      lines(yrs,d[id.med,],lty=3,col=CL)
+    }
+
+  }
+  tiff(file="Results/Figure3_by.species.tiff",width = 2150, height = 2000,
+       units = "px", res = 300, compression = "lzw")    
+  par(las=1)
+  Plt.this=Stats$Species[-match(c("YEAR","total.retained"),names(Stats$Species))]
+  Plt.this=Plt.this[sort(names(Plt.this))]
+  smart.par(n.plots=length(Plt.this),MAR=c(1,1.75,1.75,1),OMA=c(2,2,.1,.1),MGP=c(1,.5,0))
+  for(i in 1:length(Plt.this))
+  {
+    YMAX=max(unlist(Plt.this[[i]]))
+    fn.plt(d=Plt.this[[i]],CL=Col.totl,LWd=1.5,what="points")
+    lgn=All.species.names%>%
+      filter(SP==unlist(strsplit(names(Plt.this)[i], ".", fixed = TRUE))[2])%>%
+      pull(Name)
+    mtext(lgn,3,cex=.8) 
+  }
+  mtext("Year",1,1,outer=T,cex=1.15)
+  mtext("Total discard (tonnes)",2,0.5,outer=T,las=3,cex=1.15)
+  dev.off()
+  
+  
+  
+  #Total
+  fn.plt.prop=function(d,d.ret,CL,LWd)
+  {
+    plot(yrs,yrs,col='transparent',ylim=c(0,YMAX),ann=F)
+    polygon(x=c(yrs,rev(yrs)),y=c(d[id.low,]/d.ret,rev(d[id.up,]/d.ret)),
+            col=adjustcolor(CL, alpha.f = 0.30), border = adjustcolor(CL, alpha.f = 0.60))
+    lines(yrs,d[id.med,]/d.ret,lwd=LWd,col=CL)
+  }
+  YMAX=.1
+  jpeg("Results/Total.jpg",width=2400,height=2400,units="px",res=300)
+  par(mfcol=c(1,1),mar=c(1.5,1,1,1),oma=c(1,3,1,1),mgp=c(1,.6,0),las=1)
+  fn.plt.prop(d=Stats$Total$total.discarded,d.ret=Stats$Total$total.retained[id.med,],CL=Col.totl,LWd=3)
+  mtext("Proportion",2,1.5,las=3,outer=T,cex=1.5)
+  mtext("Year",1,0,outer=T,cex=1.5)
+  dev.off()
+  
+  
+  #Size frequency distributions
+  DATA_obs$GN%>%
+    filter(SPECIES.ori%in%unlist(lapply(strsplit(names(Plt.this), '.', fixed = TRUE), '[', 2)))%>%
+    filter(!Name=='Stingrays')%>%  #Stringrays set to average size as not measured, no point displaying
+    ggplot( aes(x=FL, color=Name, fill=Name)) +
+    geom_histogram(alpha=0.6, binwidth = 5) +
+    theme(legend.position="none",
+          panel.spacing = unit(0.1, "lines"),
+          strip.text.x = element_text(size =11.5),
+          axis.title=element_text(size=16)) +
+    xlab("Size (cm)") +
+    ylab("Frequency") +
+    facet_wrap(~Name, scales = "free")
+  ggsave('Results/FigureS2_size.frequency.tiff',width = 10,height = 10,compression = "lzw")
+  
 }
-for(l in 1:length(Stats)) Stats[[l]]=fn.stats(d=Results.show,how=Stat.list[[l]])
-
-
-#Plot statistics
-yrs=sort(unique(DATA_total$GN$YEAR))
-Col.totl="black"
-Col.totl.retained="grey60"
-
-#plotting function
-id.med=match("50%",rownames(Stats$Species[[2]]))
-id.low=match("2.5%",rownames(Stats$Species[[2]]))
-id.up=match("97.5%",rownames(Stats$Species[[2]]))
-
-
-#Total
-fn.plt.prop=function(d,d.ret,CL,LWd)
-{
-  plot(yrs,yrs,col='transparent',ylim=c(0,YMAX),ann=F)
-  polygon(x=c(yrs,rev(yrs)),y=c(d[id.low,]/d.ret,rev(d[id.up,]/d.ret)),
-          col=adjustcolor(CL, alpha.f = 0.30), border = adjustcolor(CL, alpha.f = 0.60))
-  lines(yrs,d[id.med,]/d.ret,lwd=LWd,col=CL)
-}
-YMAX=1
-#YMAX=max(c(unlist(Stats$Total$total.retained),unlist(Stats$Total$total.discarded)))
-jpeg("Results/Total.jpg",width=2400,height=2400,units="px",res=300)
-par(mfcol=c(1,1),mar=c(1.5,1,1,1),oma=c(1,3,1,1),mgp=c(1,.6,0),las=1)
-fn.plt.prop(d=Stats$Total$total.discarded,d.ret=Stats$Total$total.retained[id.med,],CL=Col.totl,LWd=3)
-mtext("Proportion",2,1.5,las=3,outer=T,cex=1.5)
-#lines(yrs,Stats$Total$total.retained[id.med,],lwd=3,col=Col.totl.retained)
-#legend("topright",c("retained","discarded"),lty=1,lwd=3,
-#       bty='n',col=c(Col.totl.retained,Col.totl),cex=1.5)
-#mtext("Total (tonnes)",2,1.5,las=3,outer=T,cex=1.5)
-mtext("Year",1,0,outer=T,cex=1.5)
-dev.off()
-
-#By species
-fn.plt=function(d,CL,LWd)
-{
-  plot(yrs,yrs,col='transparent',ylim=c(0,YMAX),ann=F)
-  polygon(x=c(yrs,rev(yrs)),y=c(d[id.low,],rev(d[id.up,])),
-          col=adjustcolor(CL, alpha.f = 0.30), border = adjustcolor(CL, alpha.f = 0.60))
-  lines(yrs,d[id.med,],lwd=LWd,col=CL)
-}
-jpeg("Results/Figure3_by.species.jpg",width=2400,height=2400,units="px",res=300)
-Plt.this=Stats$Species[-match(c("YEAR","total.retained"),names(Stats$Species))]
-Plt.this=Plt.this[sort(names(Plt.this))]
-smart.par(n.plots=length(Plt.this),MAR=c(1,1.5,1,1),OMA=c(2,2,.1,.1),MGP=c(1,.6,0))
-for(i in 1:length(Plt.this))
-{
-  YMAX=max(unlist(Plt.this[[i]]))
-  fn.plt(d=Plt.this[[i]],CL=Col.totl,LWd=1.5)
-  mtext(unlist(strsplit(names(Plt.this)[i], ".", fixed = TRUE))[2],3,-1.51,cex=1) 
-}
-mtext("Year",1,0.7,outer=T,cex=1.25)
-mtext("Total discard (tonnes)",2,0.5,outer=T,las=3,cex=1.25)
-dev.off()
 
 
 # Export total discard estimates-----------------------------------------------------------------------
-#MISSING: export to where comm catch recons export (i.e. each species folder!!!)
   #total
 colnames(Stats$Total$total.discarded)=yrs
 write.csv(Stats$Total$total.discarded,
       paste("Results/Total.discard.estimates/Total.csv",sep=""))
 
   #by species
+setwd('C:\\Matias\\Analyses\\Data_outs')
 for(i in 1:length(Plt.this)) 
 {
-  nm=unlist(strsplit(names(Plt.this)[i], ".", fixed = TRUE))[2]
-  colnames(Plt.this[[i]])=yrs
-  write.csv(Plt.this[[i]],paste("Results/Total.discard.estimates/",nm,".csv",sep=""))
+  nm=All.species.names%>%
+    filter(SP==unlist(strsplit(names(Plt.this)[i], ".", fixed = TRUE))[2])%>%
+    pull(Name)
+  if(nm=="Australian angel shark") nm="Australian angelshark"
+  dd=as.data.frame(t(Plt.this[[i]]))
+  colnames(dd)=c("Low.CI","Median","Up.CI")
+  dd=cbind(Year=rownames(dd),dd)
+  
+  this.wd=paste(getwd(),nm,sep='/')
+  if(!dir.exists(file.path(this.wd))) dir.create(file.path(this.wd))
+ 
+  write.csv(dd,paste(nm,"Total.discard.estimates_tonnes.csv",sep='/'),row.names = F)
 }
   
