@@ -534,9 +534,10 @@ PCM=rbind(PCM,PCM.remaining)%>%
   
 
 # Annual discards by species (sum(D_i_h x P_i x Y_h)) -------------------------------------------
+set.seed(666)
 fn.total=function(disc.dat,tot.dat,pcm,Impute)
 {
-  set.seed(666)
+
   #combine observed ratios and total reported catch
   Total.discard=merge(disc.dat$dat,tot.dat,by=STRTA.reported.ret,all.y=T)
   
@@ -554,7 +555,6 @@ fn.total=function(disc.dat,tot.dat,pcm,Impute)
     }
     if(Impute=='random')
     {
-      set.seed(666)
       x=Total.discard[,id]
       nn=length(x[is.na(x)])
       x[is.na(x)] <- sample(x[!is.na(x)], nn, replace = TRUE)
@@ -589,7 +589,6 @@ fn.total=function(disc.dat,tot.dat,pcm,Impute)
       }
       if(Impute=='random')
       {
-        set.seed(666)
         x=dummy[,id]
         nn=length(x[is.na(x)])
         x[is.na(x)] <- sample(x[!is.na(x)], nn, replace = TRUE)
@@ -764,7 +763,6 @@ write.csv(fished.blocks,"Results/Table_total.blocks.csv",row.names=F)
   
 # Uncertainty thru non-parametric bootstrap  -------------------------------------------
 #note: Takes 0.4 secs per iteration
-set.seed(666)
 cl<-makeCluster(detectCores()-1)
 registerDoParallel(cl)
 clusterCall(cl, function() {
