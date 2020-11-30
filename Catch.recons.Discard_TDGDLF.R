@@ -134,7 +134,21 @@ DATA_obs=list(GN=Dat_obs) #Use only observed GN as LL has very few observations
 for(i in 1:length(DATA_obs)) DATA_obs[[i]]$Discarded=with(DATA_obs[[i]],
                                           ifelse(SPECIES%in%Commercial.sp,"Retained","Discarded"))
 
-#Show overal observed discarded and retained species by year   #nice infographic: https://twitter.com/ISSF/status/1147943595942526978?s=03
+# Group Angel sharks-------------------------------------------
+for(i in 1:length(DATA_obs))
+{
+  DATA_obs[[i]]=DATA_obs[[i]]%>%
+    mutate(COMMON_NAME=case_when(SPECIES%in%c("AO","AU")~"Angel Sharks (general)", TRUE~COMMON_NAME),
+           SCIENTIFIC_NAME=case_when(SPECIES%in%c("AO","AU")~"Family Squatinidae", TRUE~SCIENTIFIC_NAME),
+           CAES_Code=case_when(SPECIES%in%c("AO","AU")~24900, TRUE~CAES_Code),
+           Species=case_when(SPECIES%in%c("AO","AU")~24900, TRUE~Species),
+           Name=case_when(SPECIES%in%c("AO","AU")~"Angel sharks", TRUE~Name),
+           Scien.nm=case_when(SPECIES%in%c("AO","AU")~"Squatinidae", TRUE~Scien.nm),
+           SPECIES=case_when(SPECIES%in%c("AO","AU")~"AA",TRUE~SPECIES))
+}
+
+# Show overal observed discarded and retained species-------------------------------------------
+#nice infographic: https://twitter.com/ISSF/status/1147943595942526978?s=03
 colfunc <- colorRampPalette(c("brown4","brown1","orange","yellow"))
 fun.horiz.bar=function(d,gear)
 {
@@ -143,7 +157,8 @@ fun.horiz.bar=function(d,gear)
     distinct(SPECIES))
   d1=d%>%
     mutate(taxa=ifelse(Discarded=="Retained","Elasmobranch",Taxa),
-           dummy=ifelse(Discarded=="Retained","Retained",Name))%>%
+           dummy=ifelse(Discarded=="Retained","Retained",Name),
+           dummy=ifelse(dummy=="Eagle ray","Southern eagle ray",dummy))%>%
     filter(taxa=='Elasmobranch')%>%
     group_by(dummy)%>%
     tally%>%
@@ -159,7 +174,8 @@ fun.horiz.bar=function(d,gear)
                ifelse(!dummy=='Retained' & Percent.original>=1,"#8B2323",
                ifelse(!dummy=='Retained' & Percent.original<1 & Percent.original>0.1,"#FF4A39",
                       "#FF9A06"))))
-
+  
+  
   d1%>%
   ggplot(aes(x =  dummy,y = Percent)) + 
     geom_bar(fill = d1$grp,stat = "identity")+coord_flip()+
@@ -310,12 +326,13 @@ for(i in 1:length(DATA_obs))
 #note: 2 very large white sharks acounts for a great proportion of discarded tonnage
 for(i in 1:length(DATA_obs))  DATA_obs[[i]]=DATA_obs[[i]]%>%filter(!SPECIES%in%c('WP','GN','XX'))
 
-#Reset min and maximum weights is nonsense
+#Reset min and maximum weights if nonsense
 Wei.range=Wei.range%>%left_join(Wei.range.names,by=c("Sname"))
 Wei.range=subset(Wei.range,!(is.na(SPECIES)|is.na(TW.min)|is.na(TW.max)))
 for(i in 1:length(DATA_obs))
 {
-  DATA_obs[[i]]=left_join(DATA_obs[[i]],Wei.range,by=c('Species'='SPECIES'))
+  DATA_obs[[i]]=left_join(DATA_obs[[i]],Wei.range,by=c('Species'='SPECIES'))%>%
+    mutate(Sname=case_when(SPECIES%in%c("AO","AU")~"Angel Shark (general)", TRUE~Sname))
   
   DATA_obs[[i]]=DATA_obs[[i]]%>%
                   mutate(Catch=case_when(!is.na(TW.max) & Catch> TW.max ~ TW.max,
@@ -326,7 +343,7 @@ for(i in 1:length(DATA_obs))
 
 
 
-# group rare species  ---------------------------------------------------------
+# Group rare species  ---------------------------------------------------------
 for(i in 1:length(DATA_obs))
 {
   Tab.sp=prop.table(with(subset(DATA_obs[[i]],Discarded=="Discarded"),table(SPECIES)))
@@ -394,6 +411,8 @@ if(do.explrtn=="YES")
 
 #remove stuff
 rm(DATA,Dat_obs,Dat_obs.LL,Dat_total.LL,DATA.bio,DATA.ecosystems)
+
+
 
 
 # Get discard ratio by block and species (D_i_h)-------------------------------------------
@@ -470,7 +489,8 @@ PCM=rbind(PCM.north,PCM.south)%>%
   dplyr::select(-c(Trawl,LL))%>%
   rename(PCM=GN)%>%
   left_join(All.species.names%>%dplyr::select(-c(Scien.nm,Family,SPECIES)),by='Name')%>%
-  rename(SPECIES=SP)
+  rename(SPECIES=SP)%>%
+  mutate(PCM=ifelse(SPECIES=='AA',0.405,PCM))
 
   #collated by Agustin from literature
 this.PCM=Tabl.obs.GN%>%
@@ -507,22 +527,22 @@ PCM=rbind(PCM,add.PCM)%>%
     #Spikey dogfish, set equal to Squalus spp.
     # Stingrays, set equal to Myliobatidae
 PCM.remaining=data.frame(
-  Name=c("Angel Shark","Brown-banded catshark","Crocodile shark",            
+  Name=c("Eagle ray","Brown-banded catshark","Crocodile shark",            
          "Southern fiddler ray","Sliteye shark","Guitarfish & shovelnose ray",
          "Spotted shovelnose","Dwarf spotted wobbegong","White shark",               
          "Whitespot shovelnose","Other shark",
          'Cobbler wobbegong','Spikey dogfish','Stingrays'),
-  Scien.nm=c("Squatina australis","Chiloscyllium punctatum","Pseudocarcharias kamoharai",
+  Scien.nm=c("Myliobatis australis","Chiloscyllium punctatum","Pseudocarcharias kamoharai",
              "Trygonorrhina dumerilii","Loxodon macrorhinus","Families Rhinobatidae & Rhynchobatidae",
              "Aptychotrema timorensis","Orectolobus parvimaculatus","Carcharodon Carcharias",
              "Rhynchobatus australiae","",
              "Sutorectus tentaculatus","Squalus megalops","Dasyatidae"),
-  PCM=c(1-0.595,1-mean(c(0.771,0.687)),1-0.242,
+  PCM=c(1-0.854,1-mean(c(0.771,0.687)),1-0.242,
         1-.9,1,(0.29+0.29*.25),
         (0.29+0.29*.25),0.057,1-0.242,
         (0.29+0.29*.25),NA,
         0.0570,0.1729,0.1460),
-  SPECIES=c("AU","BC","CR","FR","SE","SH","SS","WM","WP","WR","XX",
+  SPECIES=c("ER","BC","CR","FR","SE","SH","SS","WM","WP","WR","XX",
             "PD","SR","WC"))
 
 
@@ -716,7 +736,7 @@ if(do.sensitivity)
     
 
   }
-  tiff(file="Results/Figure4_Sensitivity.tiff",width = 2400, height = 2400,
+  tiff(file="Results/Figure3_Sensitivity.tiff",width = 2400, height = 2400,
        units = "px", res = 300, compression = "lzw")    
   smart.par(n.plots=length(this.sp.sen),MAR=c(1,2,2,1),OMA=c(2,2,.1,.1),MGP=c(1,.6,0))
   par(las=1)
@@ -730,6 +750,7 @@ if(do.sensitivity)
     lgn=All.species.names%>%
             filter(SP==unlist(strsplit(this.sp.sen[i], ".", fixed = TRUE))[2])%>%
             pull(Name)
+    if(lgn=="Eagle ray") lgn="Southern eagle ray"
     mtext(lgn,3,cex=.95) 
   }
   mtext("Year",1,1,outer=T,cex=1.15)
@@ -1107,7 +1128,7 @@ if(do.paper)
     }
 
   }
-  tiff(file="Results/Figure3_by.species.tiff",width = 2150, height = 2000,
+  tiff(file="Results/Figure4_by.species.tiff",width = 2150, height = 2000,
        units = "px", res = 300, compression = "lzw")    
   par(las=1)
   Plt.this=Stats$Species[-match(c("YEAR","total.retained"),names(Stats$Species))]
@@ -1120,6 +1141,7 @@ if(do.paper)
     lgn=All.species.names%>%
       filter(SP==unlist(strsplit(names(Plt.this)[i], ".", fixed = TRUE))[2])%>%
       pull(Name)
+    if(lgn=="Eagle ray") lgn="Southern eagle ray"
     mtext(lgn,3,cex=.8) 
   }
   mtext("Year",1,1,outer=T,cex=1.15)
@@ -1149,6 +1171,7 @@ if(do.paper)
   DATA_obs$GN%>%
     filter(SPECIES.ori%in%unlist(lapply(strsplit(names(Plt.this), '.', fixed = TRUE), '[', 2)))%>%
     filter(!Name=='Stingrays')%>%  #Stringrays set to average size as not measured, no point displaying
+    mutate(Name=ifelse(Name=="Eagle ray","Southern eagle ray",Name))%>%
     ggplot( aes(x=FL, color=Name, fill=Name)) +
     geom_histogram(alpha=0.6, binwidth = 5) +
     theme(legend.position="none",
