@@ -734,8 +734,8 @@ if(do.sensitivity)
     LBL=exp(AX)
     LBL=ifelse(trunc(LBL)>=10,round(LBL),
         ifelse(trunc(LBL)<10 & trunc(LBL)>1,round(LBL,1),
-        round(LBL,3)))
-   # LBL=ifelse(LBL<0.01,'<0.01',LBL)
+        round(LBL,2)))
+    LBL=ifelse(LBL<0.01,'<0.01',LBL)
     axis(2,at=AX,labels = LBL)
     #axis(2,at=log(AX),labels = LBL)
     
