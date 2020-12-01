@@ -712,27 +712,32 @@ if(do.sensitivity)
     s4=s4%>%group_by(YEAR)%>%summarise(catch=sum(catch/1000))
     
     Ymax=max(c(max(BC$catch),max(s1$catch),max(s2$catch),max(s3$catch),max(s4$catch)))
-    Ymin=min(c(min(BC$catch),min(s1$catch),min(s2$catch),min(s3$catch),min(s4$catch)))
-    
-    plot(BC$YEAR,log(BC$catch),ylim=c(min(log(BC$catch)),log(Ymax)),
-         ylab='',xlab='',type='l',lwd=2,yaxt='n')
+    #Ymin=min(c(min(BC$catch),min(s1$catch),min(s2$catch),min(s3$catch),min(s4$catch)))
+    Ylim=c(min(log(1e-1),log(BC$catch)),log(Ymax))
+    plot(BC$YEAR,log(BC$catch),ylim=Ylim,ylab='',xlab='',type='l',lwd=2,yaxt='n')
     lines(s1$YEAR,log(s1$catch),lwd=2,col=col.scen[1],lty=3)
     lines(s2$YEAR,log(s2$catch),lwd=2,col=col.scen[2],lty=3)
     lines(s3$YEAR,log(s3$catch),lwd=2,col=col.scen[3],lty=3)
     lines(s4$YEAR,log(s4$catch),lwd=2,col=col.scen[4],lty=3)
-    if(min(s1$catch)>max(BC$catch))
-    {
-      AX=c(round(quantile(BC$catch,probs=c(0.1,.5)),1),10*round(seq(min(s1$catch),round(max(s1$catch)),length.out = 3)/10))
-      LBL=round(AX)
-    }else
-    {
-      AX=seq(Ymin,Ymax,length.out=5)
-      LBL=round(AX,2)
-      LBL=ifelse(LBL<0.01,'<0.01',LBL)
-    }
-      
-    
-    axis(2,at=log(AX),labels = LBL)
+    # if(min(s1$catch)>max(BC$catch))
+    # {
+    #   AX=c(round(quantile(BC$catch,probs=c(0.1,.5)),1),
+    #        10*round(seq(min(s1$catch),round(max(s1$catch)),length.out = 2)/10))
+    #   LBL=round(AX)
+    # }else
+    # {
+    #   AX=seq(Ymin,Ymax,length.out=4)
+    #   LBL=round(AX,2)
+    #   LBL=ifelse(LBL<0.01,'<0.01',LBL)
+    # }
+    AX=seq(Ylim[1],Ylim[2],length.out =4)
+    LBL=exp(AX)
+    LBL=ifelse(trunc(LBL)>=10,round(LBL),
+        ifelse(trunc(LBL)<10 & trunc(LBL)>1,round(LBL,1),
+        round(LBL,3)))
+   # LBL=ifelse(LBL<0.01,'<0.01',LBL)
+    axis(2,at=AX,labels = LBL)
+    #axis(2,at=log(AX),labels = LBL)
     
 
   }
