@@ -163,8 +163,10 @@ fun.horiz.bar=function(d,gear)
     group_by(dummy)%>%
     tally%>%
     mutate(Percent=100*n/sum(n),
-           Label=ifelse(Percent>=.1 & Percent<1,'<1%',
-                        ifelse(Percent<.1,'<0.1%','')),
+           Label=ifelse(Percent>=.5 & Percent<.1,'<1',
+                 ifelse(Percent<.1,'<0.1',
+                 round(Percent,1))),
+           Label=paste(Label,'%',sep=''),
            Percent.original=Percent,
            Percent=ifelse(Percent<0.1,0.1,Percent))%>%
     data.frame%>%
@@ -179,12 +181,13 @@ fun.horiz.bar=function(d,gear)
   d1%>%
   ggplot(aes(x =  dummy,y = Percent)) + 
     geom_bar(fill = d1$grp,stat = "identity")+coord_flip()+
-    geom_text(aes(label=Label), position=position_dodge(width=0.9), hjust=-0.5)+
+    geom_text(aes(label=Label), position=position_dodge(width=0.9), hjust=-.1)+
     theme_classic()+
     theme(axis.title.y=element_blank(),
           axis.text=element_text(size=14),
           axis.title=element_text(size=16),
-          panel.border = element_rect(colour = "black", fill=NA, size=1))
+          panel.border = element_rect(colour = "black", fill=NA, size=1))+
+    ylim(0, 10*round(max(d1$Percent)/10)+5)
   ggsave(paste('Results/Figure2_observed.percentage_',gear,'.tiff',sep=''), 
          width = 8,height = 10,compression = "lzw")
   
