@@ -847,139 +847,139 @@ stopCluster(cl)
 
 
 # Report ---------------------------------------------------------
+tabulate.obs.eff=FALSE
+if(tabulate.obs.eff)
+{
+  Effort_total=read.csv('C:\\Matias\\Analyses\\Data_outs\\Effort.monthly.csv',stringsAsFactors = F)
+  Effort_total.daily=read.csv('C:\\Matias\\Analyses\\Data_outs\\Effort.daily.csv',stringsAsFactors = F)
+}
+
+
+#Figure 1. Map
+do.map=FALSE
+if(do.map)
+{
+  library(yarrr)
+  Total.effort.year.block=Effort_total%>%
+    filter(METHOD=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & YEAR.c>=1993)%>%
+    mutate(LAT=-round(abs(LAT)),
+           LAT=LAT-.5,
+           LONG=LONG+.5)%>%
+    group_by(Same.return,VESSEL,zone,YEAR.c,LAT,LONG)%>%
+    summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
+    group_by(YEAR.c,LAT,LONG)%>%
+    summarise(effort=sum(effort))%>%
+    rename(year=YEAR.c)%>%
+    filter(year<2006)
+  
+  Total.effort.year.block_daily=Effort_total.daily%>%
+    filter(method=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & !is.na(Km.Gillnet.Hours.c))%>%
+    mutate(LAT=-round(abs(LAT)),
+           LONG=round(LONG),
+           LAT=LAT-.5,
+           LONG=LONG+.5)%>%
+    group_by(date,vessel,zone,year.c,LAT,LONG)%>%
+    summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
+    group_by(year.c,LAT,LONG)%>%
+    summarise(effort=sum(effort,na.rm=T))%>%
+    rename(year=year.c)
+  
+  Spatial.effort=rbind(Total.effort.year.block,Total.effort.year.block_daily)%>%
+    group_by(LAT,LONG)%>%
+    summarise(effort=sum(effort,na.rm=T))%>%
+    filter(!is.na(LAT)| !is.na(LONG))%>%
+    spread(LAT,effort)
+  X=Spatial.effort$LONG
+  Y=as.numeric(colnames(Spatial.effort)[-1])
+  Z=as.matrix(Spatial.effort[,-1])
+  
+  
+  library(PBSmapping)
+  data(worldLLhigh)
+  library(rgdal)
+  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R")
+  
+  SDGDLL_zone1=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/SDGDLL_zone1.shp", layer="SDGDLL_zone1") 
+  SDGDLL_zone2=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/SDGDLL_zone2.shp", layer="SDGDLL_zone2") 
+  WCDGDLL=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/WCDGDLL.shp", layer="WCDGDLL") 
+  Bathymetry_120=read.table("C:/Matias/Data/Mapping/get_data112_120.cgi")
+  Bathymetry_138=read.table("C:/Matias/Data/Mapping/get_data120.05_138.cgi")
+  
+  Bathymetry=rbind(Bathymetry_120,Bathymetry_138)%>%
+    arrange(V1,V2)%>%
+    filter(V1 >= South.WA.long[1] & V1 <=South.WA.long[2])%>%
+    filter(V2 >= South.WA.lat[1] & V2 <=South.WA.lat[2])
+  xbat=unique(Bathymetry$V1)
+  ybat=unique(Bathymetry$V2)
+  reshaped=as.matrix(Bathymetry%>%spread(V2,V3))
+  
+  
+  South.WA.long=c(109,129)
+  South.WA.lat=c(-37,-26)
+  Xlim=floor(c(min(X),max(X)))
+  Ylim=floor(c(min(Y),max(Y)))
+  
+  colfunc <- colorRampPalette(c("cyan3","deepskyblue3"))
+  COLn=colfunc(3)
+  
+  
+  tiff(file="Results/Figure1.tiff",width=2400,height=2400,units="px",res=300,compression="lzw")
+  par(mfcol=c(1,1),mar=c(1,1,.5,.5),oma=c(3,3,1,.3),las=1,mgp=c(.04,.65,0))
+  plot(1,xlim=Xlim,ylim=Ylim,xlab="",ylab="",axes=F,main="")
+  
+  #effort
+  image(x=X, y=Y, z=Z,add=T)
+  
+  axis(side = 1, seq(112,129,1),labels =F, tck = .96,col="grey40",lty=3)
+  axis(side = 2, seq(South.WA.lat[1],South.WA.lat[2],1),labels =F, tck = 1,col="grey40",lty=3)
+  
+  #shots
+  kk=DATA_obs$GN%>%distinct(SHEET_NO,.keep_all = T)%>%dplyr::select(Mid.Lat,Mid.Long)
+  points(kk$Mid.Long,kk$Mid.Lat,pch=21, cex = .9,
+         bg=transparent("green2",.8),col=transparent("black",.7))
+  
+  #axis
+  axis(side = 1, seq(South.WA.long[1],South.WA.long[2],1),labels =F, tck = -.01)
+  axis(side = 2, seq(South.WA.lat[1],South.WA.lat[2],1),labels = F, tck = -.01)
+  axis(side = 1, seq(112,129,2),labels =seq(112,129,2), tck = -.015)
+  axis(side = 2, seq(South.WA.lat[1],South.WA.lat[2],2), 
+       labels = -seq(South.WA.lat[1],South.WA.lat[2],2), tck = -.015)
+  
+  #bathymetry
+  contour(xbat, ybat, reshaped[,2:ncol(reshaped)],ylim=South.WA.lat,xlim=South.WA.long, zlim=c(-1,-100),
+          nlevels = 1,labcex=1,labels=c("100",""),lty = 1,col="gray20",add=T)
+  polygon(WAcoast$Longitude,WAcoast$Latitude, col="grey80") 
+  box()
+  mtext(expression(paste("Longitude (",degree,"E)",sep="")),side=1,line=1,font=1,las=0,cex=1.35,outer=T)
+  mtext(expression(paste("Latitude (",degree,"S)",sep="")),side=2,line=1,font=1,las=0,cex=1.35,outer=T)
+  
+  #Inset Australia
+  par(fig=c(.6,1,.475,.975), new = T,mgp=c(.1,.4,0))
+  plotMap(worldLLhigh, xlim=South.WA.long,ylim=c(-39,-13),plt = c(.1, 1, 0.075, 1),
+          col="Black",tck = 0.025, tckMinor = 0.0125, xlab="",ylab="",axes=F)
+  box()
+  plot(WCDGDLL,add=T,col=COLn[1])
+  plot(SDGDLL_zone1,add=T,col=COLn[2])
+  plot(SDGDLL_zone2,add=T,col=COLn[3])
+  CL.txt='midnightblue'
+  text(123,-24,"Western",col='white', cex=1.5)
+  text(123,-27,"Australia",col='white', cex=1.5)
+  
+  text(112.5,-29,"WCDGDLF",col=CL.txt,cex=.85,srt=-70)
+  text(114,-35.25,"JASDGDLF",col=CL.txt,cex=.85,srt=-60)
+  text(113,-36,"(Zone 1)",col=CL.txt,cex=.85,srt=-60)
+  text(123.7437,-35,"JASDGDLF",col=CL.txt,cex=.85)
+  text(123.7437,-36.25,"(Zone 2)",col=CL.txt,cex=.85)
+  
+  dev.off()
+}
+
+#Table 2. List of retained and discarded species
+write.csv(Table.disc.obs,"Results/Table_2.csv",row.names=F)
+
+#Table of PCM and weights  
 if(do.paper)
 {
-  tabulate.obs.eff=FALSE
-  if(tabulate.obs.eff)
-  {
-    Effort_total=read.csv('C:\\Matias\\Analyses\\Data_outs\\Effort.monthly.csv',stringsAsFactors = F)
-    Effort_total.daily=read.csv('C:\\Matias\\Analyses\\Data_outs\\Effort.daily.csv',stringsAsFactors = F)
-  }
-  
-  
-  #Figure 1. Map
-  do.map=FALSE
-  if(do.map)
-  {
-    library(yarrr)
-    Total.effort.year.block=Effort_total%>%
-      filter(METHOD=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & YEAR.c>=1993)%>%
-      mutate(LAT=-round(abs(LAT)),
-             LAT=LAT-.5,
-             LONG=LONG+.5)%>%
-      group_by(Same.return,VESSEL,zone,YEAR.c,LAT,LONG)%>%
-      summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
-      group_by(YEAR.c,LAT,LONG)%>%
-      summarise(effort=sum(effort))%>%
-      rename(year=YEAR.c)%>%
-      filter(year<2006)
-    
-    Total.effort.year.block_daily=Effort_total.daily%>%
-      filter(method=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & !is.na(Km.Gillnet.Hours.c))%>%
-      mutate(LAT=-round(abs(LAT)),
-             LONG=round(LONG),
-             LAT=LAT-.5,
-             LONG=LONG+.5)%>%
-      group_by(date,vessel,zone,year.c,LAT,LONG)%>%
-      summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
-      group_by(year.c,LAT,LONG)%>%
-      summarise(effort=sum(effort,na.rm=T))%>%
-      rename(year=year.c)
-    
-    Spatial.effort=rbind(Total.effort.year.block,Total.effort.year.block_daily)%>%
-      group_by(LAT,LONG)%>%
-      summarise(effort=sum(effort,na.rm=T))%>%
-      filter(!is.na(LAT)| !is.na(LONG))%>%
-      spread(LAT,effort)
-    X=Spatial.effort$LONG
-    Y=as.numeric(colnames(Spatial.effort)[-1])
-    Z=as.matrix(Spatial.effort[,-1])
-    
-    
-    library(PBSmapping)
-    data(worldLLhigh)
-    library(rgdal)
-    source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R")
-    
-    SDGDLL_zone1=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/SDGDLL_zone1.shp", layer="SDGDLL_zone1") 
-    SDGDLL_zone2=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/SDGDLL_zone2.shp", layer="SDGDLL_zone2") 
-    WCDGDLL=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/WCDGDLL.shp", layer="WCDGDLL") 
-    Bathymetry_120=read.table("C:/Matias/Data/Mapping/get_data112_120.cgi")
-    Bathymetry_138=read.table("C:/Matias/Data/Mapping/get_data120.05_138.cgi")
-    
-    Bathymetry=rbind(Bathymetry_120,Bathymetry_138)%>%
-      arrange(V1,V2)%>%
-      filter(V1 >= South.WA.long[1] & V1 <=South.WA.long[2])%>%
-      filter(V2 >= South.WA.lat[1] & V2 <=South.WA.lat[2])
-    xbat=unique(Bathymetry$V1)
-    ybat=unique(Bathymetry$V2)
-    reshaped=as.matrix(Bathymetry%>%spread(V2,V3))
-    
-    
-    South.WA.long=c(109,129)
-    South.WA.lat=c(-37,-26)
-    Xlim=floor(c(min(X),max(X)))
-    Ylim=floor(c(min(Y),max(Y)))
-    
-    colfunc <- colorRampPalette(c("cyan3","deepskyblue3"))
-    COLn=colfunc(3)
-    
-    
-    tiff(file="Results/Figure1.tiff",width=2400,height=2400,units="px",res=300,compression="lzw")
-    par(mfcol=c(1,1),mar=c(1,1,.5,.5),oma=c(3,3,1,.3),las=1,mgp=c(.04,.65,0))
-    plot(1,xlim=Xlim,ylim=Ylim,xlab="",ylab="",axes=F,main="")
-    
-    #effort
-    image(x=X, y=Y, z=Z,add=T)
-    
-    axis(side = 1, seq(112,129,1),labels =F, tck = .96,col="grey40",lty=3)
-    axis(side = 2, seq(South.WA.lat[1],South.WA.lat[2],1),labels =F, tck = 1,col="grey40",lty=3)
-    
-    #shots
-    kk=DATA_obs$GN%>%distinct(SHEET_NO,.keep_all = T)%>%dplyr::select(Mid.Lat,Mid.Long)
-    points(kk$Mid.Long,kk$Mid.Lat,pch=21, cex = .9,
-           bg=transparent("green2",.8),col=transparent("black",.7))
-    
-    #axis
-    axis(side = 1, seq(South.WA.long[1],South.WA.long[2],1),labels =F, tck = -.01)
-    axis(side = 2, seq(South.WA.lat[1],South.WA.lat[2],1),labels = F, tck = -.01)
-    axis(side = 1, seq(112,129,2),labels =seq(112,129,2), tck = -.015)
-    axis(side = 2, seq(South.WA.lat[1],South.WA.lat[2],2), 
-         labels = -seq(South.WA.lat[1],South.WA.lat[2],2), tck = -.015)
-    
-    #bathymetry
-    contour(xbat, ybat, reshaped[,2:ncol(reshaped)],ylim=South.WA.lat,xlim=South.WA.long, zlim=c(-1,-100),
-            nlevels = 1,labcex=1,labels=c("100",""),lty = 1,col="gray20",add=T)
-    polygon(WAcoast$Longitude,WAcoast$Latitude, col="grey80") 
-    box()
-    mtext(expression(paste("Longitude (",degree,"E)",sep="")),side=1,line=1,font=1,las=0,cex=1.35,outer=T)
-    mtext(expression(paste("Latitude (",degree,"S)",sep="")),side=2,line=1,font=1,las=0,cex=1.35,outer=T)
-    
-    #Inset Australia
-    par(fig=c(.6,1,.475,.975), new = T,mgp=c(.1,.4,0))
-    plotMap(worldLLhigh, xlim=South.WA.long,ylim=c(-39,-13),plt = c(.1, 1, 0.075, 1),
-            col="Black",tck = 0.025, tckMinor = 0.0125, xlab="",ylab="",axes=F)
-    box()
-    plot(WCDGDLL,add=T,col=COLn[1])
-    plot(SDGDLL_zone1,add=T,col=COLn[2])
-    plot(SDGDLL_zone2,add=T,col=COLn[3])
-    CL.txt='midnightblue'
-    text(123,-24,"Western",col='white', cex=1.5)
-    text(123,-27,"Australia",col='white', cex=1.5)
-    
-    text(112.5,-29,"WCDGDLF",col=CL.txt,cex=.85,srt=-70)
-    text(114,-35.25,"JASDGDLF",col=CL.txt,cex=.85,srt=-60)
-    text(113,-36,"(Zone 1)",col=CL.txt,cex=.85,srt=-60)
-    text(123.7437,-35,"JASDGDLF",col=CL.txt,cex=.85)
-    text(123.7437,-36.25,"(Zone 2)",col=CL.txt,cex=.85)
-    
-    dev.off()
-  }
-  
-  #Table 2. List of retained and discarded species
-  write.csv(Table.disc.obs,"Results/Table_2.csv",row.names=F)
-  
-  #Table of PCM and weights  
   Table_S.2=left_join(Len.wei,
                       All.species.names[,-match('SPECIES',names(All.species.names))],by=c('SPECIES'='SP'))%>%
     filter(!is.na(Name))%>%
@@ -988,134 +988,139 @@ if(do.paper)
     mutate(PCM=ifelse(is.na(PCM),'',PCM))
   write.csv(Table_S.2,"Results/Table_S.2.csv",row.names=F)
   
-  # Table of effort coverage 
-  #note: Show porportion of effort observed by year for gillnet
-  if(tabulate.obs.eff)
-  {
-    Total.effort.year=Effort_total%>%
-      filter(METHOD=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & YEAR.c>=1993)%>%
-      group_by(Same.return,VESSEL,zone,YEAR.c)%>%
-      summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
-      group_by(YEAR.c)%>%
-      summarise(effort=sum(effort))%>%
-      rename(year=YEAR.c)%>%
-      filter(year<2006)
-    
-    Total.effort.year_daily=Effort_total.daily%>%
-      filter(method=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & !is.na(Km.Gillnet.Hours.c))%>%
-      group_by(date,vessel,zone,year.c)%>%
-      summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
-      group_by(year.c)%>%
-      summarise(effort=sum(effort,na.rm=T))%>%
-      rename(year=year.c)
-    
-    Total.effort.year=rbind(Total.effort.year,Total.effort.year_daily)
-    
- 
-    Obs.effort.year=DATA_obs$GN%>%
-      mutate(effort=NET_LENGTH*SOAK.TIME)%>%
-      distinct(SHEET_NO,.keep_all = T)%>%
-      group_by(BOAT)%>%
-      mutate(mean.effort=mean(effort,na.rm=T))%>%
-      mutate(effort=case_when(is.na(effort)~mean.effort,
-                              TRUE~effort))%>%
-      group_by(year)%>%
-      summarise(effort.obs=sum(effort))
+}
 
-    
-    Table_S.1=left_join(Total.effort.year,Obs.effort.year,by='year')%>%
-      mutate(Percent.obs=100*effort.obs/effort)
-    
-    tiff(file="Results/FigureS1_observed.effort.tiff",width = 2000, height = 2000,
-         units = "px", res = 300, compression = "lzw") 
-    par(mar=c(2.5,2.5,1,1),oma=c(1,1,.1,.1),mgp=c(1.5,.5,0),las=1,cex.lab=1.25)
-    plot(Table_S.1$year,Table_S.1$Percent.obs,ylab="Percentage observed",xlab="Year",
-         pch=21,bg="brown1",cex=2)
-    dev.off()
-  }
+# Table of effort coverage 
+#note: Show porportion of effort observed by year for gillnet
+if(tabulate.obs.eff)
+{
+  Total.effort.year=Effort_total%>%
+    filter(METHOD=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & YEAR.c>=1993)%>%
+    group_by(Same.return,VESSEL,zone,YEAR.c)%>%
+    summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
+    group_by(YEAR.c)%>%
+    summarise(effort=sum(effort))%>%
+    rename(year=YEAR.c)%>%
+    filter(year<2006)
+  
+  Total.effort.year_daily=Effort_total.daily%>%
+    filter(method=='GN' & Shark.fishery%in%c('JASDGDL','WCDGDL') & !is.na(Km.Gillnet.Hours.c))%>%
+    group_by(date,vessel,zone,year.c)%>%
+    summarise(effort=max(Km.Gillnet.Hours.c,na.rm=T))%>%
+    group_by(year.c)%>%
+    summarise(effort=sum(effort,na.rm=T))%>%
+    rename(year=year.c)
+  
+  Total.effort.year=rbind(Total.effort.year,Total.effort.year_daily)
   
   
-  #Put results in right format, aggregate blocks and extract median, ci    
-  fn.agg.block=function(d)
-  {
-    dummy=vector('list',n.boot)
-    for(n in 1:n.boot)
-    {
-      Var=subset(names(d[[n]]),!names(d[[n]])%in%c("BLOCK","YEAR"))
-      Var.ag=paste('cbind(',paste(Var,collapse=','),")",sep='')
-      Formula=as.formula(paste(Var.ag,"YEAR",sep="~"))
-      dummy[[n]]=aggregate(Formula,d[[n]],sum)
-    }
-    return(dummy)
-  }
-  
-  fn.add.missing=function(d,VAR)
-  {
-    VAR=subset(VAR,!VAR%in%c("BLOCK"))
-    VAR1=subset(VAR,!VAR%in%c("YEAR","total.retained"))
-    for(n in 1:n.boot)
-    {
-      id=which(!VAR%in%names(d[[n]]))
-      if(length(id>0))
-      {
-        iid=which(!VAR1%in%names(d[[n]]))
-        dummy=as.data.frame(d[[n]][,rep(1,length(iid))])
-        names(dummy)=VAR1[iid]
-        dummy[,]=0
-        d[[n]]=cbind(d[[n]],dummy)
-      }
-      d[[n]]=d[[n]][,match(VAR,names(d[[n]]))]
-    }
-    return(d)
-  }
-  
-  #aggregate blocks and add missing species     #0.018 sec per iteration
-  system.time({ 
-    Results.show=fn.add.missing(d=fn.agg.block(d=Results),VAR=names(Tot.discard.result))
-  })
-  
-  # Stats
-  PRBS=c(.025,.5,.975)
-  Stat.list=list(Species="Species",Total="Total")
-  Stats=Stat.list
-  fn.stats=function(d,how)
-  {
-    if(how=="Species")
-    {
-      all.matrix <- abind(d, along=3)
-      Store=vector('list',ncol(all.matrix))
-      names(Store)=colnames(all.matrix)
-      for(nm in 2:ncol(all.matrix)) Store[[nm]]=apply(all.matrix[,nm,],1,function(x) quantile(x/1000,probs=PRBS)) #in tonnes
-    }
-    if(how=="Total")
-    {
-      id.var=which(!colnames(d[[1]])%in%c("total.retained","total.retained","YEAR"))
-      for(n in 1:n.boot) d[[n]]$total.discarded=rowSums(d[[n]][,id.var])
-      all.matrix <- abind(d, along=3)
-      These=c("YEAR","total.discarded","total.retained")
-      Store=vector('list',length(These))
-      names(Store)=These
-      id.these=match(These,colnames(d[[1]]))
-      for(nm in 2:length(id.these)) Store[[nm]]=apply(all.matrix[,id.these[nm],],1,function(x) quantile(x/1000,probs=PRBS))
-    }
-    Store$YEAR=all.matrix[,,1][,1]
-    
-    return(Store)
-  }
-  for(l in 1:length(Stats)) Stats[[l]]=fn.stats(d=Results.show,how=Stat.list[[l]])
+  Obs.effort.year=DATA_obs$GN%>%
+    mutate(effort=NET_LENGTH*SOAK.TIME)%>%
+    distinct(SHEET_NO,.keep_all = T)%>%
+    group_by(BOAT)%>%
+    mutate(mean.effort=mean(effort,na.rm=T))%>%
+    mutate(effort=case_when(is.na(effort)~mean.effort,
+                            TRUE~effort))%>%
+    group_by(year)%>%
+    summarise(effort.obs=sum(effort))
   
   
-  #Plot statistics
-  yrs=sort(unique(DATA_total$GN$YEAR))
-  Col.totl="black"
-  Col.totl.retained="grey60"
+  Table_S.1=left_join(Total.effort.year,Obs.effort.year,by='year')%>%
+    mutate(Percent.obs=100*effort.obs/effort)
   
-  #plotting function
-  id.med=match("50%",rownames(Stats$Species[[2]]))
-  id.low=match("2.5%",rownames(Stats$Species[[2]]))
-  id.up=match("97.5%",rownames(Stats$Species[[2]]))
+  tiff(file="Results/FigureS1_observed.effort.tiff",width = 2000, height = 2000,
+       units = "px", res = 300, compression = "lzw") 
+  par(mar=c(2.5,2.5,1,1),oma=c(1,1,.1,.1),mgp=c(1.5,.5,0),las=1,cex.lab=1.25)
+  plot(Table_S.1$year,Table_S.1$Percent.obs,ylab="Percentage observed",xlab="Year",
+       pch=21,bg="brown1",cex=2)
+  dev.off()
+}
 
-  #By species  
+
+#Put results in right format, aggregate blocks and extract median, ci    
+fn.agg.block=function(d)
+{
+  dummy=vector('list',n.boot)
+  for(n in 1:n.boot)
+  {
+    Var=subset(names(d[[n]]),!names(d[[n]])%in%c("BLOCK","YEAR"))
+    Var.ag=paste('cbind(',paste(Var,collapse=','),")",sep='')
+    Formula=as.formula(paste(Var.ag,"YEAR",sep="~"))
+    dummy[[n]]=aggregate(Formula,d[[n]],sum)
+  }
+  return(dummy)
+}
+
+fn.add.missing=function(d,VAR)
+{
+  VAR=subset(VAR,!VAR%in%c("BLOCK"))
+  VAR1=subset(VAR,!VAR%in%c("YEAR","total.retained"))
+  for(n in 1:n.boot)
+  {
+    id=which(!VAR%in%names(d[[n]]))
+    if(length(id>0))
+    {
+      iid=which(!VAR1%in%names(d[[n]]))
+      dummy=as.data.frame(d[[n]][,rep(1,length(iid))])
+      names(dummy)=VAR1[iid]
+      dummy[,]=0
+      d[[n]]=cbind(d[[n]],dummy)
+    }
+    d[[n]]=d[[n]][,match(VAR,names(d[[n]]))]
+  }
+  return(d)
+}
+
+#aggregate blocks and add missing species     #0.018 sec per iteration
+system.time({ 
+  Results.show=fn.add.missing(d=fn.agg.block(d=Results),VAR=names(Tot.discard.result))
+})
+
+# Stats
+PRBS=c(.025,.5,.975)
+Stat.list=list(Species="Species",Total="Total")
+Stats=Stat.list
+fn.stats=function(d,how)
+{
+  if(how=="Species")
+  {
+    all.matrix <- abind(d, along=3)
+    Store=vector('list',ncol(all.matrix))
+    names(Store)=colnames(all.matrix)
+    for(nm in 2:ncol(all.matrix)) Store[[nm]]=apply(all.matrix[,nm,],1,function(x) quantile(x/1000,probs=PRBS)) #in tonnes
+  }
+  if(how=="Total")
+  {
+    id.var=which(!colnames(d[[1]])%in%c("total.retained","total.retained","YEAR"))
+    for(n in 1:n.boot) d[[n]]$total.discarded=rowSums(d[[n]][,id.var])
+    all.matrix <- abind(d, along=3)
+    These=c("YEAR","total.discarded","total.retained")
+    Store=vector('list',length(These))
+    names(Store)=These
+    id.these=match(These,colnames(d[[1]]))
+    for(nm in 2:length(id.these)) Store[[nm]]=apply(all.matrix[,id.these[nm],],1,function(x) quantile(x/1000,probs=PRBS))
+  }
+  Store$YEAR=all.matrix[,,1][,1]
+  
+  return(Store)
+}
+for(l in 1:length(Stats)) Stats[[l]]=fn.stats(d=Results.show,how=Stat.list[[l]])
+Plt.this=Stats$Species[-match(c("YEAR","total.retained"),names(Stats$Species))]
+Plt.this=Plt.this[sort(names(Plt.this))]
+
+#Plot statistics
+yrs=sort(unique(DATA_total$GN$YEAR))
+Col.totl="black"
+Col.totl.retained="grey60"
+
+#plotting function
+id.med=match("50%",rownames(Stats$Species[[2]]))
+id.low=match("2.5%",rownames(Stats$Species[[2]]))
+id.up=match("97.5%",rownames(Stats$Species[[2]]))
+
+#By species  
+if(do.paper)
+{
   fn.plt=function(d,CL,LWd,what)
   {
     plot(yrs,yrs,col='transparent',ylim=c(0,YMAX),ann=F)
@@ -1131,13 +1136,11 @@ if(do.paper)
       points(yrs,d[id.med,],pch=19,col=CL,cex=.8)
       lines(yrs,d[id.med,],lty=3,col=CL)
     }
-
+    
   }
   tiff(file="Results/Figure4_by.species.tiff",width = 2150, height = 2000,
        units = "px", res = 300, compression = "lzw")    
   par(las=1)
-  Plt.this=Stats$Species[-match(c("YEAR","total.retained"),names(Stats$Species))]
-  Plt.this=Plt.this[sort(names(Plt.this))]
   smart.par(n.plots=length(Plt.this),MAR=c(1,1.75,1.75,1),OMA=c(2,2,.1,.1),MGP=c(1,.5,0))
   for(i in 1:length(Plt.this))
   {
@@ -1152,10 +1155,11 @@ if(do.paper)
   mtext("Year",1,1,outer=T,cex=1.15)
   mtext("Total discard (tonnes)",2,0.5,outer=T,las=3,cex=1.15)
   dev.off()
-  
-  
-  
-  #Total
+}
+
+#Total
+if(do.paper)
+{
   fn.plt.prop=function(d,d.ret,CL,LWd)
   {
     plot(yrs,yrs,col='transparent',ylim=c(0,YMAX),ann=F)
@@ -1170,9 +1174,11 @@ if(do.paper)
   mtext("Proportion",2,1.5,las=3,outer=T,cex=1.5)
   mtext("Year",1,0,outer=T,cex=1.5)
   dev.off()
-  
-  
-  #Size frequency distributions
+}
+
+#Size frequency distributions
+if(do.paper)
+{
   DATA_obs$GN%>%
     filter(SPECIES.ori%in%unlist(lapply(strsplit(names(Plt.this), '.', fixed = TRUE), '[', 2)))%>%
     filter(!Name=='Stingrays')%>%  #Stringrays set to average size as not measured, no point displaying
@@ -1191,6 +1197,7 @@ if(do.paper)
 }
 
 
+
 # Export total discard estimates-----------------------------------------------------------------------
   #total
 colnames(Stats$Total$total.discarded)=yrs
@@ -1207,11 +1214,11 @@ for(i in 1:length(Plt.this))
   if(nm=="Australian angel shark") nm="Australian angelshark"
   dd=as.data.frame(t(Plt.this[[i]]))
   colnames(dd)=c("Low.CI","Median","Up.CI")
-  dd=cbind(Year=rownames(dd),dd)
+  dd=cbind(Year=Results.show[[1]]$YEAR,dd)
   
   this.wd=paste(getwd(),nm,sep='/')
   if(!dir.exists(file.path(this.wd))) dir.create(file.path(this.wd))
  
-  write.csv(dd,paste(nm,"Total.discard.estimates_tonnes.csv",sep='/'),row.names = F)
+  write.csv(dd,paste(nm,"Total.discard.estimates_TDGDLF_tonnes.csv",sep='/'),row.names = F)
 }
   
