@@ -81,7 +81,7 @@ Group_rare_criteria=0.02    #criteria for grouping rare species (proportion of c
 
 Commercial.sp=subset(Comm.disc.sp,FATE=="C" & NATURE%in%c("S","R","T"))$SPECIES
 
-do.sensitivity=FALSE
+do.sensitivity=TRUE
 do.paper=FALSE
 
 Stingrays=35000:40000
@@ -157,9 +157,11 @@ fun.horiz.bar=function(d,gear)
     distinct(SPECIES))
   d1=d%>%
     mutate(taxa=ifelse(Discarded=="Retained","Elasmobranch",Taxa),
-           dummy=ifelse(Discarded=="Retained","Retained",Name),
+           dummy=ifelse(Discarded=="Retained" & Taxa=="Elasmobranch","Retained elasmobranchs",
+                 ifelse(Discarded=="Retained" & Taxa=="Teleost","Retained teleosts",
+                 ifelse(Discarded=="Discarded" & Taxa=="Teleost","Discarded teleosts",
+                 Name))),
            dummy=ifelse(dummy=="Eagle ray","Southern eagle ray",dummy))%>%
-    filter(taxa=='Elasmobranch')%>%
     group_by(dummy)%>%
     tally%>%
     mutate(Percent=100*n/sum(n),
@@ -172,10 +174,12 @@ fun.horiz.bar=function(d,gear)
     data.frame%>%
     arrange(-Percent)%>%
     mutate(dummy=reorder(dummy, Percent),
-           grp=ifelse(dummy=='Retained',"#228B22",
-               ifelse(!dummy=='Retained' & Percent.original>=1,"#8B2323",
-               ifelse(!dummy=='Retained' & Percent.original<1 & Percent.original>0.1,"#FF4A39",
-                      "#FF9A06"))))
+           grp=ifelse(dummy=='Retained elasmobranchs',"#228B22",
+               ifelse(dummy=='Retained teleosts',"#11BC11",
+               ifelse(!dummy%in%c('Retained elasmobranchs','Retained teleosts') & Percent.original>=5,"#8B2323",
+               ifelse(!dummy%in%c('Retained elasmobranchs','Retained teleosts') & Percent.original<5 & Percent.original>=1,"#D03434",
+               ifelse(!dummy%in%c('Retained elasmobranchs','Retained teleosts') & Percent.original<1 & Percent.original>0.1,"#FF4A39",
+                      "#FF9A06"))))))
   
   
   d1%>%
@@ -187,7 +191,7 @@ fun.horiz.bar=function(d,gear)
           axis.text=element_text(size=14),
           axis.title=element_text(size=16),
           panel.border = element_rect(colour = "black", fill=NA, size=1))+
-    ylim(0, 10*round(max(d1$Percent)/10)+5)
+    ylim(0, 10*round(max(d1$Percent)/10)+10)
   ggsave(paste('Results/Figure2_observed.percentage_',gear,'.tiff',sep=''), 
          width = 8,height = 10,compression = "lzw")
   
@@ -1209,6 +1213,7 @@ write.csv(Stats$Total$total.discarded,
 
   #by species
 setwd('C:\\Matias\\Analyses\\Data_outs')
+    #Base Case
 for(i in 1:length(Plt.this)) 
 {
   nm=All.species.names%>%
@@ -1225,3 +1230,23 @@ for(i in 1:length(Plt.this))
   write.csv(dd,paste(nm,"Total.discard.estimates_TDGDLF_tonnes.csv",sep='/'),row.names = F)
 }
   
+    #S1
+get.this=names(S1)
+get.this=get.this[-match(c("BLOCK","YEAR","total.retained"),get.this)]
+for(i in 1:length(get.this)) 
+{
+  nm=All.species.names%>%
+    filter(SP==unlist(strsplit(get.this[i], ".", fixed = TRUE))[2])%>%
+    pull(Name)
+  if(nm=="Australian angel shark") nm="Australian angelshark"
+  dd=S1[,c("YEAR",get.this[i])]
+  colnames(dd)[2]="Median"
+  dd=dd%>%
+    group_by(YEAR)%>%
+    summarise(Median=sum(Median)/1000)
+  
+  this.wd=paste(getwd(),nm,sep='/')
+  if(!dir.exists(file.path(this.wd))) dir.create(file.path(this.wd))
+  
+  write.csv(dd,paste(nm,"Total.discard.estimates_TDGDLF_100.PCM_tonnes.csv",sep='/'),row.names = F)
+}
