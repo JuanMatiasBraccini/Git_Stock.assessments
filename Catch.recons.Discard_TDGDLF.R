@@ -1206,47 +1206,72 @@ if(do.paper)
 
 
 # Export total discard estimates-----------------------------------------------------------------------
-  #total
-colnames(Stats$Total$total.discarded)=yrs
-write.csv(Stats$Total$total.discarded,
-      paste("Results/Total.discard.estimates/Total.csv",sep=""))
-
-  #by species
 setwd('C:\\Matias\\Analyses\\Data_outs')
+
     #Base Case
-for(i in 1:length(Plt.this)) 
+YR=Results.show[[1]]$YEAR
+out=vector('list',length(Plt.this))
+for(o in 1:length(out))
 {
+  dd=Plt.this[[o]]
   nm=All.species.names%>%
-    filter(SP==unlist(strsplit(names(Plt.this)[i], ".", fixed = TRUE))[2])%>%
-    pull(Name)
-  if(nm=="Australian angel shark") nm="Australian angelshark"
-  dd=as.data.frame(t(Plt.this[[i]]))
-  colnames(dd)=c("Low.CI","Median","Up.CI")
-  dd=cbind(Year=Results.show[[1]]$YEAR,dd)
-  
-  this.wd=paste(getwd(),nm,sep='/')
-  if(!dir.exists(file.path(this.wd))) dir.create(file.path(this.wd))
- 
-  write.csv(dd,paste(nm,"Total.discard.estimates_TDGDLF_tonnes.csv",sep='/'),row.names = F)
+    filter(SP==unlist(strsplit(names(Plt.this)[o], ".", fixed = TRUE))[2])%>%
+    pull(SPECIES)
+  dummy=data.frame(FINYEAR=paste(YR,substr(YR+1,3,4),sep="-"),
+                   SPECIES=nm,
+                   LIVEWT.c=1000*dd[match('50%',rownames(dd)),],
+                   zone=NA)
+  out[[o]]=dummy
+  rm(dd,dummy,nm)
 }
-  
-    #S1
+write.csv(do.call(rbind,out),"recons_discard_TDGDLF.csv",row.names = F)
+
+  #S1
 get.this=names(S1)
-get.this=get.this[-match(c("BLOCK","YEAR","total.retained"),get.this)]
-for(i in 1:length(get.this)) 
-{
-  nm=All.species.names%>%
-    filter(SP==unlist(strsplit(get.this[i], ".", fixed = TRUE))[2])%>%
-    pull(Name)
-  if(nm=="Australian angel shark") nm="Australian angelshark"
-  dd=S1[,c("YEAR",get.this[i])]
-  colnames(dd)[2]="Median"
-  dd=dd%>%
-    group_by(YEAR)%>%
-    summarise(Median=sum(Median)/1000)
+get.this=get.this[-match(c("BLOCK","total.retained"),get.this)]
+d=S1[,get.this]%>%
+  gather('SP','LIVEWT.c',-YEAR)%>%
+  mutate(SP=str_extract(SP, "[^.]+$"),
+         FINYEAR=paste(YEAR,substr(YEAR+1,3,4),sep="-"))%>%
+  left_join(All.species.names%>%dplyr::select(SPECIES,SP),by="SP")%>%
+  group_by(FINYEAR,SPECIES)%>%
+  summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+  mutate(zone=NA)
+write.csv(d,"recons_discard_TDGDLF_100.PCM.csv",row.names = F)
+
+# for(i in 1:length(Plt.this)) 
+# {
+#   nm=All.species.names%>%
+#     filter(SP==unlist(strsplit(names(Plt.this)[i], ".", fixed = TRUE))[2])%>%
+#     pull(Name)
+#   if(nm=="Australian angel shark") nm="Australian angelshark"
+#   dd=as.data.frame(t(Plt.this[[i]]))
+#   colnames(dd)=c("Low.CI","Median","Up.CI")
+#   dd=cbind(Year=Results.show[[1]]$YEAR,dd)
+#   
+#   this.wd=paste(getwd(),nm,sep='/')
+#   if(!dir.exists(file.path(this.wd))) dir.create(file.path(this.wd))
+#  
+#   write.csv(dd,paste(nm,"Total.discard.estimates_TDGDLF_tonnes.csv",sep='/'),row.names = F)
+# }
   
-  this.wd=paste(getwd(),nm,sep='/')
-  if(!dir.exists(file.path(this.wd))) dir.create(file.path(this.wd))
-  
-  write.csv(dd,paste(nm,"Total.discard.estimates_TDGDLF_100.PCM_tonnes.csv",sep='/'),row.names = F)
-}
+#     #S1
+# get.this=names(S1)
+# get.this=get.this[-match(c("BLOCK","YEAR","total.retained"),get.this)]
+# for(i in 1:length(get.this)) 
+# {
+#   nm=All.species.names%>%
+#     filter(SP==unlist(strsplit(get.this[i], ".", fixed = TRUE))[2])%>%
+#     pull(Name)
+#   if(nm=="Australian angel shark") nm="Australian angelshark"
+#   dd=S1[,c("YEAR",get.this[i])]
+#   colnames(dd)[2]="Median"
+#   dd=dd%>%
+#     group_by(YEAR)%>%
+#     summarise(Median=sum(Median)/1000)
+#   
+#   this.wd=paste(getwd(),nm,sep='/')
+#   if(!dir.exists(file.path(this.wd))) dir.create(file.path(this.wd))
+#   
+#   write.csv(dd,paste(nm,"Total.discard.estimates_TDGDLF_100.PCM_tonnes.csv",sep='/'),row.names = F)
+# }

@@ -14,6 +14,8 @@
 #         prior to November 2006 as total landings X proportion shark X PCM  X BRD (trawl fisheries only)
 #         If catch composition is not in weight, then convert numbers to weights
 
+#         Hyndes et al 1999 (fide in Jones et al 2010) reports catch of discarded elasmobranchs in trawl fisheries
+
 #ANNUAL UPDATES:
 
 #1. "#Total landings time series". For fisheries listed in 'Calculate.discarding_catch' each year 
@@ -218,11 +220,16 @@ Pilbara.trawl.observed.comp=data.frame(
                     'Hemipristis elongata','Carcharhinus tilstoni & C. limbatus','Galeocerdo cuvier',
                     'Rhizoprionodon acutus','Hemigaleus microstoma','Rhizoprionodon taylori','Carcharhinus dussumieri',
                     'Stegastoma fasciatum','Nebrius ferrugineus','Sphyna lewini','Carcharhinus sorrah',
-                    'Sphyrna zygaena','Hemiscylliidae','Chiloscylium punctatum','Eusphyra blochii',
+                    'Sphyrna zygaena','Hemiscylliidae','Chiloscyllium punctatum','Eusphyra blochii',
                     'Eucrossorhinus dasypogon','Carcharhinus altimus','Carcharhinus brevipinna',
                     'Loxodon macrorhinus','Orectolobus wardi'),
-  SPECIES=c(18007,19002,18026,NA,18014,18022,18006,NA,NA,NA,NA,13010,19001,18013,19004,NA,NA,NA,
-            NA,18012,18023,NA,NA),
+  SPECIES=c(18007,19002,18026,
+            18011,18014,18022,
+            18006,18020,18024,18009,
+            13006,13010,19001,18013,
+            19004,13912 ,13008,19003,
+            13011,18012,18023,
+            18005,13017),
   Retained=c(rep('yes',10),rep('no',13)),
   Numbers=c(90,7,3,27,80,5,238,559,114,102,101,4,115,25,1,12,43,1,4,6,1,1,2),
   Weight=c(2058.6,595.9,295.1,395.8,593.2,168.3,522.6,772.7,210.5,214.2,
@@ -274,19 +281,22 @@ BRD_pilbara.trawl_year='2003-04'
 
     #shark catch composition
 South.west.trawl.observed.comp=data.frame(
-    Scientific.name=c('Squatina australis','Aulohalaelurus labiosus','Urolophus circularis','Orectolobus tentaculatus',
+    Scientific.name=c('Squatina australis','Aulohalaelurus labiosus','Urolophus circularis','Sutorectus tentaculatus',
              'Pristiophorus cirratus','Myliobatis australis','Trygonorhina fasciata','Mustelus antarcticus',
-             'Urolophus lobatus','Trygonoptera personata','Hypnos monopterygium','Heterodontus portusjacksoni',
+             'Urolophus lobatus','Trygonoptera personata','Hypnos monopterygius','Heterodontus portusjacksoni',
              'Sphyrna zygaena','Dasyatis brevicaudata','Aptychotrema vincentiana','Urolophus paucimaculatus',
-             'Parascyllium variolatum','Urolophus mucosus','Orectolobus sp.'),
+             'Parascyllium variolatum','Trygonoptera mucosa','Orectolobus sp.'),
   
     Common.name=c('Angel shark','Black-spotted catshark','Circular stingaree','Cobbler carpetshark',
             'Common sawshark','Eagle ray','Fiddler ray','Gummy shark',
             'Lobed stingaree','Masked stingaree','Numbfish','Port Jackson shark',
             'Smooth hammerhead','Smooth stingray','Southern shovelnose ray','Sparsely-spotted stingaree',
-            'Varied catshark','Western stingaree','Western wobbegong'),
-    SPECIES=c(24900,NA,NA,NA,23002,31000,26999,17001,NA,NA,NA,NA,19004,NA,NA,NA,
-              NA,NA,13000),                              
+            'Varied catshark','Western stingaree','Wobbegongs'),
+    SPECIES=c(24900,15029,38020,13012,
+              23002,31000,26999,17001,
+              38021,38017,28001,7001,
+              19004,35001,27001,38004,
+              13004 ,38015,13000),                              
     Commercial=c('y',rep('n',3),rep('y',4),rep('n',4),'y','n','y',rep('n',3),'y'),
     Bell.buoy=c(5,0,0,0,0,5,5,0,75,30,0,5,0,0,5,30,0,30,0),
     Cottesloe=c(5,0,0,0,0,30,5,0,75,30,0,550,0,5,5,5,0,30,0),
@@ -320,14 +330,14 @@ South.west.trawl_shrk.to.land=sum(South.west.trawl.observed.comp$N)/sum(South.we
 
     #shark catch composition
 Shark.Bay.trawl.observed.comp=data.frame(
-  Scientific.name=c('Chiloscyllium punctatum','Halaelurus boesemani','Mustelus sp. A',
+  Scientific.name=c('Chiloscyllium punctatum','Halaelurus boesemani','Mustelus ravidus',
              'Carcharhinus cautus','Carcharhinus melanopterus','Carcharhinus obscurus',
-             'Carcharhinus plumbeus','Rhizoprionodon acutus Shark','Hemigaleus australiensis',
+             'Carcharhinus plumbeus','Rhizoprionodon acutus','Hemigaleus australiensis',
              'Rhina ancylostoma','Rhynchobatus australiae',
-             'Aptychotrema vincentiana','Narcine westraliensis','Hypnos monopterygium',
-             'Dasyatis kuhlii','Dasyatis leylandi','Himantura sp.','Himantura toshi',
-             'Himantura uarnak','Taeniura meyeni','Gymnura australis','Trygonoptera ovalis',
-             'Aetobatus narinari'),
+             'Aptychotrema vincentiana','Narcine westraliensis','Hypnos monopterygius',
+             'Neotrygon australiae','Neotrygon leylandi','Himantura spp','Maculabatis astra',
+             'Himantura australis','Taeniura meyeni','Gymnura australis','Trygonoptera ovalis',
+             'Aetobatus ocellatus'),
   Common.name=c('Catshark, Brown-banded','Catshark, Speckled','Shark, Grey Gummy',
             'Shark, Nervous','Shark, Blacktip Reef','Shark, Dusky Whaler',
             'Shark, Sandbar','Shark, Milk','Shark, Weasel','Shark Ray','Shovelnose Ray, White-spotted',
@@ -335,7 +345,14 @@ Shark.Bay.trawl.observed.comp=data.frame(
             'Stingray, Blue-spotted','Stingray, Brown reticulated','Stingray, Coachwhip','Whipray, Black-spotted',
             'Whipray, Reticulate','Stingray, Black-blotched','Ray, Rat-tailed/Butterfly','Stingaree, Striped',
             'Ray, White-spotted Eagle'),
-  SPECIES=c(NA,NA,NA,18034,18036,18003,18007,18006,NA,NA,26999,26999,NA,NA,rep(31000,7),NA,31000),                              
+  SPECIES=c(13008,15004,17005,
+            18034,18036,18003,
+            18007,18006,18020,
+            26002,26001,
+            27001 ,28005,28001,
+            35004,35013,35902,35020 ,
+            35003,35017,37001,38016,
+            39003),                              
   Commercial=c('n','n',rep('y',7),'n','n','y',rep('n',10),'y'),
   Total=c(2,1,3,1,1,1,1,1,1,1,3,3,4,1,3,4,1,2,2,1,4,2,1))%>%
   mutate(Prop=Total/sum(Total))
@@ -347,15 +364,18 @@ Trawl.prawn.scallop.mean.weight=mean(c(.025,.02))           #Mervi Kangas pers c
 
 
 Exmouth.Onslow.trawl.observed.comp=data.frame(
-  Scientific.name=c('Chiloscyllium punctatum','Eucrossorhinus dasypogon','Atelomycterus sp.','Rhizoprionodon acutus',
-             'Hemigaleus australiensis','Rhynchobatus australiae','Rhinobatos typus','Dasyatis kuhlii',
-             'Dasyatis leylandi','Himantura toshi','Gymnura australis',
+  Scientific.name=c('Chiloscyllium punctatum','Eucrossorhinus dasypogon','Atelomycterus spp','Rhizoprionodon acutus',
+             'Hemigaleus australiensis','Rhynchobatus australiae','Glaucostegus typus','Neotrygon australiae',
+             'Neotrygon leylandi','Maculabatis astra','Gymnura australis',
              'Aetomylaeus vespertilio','Aetomylaeus nichofii'),
   Common.name=c('Catshark, Brown-banded','Wobbegong, Tasselled','Catshark, Banded','Shark, Milk',
             'Shark, Sicklefin Weasel','Ray, White-spotted Shovelnose','Ray, Giant Shovelnose','Ray, Blue-spotted Stingray',
             'Ray, Brown Reticulated','Ray, Black-spotted Whipray','Ray, Butterfly/Rat-tailed',
             'Ray, Ornate Eagle Ray','Ray, Banded Eagle Ray'),
-  SPECIES=c(NA,NA,NA,18006,NA,26999,26999,31000,31000,31000,31000,31000,31000),                              
+  SPECIES=c(13008,13011,15903,18006,
+            8020,26001,27010,35004,
+            35013,35020,37001,
+            39005,39002),                              
   Commercial=c(rep('n',3),'y','y',rep('n',8)),
   Total=c(3,1,3,2,2,2,1,1,3,3,3,1,1))%>%
   mutate(Prop=Total/sum(Total))
@@ -395,8 +415,12 @@ Kimberley.GBF.observed.comp=data.frame(
                     'Rhynchobatidae/F Rhinobatidae','Carcharhinus sorrah',
                     'Dasyatididae','Rhizoprionodon taylori','Galeocerdo cuvier',
                     'Rhynchobatus australiae'),
-  SPECIES=c(18014,18021,18033,NA,19001,NA,18029,18023,18006,18034,25002,25004,
-            18026,25000,25001,18036,NA,26999,18013,31000,NA,18022,31000),                              
+  SPECIES=c(18014,18021,18033,18025,
+            19001,19003,18029,18023,
+            18006,18034,25002,25004,
+            18026,25000,25001,
+            18036,18005,26999,18013,
+            31000,18024,18022,26001),                              
   Numbers=c(87,32,36,3,1,45,27,3,13,82,190,31,398,1,17,1,6,22,1,5,4,1,5),
   Weight=c(578.1,126.5,178.6,12.5,109.1,106.9,165.1,3.4,13.9,422.5,5239.1,370.1,
            2284.5,23.7,161.6,1.4,5.4,63.5,5.7,20.0,2.9,57.2,56.8)
@@ -1203,7 +1227,7 @@ Data.monthly=fn.PCM(d=Data.monthly,Nme="South",PCM.multiplier=1)
 Data.monthly.north=fn.PCM(d=Data.monthly.north,Nme="North",PCM.multiplier=1)  
 
 
-
+#ACA
   #3.1.4. Kimberley Gillnet and Barramundi recalculation of catch (in kg) using effort as per McAuley et al 2005
 Kimberley.GBF.observed.comp=Kimberley.GBF.observed.comp%>%
           mutate(cpue=Weight/Kimberley.GBF.observed.effort)
