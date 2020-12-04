@@ -2,6 +2,8 @@
 
 #missing: consider "#Perth metro pilot survey (Claire Smallwood)"
 
+#         MAKE sure all species (rec, comm, discards) are considered (e.g PJs)     VIP!!!
+
 # Annual updates:
         # For each new I-survey, get data from Karina
         # Update Charter boat data each year

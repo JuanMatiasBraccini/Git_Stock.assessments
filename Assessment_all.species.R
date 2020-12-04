@@ -18,13 +18,13 @@
 #     5. Generate relevant outputs
 
 
-#missing:
-
-# Include ALL species in final risk scoring
-#  review Smooth HH cpue and mako cpue...; SPM Tiger fit
-# Milk shark SPM, hitting upper K boundary, no trend in cpue, crap Hessian, too uncertain....mention in text...
-# aSPM: finish running for all species; issues with Tiger cpue fit...
-# set up integrated model for dusky and sandbar
+#missing:  
+#     MAKE sure all species (rec, comm, discards) are considered (e.g PJs)     VIP!!! (discard_TDGDLF and PJs in Rec.ktch, etc)
+#     Include ALL species in final risk scoring
+#     review Smooth HH cpue and mako cpue...; SPM Tiger fit
+#     Milk shark SPM, hitting upper K boundary, no trend in cpue, crap Hessian, too uncertain....mention in text...
+#     aSPM: finish running for all species; issues with Tiger cpue fit...
+#     set up integrated model for dusky and sandbar
 # Size-based Catch curve (for some species, there's NSF size compo, not used at the moment)
 
 rm(list=ls(all=TRUE))
@@ -263,6 +263,10 @@ fn.import.catch.data=function(KTCH.UNITS)
   TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
   #..Droplines Western Rock Lobster
   WRL.ktch=fn.in(NM='Wetline_rocklobster.csv')
+  #..Discards from TDGDLF
+  discard_TDGDLF=fn.in(NM='recons_discard_TDGDLF.csv')
+  #discard_TDGDLF=fn.in(NM='recons_discard_TDGDLF_100.PCM')
+  
   
   #2.1.2. Catch of non WA Fisheries
   #..Taiwanese gillnet and longline
