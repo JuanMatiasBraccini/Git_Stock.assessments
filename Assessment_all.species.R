@@ -6,9 +6,10 @@
 #               . SPM,
 #               . Catch-MSY (Martell & Froese 2012)
 #               . aSPM(Haddon SimpleSA())
-#     2. Total catches are used (extracted from commercial and recreational catch reconstructions)
+#     2. Total catches are used (extracted from commercial, recreational and TDGDLF discarded catch reconstructions)
 #     3. Assumption: If catches have never been >1% carrying capacity, then it's in unexploited 
-#         status so catch series have no information on productivity (filtered out by the PSA analysis)
+#         status so catch series have no information on productivity
+#         The PSA filters out species from further analyses thru 'Criteria for selecting what species to assess'
 
 #Steps: 
 #     1. Define arguments used in each of the shark species/species complex assessed.
@@ -19,7 +20,6 @@
 
 
 #missing:  
-#     MAKE sure all species (rec, comm, discards) are considered (e.g PJs)     VIP!!! (discard_TDGDLF and PJs in Rec.ktch, etc)
 #     Include ALL species in final risk scoring
 #     review Smooth HH cpue and mako cpue...; SPM Tiger fit
 #     Milk shark SPM, hitting upper K boundary, no trend in cpue, crap Hessian, too uncertain....mention in text...
@@ -31,6 +31,7 @@ rm(list=ls(all=TRUE))
 options(dplyr.summarise.inform = FALSE)
 options(stringsAsFactors = FALSE) 
 
+library(ReporteRs)
 library(rlist)
 library(MASS)
 library(plotrix)
@@ -51,7 +52,7 @@ library(datalowSA)
 library(zoo)
 library(MCDA)
 library(sfsmisc)   # p values from rlm
-library(ReporteRs)
+
 
 source.hnld="C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/"
 fn.source=function(script)source(paste(source.hnld,script,sep=""))
@@ -83,8 +84,10 @@ First.run="NO"
 Modl.rn="standard"   #for annual assessments
 #Modl.rn='first'    #for paper
 
-#Define is calculating r and steepness
+
+#Define if calculating r and steepness
 do.r.prior=do.steepness=FALSE
+
 
 #Define if exporting figures as jpeg or tiff (creation of RAR requires jpeg)
 Do.tiff="YES" 
@@ -103,18 +106,18 @@ Min.yrs=5
 if(KTCH.UNITS=="KGS") Min.ktch=5000 
 if(KTCH.UNITS=="TONNES") Min.ktch=5
 
-#PSA
+  #PSA
 PSA.min.tons=5
 PSA.min.years=5
 PSA.max.ton=50
 Low.risk=2.64  #risk thresholds from Micheli et al 2014
 medium.risk=3.18
 
+
 #Size composition
   #Initial bin size
 MN.SZE=0
 #MN.SZE="size.at.birth"
-
 
   #size bin
 TL.bins.cm=5
@@ -125,8 +128,7 @@ Min.obs=10  #at least 10 observations
 Min.shts=5  #from at least 5 shots
 
 
-# Global arguments: indicator species 
-
+# Global arguments for indicator species 
 if(First.run=="YES") run.all.scenarios="YES" #What scenarios to run?
 if(First.run=="NO") run.all.scenarios="NO"  
 if(First.run=="NO") run.future="YES" #Future projection scenarios
@@ -179,15 +181,17 @@ Add.r.prior=0   #no r prior
 #Add.r.prior=1   #use r prior
 
 
-# Global arguments: non-indicator species
+# Global arguments for non-indicator species
 Asses.Scalloped.HH=FALSE  #2020 scalloped HH assessment
 
-#... Control which assessment methods to implement
+
+# Control which assessment methods to implement
 Do.SPM="YES"
 Do.Ktch.MSY="YES"
 Do.aSPM="YES"
 
-#Reference points
+
+# Reference points
 #note: Historically, single reference point for the fishery (biomass at 40% unexploited conditions)
 B.threshold=0.5  #Bmys
 Tar.prop=1.3    #target and limit proportions of Bmsy. source: Haddon et al 2014. Technical
@@ -201,15 +205,18 @@ SPR.thre=0.3   #Punt 2000 Extinction of marine renewable resources: a demographi
 SPR.tar=0.4                # Population Ecology 42, 
 
 
-#Define if using effort
+# Define if using effort
 add.effort="NO"    
 What.Effort="km.gn.hours"  #What effort to display?
 #What.Effort="km.gn.days" 
 
 
-#Define if assessing 'other species'
+# Define if assessing 'other species'
 do.other.ass=TRUE
-do.other.ass.paper=FALSE  #outputs for other species assessment paper
+
+
+# Define if doing other species paper
+do.other.ass.paper=FALSE  
 
 
 #---Data section-----   
@@ -219,6 +226,7 @@ Dat.repository='C:/Matias/Analyses/Data_outs/'  #where all input data are locate
 All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv")
 All.species.names=All.species.names%>%
                     mutate(Name=tolower(Name))%>%
+                    filter(!(SPECIES==18014 & Name=="australian blacktip shark"))%>%
                     rename(SNAME=Name)
 Shark.species=5001:24900
 School.shark= 17008
@@ -252,7 +260,7 @@ Mode <- function(x)
 fn.import.catch.data=function(KTCH.UNITS)
 {
   #2.1. Commercial
-  #2.1.1 Catch_WA Fisheries
+    #2.1.1 Catch_WA Fisheries
   #..Historic
   Historic.ktch=fn.in(NM='recons_Hist.expnd.csv')%>%filter(!FINYEAR=='1975-76')
   #..Ammended reported commercial catch including discards
@@ -268,7 +276,7 @@ fn.import.catch.data=function(KTCH.UNITS)
   #discard_TDGDLF=fn.in(NM='recons_discard_TDGDLF_100.PCM')
   
   
-  #2.1.2. Catch of non WA Fisheries
+    #2.1.2. Catch of non WA Fisheries
   #..Taiwanese gillnet and longline
   Taiwan.gillnet.ktch=fn.in(NM='recons_Taiwan.gillnet.ktch.csv')
   Taiwan.longline.ktch=fn.in(NM='recons_Taiwan.longline.ktch.csv')
@@ -296,7 +304,7 @@ fn.import.catch.data=function(KTCH.UNITS)
   
   
   #Combine data sets
-  #Add TDGDLF and NSF
+    # TDGDLF and NSF
   Data.monthly$Region="South"
   Data.monthly.north$Region="North"
   Data.monthly$Data.set="Data.monthly"
@@ -305,11 +313,9 @@ fn.import.catch.data=function(KTCH.UNITS)
                  subset(Data.monthly.north,select=c(SPECIES,FishCubeCode,FINYEAR,Region,Data.set,LIVEWT.c,BLOCKX,METHOD,zone)))%>%
     left_join(All.species.names,by='SPECIES')%>%     #add species names
     mutate(finyear=as.numeric(substr(FINYEAR,1,4)))%>%    
-    mutate(SPECIES=ifelse(SPECIES%in%c(23002,23001,23900),23900,SPECIES),  #combine sawsharks as reported by species and as 'sawsharks'
-           SNAME=ifelse(SNAME%in%c("southern sawshark","common sawshark","sawsharks"),"sawsharks",SNAME),
-           Name=SNAME)
+    mutate(Name=SNAME)
   
-  #Add Recreational
+    #Add Recreational
   a=Rec.ktch%>%
     rename(finyear=year)%>%
     mutate(BLOCKX=NA,
@@ -317,13 +323,15 @@ fn.import.catch.data=function(KTCH.UNITS)
                           zone=="West Coast"~'West',
                           zone=="South Coast"~'Zone1'),
            Common.Name=ifelse(Common.Name=="dogfishes","spurdogs",
-                              ifelse(Common.Name=="greynurse shark","grey nurse shark",
-                                     ifelse(Common.Name=="thresher shark","thresher sharks",
-                                            ifelse(Common.Name=="bronze whaler","copper shark",
-                                                   ifelse(Common.Name=="dusky whaler","dusky shark",
-                                                          ifelse(Common.Name=="gummy sharks","gummy shark",
-                                                                 Common.Name)))))))%>%
-    filter(Common.Name%in%unique(Tot.ktch$SNAME))%>%
+                       ifelse(Common.Name=="greynurse shark","grey nurse shark",
+                       ifelse(Common.Name=="thresher shark","thresher sharks",
+                       ifelse(Common.Name=="bronze whaler","copper shark",
+                       ifelse(Common.Name=="dusky whaler","dusky shark",
+                       ifelse(Common.Name=="gummy sharks","gummy shark",
+                       ifelse(Common.Name=="tawny shark","tawny nurse shark",
+                       ifelse(Common.Name=="sawfishes","sawfish (general)",
+                       ifelse(Common.Name=="australian blacktip shark","australian blacktip",
+                       Common.Name))))))))))%>%
     left_join(All.species.names,by=c('Common.Name'='SNAME'))%>%
     mutate(SNAME=Common.Name,
            Name=Common.Name,
@@ -333,7 +341,21 @@ fn.import.catch.data=function(KTCH.UNITS)
     dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
   
-  #Add Taiwanese
+    #Add Discards from TDGDLF
+  a=discard_TDGDLF%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    mutate(BLOCKX=NA,
+           Name=SNAME,
+           Type="Discards_TDGDLF",
+           Data.set="Discards_TDGDLF",
+           METHOD='GN',
+           Region='South',
+           FishCubeCode="Discards_TDGDLF",
+           finyear=as.numeric(substr(FINYEAR,1,4)))%>%
+    dplyr::select(names(Tot.ktch))
+  Tot.ktch=rbind(Tot.ktch,a)
+  
+    #Add Taiwanese
   a=Taiwan%>%
     left_join(All.species.names,by='SPECIES')%>%
     rename(finyear=year)%>%
@@ -347,7 +369,7 @@ fn.import.catch.data=function(KTCH.UNITS)
     filter(SPECIES%in%unique(Tot.ktch$SPECIES))
   Tot.ktch=rbind(Tot.ktch,a)
   
-  #Add Indonesian fishing incursions
+    #Add Indonesian fishing incursions
   a=Indo_total.annual.ktch%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
@@ -358,11 +380,10 @@ fn.import.catch.data=function(KTCH.UNITS)
            Data.set="Indonesia",
            METHOD=NA,
            FishCubeCode="Indo")%>%
-    dplyr::select(names(Tot.ktch))%>%
-    filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+    dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
   
-  #Add TEP interactions        
+    #Add TEP interactions        
   a=Greynurse.ktch%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
@@ -389,7 +410,7 @@ fn.import.catch.data=function(KTCH.UNITS)
     dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
   
-  #Add WRL        
+    #Add WRL        
   a=WRL.ktch%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
@@ -404,7 +425,7 @@ fn.import.catch.data=function(KTCH.UNITS)
   Tot.ktch=rbind(Tot.ktch,a)
   
   
-  #Add historic  
+    #Add historic  
   a=Historic.ktch%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
@@ -417,12 +438,17 @@ fn.import.catch.data=function(KTCH.UNITS)
            SNAME=ifelse(SNAME%in%c('southern sawshark','common sawshark'),'sawsharks',SNAME),
            SPECIES=ifelse(SPECIES%in%c(23001,23002),23900,SPECIES),
            Name=SNAME)%>%
-    dplyr::select(names(Tot.ktch))%>%
-    filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+    dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
   
-  #Add GAB
+    #Add GAB
   a=GAB.trawl_catch%>%
+    mutate(SPECIES=ifelse(SPECIES==5000,5002,
+                   ifelse(SPECIES==23000,23900,
+                   ifelse(SPECIES==12901,12000,
+                   ifelse(SPECIES==24000,24900,
+                   ifelse(SPECIES==19000,19004,
+                   SPECIES))))))%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
            Region="South",
@@ -432,12 +458,15 @@ fn.import.catch.data=function(KTCH.UNITS)
            Data.set="GAB.trawl",
            METHOD="trawl",
            FishCubeCode="GAB")%>%
-    dplyr::select(names(Tot.ktch))%>%
-    filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+    dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
   
-  #Add WTBF
+    #Add WTBF
   a=WTBF_catch%>%
+    mutate(SPECIES=ifelse(SPECIES==12901,12000,
+                   ifelse(SPECIES==18901,18014,
+                   ifelse(SPECIES==19000,19001,
+                   SPECIES))))%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
            Region="South",
@@ -447,11 +476,10 @@ fn.import.catch.data=function(KTCH.UNITS)
            Data.set="WTBF",
            METHOD="line",
            FishCubeCode="WTB")%>%
-    dplyr::select(names(Tot.ktch))%>%
-    filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+    dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
   
-  # Add NT_catch
+    #Add NT_catch
   a=NT_catch%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
@@ -462,12 +490,11 @@ fn.import.catch.data=function(KTCH.UNITS)
            Data.set="NT",
            METHOD="line",
            FishCubeCode="NT")%>%
-    dplyr::select(names(Tot.ktch))%>%
-    filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+    dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
   
   
-  #Add Whaler_SA (SA Marine Scalefish Fishery)
+    #Add Whaler_SA (SA Marine Scalefish Fishery)
   a=Whaler_SA%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
@@ -478,8 +505,7 @@ fn.import.catch.data=function(KTCH.UNITS)
            Data.set="SA MSF",
            METHOD="line",
            FishCubeCode="SA MSF")%>%
-    dplyr::select(names(Tot.ktch))%>%
-    filter(SPECIES%in%unique(Tot.ktch$SPECIES))
+    dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
   
   
@@ -487,31 +513,123 @@ fn.import.catch.data=function(KTCH.UNITS)
   if(KTCH.UNITS=="TONNES")Tot.ktch=Tot.ktch%>%mutate(LIVEWT.c=LIVEWT.c/1000) 
   
   
+  Table1<-Tot.ktch%>%
+            distinct(SPECIES, .keep_all = T)%>%
+            arrange(SPECIES)%>%
+            mutate(SNAME=capitalize(SNAME))%>%
+            dplyr::select(SNAME,Scien.nm)
+  
+  
+  #Combine certain species with variable reporting resolution
+    #Sawsharks
+  this=c(23000,23001,23002,23900)
+  Tot.ktch=Tot.ktch%>%
+      mutate(SNAME=ifelse(SPECIES%in%this,"sawsharks",SNAME),
+             Name=ifelse(SPECIES%in%this,'sawsharks',Name),
+             Scien.nm=ifelse(SPECIES%in%this,'Pristiophoridae',Scien.nm),
+             SPECIES=ifelse(SPECIES%in%this,23900,SPECIES))
+  
+    #Threshers
+  this=c(12000,12001)
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(SPECIES%in%this,'thresher sharks',SNAME),
+           Name=ifelse(SPECIES%in%this,'thresher sharks',Name),
+           Scien.nm=ifelse(SPECIES%in%this,'Alopidae',Scien.nm),
+           SPECIES=ifelse(SPECIES%in%this,12000,SPECIES))   
+  
+    #Wobbegongs
+  this=c(13000, 13001,13003,13011,13012,13017,13022)
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(SPECIES%in%this,'wobbegongs',SNAME),
+           Name=ifelse(SPECIES%in%this,'wobbegongs',Name),
+           Scien.nm=ifelse(SPECIES%in%this,'Orectolobidae',Scien.nm),
+           SPECIES=ifelse(SPECIES%in%this,13000,SPECIES)) 
+
+    #Angelsharks
+  this=c(24900, 24001,24002)
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(SPECIES%in%this,'angel sharks',SNAME),
+           Name=ifelse(SPECIES%in%this,'angel sharks',Name),
+           Scien.nm=ifelse(SPECIES%in%this,'Squatinidae',Scien.nm),
+           SPECIES=ifelse(SPECIES%in%this,24900,SPECIES))  
+  
+    #Sawfish
+  this=c(25000, 25001,25002,25004)
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(SPECIES%in%this,'sawfish',SNAME),
+           Name=ifelse(SPECIES%in%this,'sawfish',Name),
+           Scien.nm=ifelse(SPECIES%in%this,'Pristidae',Scien.nm),
+           SPECIES=ifelse(SPECIES%in%this,25000,SPECIES))  
+  
+  #Stingrays
+  this=c(35001, 35000)
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(SPECIES%in%this,'smooth stingray',SNAME),
+           Name=ifelse(SPECIES%in%this,'smooth stingray',Name),
+           Scien.nm=ifelse(SPECIES%in%this,'Bathytoshia brevicaudata',Scien.nm),
+           SPECIES=ifelse(SPECIES%in%this,35001,SPECIES))  
+  
+    #Banjo rays
+  this=c(26999,27001,27007,27011,27909)
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(SPECIES%in%this,'banjo rays',SNAME),
+           Name=ifelse(SPECIES%in%this,'banjo rays',Name),
+           Scien.nm=ifelse(SPECIES%in%this,'Trygonorrhinidae',Scien.nm),
+           SPECIES=ifelse(SPECIES%in%this,26999,SPECIES))     
+  
+    #Wedgefish
+  this=c(26000,26001,26002)
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(SPECIES%in%this,'wedgefishes',SNAME),
+           Name=ifelse(SPECIES%in%this,'wedgefishes',Name),
+           Scien.nm=ifelse(SPECIES%in%this,'Rhinidae',Scien.nm),
+           SPECIES=ifelse(SPECIES%in%this,26000,SPECIES))       
+  
+    #Rays and skates
+  Tot.ktch=Tot.ktch%>%
+    mutate(Name=ifelse(SNAME=='rays & skates','skates',Name),
+           Scien.nm=ifelse(SNAME=='rays & skates','Rajidae & Arhynchobatidae',Scien.nm),
+           SPECIES=ifelse(SNAME=='rays & skates',31000,SPECIES),
+           SNAME=ifelse(SNAME=='rays & skates','skates',SNAME))
+
+  #australian blacktip
+  Tot.ktch=Tot.ktch%>%
+    mutate(Name=ifelse(SNAME=='australian blacktip','blacktips',Name),
+           Scien.nm=ifelse(SNAME=='australian blacktip','C. limbatus & C. tilstoni',Scien.nm),
+           SPECIES=ifelse(SNAME=='australian blacktip',18014,SPECIES),
+           SNAME=ifelse(SNAME=='australian blacktip','blacktips',SNAME))
+  
+  
   #Change bull to pigeye shark as bull not likely to be taken (Heupel & McAuley 2007 page  84)
   Tot.ktch=Tot.ktch%>%
-    mutate(SPECIES=ifelse(SPECIES==18021,18026,SPECIES),
-           SNAME=ifelse(SNAME=='bull shark','pigeye shark',SNAME),
-           Name=ifelse(Name=='bull shark','pigeye shark',Name))
+    mutate(SNAME=ifelse(SPECIES%in%c(18021),"pigeye shark",SNAME),
+           Name=ifelse(SPECIES%in%c(18021),'pigeye shark',Name),
+           Scien.nm=ifelse(SPECIES%in%c(18021),'C. amboinensis',Scien.nm),
+           SPECIES=ifelse(SPECIES%in%c(18021),18026,SPECIES))
   
   
-  #Aggregate by year and fishery
+  #Final touches
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(Name=='eusphyra blochii','winghead shark',Name))
+  
+  #Aggregate by species, year and fishery
   Tot.ktch.zone=Tot.ktch%>%
     mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
-           Name=ifelse(SPECIES%in%c(22999,31000),"unidentified sharks",SNAME))%>%
+           Name=ifelse(SPECIES%in%c(22999),"unidentified sharks",SNAME))%>%
     group_by(SPECIES,Name,FishCubeCode,Data.set,finyear,FINYEAR,Region,zone)%>%
     summarise(LIVEWT.c=sum(LIVEWT.c))
   
   Tot.ktch.method=Tot.ktch%>%
     mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
-           Name=ifelse(SPECIES%in%c(22999,31000),"unidentified sharks",SNAME))%>%
+           Name=ifelse(SPECIES%in%c(22999),"unidentified sharks",SNAME))%>%
     group_by(SPECIES,Name,FishCubeCode,Data.set,finyear,FINYEAR,METHOD)%>%
     summarise(LIVEWT.c=sum(LIVEWT.c))%>%
     mutate(Gear=ifelse(METHOD%in%c("BS","BH","GN","HN","Pelagic.gillnet"),"net",
-                       ifelse(METHOD%in%c("DL","DV","EL","GL","HL","HR","HY",
+                ifelse(METHOD%in%c("DL","DV","EL","GL","HL","HR","HY",
                                           "LL","Longline","Rec.line","TL"),'line',
-                              ifelse(METHOD%in%c("FG","TW"),'trawl',
-                                     ifelse(METHOD%in%c("FT","PT"),'trap',
-                                            NA)))))
+                ifelse(METHOD%in%c("FG","TW"),'trawl',
+                ifelse(METHOD%in%c("FT","PT"),'trap',
+                NA)))))
   
   Tot.ktch=Tot.ktch%>%
     mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
@@ -520,19 +638,22 @@ fn.import.catch.data=function(KTCH.UNITS)
     summarise(LIVEWT.c=sum(LIVEWT.c))
   
   
-  return(list(Total=Tot.ktch,Zone=Tot.ktch.zone,Total.method=Tot.ktch.method))
+  return(list(Total=Tot.ktch,Zone=Tot.ktch.zone,Total.method=Tot.ktch.method,Table1=Table1))
 }
 Get.ktch=fn.import.catch.data(KTCH.UNITS)    
 KtCh=Get.ktch$Total
 KtCh.zone=Get.ktch$Zone
 
+  #list of all species caught
+write.csv(Get.ktch$Table1,'C:/Matias/Analyses/Population dynamics/All.species.caught.csv',row.names = F)
 
-#Remove species assessed elsewhere
+
+#4. remove species assessed elsewhere
 KtCh=KtCh%>%filter(!Name%in%assessed.elsewhere)
 KtCh.zone=KtCh.zone%>%filter(!Name%in%assessed.elsewhere)
 
 
-
+#ACA: update PSA with new species
 #---PSA to determine which species to assess ------------------------------------------------------  
 #note: PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
 
@@ -664,11 +785,12 @@ if(First.run=="YES")
   Keep.species=sort(c(Keep.species,names(Indicator.species)))
   Drop.species=UniSp[which(!UniSp%in%Keep.species)]
 }
-if(!First.run=="YES") Keep.species=c("copper shark","dusky shark","great hammerhead","grey nurse shark",
-                                     "gummy shark","lemon shark","milk shark","pigeye shark",
-                                     "sandbar shark","sawsharks","scalloped hammerhead",
-                                     "shortfin mako","smooth hammerhead","spinner shark",
-                                     "spurdogs","tiger shark","whiskery shark","wobbegongs")
+if(!First.run=="YES") Keep.species=c("copper shark","dusky shark","great hammerhead",    #ACA, FIX after redoing PSA
+                                     "grey nurse shark","gummy shark","lemon shark",
+                                     "milk shark","pigeye shark","sandbar shark",
+                                     "sawsharks","scalloped hammerhead","shortfin mako",
+                                     "smooth hammerhead","spinner shark","spurdogs",
+                                     "tiger shark","whiskery shark","wobbegongs")
 N.sp=length(Keep.species)
 
 #---Create list of species assessed-----

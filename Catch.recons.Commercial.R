@@ -373,7 +373,7 @@ Exmouth.Onslow.trawl.observed.comp=data.frame(
             'Ray, Brown Reticulated','Ray, Black-spotted Whipray','Ray, Butterfly/Rat-tailed',
             'Ray, Ornate Eagle Ray','Ray, Banded Eagle Ray'),
   SPECIES=c(13008,13011,15903,18006,
-            8020,26001,27010,35004,
+            18020,26001,27010,35004,
             35013,35020,37001,
             39005,39002),                              
   Commercial=c(rep('n',3),'y','y',rep('n',8)),
@@ -1227,7 +1227,7 @@ Data.monthly=fn.PCM(d=Data.monthly,Nme="South",PCM.multiplier=1)
 Data.monthly.north=fn.PCM(d=Data.monthly.north,Nme="North",PCM.multiplier=1)  
 
 
-#ACA
+
   #3.1.4. Kimberley Gillnet and Barramundi recalculation of catch (in kg) using effort as per McAuley et al 2005
 Kimberley.GBF.observed.comp=Kimberley.GBF.observed.comp%>%
           mutate(cpue=Weight/Kimberley.GBF.observed.effort)
@@ -1372,6 +1372,10 @@ if(Do.recons.paper=="YES")
 }
 
 TEPS=TEPS%>%
+        mutate(SpeciesCode=ifelse(SpeciesCode==37008001,8001,
+                           ifelse(SpeciesCode==37018003,18003,
+                           ifelse(SpeciesCode==37025000,25000,
+                           SpeciesCode))))%>%
         filter(SpeciesCode%in%c(18003,8001))%>%
         left_join(PCM.sp,by=c("SpeciesCode"= "SPECIES"))%>%
         rename(FINYEAR=finyear,
@@ -1390,7 +1394,7 @@ TEPS=TEPS%>%
                zone=ifelse(Lat>-33,'West',ifelse(Lat<=(-33)& Long<116.5,'Zone1','Zone2')),
                Kg=ifelse(SPECIES==18003,bwt*(100*mean(Size.comp.Dusky.TEPS_TDGLDF))^awt,
                   ifelse(SPECIES==8001,bwt.grey*mean(Size.comp.Greynurse.TEPS_TDGLDF)^awt.grey,
-                         NA)),
+                  NA)),
                LIVEWT.c=ifelse(Status%in%c("D","d"),Kg*Number,
                         ifelse(Status%in%c("A","a"),Kg*Number*GN,
                                NA)))%>%
@@ -1399,6 +1403,7 @@ TEPS=TEPS%>%
         data.frame
 Greynurse.ktch=TEPS%>%filter(SPECIES==8001)
 TEPS_dusky=TEPS%>%filter(SPECIES==18003)
+
 
 
   # 3.1.7 Wetline in the Western Rock lobster fishery
