@@ -653,7 +653,7 @@ KtCh=KtCh%>%filter(!Name%in%assessed.elsewhere)
 KtCh.zone=KtCh.zone%>%filter(!Name%in%assessed.elsewhere)
 
 
-#ACA: update PSA with new species
+
 #---PSA to determine which species to assess ------------------------------------------------------  
 #note: PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
 
@@ -664,6 +664,22 @@ if(First.run=="YES")
   PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv',stringsAsFactors=F)
   
   PSA.list=PSA.list%>%filter(!Species%in%assessed.elsewhere)
+  
+  #Show annual catches
+  Exprt="C:/Matias/Analyses/Population dynamics/PSA"
+  KtCh.method%>%
+    filter(Name%in%PSA.list$Species)%>%
+    mutate(Year=as.numeric(substr(FINYEAR,1,4)))%>%
+    group_by(Name,Year)%>%
+    summarise(catch=sum(LIVEWT.c))%>%
+    ggplot(aes(Year,catch))+
+    geom_point(size = .8,colour = "steelblue")+ylab("Catch (tonnes)")+
+    facet_wrap( ~ Name, scales = "free_y")+
+    theme(strip.text.x = element_text(size = 6),
+          axis.text=element_text(size=7),
+          title=element_text(size=10),
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  ggsave(paste(Exprt,'Annual_ktch_by_species.tiff',sep='/'), width = 12,height = 8, dpi = 300, compression = "lzw")
   
   #which species not to set availability and ecounterability to 1 
   psa.ktch=KtCh.method%>%
@@ -676,7 +692,7 @@ if(First.run=="YES")
   aa[aa<=PSA.min.tons]=0
   aa[aa>PSA.min.tons]=1
   psa.species.series=names(which(colSums(aa)>PSA.min.years))
-  species.meeting.condition=intersect(psa.species.series,psa.species.max.ever)
+  #species.meeting.condition=intersect(psa.species.series,psa.species.max.ever)
   
   #replace missing gear info with most common value
   Agg=KtCh.method%>%
@@ -684,8 +700,8 @@ if(First.run=="YES")
     arrange(FishCubeCode, is.na(Gear)) %>% # in case to keep non- NA elements for a tie
     mutate(Gear = ifelse(is.na(Gear),Mode(Gear),Gear),
            Gear=ifelse(is.na(Gear) & FishCubeCode %in% c('Historic','Indo','WTB','SA MSF'),'line',
-                       ifelse(is.na(Gear) & FishCubeCode %in% c('GAB','PFT','SBSC'),'trawl',
-                              Gear)))
+                ifelse(is.na(Gear) & FishCubeCode %in% c('GAB','PFT','SBSC'),'trawl',
+                Gear)))
   
   Agg.PSA=Agg%>%
     filter(!is.na(Gear))%>%
@@ -695,6 +711,7 @@ if(First.run=="YES")
     data.frame
   names(Agg.PSA)[-(1:2)]=substr(names(Agg.PSA)[-(1:2)],2,5)
   
+  #kip susceptibility as is for species meeting condition
   Agg.sp=unique(Agg.PSA$Name)
   KIP=vector('list',length(Agg.sp))
   for(s in 1:length(Agg.sp))
@@ -714,10 +731,12 @@ if(First.run=="YES")
   KIP=do.call(rbind,KIP)%>%
     filter(Keep=="YES")%>%
     dplyr::select(Name,Gear)
+  
   UniSp=unique(KtCh$Name)
   UniSp=subset(UniSp,!UniSp%in%names(Indicator.species))
   PSA.list=PSA.list%>%filter(Species%in%UniSp)
-  PSA.fn=function(d,line.sep,txt.size,Exprt)  
+  
+  PSA.fn=function(d,line.sep,txt.size)  
   {
     set.seed(101)
     PSA=data.frame(Species=d$Species,
@@ -762,8 +781,8 @@ if(First.run=="YES")
     cols=c(low="green",medium="yellow",high="red")
     p=ggplot(PSA,
              aes(Productivity, Susceptibility, label = Species,colour = Vulnerability, fill = Vulnerability)) +
-      geom_point(shape = 21, size = 6,colour="black") + 
-      geom_text_repel(segment.colour='black',col='black',box.padding = line.sep,size=txt.size) + 
+      geom_point(shape = 21, size = 5,colour="black") + 
+      geom_text_repel(segment.colour=transparent("black",.75),col='black',box.padding = line.sep,size=txt.size) + 
       scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
       xlim(0.75,3.25)+ylim(0.75,3.25)+
       theme(panel.background = element_blank(),
@@ -772,20 +791,21 @@ if(First.run=="YES")
             axis.title=element_text(size=14),
             legend.title=element_text(size=16),
             legend.text=element_text(size=14),
+            legend.position="top",
+            legend.key=element_blank(),
             panel.border = element_rect(colour = "black", fill=NA, size=1))
     p
-    
-    ggsave(Exprt, width = 8,height = 8, dpi = 300, compression = "lzw")
+    library(yarrr)
+    ggsave(paste(Exprt,'Figure 2_PSA.tiff',sep='/'), width = 12,height = 8, dpi = 300, compression = "lzw")
     
     return(as.character(PSA%>%filter(Vulnerability=="high")%>%pull(Species)))
   }
-  Keep.species=PSA.fn(d=PSA.list,line.sep=.35, txt.size=3.5,
-                      Exprt="C:/Matias/Analyses/Population dynamics/PSA/Figure 2_PSA.tiff")
+  Keep.species=PSA.fn(d=PSA.list,line.sep=.35, txt.size=3.25)
   Keep.species=tolower(Keep.species)
   Keep.species=sort(c(Keep.species,names(Indicator.species)))
   Drop.species=UniSp[which(!UniSp%in%Keep.species)]
 }
-if(!First.run=="YES") Keep.species=c("copper shark","dusky shark","great hammerhead",    #ACA, FIX after redoing PSA
+if(!First.run=="YES") Keep.species=c("angel sharks","copper shark","dusky shark","great hammerhead",    
                                      "grey nurse shark","gummy shark","lemon shark",
                                      "milk shark","pigeye shark","sandbar shark",
                                      "sawsharks","scalloped hammerhead","shortfin mako",
