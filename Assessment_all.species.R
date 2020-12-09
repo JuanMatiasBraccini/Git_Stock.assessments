@@ -512,13 +512,37 @@ fn.import.catch.data=function(KTCH.UNITS)
   #Catch in tonnes
   if(KTCH.UNITS=="TONNES")Tot.ktch=Tot.ktch%>%mutate(LIVEWT.c=LIVEWT.c/1000) 
   
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(SPECIES%in%19003,"winghead hammerhead",SNAME),
+           Name=ifelse(SPECIES%in%19003,'winghead hammerhead',Name),
+           Scien.nm=ifelse(SPECIES%in%19003,'eusphyra blochii',Scien.nm))
   
-  Table1<-Tot.ktch%>%
-            distinct(SPECIES, .keep_all = T)%>%
-            arrange(SPECIES)%>%
-            mutate(SNAME=capitalize(SNAME))%>%
-            dplyr::select(SNAME,Scien.nm)
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(SNAME=='sawfish (general)',"sawfish",SNAME),
+           Scien.nm=ifelse(Name=='sawfish (general)','Pristidae',Scien.nm),
+           SPECIES=ifelse(Name=='sawfish (general)',25000,SPECIES),
+           Name=ifelse( Name=='sawfish (general)','sawfish',Name))
   
+  Tot.ktch=Tot.ktch%>%
+    mutate(SPECIES=ifelse(Name=='rays & skates',31000,SPECIES),
+           Name=ifelse( Name=='skates','rays & skates',Name))
+  
+  Tot.ktch=Tot.ktch%>%
+    mutate(Scien.nm=ifelse(Name=="australian blacktip",'Carcharhinus tilstoni',Scien.nm))
+           
+  #list of all species caught
+  Table1=Tot.ktch%>%  
+    filter(!SPECIES%in%c(31000,22999))%>%
+    group_by(Name,FishCubeCode)%>%
+    summarise(Catch.tons=sum(LIVEWT.c))%>%
+    spread(FishCubeCode,Catch.tons,fill=0)%>%
+    left_join(Tot.ktch%>%
+                distinct(SPECIES, .keep_all = T)%>%
+                arrange(SPECIES)%>%
+                dplyr::select(Name,Scien.nm),by="Name")%>%
+    mutate(Name=capitalize(Name))%>%
+    relocate(where(is.numeric), .after = where(is.character))
+
   
   #Combine certain species with variable reporting resolution
     #Sawsharks
@@ -630,6 +654,14 @@ fn.import.catch.data=function(KTCH.UNITS)
                 ifelse(METHOD%in%c("FG","TW"),'trawl',
                 ifelse(METHOD%in%c("FT","PT"),'trap',
                 NA)))))
+  Tot.ktch.method=Tot.ktch.method%>%
+    group_by(FishCubeCode) %>%
+    arrange(FishCubeCode, is.na(Gear)) %>% # in case to keep non- NA elements for a tie
+    mutate(Gear = ifelse(is.na(Gear),Mode(Gear),Gear),
+           Gear=ifelse(is.na(Gear) & FishCubeCode %in% c('Indo','WTB','SA MSF'),'line',
+                ifelse(is.na(Gear) & FishCubeCode %in% c('GAB','PFT','SBSC'),'trawl',
+                Gear)))
+  
   
   Tot.ktch=Tot.ktch%>%
     mutate(finyear=as.numeric(substr(FINYEAR,1,4)),
@@ -643,9 +675,6 @@ fn.import.catch.data=function(KTCH.UNITS)
 Get.ktch=fn.import.catch.data(KTCH.UNITS)    
 KtCh=Get.ktch$Total
 KtCh.zone=Get.ktch$Zone
-
-  #list of all species caught
-write.csv(Get.ktch$Table1,'C:/Matias/Analyses/Population dynamics/All.species.caught.csv',row.names = F)
 
 
 #4. remove species assessed elsewhere
@@ -665,21 +694,33 @@ if(First.run=="YES")
   
   PSA.list=PSA.list%>%filter(!Species%in%assessed.elsewhere)
   
+  
   #Show annual catches
   Exprt="C:/Matias/Analyses/Population dynamics/PSA"
   KtCh.method%>%
     filter(Name%in%PSA.list$Species)%>%
-    mutate(Year=as.numeric(substr(FINYEAR,1,4)))%>%
-    group_by(Name,Year)%>%
+    mutate(Year=as.numeric(substr(FINYEAR,1,4)),
+           Gear=ifelse(is.na(Gear),'unidentified',Gear),
+           Gear=capitalize(Gear),
+           Name=capitalize(Name))%>%
+    group_by(Name,Year,Gear)%>%
     summarise(catch=sum(LIVEWT.c))%>%
     ggplot(aes(Year,catch))+
-    geom_point(size = .8,colour = "steelblue")+ylab("Catch (tonnes)")+
+    geom_point(aes(colour = Gear),size = .8)+ylab("Catch (tonnes)")+
     facet_wrap( ~ Name, scales = "free_y")+
     theme(strip.text.x = element_text(size = 6),
-          axis.text=element_text(size=7),
+          axis.text=element_text(size=6.5),
+          legend.position="top",
+          legend.title = element_blank(),
+          legend.key=element_blank(),
           title=element_text(size=10),
-          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  ggsave(paste(Exprt,'Annual_ktch_by_species.tiff',sep='/'), width = 12,height = 8, dpi = 300, compression = "lzw")
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+    guides(colour = guide_legend(override.aes = list(size=5)))
+  ggsave(paste(Exprt,'Annual_ktch_by_species.tiff',sep='/'), width = 12,height = 7, dpi = 300, compression = "lzw")
+  
+  #Export table of species catch by fishery
+  write.csv(Get.ktch$Table1,paste(Exprt,'All.species.caught.csv',sep='/'),row.names = F)
+  
   
   #which species not to set availability and ecounterability to 1 
   psa.ktch=KtCh.method%>%
