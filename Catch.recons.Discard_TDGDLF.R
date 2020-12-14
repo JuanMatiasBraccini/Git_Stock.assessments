@@ -141,10 +141,80 @@ for(i in 1:length(DATA_obs))
     mutate(COMMON_NAME=case_when(SPECIES%in%c("AO","AU")~"Angel Sharks (general)", TRUE~COMMON_NAME),
            SCIENTIFIC_NAME=case_when(SPECIES%in%c("AO","AU")~"Family Squatinidae", TRUE~SCIENTIFIC_NAME),
            CAES_Code=case_when(SPECIES%in%c("AO","AU")~24900, TRUE~CAES_Code),
+           Species=as.double(Species),
            Species=case_when(SPECIES%in%c("AO","AU")~24900, TRUE~Species),
            Name=case_when(SPECIES%in%c("AO","AU")~"Angel sharks", TRUE~Name),
            Scien.nm=case_when(SPECIES%in%c("AO","AU")~"Squatinidae", TRUE~Scien.nm),
            SPECIES=case_when(SPECIES%in%c("AO","AU")~"AA",TRUE~SPECIES))
+}
+
+
+# Show Decadal composition for Commercial catch recons paper-------------------------------------------
+do.this=FALSE  
+if(do.this)
+{
+  #Observer data
+  these.common=c(23000,8001,10001,18001,18022,26999,13000,35000,24900,17006,
+                 20000,39001,18023,19004,17003,17001,18007,7001,18003)
+  a=DATA_obs$GN%>%
+    mutate(Name=ifelse(Species%in%c(23001,23002),"Sawsharks",
+                       ifelse(Species==18014,'Blacktips',
+                              ifelse(Species%in%13001:13022,'Wobbegongs',Name))),
+           Species=ifelse(Species%in%c(23001,23002),23000,
+                          ifelse(Species==18014,18014,
+                                 ifelse(Species%in%13001:13022,13000,Species))),                       
+           Name1=ifelse(Taxa=='Teleost',"Teleosts",
+                        ifelse(Taxa== 'Elasmobranch'& !Species%in%these.common,'Other sharks',
+                               Name)),
+           Decade=floor(year / 10) * 10)
+  a%>%
+    filter(Taxa== 'Elasmobranch')%>%
+    filter(!(Decade==2020 & zone=="Zone2"))%>%
+    filter(!(Decade==2020 & zone=="West"))%>%
+    group_by(Name1,Decade,zone)%>%
+    tally()%>%
+    ggplot(aes(x=Decade, y=n, fill=Name1)) + 
+    geom_bar(position="fill", stat="identity")+
+    facet_wrap(~zone, scales = "free") +
+    theme(legend.position="top",
+          strip.text.x = element_text(size =11.5),
+          axis.title=element_text(size=16)) +
+    xlab("Decade") +
+    ylab("Proportion")+
+    labs(fill = "") +
+    facet_wrap(~zone)
+  ggsave('C:/Matias/Analyses/Reconstruction_catch_commercial/FigureS4.tiff',width = 10,height = 6,compression = "lzw")
+  
+  
+  #Commercial catch
+  these.common=c(23000,10001,18001,18022,13000,35000,24900,17006,
+                 20000,39001,18023,19004,17003,17001,18007,7001,18003)
+  a=DATA_total$GN%>%
+    mutate(Name=ifelse(SPECIES%in%c(23001,23002),"Sawsharks",
+                       ifelse(SPECIES==18014,'Blacktips',
+                              ifelse(SPECIES%in%13001:13022,'Wobbegongs',Name))),
+           SPECIES=ifelse(SPECIES%in%c(23001,23002),23000,
+                          ifelse(SPECIES==18014,18014,
+                                 ifelse(SPECIES%in%13001:13022,13000,SPECIES))),                       
+           Name1=ifelse(!SPECIES%in%these.common,'Other sharks',Name),
+           Decade=floor(YEAR / 10) * 10)%>%
+    filter(SPECIES<50000)
+  
+  a%>%
+    group_by(Name1,Decade,zone)%>%
+    tally()%>%
+    ggplot(aes(x=Decade, y=n, fill=Name1)) + 
+    geom_bar(position="fill", stat="identity")+
+    facet_wrap(~zone, scales = "free") +
+    theme(legend.position="top",
+          strip.text.x = element_text(size =11.5),
+          axis.title=element_text(size=16)) +
+    xlab("Decade") +
+    ylab("Proportion")+
+    labs(fill = "") +
+    facet_wrap(~zone)
+  ggsave('C:/Matias/Analyses/Reconstruction_catch_commercial/FigureS5.tiff',width = 10,height = 6,compression = "lzw")
+  
 }
 
 # Show overal observed discarded and retained species-------------------------------------------
