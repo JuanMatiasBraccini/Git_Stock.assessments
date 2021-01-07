@@ -9,7 +9,8 @@
 #             and future research to sort this out. Do selectivity tests.
 
 #MISSING: 
-#         Add Terry's 1970s, 1980s, and 1990s data
+#         Add Terry's 1970s to 1990s data (if not in TL, then convert to TL; check if 
+#                                         southern eagle ray mean size increase with mesh)
 
 
 
@@ -74,14 +75,14 @@ Rory.d=read.csv('C:/Matias/Analyses/Selectivity_Gillnet/Rory.sandbar/data.csv') 
 
 # PARAMETERS  -------------------------------------------------------------------
 
-Min.sample=25  #keep species with at least 20 observations in at least 2 mesh sizes
+Min.sample=10  #keep species with at least 20 observations in at least 2 mesh sizes
 Min.nets=2
 min.obs.per.mesh=Min.sample  #for each kept species, use nets with a minimum # of records
 
 Size.Interval=5 #size intervals for selectivity estimation (in cm)
 
-Min.length=25  #min and max length considered (in cm)
-Max.length=400
+Min.length=30  #min and max length considered (in cm)
+Max.length=300
 
 do.paper.figures=FALSE
 Preliminary=FALSE
@@ -220,21 +221,37 @@ if(Preliminary)
 
   #1.2 SSF
 F2_Sampling=F2_Sampling%>%
-                filter(Csiro>37000002 & Csiro<37039000 & LengthType=="TL" &
-                      !is.na(Mesh1) & !is.na(Length))%>%
-                mutate(Length=Length/10,              
+                filter(Csiro>37000002 & Csiro<37110000 & !is.na(Mesh1) & !is.na(Length))%>%
+                mutate(Length=Length/10,          #length in cm      
                        Length=ifelse(Length>350,Length/10,Length),
                        Mesh1=ifelse(Mesh1%in%c('C6.00', 'C6.01', 'C6.02', 'C6.03', 'C6.04'),'C6',
                                     ifelse(Mesh1%in%c('C6.51', 'C6.52', 'C6.53', 'C6.54'),'C6.5',Mesh1)),
                        Mesh.size=2.54*as.numeric(substr(Mesh1,2,10)))%>%   #inches to cm
-                filter(Length>=30)%>%
-                mutate(Length=Length)  #length in cm
-F2_Sampling=F2_Sampling%>%
-              dplyr::select(Species,Csiro,Sex,Mesh1,Mesh.size,Length)
+                dplyr::select(Species,Csiro,Sex,Mesh1,Mesh.size,Length,LengthType)
 
 if(Preliminary) ggplot(F2_Sampling, aes(x = Length)) +
                     geom_histogram(color = "grey30", fill ="salmon",binwidth=10) +
                     facet_grid(Species~Mesh.size, scales = "free")
+
+#convert FL or DW to TL (Southern Eagle Ray left as DW as tails can be chopped)
+F2_Sampling=F2_Sampling%>%
+  mutate(Length=case_when(Csiro==37005002 & LengthType=='FL' ~ 1.25*Length,
+                          Csiro==37007001 & LengthType=='FL' ~ 1.0646847*Length+2.6419106,
+                          Csiro==37010001 & LengthType=='FL' ~ 1.07689*Length+1.7101,
+                          Csiro==37017001 & LengthType=='FL' ~ 1.08*Length+4.6424,
+                          Csiro==37020008 & LengthType=='FL' ~ 1.1*Length+5.736,
+                          Csiro==37043001 & LengthType=='FL' ~ 1.2*Length,
+                          Csiro==37038004 & LengthType=='DW' ~ (Length-17.937)/0.589,
+                          Csiro==37038007 & LengthType=='DW' ~ (Length-17.937)/0.589,
+                          TRUE ~ Length))%>%
+  filter(!(Csiro==37039001 & LengthType %in%c('FL','TL')))
+
+F2_Sampling=F2_Sampling%>%  #remove too small records
+   filter(!(Length<30 & LengthType%in%c('TL','tl')))%>%
+  filter(!(Length<5 & LengthType%in%c('DW')))%>%
+  dplyr::select(-LengthType)
+  
+
 
 #Size frequency
 if(Preliminary)
@@ -243,7 +260,7 @@ if(Preliminary)
   ggplot(dummy,aes(Length,fill=mesh_size))+
     geom_histogram(color="#e9ecef",alpha=0.6, binwidth = 5) +
     labs(fill="Mesh size")+
-    xlab("Total length (cm)") +
+    xlab("Size (cm)") +
     facet_wrap(vars(Species), scales = "free") 
   ggsave('C:/Matias/Analyses/Selectivity_Gillnet/Size.frequency_SSF.tiff', width = 12,height = 8, dpi = 300, compression = "lzw")
 }
@@ -319,14 +336,14 @@ Combined=rbind(F2_Sampling%>%dplyr::select(Species,Mesh.size,Length,Data.set),
                          Mesh.size=round(Mesh.size,1),
                          Species=ifelse(Species=='Angel shark','Australian angelshark',Species))%>%
   filter(!is.na(Mesh.size))%>%
-  filter(!Species%in%c('Spurdogs')) #remove Spurdogs from WA, could be several species
-
+  filter(!Species%in%c('Spurdogs'))%>% #remove Spurdogs from WA, could be several species
+  filter(!(Species=='Eagle ray' & Data.set=='WA'))  #remove because don't know if measured TL or DW
 SP.names=SP.names%>%
   mutate(Name=ifelse(Name=='PortJackson shark','Port Jackson shark',
               ifelse(Name=='Angel Shark','Australian angelshark',
               ifelse(Name=='Sevengill shark','Broadnose shark',
               ifelse(Name=='Sixgill shark','Bluntnose sixgill shark',
-              ifelse(Name=='Eagle Ray','Eagle ray',
+              ifelse(Name=='Eagle ray','Southern eagle ray',
               Name))))))
 
 Families=SP.names%>%  
@@ -395,7 +412,9 @@ TAB=table(Combined$Species,Combined$Mesh.size)
 TAB[TAB<Min.sample]=0
 TAB[TAB>=Min.sample]=1
 Combined=Combined%>%
-  filter(Species%in%names(which(rowSums(TAB)>=Min.nets)) & Length<=Max.length)
+  filter(Species%in%names(which(rowSums(TAB)>=Min.nets)) & Length<=Max.length)%>%
+  filter(!Species=='Wobbegongs')%>%  #unidentified Wobbegongs used in Family analysis
+  filter(!Species=="Southern eagle ray")   # remove southern eagle ray because mean size decreases with mesh size
 
 TAB=table(Combined.family$Species,Combined.family$Mesh.size)
 TAB[TAB<Min.sample]=0
@@ -404,7 +423,10 @@ Combined.family=Combined.family%>%
   filter(Species%in%names(which(rowSums(TAB)>=Min.nets)) & Length<=Max.length)
 
 #remove family with single species
-Combined.family=Combined.family%>%filter(!Species%in%names(Tab.sp.fam[Tab.sp.fam==1]))
+Combined.family=Combined.family%>%
+              filter(!Species%in%names(Tab.sp.fam[Tab.sp.fam==1]))%>%
+              filter(!Species=="Squatinidae")  #remove Squatinidae because mean size decreases with mesh size
+
 
 #for each selected species, remove meshes with few observations
   #species
@@ -452,12 +474,21 @@ n.sp.family=sort(unique(Combined.family$Species))
 
 #Remove mesh sizes with higher mean size that next largest mesh
   #species
+Tab.mean.size=Combined%>%group_by(Species,Mesh.size)%>%summarise(Mean=mean(Length))%>%spread(Mesh.size,Mean)
+Tab.n=Combined%>%group_by(Species,Mesh.size)%>%tally()%>%spread(Mesh.size,n)
+
 drop.one.mesh=data.frame(Species=c("Port Jackson shark",
-                                   rep("Sandbar shark",3),
-                                   "Whiskery shark"),
+                                   rep("Sandbar shark",4),
+                                   "Whiskery shark",
+                                   "Draughtboard shark",
+                                   rep("Smooth hammerhead",2),
+                                   "Spikey dogfish"),
                          Mesh.size=c(10.2,
-                                     10.2,14,22.4,
-                                     16.5),
+                                     10.2,14,21.6,22.4,
+                                     16.5,
+                                     10.2,
+                                     16.5,21.6,
+                                     17.8),
                          Drop="YES")
 Combined=left_join(Combined,drop.one.mesh,by=c('Species','Mesh.size'))%>%
          filter(is.na(Drop))%>%dplyr::select(-Drop)
@@ -979,12 +1010,20 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
   write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
 }
 
-  #species
+en=match("Spikey dogfish",Table.mod.fit$Species)
+This.best=Table.mod.fit[(en+3),]
+
+Best.fit$`Spikey dogfish`$Model='lognorm'  #reset to 'Lognormal because norm.loc has huge residuals for 20.3 cm
+Best.fit$`Spikey dogfish`$Dev=as.numeric(This.best$Equal_Deviance)
+  
+    #species
 for(s in 1:length(n.sp))
 {
+  NM=n.sp[s]
+  if(NM=='Southern eagle ray') NM='Eagle ray'
   out.sel(d=Fit.M_H[[s]],
           BEST=Best.fit[[s]],
-          NM=n.sp[s],
+          NM=NM,
           La=LatAge[[s]],
           Fixed.equal.power=TRUE)  
 }
@@ -1055,7 +1094,7 @@ if(do.paper.figures)
           plot.margin=unit(c(.1,.1,.1,.1),"cm"))
   p+
     annotation_custom(ggplotGrob(Inset),xmin = 112, xmax = 130, ymin = -44, ymax = -36)
-  ggsave("Figure1.tiff", width = 12,height = 6,dpi = 300, compression = "lzw")
+  ggsave("Figure 1.tiff", width = 12,height = 6,dpi = 300, compression = "lzw")
   
   
   #2. Appendix 1
@@ -1072,7 +1111,11 @@ if(do.paper.figures)
   write.csv(Table1,'Table1.csv',row.names = F)
   
   
-  #4. Table mean size by mesh of selected species
+  #4. Select species without selectivity published
+  n.sp.pub=n.sp[-match(Published,n.sp)]
+  
+  
+  #5. Table mean size by mesh of selected species
     #species
   Tab2.mean=Combined%>%
     group_by(Mesh.size,Species)%>%
@@ -1083,6 +1126,26 @@ if(do.paper.figures)
   write.csv(Tab2.mean,'Table mean size by mesh selected species.csv',row.names = F)
   
   cols=colfunc(length(unique(Combined$Mesh.size)))
+  
+  Combined%>%
+    filter(Species%in%n.sp.pub)%>%
+    group_by(Mesh.size,Species)%>%
+    summarise(Mean=mean(Length),
+              SD=sd(Length))%>%
+    mutate(Mesh=as.character(Mesh.size))%>%
+    ggplot(aes(x=Mesh.size, y= Mean, colour=Mesh)) + 
+    geom_errorbar(aes(ymin= Mean-SD, ymax= Mean+SD), width=.1) +
+    geom_point() + ylab("Mean total length (+/-SD)") + xlab("Mesh size (cm)") +
+    facet_wrap(vars(Species), scales = "free_y")+
+    scale_color_manual("Mesh size (cm)",values=cols)+
+    theme_dark()+ 
+    theme(strip.text.x = element_text(size = 11,face='bold',color="white"),
+          axis.text.x = element_text(size = 10),
+          axis.text.y = element_text(size = 10),
+          axis.title.x = element_text(size = 18),
+          axis.title.y = element_text(size = 18))
+  ggsave('Figure.S1.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  
   Combined%>%
     group_by(Mesh.size,Species)%>%
     summarise(Mean=mean(Length),
@@ -1095,7 +1158,7 @@ if(do.paper.figures)
     scale_color_manual("Mesh size (cm)",values=cols)+
     theme_dark()+ 
     theme(strip.text.x = element_text(size = 11,face='bold',color="white"))
-  ggsave('Figure.S1_Mean size by mesh.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  ggsave('Mean size by mesh.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
     #family
   Tab2.mean=Combined.family%>%
@@ -1113,46 +1176,56 @@ if(do.paper.figures)
     geom_errorbar(aes(ymin= Mean-SD, ymax= Mean+SD), width=.1) +
     geom_point() + ylab("Mean total length (+/-SD)") + xlab("Mesh size (cm)") +
     facet_wrap(vars(Species), scales = "free_y")+
-    scale_color_manual("Mesh size (cm)",values=cols)+
+    scale_color_manual("Mesh size (cm)",values=colfunc(length(unique(Combined.family$Mesh.size))))+
     theme_dark()+ 
     theme(strip.text.x = element_text(size = 11,face='bold',color="white"))
-  ggsave('Figure.S1_Mean size by mesh_family.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  ggsave('Mean size by mesh_family.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
-  
-  #5. Select species without selectivity published
-  n.sp.pub=n.sp[-match(Published,n.sp)]
-  
-  
+
   #6. Display size frequencies 
+  library(lemon)
   fig2=function(d)
   {
     cols=colfunc(length(unique(d$MESH)))
-    d %>%
+    p=d %>%
       ggplot( aes(x=TL, fill=MESH)) +
       geom_histogram(binwidth = 10, alpha=0.8,colour='grey40',size=.1)  +
       labs(fill="Mesh size (cm)")+
       facet_wrap(vars(Species), scales = "free")+
-      xlab("Total length (cm)")+ ylab("Frequency")+scale_fill_manual(values=cols)
+      xlab("Total length (cm)")+ ylab("Frequency")+scale_fill_manual(values=cols)+
+      theme(legend.title = element_text(size = 10),
+            legend.text = element_text(size = 9),
+            axis.text.x = element_text(size = 10),
+            axis.text.y = element_text(size = 10),
+            axis.title.x = element_text(size = 18),
+            axis.title.y = element_text(size = 18))
   }
 
     #species in paper
-  fig2(d=Combined%>%
+  p=fig2(d=Combined%>%
          mutate(MESH=as.factor(Mesh.size),
                 TL=Length)%>%
         filter(Species%in%n.sp.pub))
-  ggsave('Figure 2.Size frequency.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  p=p+theme(legend.position="bottom")
+  reposition_legend(p , 'center',panel='panel-4-3')
+  #Manually save figrue as 'Figure 2.tiff', ggsave not working with reposition_legend
+  #ggsave('Figure 2.tiff', width = 10,height = 10, dpi = 300, compression = "lzw")
   
       #all species
-  fig2(d=Combined%>%
+  p=fig2(d=Combined%>%
          mutate(MESH=as.factor(Mesh.size),
                 TL=Length))
-  ggsave('Figure 2.Size frequency_all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  p
+  ggsave('Size frequency_all selected species_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
 
       #family
-  fig2(d=Combined.family%>%
+  p=fig2(d=Combined.family%>%
          mutate(MESH=as.factor(Mesh.size),
                 TL=Length))
-  ggsave('Figure 2.Size frequency_family_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  p=p+theme(legend.position="bottom")
+  reposition_legend(p , 'right',panel='panel-3-3')
+  #Manually save figrue as 'Size frequency_family_data set combined.tiff', ggsave not working with reposition_legend
+  #ggsave('Size frequency_family_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
   
   
@@ -1330,12 +1403,13 @@ if(do.paper.figures)
 
   #9. Plot residuals for all model
   
-    #species
-  nn=length(n.sp)/2
-      #all together
+  #all together
+    #Published species
+  nn=match(n.sp.pub,names(Fit.M_H))
+  nn1=length(nn)/2
   tiff(file="Figure.S2.a_Fit.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
-  par(mfrow=c(nn,length(Rtype)),mar=c(1.5,1.2,.2,.3),oma=c(1.5,2,.7,1),mgp=c(1,.5,0))
-  for(s in 1:nn)
+  par(mfrow=c(nn1,length(Rtype)),mar=c(1.5,1.2,.2,.3),oma=c(1.5,2,.7,1),mgp=c(1,.5,0))
+  for(s in nn[1:nn1])
   {
      for(f in 1:length(Fit.M_H[[s]]$Equal.power))
     {
@@ -1344,7 +1418,7 @@ if(do.paper.figures)
         MAIN=""
         plot.resids(devres,meshsizes,lens,title=MAIN)
       })
-       if(s==1)
+       if(s==nn[1])
        {
          MAIN=with(Fit.M_H[[s]]$Equal.power[[f]],
                    ifelse(type=="norm.loc","Normal (fixed spread)",
@@ -1359,10 +1433,9 @@ if(do.paper.figures)
   mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
   mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
   dev.off()
-  
   tiff(file="Figure.S2.b_Fit.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
-  par(mfrow=c(nn,length(Rtype)),mar=c(1.5,1.2,.2,.3),oma=c(1.5,2,.7,1),mgp=c(1,.5,0),xpd=T)
-  for(s in (nn+1):length(n.sp))
+  par(mfrow=c(nn1,length(Rtype)),mar=c(1.5,1.2,.2,.3),oma=c(1.5,2,.7,1),mgp=c(1,.5,0),xpd=T)
+  for(s in nn[(nn1+1):length(nn)])
   {
     for(f in 1:length(Fit.M_H[[s]]$Equal.power))
     {
@@ -1371,7 +1444,7 @@ if(do.paper.figures)
              MAIN=""
              plot.resids(devres,meshsizes,lens,title=MAIN)
            })
-      if(s==7)
+      if(s==nn[(nn1+1)])
       {
         MAIN=with(Fit.M_H[[s]]$Equal.power[[f]],
                   ifelse(type=="norm.loc","Normal (fixed spread)",
@@ -1387,7 +1460,38 @@ if(do.paper.figures)
   mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
   dev.off()
   
-      #each individual species
+  #Target species
+  nn=match(Published,names(Fit.M_H))
+  tiff(file="Fit_Target.species.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
+  par(mfrow=c(length(nn),length(Rtype)),mar=c(1.5,1.2,.2,.3),oma=c(1.5,2,.7,1),mgp=c(1,.5,0))
+  for(s in nn)
+  {
+    
+    for(f in 1:length(Fit.M_H[[s]]$Equal.power))
+    {
+      with(Fit.M_H[[s]]$Equal.power[[f]],
+           {
+             MAIN=""
+             plot.resids(devres,meshsizes,lens,title=MAIN)
+           })
+      if(s==1)
+      {
+        MAIN=with(Fit.M_H[[s]]$Equal.power[[f]],
+                  ifelse(type=="norm.loc","Normal (fixed spread)",
+                         ifelse(type=="norm.sca","Normal (prop. spread)",
+                                ifelse(type=="gamma","Gamma",
+                                       ifelse(type=="lognorm","Lognormal",NA)))))
+        mtext(MAIN,3,cex=.8)
+      }
+    }
+    mtext( names(Fit.M_H)[s],4,cex=.95,line=.2)
+  }
+  mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
+  mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
+  dev.off()
+  
+  
+  #Each individual species
   for(s in 1:length(n.sp))
   {
     tiff(file=paste("Each species/Fit/species/Deviance residual plot_",n.sp[s],".tiff",sep=''),width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
@@ -1410,9 +1514,10 @@ if(do.paper.figures)
     dev.off()
   }
 
-    #family
+  
+    #Family
       #all together
-  tiff(file="Figure.S2_Fit.family.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Fit.family.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
   par(mfrow=c(length(n.sp.family),length(Rtype)),mar=c(1.5,1.2,.2,.3),oma=c(1.5,2,.7,1.2),mgp=c(1,.5,0))
   for(s in 1:length(n.sp.family))
   {
@@ -1433,7 +1538,7 @@ if(do.paper.figures)
         mtext(MAIN,3,cex=.8)
       }
     }
-    mtext( names(Fit.M_H.family)[s],4,line=.2)
+    mtext( names(Fit.M_H.family)[s],4,line=.2,cex=.85)
   }
   mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
   mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
@@ -1517,8 +1622,8 @@ if(do.paper.figures)
     names(Cols.type)=c(Rtype,"K&W")
   }
   
-    #Species together
-  fn.freq.obs.pred1=function(d,d.KW=NULL)
+    #Published species 
+  fn.freq.obs.pred1=function(d,d.KW=NULL,net.names)
   {
     #Calculated expected population frequency
     Obs=d$tab[,-match('Size.class',names(d$tab))]
@@ -1572,27 +1677,58 @@ if(do.paper.figures)
           lines(d$tab$Size.class,N.fish.caught[[m]][,ii-1],col=Cols.type[m],lwd=1.5)
         }
       }
-      if(s==1) mtext(paste(Nets[i],'cm'),3,cex=.9)
+      if(net.names) mtext(paste(Nets[i],'cm'),3,cex=.9)
       
     }
   }
   Nets=sort(unique(Combined$Mesh.size))
-  tiff(file="Figure S3.a_Obs.vs.Pred.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  par(mfrow=c(nn,length(Nets)),mar=c(1.5,1.2,.2,.65),oma=c(1.5,2,.8,1.2),mgp=c(1,.5,0),las=1,xpd=T)
-  for(s in 1:nn)
+  nn=match(n.sp.pub,names(Fit.M_H))
+  nn1=length(nn)/2
+  
+  tiff(file="Figure.S3.a_Obs.vs.Pred.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  par(mfrow=c(nn1,length(Nets)),mar=c(1.5,1.2,.2,.65),oma=c(1.5,2,.8,1.2),mgp=c(1,.5,0),las=1,xpd=T)
+  for(s in nn[1:nn1])
   {
     dummy=NULL
+    net.names=FALSE
+    if(s==nn[1]) net.names=TRUE
     if(Do.K_W) dummy=Pred.sel.K_W[[s]]
     fn.freq.obs.pred1(d=Fit.M_H[[s]],
-                      d.KW=dummy)
-    if(s==6)
+                      d.KW=dummy,
+                      net.names=net.names)
+    if(s==nn[nn1])
     {
       Nms=names(Cols.type)
       Nms=ifelse(Nms=="norm.loc","Normal fixed",
                  ifelse(Nms=="norm.sca","Normal prop.",
                         ifelse(Nms=="gamma","Gamma",
                                ifelse(Nms=="lognorm","Lognormal",NA))))
-      legend("left",Nms,bty='n',text.col=Cols.type,cex=1.1)
+      legend("left",Nms,bty='n',text.col=Cols.type,cex=1)
+    }
+    mtext(names(Fit.M_H)[s],4,line=.5,cex=.8,las=3)
+  }
+  mtext("Frequency", side = 2,outer=T, line = 0.2,las=3,cex=1.2)
+  mtext("Total length (cm)",1,outer=T,line=.4,cex=1.2)
+  dev.off()
+  tiff(file="Figure.S3.b_Obs.vs.Pred.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  par(mfrow=c(nn1,length(Nets)),mar=c(1.5,1.2,.2,.65),oma=c(1.5,2,.8,1.2),mgp=c(1,.5,0),las=1,xpd=T)
+  for(s in nn[(nn1+1):length(nn)])
+  {
+    dummy=NULL
+    net.names=FALSE
+    if(s==nn[(nn1+1)]) net.names=TRUE
+    if(Do.K_W) dummy=Pred.sel.K_W[[s]]
+    fn.freq.obs.pred1(d=Fit.M_H[[s]],
+                      d.KW=dummy,
+                      net.names=net.names)
+    if(s==nn[length(nn)])
+    {
+      Nms=names(Cols.type)
+      Nms=ifelse(Nms=="norm.loc","Normal fixed",
+                 ifelse(Nms=="norm.sca","Normal prop.",
+                        ifelse(Nms=="gamma","Gamma",
+                               ifelse(Nms=="lognorm","Lognormal",NA))))
+      legend("left",Nms,bty='n',text.col=Cols.type,cex=1)
     }
     
     mtext(names(Fit.M_H)[s],4,line=.5,cex=.8,las=3)
@@ -1600,14 +1736,21 @@ if(do.paper.figures)
   mtext("Frequency", side = 2,outer=T, line = 0.2,las=3,cex=1.2)
   mtext("Total length (cm)",1,outer=T,line=.4,cex=1.2)
   dev.off()
-  tiff(file="Figure S3.b_Obs.vs.Pred.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  par(mfrow=c(nn,length(Nets)),mar=c(1.5,1.2,.2,.65),oma=c(1.5,2,.8,1.2),mgp=c(1,.5,0),las=1,xpd=T)
-  for(s in (nn+1):length(n.sp))
+  
+  #Target species
+  nn=match(Published,names(Fit.M_H))
+  tiff(file="Obs.vs.Pred_Target species.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  par(mfrow=c(length(nn),length(Nets)),mar=c(1.5,1.2,.2,.65),oma=c(1.5,2,.8,1.2),mgp=c(1,.5,0),las=1,xpd=T)
+  for(s in nn)
   {
     dummy=NULL
+    net.names=FALSE
+    if(s==nn[1]) net.names=TRUE
+    
     if(Do.K_W) dummy=Pred.sel.K_W[[s]]
     fn.freq.obs.pred1(d=Fit.M_H[[s]],
-                      d.KW=dummy)
+                      d.KW=dummy,
+                      net.names=net.names)
     if(s==12)
     {
       Nms=names(Cols.type)
@@ -1618,21 +1761,25 @@ if(do.paper.figures)
       legend("left",Nms,bty='n',text.col=Cols.type,cex=1.1)
     }
     
-    mtext(names(Fit.M_H)[s],4,line=.5,cex=.8,las=3)
+    mtext(names(Fit.M_H)[s],4,line=.5,cex=1,las=3)
   }
   mtext("Frequency", side = 2,outer=T, line = 0.2,las=3,cex=1.2)
   mtext("Total length (cm)",1,outer=T,line=.4,cex=1.2)
   dev.off()
 
     #Families together
-  tiff(file="Figure S3.Families_Obs.vs.Pred.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Obs.vs.Pred_Families.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
   par(mfrow=c(length(n.sp.family),length(Nets)),mar=c(1.5,1.2,.2,.65),oma=c(1.5,2,.8,1.2),mgp=c(1,.5,0),las=1,xpd=T)
   for(s in 1:length(n.sp.family))
   {
     dummy=NULL
+    net.names=FALSE
+    if(s==1) net.names=TRUE
+    
     fn.freq.obs.pred1(d=Fit.M_H.family[[s]],
-                      d.KW=dummy)
-    if(s==6)
+                      d.KW=dummy,
+                      net.names=net.names)
+    if(s==length(n.sp.family))
     {
       Nms=names(Cols.type)
       Nms=ifelse(Nms=="norm.loc","Normal fixed",
@@ -1649,92 +1796,6 @@ if(do.paper.figures)
   dev.off()
   
   
-    #by species
-  fn.freq.obs.pred=function(d,d.KW=NULL,NME,MAR,OMA)
-  {
-    #Calculated expected population frequency
-    Obs=d$tab[,-match('Size.class',names(d$tab))]
-    N.fish.caught=vector('list',length(d$Equal.power))
-    names(N.fish.caught)=names(d$Equal.power)
-    for(f in 1:length(d$Equal.power))
-    {
-      Lns=d$Equal.power[[f]]$lens
-      iid=match(Lns,d$Equal.power[[f]]$plotlens)
-      Pred.sel=d$Equal.power[[f]]$rselect[iid,]
-      Total.sel=rowSums(Pred.sel)
-      Total.obs=rowSums(Obs)
-      Rel.num.in.pop=sapply(Total.obs/Total.sel,function(x) max(x,0.1))
-      Rel.prop.in.pop=Rel.num.in.pop/sum(Rel.num.in.pop)
-      N.mesh=colSums(Obs)
-      Expnd.N.mesh=matrix(rep(N.mesh,each=nrow(Pred.sel)),ncol=ncol(Pred.sel))
-      Expnd.Rel.prop.in.pop=matrix(rep(Rel.prop.in.pop,ncol(Pred.sel)),ncol=ncol(Pred.sel))
-      Sum.prod=colSums(Pred.sel*Expnd.Rel.prop.in.pop)
-      Sum.prod=matrix(rep(Sum.prod,each=nrow(Pred.sel)),ncol=ncol(Pred.sel))
-      N.fish.caught[[f]]=(Expnd.N.mesh*Expnd.Rel.prop.in.pop*Pred.sel)/Sum.prod
-    }
-    if(!is.null(d.KW))
-    {
-      iid=match(Lns,d.KW$Size.class)
-      
-      Pred.sel=d.KW[iid,-1]
-      Total.sel=rowSums(Pred.sel)
-      Total.obs=rowSums(Obs)
-      Rel.num.in.pop=sapply(Total.obs/Total.sel,function(x) max(x,0.1))
-      Rel.prop.in.pop=Rel.num.in.pop/sum(Rel.num.in.pop)
-      N.mesh=colSums(Obs)
-      Expnd.N.mesh=matrix(rep(N.mesh,each=nrow(Pred.sel)),ncol=ncol(Pred.sel))
-      Expnd.Rel.prop.in.pop=matrix(rep(Rel.prop.in.pop,ncol(Pred.sel)),ncol=ncol(Pred.sel))
-      Sum.prod=colSums(Pred.sel*Expnd.Rel.prop.in.pop)
-      Sum.prod=matrix(rep(Sum.prod,each=nrow(Pred.sel)),ncol=ncol(Pred.sel))
-      N.fish.caught$'K&W'=(Expnd.N.mesh*Expnd.Rel.prop.in.pop*Pred.sel)/Sum.prod
-    }
-    
-    #Plot by mesh
-    n=ncol(d$tab)-1
-    smart.par(n,MAR,OMA,MGP=c(1,.5,0))
-    Msh=substr(names(d$tab)[-1],2,10)
-    for(i in 1:n)
-    {
-      plot(d$tab$Size.class,d$tab[,i+1],type='h',ylab='',xlab='', lwd = 4,col=rgb(.5,.5,.5,alpha=.5))
-      for(m in 1:length(N.fish.caught))
-      {
-        lines(d$tab$Size.class,N.fish.caught[[m]][,i],col=Cols.type[m],lwd=1.5)
-      }
-      Where=which.max(N.fish.caught[[1]][,i])
-      if(Where<10) here='topright' else here= 'topleft'
-      if(NME=="Sphyrnidae") here= 'topleft'
-      if(i<n)legend(here,paste(Msh[i],'cm mesh'),bty='n',cex=1.2)
-      
-    }
-    legend(here,names(Cols.type),bty='n',lty=1,lwd=2,col=Cols.type,title=paste(Msh[i],'cm mesh'),cex=1.2)
-    mtext("Frequency", side = 2,outer=T, line = 0.2,las=3,cex=1.2)
-    mtext("Total length (mm)",1,outer=T,line=.45,cex=1.2)
-    mtext(NME,3,outer=T,line=-.75,cex=1.2)
-  }
-  for(s in 1:length(n.sp))
-  {
-    tiff(file=paste("Observed Vs Predicted/",n.sp[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
-    dummy=NULL
-    if(Do.K_W) dummy=  Pred.sel.K_W[[s]]
-    fn.freq.obs.pred(d=Fit.M_H[[s]],
-                     d.KW=dummy,
-                     NME=names(Fit.M_H)[s],
-                     MAR=c(1.2,1.75,1,1),
-                     OMA=c(1.75,1.75,.75,.75))
-    dev.off()
-  }
-  
-    #by family
-  for(s in 1:length(n.sp.family))
-  {
-    tiff(file=paste("Observed Vs Predicted/",n.sp.family[s],".tiff",sep=''),width = 2000, height = 2400,units = "px", res = 300, compression = "lzw")    
-    fn.freq.obs.pred(d=Fit.M_H.family[[s]],
-                     NME=names(Fit.M_H.family)[s],
-                     MAR=c(1.2,1.85,1,1.5),
-                     OMA=c(1.75,1.5,.75,1.5))
-    dev.off()
-  }
-
   
   #12. Extract mode for each mesh
   Mode.normal=function(m,k) m*k
@@ -1783,16 +1844,33 @@ if(do.paper.figures)
   }
   Max.size=300
   
-    #species
+    #Published species  
   Store.Sels=vector('list',length(n.sp))
   names(Store.Sels)=n.sp
-  tiff(file="Figure 3. Selectivity.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  smart.par(n.plots=length(n.sp),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
-  for(s in 1:length(n.sp))
+  
+  nn=match(n.sp.pub,names(Fit.M_H))
+  tiff(file="Figure 3. Selectivity.tiff",width = 2400, height = 2000,units = "px", res = 300, compression = "lzw")    
+  smart.par(n.plots=length(nn),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+  for(s in nn)
   {
     Store.Sels[[s]]=plot.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s],XMAX=Max.size)
-    if(s==12)legend("right",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
+  }
+  plot.new()
+  legend("right",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
                     lwd=2,cex=1.25,title='Mesh (cm)')
+  mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
+  mtext("Relative selectivity",2,outer=T,line=1,cex=1.25,las=3)
+  dev.off() 
+  
+  #Target species
+  nn=match(Published,names(Fit.M_H))
+  tiff(file="Selectivity_Target species.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  smart.par(n.plots=length(nn),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
+  for(s in nn)
+  {
+    Store.Sels[[s]]=plot.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s],XMAX=Max.size)
+    if(s==nn[length(nn)])legend("right",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
+                                lwd=2,cex=1.25,title='Mesh (cm)')
   }
   mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
   mtext("Relative selectivity",2,outer=T,line=1,cex=1.25,las=3)
@@ -1801,7 +1879,7 @@ if(do.paper.figures)
     #family
   Store.Sels.fam=vector('list',length(n.sp.family))
   names(Store.Sels.fam)=n.sp.family
-  tiff(file="Figure 3. Selectivity.family.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Selectivity_family.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
   smart.par(n.plots=length(n.sp.family),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),
             MGP=c(1,.5,0))
   par(cex.axis=1.25)
@@ -1809,9 +1887,10 @@ if(do.paper.figures)
   {
     Store.Sels.fam[[s]]=plot.sel(d=Fit.M_H.family[[s]],BEST=Best.fit.family[[s]],
                                  NM=n.sp.family[s],XMAX=Max.size)
-    if(s==6)legend("right",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
-                    lwd=2,cex=1.25,title='Mesh (cm)')
   }
+  plot.new()
+  legend("right",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
+         lwd=2,cex=1.25,title='Mesh (cm)')
   mtext("Total length (cm)",1,outer=T,line=.45,cex=1.25)
   mtext("Relative selectivity",2,outer=T,line=1,cex=1.25,las=3)
   dev.off() 
