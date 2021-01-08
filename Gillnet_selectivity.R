@@ -494,8 +494,16 @@ Combined=left_join(Combined,drop.one.mesh,by=c('Species','Mesh.size'))%>%
          filter(is.na(Drop))%>%dplyr::select(-Drop)
 
   #family
-drop.one.mesh=data.frame(Species=c("Carcharhinidae","Carcharhinidae"),
-                         Mesh.size=c(10.2,16.5),
+drop.one.mesh=data.frame(Species=c(rep("Carcharhinidae",4),
+                                   "Orectolobidae",
+                                   "Squalidae",
+                                   "Scyliorhinidae",
+                                   "Triakidae"),
+                         Mesh.size=c(10.2,16.5,21.6,22.4,
+                                     15.2,
+                                     20.3,
+                                     10.2,
+                                     21.6),
                          Drop="YES")
 Combined.family=left_join(Combined.family,drop.one.mesh,by=c('Species','Mesh.size'))%>%
         filter(is.na(Drop))%>%dplyr::select(-Drop)
@@ -1010,12 +1018,6 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
   write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
 }
 
-en=match("Spikey dogfish",Table.mod.fit$Species)
-This.best=Table.mod.fit[(en+3),]
-
-Best.fit$`Spikey dogfish`$Model='lognorm'  #reset to 'Lognormal because norm.loc has huge residuals for 20.3 cm
-Best.fit$`Spikey dogfish`$Dev=as.numeric(This.best$Equal_Deviance)
-  
     #species
 for(s in 1:length(n.sp))
 {
@@ -1178,8 +1180,12 @@ if(do.paper.figures)
     facet_wrap(vars(Species), scales = "free_y")+
     scale_color_manual("Mesh size (cm)",values=colfunc(length(unique(Combined.family$Mesh.size))))+
     theme_dark()+ 
-    theme(strip.text.x = element_text(size = 11,face='bold',color="white"))
-  ggsave('Mean size by mesh_family.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+    theme(strip.text.x = element_text(size = 11,face='bold',color="white"),
+          axis.text.x = element_text(size = 10),
+          axis.text.y = element_text(size = 10),
+          axis.title.x = element_text(size = 18),
+          axis.title.y = element_text(size = 18))
+  ggsave('Figure.S2_family.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
 
   #6. Display size frequencies 
@@ -1224,8 +1230,8 @@ if(do.paper.figures)
                 TL=Length))
   p=p+theme(legend.position="bottom")
   reposition_legend(p , 'right',panel='panel-3-3')
-  #Manually save figrue as 'Size frequency_family_data set combined.tiff', ggsave not working with reposition_legend
-  #ggsave('Size frequency_family_data set combined.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  #Manually save figrue as 'Figure 3.tiff', ggsave not working with reposition_legend
+  #ggsave('Figure 3_Size frequency_family.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
   
   
@@ -1407,7 +1413,7 @@ if(do.paper.figures)
     #Published species
   nn=match(n.sp.pub,names(Fit.M_H))
   nn1=length(nn)/2
-  tiff(file="Figure.S2.a_Fit.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Figure.S3.a_Fit.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
   par(mfrow=c(nn1,length(Rtype)),mar=c(1.5,1.2,.2,.3),oma=c(1.5,2,.7,1),mgp=c(1,.5,0))
   for(s in nn[1:nn1])
   {
@@ -1433,7 +1439,7 @@ if(do.paper.figures)
   mtext("Total length (mm)",1,outer=T,line=.35,cex=1.25)
   mtext("Mesh size (cm)",2,outer=T,line=.35,cex=1.25,las=3)
   dev.off()
-  tiff(file="Figure.S2.b_Fit.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Figure.S3.b_Fit.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
   par(mfrow=c(nn1,length(Rtype)),mar=c(1.5,1.2,.2,.3),oma=c(1.5,2,.7,1),mgp=c(1,.5,0),xpd=T)
   for(s in nn[(nn1+1):length(nn)])
   {
@@ -1517,7 +1523,7 @@ if(do.paper.figures)
   
     #Family
       #all together
-  tiff(file="Fit.family.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Figure.S4_family.tiff",width = 1800, height = 2400,units = "px", res = 300, compression = "lzw")    
   par(mfrow=c(length(n.sp.family),length(Rtype)),mar=c(1.5,1.2,.2,.3),oma=c(1.5,2,.7,1.2),mgp=c(1,.5,0))
   for(s in 1:length(n.sp.family))
   {
@@ -1685,7 +1691,7 @@ if(do.paper.figures)
   nn=match(n.sp.pub,names(Fit.M_H))
   nn1=length(nn)/2
   
-  tiff(file="Figure.S3.a_Obs.vs.Pred.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Figure.S5.a_Obs.vs.Pred.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
   par(mfrow=c(nn1,length(Nets)),mar=c(1.5,1.2,.2,.65),oma=c(1.5,2,.8,1.2),mgp=c(1,.5,0),las=1,xpd=T)
   for(s in nn[1:nn1])
   {
@@ -1710,7 +1716,7 @@ if(do.paper.figures)
   mtext("Frequency", side = 2,outer=T, line = 0.2,las=3,cex=1.2)
   mtext("Total length (cm)",1,outer=T,line=.4,cex=1.2)
   dev.off()
-  tiff(file="Figure.S3.b_Obs.vs.Pred.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Figure.S5.b_Obs.vs.Pred.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
   par(mfrow=c(nn1,length(Nets)),mar=c(1.5,1.2,.2,.65),oma=c(1.5,2,.8,1.2),mgp=c(1,.5,0),las=1,xpd=T)
   for(s in nn[(nn1+1):length(nn)])
   {
@@ -1768,7 +1774,7 @@ if(do.paper.figures)
   dev.off()
 
     #Families together
-  tiff(file="Obs.vs.Pred_Families.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Figure.S6_Families.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
   par(mfrow=c(length(n.sp.family),length(Nets)),mar=c(1.5,1.2,.2,.65),oma=c(1.5,2,.8,1.2),mgp=c(1,.5,0),las=1,xpd=T)
   for(s in 1:length(n.sp.family))
   {
@@ -1796,7 +1802,7 @@ if(do.paper.figures)
   dev.off()
   
   
-  
+ 
   #12. Extract mode for each mesh
   Mode.normal=function(m,k) m*k
   Mode.gamma=function(m,k,alpha) (alpha-1)*k*m
@@ -1879,7 +1885,7 @@ if(do.paper.figures)
     #family
   Store.Sels.fam=vector('list',length(n.sp.family))
   names(Store.Sels.fam)=n.sp.family
-  tiff(file="Selectivity_family.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Figure 4.family.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
   smart.par(n.plots=length(n.sp.family),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),
             MGP=c(1,.5,0))
   par(cex.axis=1.25)
@@ -1891,7 +1897,7 @@ if(do.paper.figures)
   plot.new()
   legend("right",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
          lwd=2,cex=1.25,title='Mesh (cm)')
-  mtext("Total length (cm)",1,outer=T,line=.45,cex=1.25)
+  mtext("Total length (cm)",1,outer=T,line=.3,cex=1.25)
   mtext("Relative selectivity",2,outer=T,line=1,cex=1.25,las=3)
   dev.off() 
   
