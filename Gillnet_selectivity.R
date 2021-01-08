@@ -1808,12 +1808,53 @@ if(do.paper.figures)
   Mode.gamma=function(m,k,alpha) (alpha-1)*k*m
   Mode.lognormal=function(m,mu,sigma,m1) exp(mu-sigma^2)*(m/m1)
   
-      #Example for gummy
-  #Fit.M_H$`Gummy shark`$Equal.power$norm.sca$gear.pars
-  #Mode.normal(m=16.5,k=74.89336)
-  #Mode.gamma(m=16.5,k=1.571537,alpha=49.218688)
-  #Mode.lognormal(m=16.5,mu=6.6617214,sigma=0.1460648,m1=10.2)
+  fn.get.mode=function(SP,d,best.fit,meshes)
+  {
+    dummy=data.frame(meshes)
+    dummy$Mode=NA
+    if(best.fit=="lognorm")
+    {
+      ParS=d$Equal.power$lognorm$gear.pars[,'estimate']
+      for(i in 1:nrow(dummy)) dummy$Mode[i]=Mode.lognormal(m=dummy$meshes[i],
+                                                           mu=ParS[1],
+                                                           sigma=ParS[2],
+                                                           m1=min(meshes))
+    }
+    if(best.fit%in%c("norm.loc","norm.sca"))
+    {
+      if(best.fit=="norm.loc") ParS=d$Equal.power$norm.loc$gear.pars[,'estimate']
+      if(best.fit=="norm.sca") ParS=d$Equal.power$norm.sca$gear.pars[,'estimate']
+      for(i in 1:nrow(dummy)) dummy$Mode[i]=Mode.normal(m=dummy$meshes[i],k=ParS[1])
+    }
+    if(best.fit=="gamma")
+    {
+      ParS=d$Equal.power$gamma$gear.pars[,'estimate']
+      for(i in 1:nrow(dummy)) dummy$Mode[i]=Mode.gamma(m=dummy$meshes[i],
+                                                       k=ParS[2],
+                                                       alpha=ParS[1])
+    }
+    return(dummy%>%
+            mutate(Species=SP)%>%
+            spread(meshes,Mode))
+  }
+
+  #Species
+  store.mode.species=vector('list',length(n.sp))
+  names(store.mode.species)=n.sp
+  for(s in 1:length(n.sp)) store.mode.species[[s]]=fn.get.mode(SP=n.sp[s],
+                                                     d=Fit.M_H[[s]],
+                                                     best.fit=Best.fit[[s]]$Model,
+                                                     meshes=c(10.2,12.7,15.2,16.5,17.8,20.3,21.6))
+  write.csv(do.call(rbind,store.mode.species),"Table.modes.csv",row.names = F)
   
+  #Family
+  store.mode.family=vector('list',length(n.sp.family))
+  names(store.mode.family)=n.sp.family
+  for(s in 1:length(n.sp.family)) store.mode.family[[s]]=fn.get.mode(SP=n.sp.family[s],
+                                                            d=Fit.M_H.family[[s]],
+                                                            best.fit=Best.fit.family[[s]]$Model,
+                                                            meshes=c(10.2,12.7,15.2,16.5,17.8,20.3,21.6,25.4))
+  write.csv(do.call(rbind,store.mode.family),"Table.modes_family.csv",row.names = F)
   
   #13. Display best model selectivity  
   write.csv(do.call(rbind,Best.fit),"Table best model.csv",row.names = T)
