@@ -240,7 +240,7 @@ F2_Sampling=F2_Sampling%>%
                           Csiro==37010001 & LengthType=='FL' ~ 1.07689*Length+1.7101,
                           Csiro==37017001 & LengthType=='FL' ~ 1.08*Length+4.6424,
                           Csiro==37020008 & LengthType=='FL' ~ 1.1*Length+5.736,
-                          Csiro==37043001 & LengthType=='FL' ~ 1.2*Length,
+                          Csiro==37043001 & LengthType=='FL' ~ 1.012*Length+13.42,
                           Csiro==37038004 & LengthType=='DW' ~ (Length-17.937)/0.589,
                           Csiro==37038007 & LengthType=='DW' ~ (Length-17.937)/0.589,
                           TRUE ~ Length))%>%
@@ -1896,7 +1896,7 @@ if(do.paper.figures)
   names(Store.Sels)=n.sp
   
   nn=match(n.sp.pub,names(Fit.M_H))
-  tiff(file="Figure 3. Selectivity.tiff",width = 2400, height = 2000,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Figure 4. Selectivity.tiff",width = 2400, height = 2000,units = "px", res = 300, compression = "lzw")    
   smart.par(n.plots=length(nn),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),MGP=c(1,.5,0))
   for(s in nn)
   {
@@ -1926,7 +1926,7 @@ if(do.paper.figures)
     #family
   Store.Sels.fam=vector('list',length(n.sp.family))
   names(Store.Sels.fam)=n.sp.family
-  tiff(file="Figure 4.family.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+  tiff(file="Figure 5.family.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
   smart.par(n.plots=length(n.sp.family),MAR=c(1.5,1.2,1.5,1.5),OMA=c(1.5,3,.1,.1),
             MGP=c(1,.5,0))
   par(cex.axis=1.25)
