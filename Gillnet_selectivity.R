@@ -1052,51 +1052,56 @@ if(do.paper.figures)
   
   
   #1. Map
-  library("rnaturalearth")
-  world <- ne_countries(scale = "medium", returnclass = "sf")
-  Map.dat=rbind(F1_SamplingTwo%>%
-                  filter(Mesh%in%c('S4','S5','S6','S7','S8'))%>%
-                  distinct(Cruise,Station,.keep_all = T)%>%
-                  mutate(mid.lat=-abs(StartLat/100),
-                         mid.long=StartLong/100)%>%
-                  dplyr::select(mid.lat,mid.long),
-                Exp.net.WA%>%
-                  distinct(sheet_no,.keep_all = T)%>%
-                  dplyr::select(mid.lat,mid.long)%>%
-                  mutate(mid.lat=-abs(mid.lat))
-            )%>%
-            filter(mid.long > 111 & !is.na(mid.lat))
-  Long.range=range(Map.dat$mid.long)
-  Lat.range=range(Map.dat$mid.lat)
-  Poly=data.frame(x=c(Long.range,rev(Long.range)),y=c(rep(Lat.range[1],2),rep(Lat.range[2],2)))
-  Inset=ggplot(data = world) +
-    geom_sf(color = "black", fill = "white") +
-    coord_sf(xlim =c(Long.range[1],153) , ylim = c(Lat.range[1],-11), expand = T)+
-    theme(axis.title=element_blank(),
-          axis.text=element_blank(),
-          axis.ticks=element_blank())+ 
-    annotate(geom="text", x=134, y=-24, label="Australia",size=12)+
-    geom_polygon(data=Poly,aes(x,y),fill='black',alpha=.35)
-  p=ggplot(data = world) +
-    geom_sf(color = "black", fill = "grey60") +
-    coord_sf(xlim =Long.range , ylim = Lat.range, expand = T) +
-    xlab("Longitude") + ylab("Latitude")+
-    geom_point(data=Map.dat,aes(x=mid.long, y=mid.lat,size=10),shape=21,alpha=0.4,fill="brown4")+
-    theme(legend.title = element_text(size = 12),
-          legend.text = element_text(size = 10),
-          legend.position = "none",
-          legend.key=element_blank(),
-          legend.background=element_blank(),
-          legend.direction = "vertical",
-          legend.box = "horizontal",
-          axis.text.x = element_text(size = 15),
-          axis.text.y = element_text(size = 15),
-          axis.title.x = element_text(size = 20),
-          axis.title.y = element_text(size = 20),
-          plot.margin=unit(c(.1,.1,.1,.1),"cm"))
-  p+
-    annotation_custom(ggplotGrob(Inset),xmin = 112, xmax = 130, ymin = -44, ymax = -36)
-  ggsave("Figure 1.tiff", width = 12,height = 6,dpi = 300, compression = "lzw")
+  do.map=FALSE
+  if(do.map)
+  {
+    library("rnaturalearth")
+    world <- ne_countries(scale = "medium", returnclass = "sf")
+    Map.dat=rbind(F1_SamplingTwo%>%
+                    filter(Mesh%in%c('S4','S5','S6','S7','S8'))%>%
+                    distinct(Cruise,Station,.keep_all = T)%>%
+                    mutate(mid.lat=-abs(StartLat/100),
+                           mid.long=StartLong/100)%>%
+                    dplyr::select(mid.lat,mid.long),
+                  Exp.net.WA%>%
+                    distinct(sheet_no,.keep_all = T)%>%
+                    dplyr::select(mid.lat,mid.long)%>%
+                    mutate(mid.lat=-abs(mid.lat))
+    )%>%
+      filter(mid.long > 111 & !is.na(mid.lat))
+    Long.range=range(Map.dat$mid.long)
+    Lat.range=range(Map.dat$mid.lat)
+    Poly=data.frame(x=c(Long.range,rev(Long.range)),y=c(rep(Lat.range[1],2),rep(Lat.range[2],2)))
+    Inset=ggplot(data = world) +
+      geom_sf(color = "black", fill = "white") +
+      coord_sf(xlim =c(Long.range[1],153) , ylim = c(Lat.range[1],-11), expand = T)+
+      theme(axis.title=element_blank(),
+            axis.text=element_blank(),
+            axis.ticks=element_blank())+ 
+      annotate(geom="text", x=134, y=-24, label="Australia",size=12)+
+      geom_polygon(data=Poly,aes(x,y),fill='black',alpha=.35)
+    p=ggplot(data = world) +
+      geom_sf(color = "black", fill = "grey60") +
+      coord_sf(xlim =Long.range , ylim = Lat.range, expand = T) +
+      xlab("Longitude") + ylab("Latitude")+
+      geom_point(data=Map.dat,aes(x=mid.long, y=mid.lat,size=10),shape=21,alpha=0.4,fill="brown4")+
+      theme(legend.title = element_text(size = 12),
+            legend.text = element_text(size = 10),
+            legend.position = "none",
+            legend.key=element_blank(),
+            legend.background=element_blank(),
+            legend.direction = "vertical",
+            legend.box = "horizontal",
+            axis.text.x = element_text(size = 15),
+            axis.text.y = element_text(size = 15),
+            axis.title.x = element_text(size = 20),
+            axis.title.y = element_text(size = 20),
+            plot.margin=unit(c(.1,.1,.1,.1),"cm"))
+    p+
+      annotation_custom(ggplotGrob(Inset),xmin = 112, xmax = 130, ymin = -44, ymax = -36)
+    ggsave("Figure 1.tiff", width = 12,height = 6,dpi = 300, compression = "lzw")
+    
+  }
   
   
   #2. Appendix 1
@@ -1845,7 +1850,7 @@ if(do.paper.figures)
                                                      d=Fit.M_H[[s]],
                                                      best.fit=Best.fit[[s]]$Model,
                                                      meshes=c(10.2,12.7,15.2,16.5,17.8,20.3,21.6))
-  write.csv(do.call(rbind,store.mode.species),"Table.modes.csv",row.names = F)
+  write.csv(do.call(rbind,store.mode.species),"TableS2.modes.csv",row.names = F)
   
   #Family
   store.mode.family=vector('list',length(n.sp.family))
@@ -1854,7 +1859,7 @@ if(do.paper.figures)
                                                             d=Fit.M_H.family[[s]],
                                                             best.fit=Best.fit.family[[s]]$Model,
                                                             meshes=c(10.2,12.7,15.2,16.5,17.8,20.3,21.6,25.4))
-  write.csv(do.call(rbind,store.mode.family),"Table.modes_family.csv",row.names = F)
+  write.csv(do.call(rbind,store.mode.family),"TableS2.modes_family.csv",row.names = F)
   
   #13. Display best model selectivity  
   write.csv(do.call(rbind,Best.fit),"Table best model.csv",row.names = T)
@@ -1922,6 +1927,19 @@ if(do.paper.figures)
   mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
   mtext("Relative selectivity",2,outer=T,line=1,cex=1.25,las=3)
   dev.off() 
+  
+  #Each species separately
+  for(s in 1:length(n.sp))
+  {
+    tiff(file=paste("Each species/Selectivity/",n.sp[s],".tiff",sep=''),width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
+    par(las=1)
+    dummy=plot.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s],XMAX=max(Fit.M_H[[s]]$tab$Size.class)*1.75)
+    legend("right",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
+           lwd=2,cex=1.25,title='Mesh (cm)')
+    mtext("Total length (cm)",1,line=2.5,cex=1.5)
+    mtext("Relative selectivity",2,line=2.5,cex=1.5,las=3)
+    dev.off()
+  }
   
     #family
   Store.Sels.fam=vector('list',length(n.sp.family))
