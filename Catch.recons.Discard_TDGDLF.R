@@ -61,6 +61,7 @@ Len.wei=read.csv("C:/Matias/Data/Length_Weights/length.weights.csv",stringsAsFac
 Wei.range=read.csv("C:/Matias/Data/Length_Weights/Data.Ranges.csv")
 Wei.range.names=read.csv("C:/Matias/Data/Length_Weights/Species.names.csv")
 
+
 #Post capture mortality
 PCM.north=read.csv('C:/Matias/Analyses/Reconstruction_catch_commercial/TableS1.PCM_North.csv')
 PCM.south=read.csv('C:/Matias/Analyses/Reconstruction_catch_commercial/TableS1.PCM_South.csv')
@@ -80,6 +81,7 @@ n.boot=1e4
 Group_rare_criteria=0.02    #criteria for grouping rare species (proportion of catch)    
 
 Commercial.sp=subset(Comm.disc.sp,FATE=="C" & NATURE%in%c("S","R","T"))$SPECIES
+Discarded.sp=subset(Comm.disc.sp,FATE=="D" & NATURE%in%c("S","R","T"))$SPECIES
 
 do.sensitivity=TRUE
 do.paper=FALSE
@@ -127,12 +129,25 @@ Dat_obs=Dat_obs%>%
              SPECIES=ifelse(SPECIES=='PD','SD',SPECIES))%>%
       left_join(All.species.names%>%rename(Species=SPECIES),by=c('SPECIES'='SP'))%>%
   mutate(Name=ifelse(is.na(Name),COMMON_NAME,Name),
-         Scien.nm=ifelse(is.na(Scien.nm),SCIENTIFIC_NAME,Scien.nm))
+         Scien.nm=ifelse(is.na(Scien.nm),SCIENTIFIC_NAME,Scien.nm),
+         Name=ifelse(Name=="Leatherjacket (general)","Leatherjackets",
+              ifelse(Name=="Triggerfish (general)","Triggerfishes",
+              ifelse(Name=="Scorpion fish (general)","Scorpion fish",
+                     ifelse(Name=="Stripped marlin","Striped marlin",Name)))))
+
+
+
+
 DATA_obs=list(GN=Dat_obs) #Use only observed GN as LL has very few observations
 
-#define discarded/retained sp
+#define discarded/retained sp   
 for(i in 1:length(DATA_obs)) DATA_obs[[i]]$Discarded=with(DATA_obs[[i]],
-                                          ifelse(SPECIES%in%Commercial.sp,"Retained","Discarded"))
+                                          ifelse(SPECIES%in%Commercial.sp,"Retained",
+                                          ifelse(SPECIES%in%Discarded.sp,"Discarded",
+                                                 NA)))
+#  Remove unidentified sharks
+for(i in 1:length(DATA_obs)) DATA_obs[[i]]=subset(DATA_obs[[i]],!SPECIES%in%c('XX','XX.T'))
+
 
 # Group Angel sharks-------------------------------------------
 for(i in 1:length(DATA_obs))
@@ -220,6 +235,7 @@ if(do.this)
 # Show overal observed discarded and retained species-------------------------------------------
 #nice infographic: https://twitter.com/ISSF/status/1147943595942526978?s=03
 colfunc <- colorRampPalette(c("brown4","brown1","orange","yellow"))
+  #Elasmos
 fun.horiz.bar=function(d,gear)
 {
   n=nrow(d%>%
@@ -271,6 +287,58 @@ fun.horiz.bar=function(d,gear)
 }
 for(i in 1:length(DATA_obs))  Tabl.obs.GN=fun.horiz.bar(d=DATA_obs[[i]],gear=names(DATA_obs)[i])
 
+  #Teleosts
+fun.horiz.bar.scalefish=function(d,gear)
+{
+  n=nrow(d%>%
+           filter(Taxa=="Teleost" & Discarded=="Discarded")%>%
+           distinct(SPECIES))
+  d1=d%>%
+    mutate(taxa=ifelse(Discarded=="Retained","Elasmobranch",Taxa),
+           dummy=ifelse(Discarded=="Retained" & Taxa=="Elasmobranch","Retained elasmobranchs",
+                        ifelse(Discarded=="Retained" & Taxa=="Teleost","Retained teleosts",
+                               ifelse(Discarded=="Discarded" & Taxa=="Elasmobranch","Discarded elasmobranchs",
+                                      Name))),
+           dummy=capitalize(tolower(dummy)),
+           dummy=ifelse(dummy=='Sergeant baker','Sergeant Baker',dummy))%>%
+    group_by(dummy)%>%
+    tally%>%
+    mutate(Percent=100*n/sum(n),
+           Label=ifelse(Percent>=.5 & Percent<.1,'<1',
+                        ifelse(Percent<.1,'<0.1',
+                               round(Percent,1))),
+           Label=paste(Label,'%',sep=''),
+           Percent.original=Percent,
+           Percent=ifelse(Percent<0.1,0.1,Percent))%>%
+    data.frame%>%
+    arrange(-Percent)%>%
+    mutate(dummy=reorder(dummy, Percent),
+           grp=ifelse(dummy=='Retained elasmobranchs',"#228B22",
+                      ifelse(dummy=='Retained teleosts',"#11BC11",
+                             ifelse(!dummy%in%c('Retained elasmobranchs','Retained teleosts') & Percent.original>=5,"#8B2323",
+                                    ifelse(!dummy%in%c('Retained elasmobranchs','Retained teleosts') & Percent.original<5 & Percent.original>=1,"#D03434",
+                                           ifelse(!dummy%in%c('Retained elasmobranchs','Retained teleosts') & Percent.original<1 & Percent.original>0.1,"#FF4A39",
+                                                  "#FF9A06"))))))
+  
+  
+  d1%>%
+    ggplot(aes(x =  dummy,y = Percent)) + 
+    geom_bar(fill = d1$grp,stat = "identity")+coord_flip()+
+    geom_text(aes(label=Label), position=position_dodge(width=0.9), hjust=-.1)+
+    theme_classic()+
+    theme(axis.title.y=element_blank(),
+          axis.text=element_text(size=14),
+          axis.title=element_text(size=16),
+          panel.border = element_rect(colour = "black", fill=NA, size=1))+
+    ylim(0, 10*round(max(d1$Percent)/10)+10)
+  ggsave(paste('Results/Recons.scalefish/Figure2_observed.percentage_',gear,'.tiff',sep=''), 
+         width = 8,height = 10,compression = "lzw")
+  
+  d1=d1%>%mutate(Label=ifelse(Percent>1,round(Percent,2),'<1%'))
+  return(d1)
+  
+}
+for(i in 1:length(DATA_obs))  Tabl.obs.GN.scalefish=fun.horiz.bar.scalefish(d=DATA_obs[[i]],gear=names(DATA_obs)[i])
 
 #Table of discarded and observed species
 # Table.disc.obs=DATA_obs$GN%>%
@@ -283,8 +351,18 @@ Table.disc.obs=DATA_obs$GN%>%
               tally()%>%
               arrange(Taxa,Discarded,COMMON_NAME)  
   
+#for teleosts, keep discarded teleosts and retained elasmos
+DATA_obs_teleosts=DATA_obs
+for(i in 1:length(DATA_obs_teleosts))
+{
+  DATA_obs_teleosts[[i]]=subset(DATA_obs_teleosts[[i]],
+                                (Taxa=='Elasmobranch' & Discarded=='Retained') | 
+                                (Taxa=='Teleost' & Discarded=='Discarded'))
+}
+
 #Keep only elasmobranchs from observed commercial boats
 for(i in 1:length(DATA_obs)) DATA_obs[[i]]=subset(DATA_obs[[i]],Taxa=='Elasmobranch')
+
 
 
 #Extract discarded species
@@ -293,6 +371,10 @@ Discarded.SP=DATA_obs$GN%>%
               distinct(SPECIES,.keep_all = T)%>%
               pull(SPECIES)
 
+Discarded.SP_teleosts=DATA_obs_teleosts$GN%>%
+              filter(Discarded=='Discarded' & Taxa=='Teleost')%>%
+              distinct(SPECIES,.keep_all = T)%>%
+              pull(SPECIES)
 
 # Set FL to disc width for stingrays for computational purposes----------------------------------------
 Stingrays=35000:40000
@@ -303,8 +385,7 @@ for(i in 1:length(DATA_obs))
            TL=ifelse(CAES_Code%in%Stingrays,NA,TL))
 }
 
-
-# Fill in missing FL info  ---------------------------------------------------------
+# Fill in missing FL info for elasmos ---------------------------------------------------------
 #note: first use TL, then sample from species distribution, finally overall mean
 UniK.sp=table(DATA_obs$GN$SPECIES)
 UniK.sp=UniK.sp[UniK.sp>3]
@@ -323,10 +404,18 @@ for(i in 1:length(DATA_obs))
 {
   DATA_obs[[i]]$FL=with(DATA_obs[[i]],ifelse(FL<size.birth,NA,FL))
   DATA_obs[[i]]$TL=with(DATA_obs[[i]],ifelse(TL<(size.birth/.85),NA,TL))
+  
+  DATA_obs_teleosts[[i]]$FL=with(DATA_obs_teleosts[[i]],ifelse(FL<size.birth & Taxa=='Elasmobranch',NA,FL))
+  DATA_obs_teleosts[[i]]$TL=with(DATA_obs_teleosts[[i]],ifelse(TL<(size.birth/.85) & Taxa=='Elasmobranch',NA,TL))
 }
   
   #2. Derive FL as a proportion of TL
-for(i in 1:length(DATA_obs)) DATA_obs[[i]]$FL=with(DATA_obs[[i]],ifelse(is.na(FL),TL*.875,FL))
+for(i in 1:length(DATA_obs))
+{
+  DATA_obs[[i]]$FL=with(DATA_obs[[i]],ifelse(is.na(FL),TL*.875,FL))
+  DATA_obs_teleosts[[i]]$FL=with(DATA_obs_teleosts[[i]],ifelse(is.na(FL) & Taxa=='Elasmobranch',TL*.875,FL))
+}
+  
 
   #3. samples from species distribution
 fn.samp.dist=function(d)
@@ -337,6 +426,7 @@ fn.samp.dist=function(d)
 }
 for(i in 1:length(DATA_obs))
 {
+    #Elasmos
   all.sp=unique(DATA_obs[[i]]$SPECIES)
   for(s in 1:length(all.sp)) 
   {
@@ -364,6 +454,27 @@ for(i in 1:length(DATA_obs))
       
     }
   }
+  
+    #Elasmos in Teleost data frame 
+  all.sp=DATA_obs_teleosts[[i]]%>%filter(Taxa=='Elasmobranch')%>%distinct(SPECIES)%>%pull(SPECIES)
+  for(s in 1:length(all.sp)) 
+  {
+    d=subset(DATA_obs_teleosts[[i]],SPECIES==all.sp[s])
+    
+    if(sum(is.na(d$FL))>0 & sum(!is.na(d$FL))>0)
+    {
+      if(length(d$FL[!is.na(d$FL)])>2)Prob=fn.samp.dist(d)
+      if(length(Prob$density)>2)
+      {
+        id=which (is.na(DATA_obs_teleosts[[i]]$FL) & DATA_obs_teleosts[[i]]$SPECIES==all.sp[s])
+        DATA_obs_teleosts[[i]]$FL[id]=sample(Prob$breaks[-1],
+                                    length(DATA_obs_teleosts[[i]]$FL[id]),
+                                    replace=T,prob=Prob$density/sum(Prob$density))
+      }
+    }
+    
+
+  }
 }
 
   #4. overall mean (only 2 records, Crocodile shark & Grey reef shark) 
@@ -374,6 +485,11 @@ for(i in 1:length(DATA_obs))
     mutate(FL=ifelse(is.na(FL) & COMMON_NAME=="Crocodile shark",Mn.whaler,
               ifelse(is.na(FL) & COMMON_NAME=="Grey reef shark",Mn.whaler,
               FL)))
+  
+  DATA_obs_teleosts[[i]]=DATA_obs_teleosts[[i]]%>%
+    mutate(FL=ifelse(is.na(FL) & COMMON_NAME=="Crocodile shark",Mn.whaler,
+                     ifelse(is.na(FL) & COMMON_NAME=="Grey reef shark",Mn.whaler,
+                            FL)))
   }
   
   
@@ -386,9 +502,55 @@ for(u in 1:length(UniK.sp))
 }
 dev.off()
 
+
+# Fix nonsense TL for teleost and fill in missing TL  ---------------------------------------------------------
+for(i in 1:length(DATA_obs_teleosts))
+{
+  DATA_obs_teleosts[[i]]=DATA_obs_teleosts[[i]]%>%
+    mutate(TL=ifelse(TL<10,NA,TL))
+}
+
+fn.samp.dist_teleost=function(d)
+{
+  his=hist(d$TL,breaks=seq(floor(min(d$TL,na.rm=T)),ceiling(max(d$TL,na.rm=T)),by=1),plot=F)
+  return(his)
+}
+
+for(i in 1:length(DATA_obs_teleosts))
+{
+  for(s in 1:length(Discarded.SP_teleosts)) 
+  {
+    d=subset(DATA_obs_teleosts[[i]],SPECIES==Discarded.SP_teleosts[s])
+    if(sum(is.na(d$TL))>0 & sum(!is.na(d$TL))>0)
+    {
+      if(length(d$TL[!is.na(d$TL)])>2)Prob=fn.samp.dist_teleost(d)
+      if(length(Prob$density)>2)
+      {
+        id=which (is.na(DATA_obs_teleosts[[i]]$TL) & DATA_obs_teleosts[[i]]$SPECIES==Discarded.SP_teleosts[s])
+        DATA_obs_teleosts[[i]]$TL[id]=sample(Prob$breaks[-1],
+                                    length(DATA_obs_teleosts[[i]]$TL[id]),
+                                    replace=T,prob=Prob$density/sum(Prob$density))
+      }
+    }
+  }
+}
+
+for(i in 1:length(DATA_obs_teleosts))   #Marlin no TL data, only 1 record, set to tuna 90% percentile
+{
+  Mean.tuna=quantile(Dat_obs%>%
+              filter(SPECIES=="SB.T" & TL>0)%>%
+              pull(TL),probs=.9)
+  DATA_obs_teleosts[[i]]=DATA_obs_teleosts[[i]]%>%
+    mutate(TL=ifelse(SPECIES=='SM.T',Mean.tuna,TL))
+  
+}
+
+
+
 # Convert numbers to weight  ---------------------------------------------------------
 #note: calculate discard ratio using weight because total catch is in weight.
 #       Use FL and a, b parameters for fork length
+  #Elasmobranchs
 Len.wei=Len.wei%>%
           dplyr::select(c(SPECIES,a_w8t,b_w8t,Source,Comments))
 for(i in 1:length(DATA_obs))
@@ -398,6 +560,29 @@ for(i in 1:length(DATA_obs))
                  mutate(Catch=a_w8t*(FL)^b_w8t)
 
 }
+
+  #Teleosts  
+for(i in 1:length(DATA_obs_teleosts))
+{
+  DATA_obs_teleosts[[i]]=DATA_obs_teleosts[[i]]%>%
+                          left_join(Len.wei,by="SPECIES")%>%
+                          mutate(TL=ifelse(SPECIES=="KF.T" & TL>25,25, #reset TL for some species (some too large observations)
+                                    ifelse(SPECIES=="SC.T" & TL>42,42,
+                                           TL)))  
+  
+  #Buff bream and North west blowfish length-weight is in FL, so convert TL to FL
+  DATA_obs_teleosts[[i]]=DATA_obs_teleosts[[i]]%>%
+                            mutate(dummy.FL=ifelse(Taxa=='Elasmobranch',FL,
+                                            ifelse(Taxa=='Teleost',TL,
+                                                   NA)),
+                                   dummy.FL=ifelse(SPECIES%in%c("BB.T",'NW.T'),TL*.85,
+                                                   dummy.FL),
+                                    Catch=a_w8t*(dummy.FL)^b_w8t)%>%
+                            dplyr::select(-dummy.FL)
+  
+}
+
+
 
 # Remove white shark, greynurse and 'other shark' from observations ---------------------------------------------------------
 #note: 2 very large white sharks acounts for a great proportion of discarded tonnage
@@ -416,11 +601,21 @@ for(i in 1:length(DATA_obs))
                                          !is.na(TW.min) & Catch< TW.min ~ TW.min,
                                          TRUE~Catch))
 }
-  
 
+pdf("Results/Recons.scalefish/Observed.Catch.frequency.pdf")
+for(i in 1:length(DATA_obs_teleosts))
+{
+  for(s in 1:length(Discarded.SP_teleosts)) 
+  {
+    d=subset(DATA_obs_teleosts[[i]],SPECIES==Discarded.SP_teleosts[s])
+    hist(d$Catch,xlab="Catch (kg)",main=d$Name[1],col=2)
+  }
+}
+dev.off()
 
 
 # Group rare species  ---------------------------------------------------------
+  #Elasmos
 for(i in 1:length(DATA_obs))
 {
   Tab.sp=prop.table(with(subset(DATA_obs[[i]],Discarded=="Discarded"),table(SPECIES)))
@@ -429,10 +624,27 @@ for(i in 1:length(DATA_obs))
   DATA_obs[[i]]$SPECIES=with(DATA_obs[[i]],ifelse(SPECIES%in%Rare.sp,"Grouped",SPECIES))
 }
 
+  #Teleosts
+for(i in 1:length(DATA_obs_teleosts))
+{
+  Tab.sp=prop.table(with(subset(DATA_obs_teleosts[[i]],Discarded=="Discarded" & Taxa=='Teleost'),table(SPECIES)))
+  Rare.sp=names(Tab.sp[Tab.sp<Group_rare_criteria])
+  DATA_obs_teleosts[[i]]$SPECIES.ori=DATA_obs_teleosts[[i]]$SPECIES
+  DATA_obs_teleosts[[i]]$SPECIES=with(DATA_obs_teleosts[[i]],ifelse(SPECIES%in%Rare.sp,"Grouped",SPECIES))
+}
+
+
 # Define discarded_sp used to calculate discarded species proportions-------------------------------------------
+  #Elasmos
 for(i in 1:length(DATA_obs))
 {
   DATA_obs[[i]]$Discarded_sp=with(DATA_obs[[i]],ifelse(Discarded=="Retained","Retained",SPECIES))
+}
+
+  #Teleosts
+for(i in 1:length(DATA_obs_teleosts))
+{
+  DATA_obs_teleosts[[i]]$Discarded_sp=with(DATA_obs_teleosts[[i]],ifelse(Discarded=="Retained","Retained",SPECIES))
 }
 
 # Data exploration-------------------------------------------
@@ -537,11 +749,19 @@ STRATA_obs=function(d,Strata,Min.obs.per.block,Min.shots.per.block)
   
   return(list(dat=a,prop=prop,vars=paste(Vars,".ratio",sep="")))
 }
+  #Elasmos
 Obs_ratio.strata=STRATA_obs(d=DATA_obs$GN,
                             Strata=c("Discarded_sp",STRTA.obs.disc),
                             Min.obs.per.block=Min.obs.per.block,
                             Min.shots.per.block=Min.shots.per.block)
 write.csv(Obs_ratio.strata$dat,"Results/Table1_observed.ratios.csv",row.names = F)
+
+  #Teleosts
+Obs_ratio.strata_teleosts=STRATA_obs(d=DATA_obs_teleosts$GN,
+                            Strata=c("Discarded_sp",STRTA.obs.disc),
+                            Min.obs.per.block=Min.obs.per.block,
+                            Min.shots.per.block=Min.shots.per.block)
+write.csv(Obs_ratio.strata_teleosts$dat,"Results/Recons.scalefish/Table1_observed.ratios.csv",row.names = F)
 
 
 # Get stratified total reported retained catch (Y_h)-------------------------------------------
@@ -560,6 +780,8 @@ Total_strata=STRATA_total(d.gn=DATA_total$GN,d.ll=DATA_total$LL,Strata=STRTA.rep
 
 
 # Add post capture mortality-------------------------------------------
+  
+#Elasmos
   #from commercial catch reconstruction
 PCM=rbind(PCM.north,PCM.south)%>%
   distinct(Name,.keep_all = T)%>%
@@ -589,7 +811,7 @@ PCM=rbind(PCM,add.PCM)%>%
   filter(SPECIES%in%Discarded.SP)
 
 
-  #add PCM for remaining discarded speices
+  #add PCM for remaining discarded species
     #Angel Shark, from Braccini et al 2012; 
     #Brown-banded catshark, set at average of Rusty and Varied carpetshark from Braccini et al 2012
     #Crocodile shark, no information available, set = to mako shark from Braccini et al 2012 as precaution
@@ -622,13 +844,17 @@ PCM.remaining=data.frame(
   SPECIES=c("ER","BC","CR","FR","SE","SH","SS","WM","WP","WR","XX",
             "PD","SR","WC"))
 
-
-
 PCM=rbind(PCM,PCM.remaining)%>%
   filter(!Name=='Spur Dog')%>%
   mutate(PCM=ifelse(SPECIES=="PJ",2*PCM,PCM))   # bump up PCM for Port Jackson sharks
 
-  
+#Teleosts
+PCM_teleosts=DATA_obs_teleosts$GN%>%
+                filter(SPECIES.ori%in%Discarded.SP_teleosts)%>%
+                distinct(SPECIES.ori,Name)%>%
+                mutate(SPECIES=substr(SPECIES.ori,1,2),
+                       PCM=1)
+
 
 # Annual discards by species (sum(D_i_h x P_i x Y_h)) -------------------------------------------
 set.seed(666)
@@ -721,10 +947,19 @@ fn.total=function(disc.dat,tot.dat,pcm,Impute)
   
   return(Total.discard)
 }
+  #Elasmos
 Tot.discard.result=fn.total(disc.dat=Obs_ratio.strata,
                             tot.dat=Total_strata,
                             pcm=PCM,
                             Impute='linear')
+
+
+  #Teleosts
+Tot.discard.result_teleosts=fn.total(disc.dat=Obs_ratio.strata_teleosts,
+                                     tot.dat=Total_strata,
+                                     pcm=PCM_teleosts,
+                                     Impute='linear')
+
 
 # Sensitivity tests ---------------------------------------------------------
 if(do.sensitivity)
@@ -863,7 +1098,7 @@ write.csv(interpolated.blocks,"Results/Table_interpolated.blocks.csv",row.names=
 write.csv(fished.blocks,"Results/Table_total.blocks.csv",row.names=F)
 
 
-  
+
 # Uncertainty thru non-parametric bootstrap  -------------------------------------------
 #note: Takes 0.4 secs per iteration
 cl<-makeCluster(detectCores()-1)
@@ -876,6 +1111,8 @@ clusterCall(cl, function() {
   library(stringr)
   library(tcltk)
 })
+
+  #Elasmos
 Results=Tot.discard.result
 system.time({
   #minimum data for analysis
@@ -917,6 +1154,52 @@ system.time({
 
 })
 rm(store)
+
+
+  #Teleosts
+Results_teleosts=Tot.discard.result_teleosts
+system.time({
+  #minimum data for analysis
+  tt <- table(DATA_obs_teleosts$GN$BLOCK)
+  d <- DATA_obs_teleosts$GN[DATA_obs_teleosts$GN$BLOCK %in% names(tt[tt >= Min.obs.per.block]), ]
+  
+  tt <- with(d[!duplicated(d$SHEET_NO),],table(BLOCK))
+  d <- d[d$BLOCK %in% names(tt[tt >= Min.shots.per.block]), ]
+  
+  Shots=unique(d$SHEET_NO)
+  n.shots=length(Shots)
+  
+  store=foreach(n=1:n.boot) %dopar%
+    {
+      #resample observer data
+      id=sample(Shots, n.shots, replace=TRUE)
+      Tab=table(id)
+      Tab=data.frame(SHEET_NO=names(Tab),Rep=as.numeric(Tab))
+      Dat_obs.boot=d[which(d$SHEET_NO%in%id),]
+      Dat_obs.boot=merge(Dat_obs.boot,Tab,by="SHEET_NO")
+      Dat_obs.boot <- Dat_obs.boot[rep(row.names(Dat_obs.boot), Dat_obs.boot$Rep), ]
+      
+      #bootstrapped stratified observed R_h 
+      Obs_ratio.strata.boot=STRATA_obs(d=Dat_obs.boot,
+                                       Strata=c("Discarded_sp",STRTA.obs.disc),
+                                       Min.obs.per.block=Min.obs.per.block,
+                                       Min.shots.per.block=Min.shots.per.block)
+      
+      #total discards (sum(R_h x Y_h))    
+      Tot.discard.boot=fn.total(disc.dat=Obs_ratio.strata.boot,
+                                tot.dat=Total_strata,
+                                pcm=PCM_teleosts,
+                                Impute='linear')
+      rm(Dat_obs.boot)
+      return(Tot.discard.boot)
+    }
+  Results_teleosts=store
+  rm(d)
+  
+})
+rm(store)
+
+
 stopCluster(cl) 
 
 
@@ -1151,12 +1434,14 @@ fn.add.missing=function(d,VAR)
 #aggregate blocks and add missing species     #0.018 sec per iteration
 system.time({ 
   Results.show=fn.add.missing(d=fn.agg.block(d=Results),VAR=names(Tot.discard.result))
+  Results.show_teleosts=fn.add.missing(d=fn.agg.block(d=Results_teleosts),
+                                       VAR=names(Tot.discard.result_teleosts))
 })
 
 # Stats
 PRBS=c(.025,.5,.975)
 Stat.list=list(Species="Species",Total="Total")
-Stats=Stat.list
+Stats=Stats_teleosts=Stat.list
 fn.stats=function(d,how)
 {
   if(how=="Species")
@@ -1181,21 +1466,30 @@ fn.stats=function(d,how)
   
   return(Store)
 }
+  #Elasmos
 for(l in 1:length(Stats)) Stats[[l]]=fn.stats(d=Results.show,how=Stat.list[[l]])
 Plt.this=Stats$Species[-match(c("YEAR","total.retained"),names(Stats$Species))]
 Plt.this=Plt.this[sort(names(Plt.this))]
 
-#Plot statistics
+  #Teleosts
+for(l in 1:length(Stats_teleosts)) Stats_teleosts[[l]]=fn.stats(d=Results.show_teleosts,
+                                                                how=Stat.list[[l]])
+Plt.this_teleosts=Stats_teleosts$Species[-match(c("YEAR","total.retained"),names(Stats_teleosts$Species))]
+Plt.this_teleosts=Plt.this_teleosts[sort(names(Plt.this_teleosts))]
+
+
+# Plot statistics
 yrs=sort(unique(DATA_total$GN$YEAR))
 Col.totl="black"
 Col.totl.retained="grey60"
 
-#plotting function
+  #plotting function
 id.med=match("50%",rownames(Stats$Species[[2]]))
 id.low=match("2.5%",rownames(Stats$Species[[2]]))
 id.up=match("97.5%",rownames(Stats$Species[[2]]))
 
-#By species  
+  #Elasmos
+    #By species  
 if(do.paper)
 {
   fn.plt=function(d,CL,LWd,what)
@@ -1234,7 +1528,7 @@ if(do.paper)
   dev.off()
 }
 
-#Total
+    #Total
 if(do.paper)
 {
   fn.plt.prop=function(d,d.ret,CL,LWd)
@@ -1253,7 +1547,53 @@ if(do.paper)
   dev.off()
 }
 
-#Size frequency distributions
+  #Teleosts
+    #By species 
+All.species.names_teleosts=DATA_obs_teleosts$GN%>%
+                              filter(SPECIES.ori%in%Discarded.SP_teleosts)%>%
+                              distinct(SPECIES.ori,Name)%>%
+                              mutate(SPECIES=substr(SPECIES.ori,1,2),
+                                     Name=capitalize(tolower(Name)),
+                                     Name=ifelse(Name=='Sergeant baker','Sergeant Baker',Name))
+
+if(do.paper)
+{
+  fn.plt=function(d,CL,LWd,what)
+  {
+    plot(yrs,yrs,col='transparent',ylim=c(0,YMAX),ann=F)
+    if(what=='polygon')
+    {
+      polygon(x=c(yrs,rev(yrs)),y=c(d[id.low,],rev(d[id.up,])),
+              col=adjustcolor(CL, alpha.f = 0.30), border = adjustcolor(CL, alpha.f = 0.60))
+      lines(yrs,d[id.med,],lwd=LWd,col=CL)
+    }
+    if(what=='points')
+    {
+      segments(yrs,d[id.low,],yrs,d[id.up,],col="grey50")
+      points(yrs,d[id.med,],pch=19,col=CL,cex=.8)
+      lines(yrs,d[id.med,],lty=3,col=CL)
+    }
+    
+  }
+  tiff(file="Results/Recons.scalefish/Figure4_by.species.tiff",width = 2150, height = 2000,
+       units = "px", res = 300, compression = "lzw")    
+  par(las=1)
+  smart.par(n.plots=length(Plt.this_teleosts),MAR=c(1,1.75,1.75,1.5),OMA=c(2,2,.1,.1),MGP=c(1,.5,0))
+  for(i in 1:length(Plt.this_teleosts))
+  {
+    YMAX=max(unlist(Plt.this_teleosts[[i]]))
+    fn.plt(d=Plt.this_teleosts[[i]],CL=Col.totl,LWd=1.5,what="points")
+    lgn=All.species.names_teleosts%>%
+      filter(SPECIES==unlist(strsplit(names(Plt.this_teleosts)[i], ".", fixed = TRUE))[2])%>%
+      pull(Name)
+    mtext(lgn,3,cex=.8) 
+  }
+  mtext("Year",1,1,outer=T,cex=1.15)
+  mtext("Total discard (tonnes)",2,0.5,outer=T,las=3,cex=1.15)
+  dev.off()
+}
+
+# Plot Size frequency distributions
 if(do.paper)
 {
   DATA_obs$GN%>%
@@ -1278,6 +1618,7 @@ if(do.paper)
 # Export total discard estimates-----------------------------------------------------------------------
 setwd('C:\\Matias\\Analyses\\Data_outs')
 
+  #Elasmos
     #Base Case
 YR=Results.show[[1]]$YEAR
 out=vector('list',length(Plt.this))
@@ -1345,3 +1686,24 @@ write.csv(d,"recons_discard_TDGDLF_100.PCM.csv",row.names = F)
 #   
 #   write.csv(dd,paste(nm,"Total.discard.estimates_TDGDLF_100.PCM_tonnes.csv",sep='/'),row.names = F)
 # }
+
+
+  #Teleosts
+setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF/Results/Recons.scalefish')
+    #Base Case
+YR=Results.show_teleosts[[1]]$YEAR
+out=vector('list',length(Plt.this_teleosts))
+for(o in 1:length(out))
+{
+  dd=Plt.this_teleosts[[o]]
+  nm=All.species.names_teleosts%>%
+    filter(SPECIES==unlist(strsplit(names(Plt.this_teleosts)[o], ".", fixed = TRUE))[2])%>%
+    pull(SPECIES.ori)
+  dummy=data.frame(FINYEAR=paste(YR,substr(YR+1,3,4),sep="-"),
+                   SPECIES=nm,
+                   LIVEWT.c=1000*dd[match('50%',rownames(dd)),],
+                   zone=NA)
+  out[[o]]=dummy
+  rm(dd,dummy,nm)
+}
+write.csv(do.call(rbind,out),"recons_discard_TDGDLF.csv",row.names = F)
