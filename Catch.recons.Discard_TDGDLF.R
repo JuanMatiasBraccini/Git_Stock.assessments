@@ -1596,6 +1596,7 @@ if(do.paper)
 # Plot Size frequency distributions
 if(do.paper)
 {
+  #Elasmos
   DATA_obs$GN%>%
     filter(SPECIES.ori%in%unlist(lapply(strsplit(names(Plt.this), '.', fixed = TRUE), '[', 2)))%>%
     filter(!Name=='Stingrays')%>%  #Stringrays set to average size as not measured, no point displaying
@@ -1610,6 +1611,24 @@ if(do.paper)
     ylab("Frequency") +
     facet_wrap(~Name, scales = "free")
   ggsave('Results/FigureS2_size.frequency.tiff',width = 10,height = 10,compression = "lzw")
+  
+  #Teleosts  #ACA
+  DATA_obs_teleosts$GN%>%
+    filter(SPECIES.ori%in%
+             paste(unlist(lapply(strsplit(names(Plt.this_teleosts), '.', fixed = TRUE), '[', 2)),'.T',sep=''))%>%
+    mutate(Name=capitalize(tolower(Name)),
+           Name=ifelse(Name=="Sergeant baker","Sergeant Baker",Name))%>%
+    ggplot( aes(x=TL, color=Name, fill=Name)) +
+    geom_histogram(alpha=0.6, binwidth = 5) +
+    theme(legend.position="none",
+          panel.spacing = unit(0.1, "lines"),
+          strip.text.x = element_text(size =11.5),
+          axis.title=element_text(size=16)) +
+    xlab("Total length (cm)") +
+    ylab("Frequency") +
+    facet_wrap(~Name, scales = "free")
+  ggsave('Results/Recons.scalefish/FigureS2_size.frequency.tiff',width = 10,height = 10,compression = "lzw")
+  
   
 }
 
