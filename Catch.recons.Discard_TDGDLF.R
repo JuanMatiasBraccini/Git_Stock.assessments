@@ -1612,7 +1612,7 @@ if(do.paper)
     facet_wrap(~Name, scales = "free")
   ggsave('Results/FigureS2_size.frequency.tiff',width = 10,height = 10,compression = "lzw")
   
-  #Teleosts  #ACA
+  #Teleosts  
   DATA_obs_teleosts$GN%>%
     filter(SPECIES.ori%in%
              paste(unlist(lapply(strsplit(names(Plt.this_teleosts), '.', fixed = TRUE), '[', 2)),'.T',sep=''))%>%
@@ -1632,7 +1632,39 @@ if(do.paper)
   
 }
 
-
+# Plot densities
+if(do.paper)
+{
+  #Elasmos
+  DATA_obs$GN%>%
+    filter(SPECIES.ori%in%unlist(lapply(strsplit(names(Plt.this), '.', fixed = TRUE), '[', 2)))%>%
+    filter(!Name=='Stingrays')%>%  #Stringrays set to average size as not measured, no point displaying
+    mutate(Name=ifelse(Name=="Eagle ray","Southern eagle ray",Name))%>%
+    ggplot(aes(x=FL,y=Name,fill=Name)) +
+    ggridges::geom_density_ridges(scale = 0.95) +
+    theme(legend.position="none",
+          axis.text=element_text(size=14),
+          axis.title=element_text(size=16)) +
+    xlab("Size (cm)") +
+    ylab("Density")
+  ggsave('Results/Density_size.frequency.tiff',width = 10,height = 10,compression = "lzw")
+  
+  #Teleosts  
+  DATA_obs_teleosts$GN%>%
+    filter(SPECIES.ori%in%
+             paste(unlist(lapply(strsplit(names(Plt.this_teleosts), '.', fixed = TRUE), '[', 2)),'.T',sep=''))%>%
+    mutate(Name=capitalize(tolower(Name)),
+           Name=ifelse(Name=="Sergeant baker","Sergeant Baker",Name))%>%
+    ggplot(aes(x=TL,y=Name,fill=Name)) +
+    ggridges::geom_density_ridges(scale = 0.95) +
+    theme(legend.position="none",
+          axis.text=element_text(size=14),
+          axis.title=element_text(size=16)) +
+    xlab("Total length (cm)") +
+    ylab("Density")
+  ggsave('Results/Recons.scalefish/Density_size.frequency.tiff',width = 10,height = 10,compression = "lzw")
+  
+}
 
 # Export total discard estimates-----------------------------------------------------------------------
 setwd('C:\\Matias\\Analyses\\Data_outs')
