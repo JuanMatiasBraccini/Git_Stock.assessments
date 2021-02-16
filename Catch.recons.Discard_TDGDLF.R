@@ -76,7 +76,7 @@ do.explrtn="NO"
 STRTA.obs.disc=c("BLOCK")       #aggregating strata for observer data
 STRTA.reported.ret=c("BLOCK")   #aggregating strata for total landed retained catch
 
-n.boot=1e4
+n.boot=1e3
 
 Group_rare_criteria=0.02    #criteria for grouping rare species (proportion of catch)    
 
@@ -93,11 +93,12 @@ setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF')
 All.species.names=All.species.names%>%
                     mutate(Name=capitalize(tolower(Name)),
                            Name=case_when(Name=='Port jackson shark'~'Port Jackson shark',
+                                          Name=='Eagle ray'~'Southern eagle ray',
                                           TRUE~Name))
 
 # Manipulate commercial catch ---------------------------------------------------------
 Dat_total=Dat_total %>% filter(LAT<=(-26) & Estuary=="NO") %>%
-      mutate(YEAR=YEAR.c,
+      mutate(YEAR=as.numeric(substr(FINYEAR,1,4)),
              BLOCK=BLOCKX,
              Catch=LIVEWT.c,
              BLOCK=ifelse(BLOCK>=96000,paste(floor(abs(LAT)),(floor(LONG)-100)*10,sep=""),BLOCK),
@@ -112,6 +113,8 @@ Dat_total=Dat_total %>% filter(LAT<=(-26) & Estuary=="NO") %>%
 Dat_total.LL=Dat_total %>% filter(METHOD=="LL")
 Percent.ktch.ll=100*sum(Dat_total.LL$Catch)/sum(Dat_total$Catch)
 Dat_total=Dat_total %>% filter(METHOD=="GN")  #other methods discarded are catch is negligible and not expected to have discards (e.g. handline)
+
+
 
   #keep only elasmobranch species
 DATA_total=list(GN=Dat_total%>%filter(SPECIES<50000),
@@ -781,7 +784,7 @@ Total_strata=STRATA_total(d.gn=DATA_total$GN,d.ll=DATA_total$LL,Strata=STRTA.rep
 
 # Add post capture mortality-------------------------------------------
   
-#Elasmos
+#Elasmos 
   #from commercial catch reconstruction
 PCM=rbind(PCM.north,PCM.south)%>%
   distinct(Name,.keep_all = T)%>%
@@ -789,7 +792,8 @@ PCM=rbind(PCM.north,PCM.south)%>%
   rename(PCM=GN)%>%
   left_join(All.species.names%>%dplyr::select(-c(Scien.nm,Family,SPECIES)),by='Name')%>%
   rename(SPECIES=SP)%>%
-  mutate(PCM=ifelse(SPECIES=='AA',0.405,PCM))
+  mutate(PCM=ifelse(SPECIES=='AA',0.405,PCM))%>%
+  filter(!Name=='Cobbler wobbegong')
 
   #collated by Agustin from literature
 this.PCM=Tabl.obs.GN%>%
@@ -808,7 +812,10 @@ add.PCM=Comm.disc.sp%>%
   dplyr::select(names(PCM))
 
 PCM=rbind(PCM,add.PCM)%>%
-  filter(SPECIES%in%Discarded.SP)
+  filter(SPECIES%in%Discarded.SP)%>%
+  filter(!is.na(PCM))%>%
+  filter(!PCM==0)%>%
+  filter(!SPECIES%in%c('SE','SH'))
 
 
   #add PCM for remaining discarded species
@@ -819,10 +826,10 @@ PCM=rbind(PCM,add.PCM)%>%
     #Sliteye shark, set at 1, always dead when brought aboard
     #Guitarfish & shovelnose ray, set equal to Whitespot shovelnose 
     #Spotted shovelnose, set equal to Whitespot shovelnose
-    #Dwarf spotted wobbegong, set equal to Cobbler Wobbegong from Comm.disc.sp
     #White shark, set = to mako shark from Braccini et al 2012 
     #Whitespot shovelnose, Braodhurst & Cullis 2020 (immediate mortality)+25%
     #Cobbler wobbegong, set equal to Orectolobus parvimaculatus
+    #Dwarf spotted, western and floral wobbegongs, set equal to Cobbler Wobbegong from Comm.disc.sp    
     #Spikey dogfish, set equal to Squalus spp.
     # Stingrays, set equal to Myliobatidae
 PCM.remaining=data.frame(
@@ -830,19 +837,23 @@ PCM.remaining=data.frame(
          "Southern fiddler ray","Sliteye shark","Guitarfish & shovelnose ray",
          "Spotted shovelnose","Dwarf spotted wobbegong","White shark",               
          "Whitespot shovelnose","Other shark",
-         'Cobbler wobbegong','Spikey dogfish','Stingrays'),
+         'Cobbler wobbegong','Western Wobbegong','Floral banded wobbegong',
+         'Spikey dogfish','Stingrays'),
   Scien.nm=c("Myliobatis australis","Chiloscyllium punctatum","Pseudocarcharias kamoharai",
              "Trygonorrhina dumerilii","Loxodon macrorhinus","Families Rhinobatidae & Rhynchobatidae",
              "Aptychotrema timorensis","Orectolobus parvimaculatus","Carcharodon Carcharias",
              "Rhynchobatus australiae","",
-             "Sutorectus tentaculatus","Squalus megalops","Dasyatidae"),
+             "Sutorectus tentaculatus",'Orectolobus hutchinsi','Orectolobus floridus',
+             "Squalus megalops","Dasyatidae"),
   PCM=c(1-0.854,1-mean(c(0.771,0.687)),1-0.242,
         1-.9,1,(0.29+0.29*.25),
         (0.29+0.29*.25),0.057,1-0.242,
         (0.29+0.29*.25),NA,
-        0.0570,0.1729,0.1460),
+        0.0570,0.0570,0.0570,
+        0.1729,0.1460),
   SPECIES=c("ER","BC","CR","FR","SE","SH","SS","WM","WP","WR","XX",
-            "PD","SR","WC"))
+            "PD",'WW',"WF", 
+            "SR","WC"))
 
 PCM=rbind(PCM,PCM.remaining)%>%
   filter(!Name=='Spur Dog')%>%
@@ -1006,6 +1017,13 @@ if(do.sensitivity)
   this.sp.sen=colnames(Tot.discard.result)
   this.sp.sen=this.sp.sen[-match(c("BLOCK","YEAR","total.retained"),this.sp.sen)]
   this.sp.sen=sort(this.sp.sen)
+  
+  names(this.sp.sen)=All.species.names%>%
+                        filter(SP%in%sapply(strsplit(this.sp.sen, "total."),"[",2))%>%
+                        arrange(SP)%>%
+                        pull(Name)
+  this.sp.sen=this.sp.sen[match(sort(names(this.sp.sen)),names(this.sp.sen))]
+  
   fn.plt.sens=function(BC,s1,s2,s3,s4)
   {
     names(BC)[3]='catch'
@@ -1024,7 +1042,6 @@ if(do.sensitivity)
     s4=s4%>%group_by(YEAR)%>%summarise(catch=sum(catch/1000))
     
     Ymax=max(c(max(BC$catch),max(s1$catch),max(s2$catch),max(s3$catch),max(s4$catch)))
-    #Ymin=min(c(min(BC$catch),min(s1$catch),min(s2$catch),min(s3$catch),min(s4$catch)))
     Ylim=c(min(log(1e-1),log(BC$catch)),log(Ymax))
     plot(BC$YEAR,log(BC$catch),ylim=Ylim,ylab='',xlab='',type='l',lwd=2,yaxt='n')
     lines(s1$YEAR,log(s1$catch),lwd=2,col=col.scen[1],lty=3)
@@ -1053,9 +1070,9 @@ if(do.sensitivity)
     
 
   }
-  tiff(file="Results/Figure3_Sensitivity.tiff",width = 2400, height = 2400,
+  tiff(file="Results/Figure3_Sensitivity.tiff",width = 2400, height = 2200,
        units = "px", res = 300, compression = "lzw")    
-  smart.par(n.plots=length(this.sp.sen),MAR=c(1,2,2,1),OMA=c(2,2,.1,.1),MGP=c(1,.6,0))
+  smart.par(n.plots=length(this.sp.sen),MAR=c(1,2,2,1),OMA=c(2,2,.1,.12),MGP=c(1,.6,0))
   par(las=1)
   for(i in 1:length(this.sp.sen))
   {
@@ -1064,17 +1081,14 @@ if(do.sensitivity)
                 s2=S2[,c('BLOCK','YEAR',this.sp.sen[i])],
                 s3=S3[,c('BLOCK','YEAR',this.sp.sen[i])],
                 s4=S4[,c('BLOCK','YEAR',this.sp.sen[i])])
-    lgn=All.species.names%>%
-            filter(SP==unlist(strsplit(this.sp.sen[i], ".", fixed = TRUE))[2])%>%
-            pull(Name)
-    if(lgn=="Eagle ray") lgn="Southern eagle ray"
-    mtext(lgn,3,cex=.95) 
+    lgn=names(this.sp.sen[i])
+    mtext(lgn,3,cex=.88) 
   }
-  mtext("Year",1,1,outer=T,cex=1.15)
+  mtext("Finacial year",1,1,outer=T,cex=1.15)
   mtext("Total discard (tonnes)",2,0.7,outer=T,las=3,cex=1.15)
-
-  legend("bottom",c("Base case","S1","S2","S3","S4"),lty=c(1,rep(3,4)),lwd=2.5,
-         bty='n',col=c("#000000",col.scen),cex=1.15)
+  plot.new()
+  legend("top",c("Base case","S1","S2","S3","S4"),lty=c(1,rep(3,4)),lwd=2.5,
+         bty='n',col=c("#000000",col.scen),cex=1.3)
   dev.off()
 }
 
@@ -1509,10 +1523,16 @@ if(do.paper)
     }
     
   }
-  tiff(file="Results/Figure4_by.species.tiff",width = 2150, height = 2000,
+  
+  Plt.this.sorted=data.frame(Plt.this=names(Plt.this))%>%
+    mutate(names=sapply(strsplit(Plt.this, "total."),"[",2))%>%
+    left_join(All.species.names%>%dplyr::select(Name,SP),by=c("names"="SP"))%>%
+    arrange(Name)
+  Plt.this=Plt.this[Plt.this.sorted$Plt.this]
+  tiff(file="Results/Figure4_by.species.tiff",width = 2400, height = 2200,
        units = "px", res = 300, compression = "lzw")    
   par(las=1)
-  smart.par(n.plots=length(Plt.this),MAR=c(1,1.75,1.75,1),OMA=c(2,2,.1,.1),MGP=c(1,.5,0))
+  smart.par(n.plots=length(Plt.this),MAR=c(1,2,2,1),OMA=c(2,2,.1,.12),MGP=c(1,.6,0))
   for(i in 1:length(Plt.this))
   {
     YMAX=max(unlist(Plt.this[[i]]))
@@ -1520,10 +1540,9 @@ if(do.paper)
     lgn=All.species.names%>%
       filter(SP==unlist(strsplit(names(Plt.this)[i], ".", fixed = TRUE))[2])%>%
       pull(Name)
-    if(lgn=="Eagle ray") lgn="Southern eagle ray"
-    mtext(lgn,3,cex=.8) 
+    mtext(lgn,3,cex=.88) 
   }
-  mtext("Year",1,1,outer=T,cex=1.15)
+  mtext("Finacial year",1,1,outer=T,cex=1.15)
   mtext("Total discard (tonnes)",2,0.5,outer=T,las=3,cex=1.15)
   dev.off()
 }
