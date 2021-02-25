@@ -189,7 +189,7 @@ TEPS=read.csv(paste('C:/Matias/Data/Catch and Effort',
   #Length weigths
 bwt=3.47e-06   #dusky
 awt=3.10038
-bwt.grey=5.4511   #greynurse Otway et al "Documentation of depth-related..."
+bwt.grey=5.4511   #greynurse Otway et al 2009
 awt.grey=3.1716
 Weight=data.frame(Species=c('BT','BW','CP','GB','HZ',
                             'LG','MS','TG','WP'),    #FishBASE

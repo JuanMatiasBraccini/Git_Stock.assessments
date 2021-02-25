@@ -1,7 +1,10 @@
 # ------ Script for running shark stock assessments ---- ###################
 
-#note:  This script firstdefine arguments used in each of the shark species/species complex assessed.
-#       It then run the relevant population models according to data availability
+#note:  This script first defines arguments used in each of the shark species/species complex assessed.
+#       It then runs the relevant population models according to data availability
+
+#Missing: add .CPUE_Observer_TDGDLF.csv for each relevant species...wouldn't better to
+#                   reach each species folder and extract relevant info and put in species list?
 
 rm(list=ls(all=TRUE))
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")

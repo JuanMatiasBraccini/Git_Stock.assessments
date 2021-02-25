@@ -21,6 +21,8 @@ library(zoo)
 library(abind)
 library(stringr)
 library(Hmisc)
+library(ggrepel)
+library(patchwork)
 
 User="Matias"
 source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
@@ -65,6 +67,11 @@ Wei.range.names=read.csv("C:/Matias/Data/Length_Weights/Species.names.csv")
 #Post capture mortality
 PCM.north=read.csv('C:/Matias/Analyses/Reconstruction_catch_commercial/TableS1.PCM_North.csv')
 PCM.south=read.csv('C:/Matias/Analyses/Reconstruction_catch_commercial/TableS1.PCM_South.csv')
+
+
+#Spatial distribution of discarded species
+elasmos_dist=read.csv('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF/elasmos_dist.csv')
+teleosts_dist=read.csv('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF/teleosts_dist.csv')
 
 
 # 2. Parameter ---------------------------------------------------------
@@ -167,7 +174,7 @@ for(i in 1:length(DATA_obs))
 }
 
 
-# Show Decadal composition for Commercial catch recons paper-------------------------------------------
+# Show Decadal species composition for Commercial catch recons paper-------------------------------------------
 do.this=FALSE  
 if(do.this)
 {
@@ -236,7 +243,6 @@ if(do.this)
 }
 
 # Show overal observed discarded and retained species-------------------------------------------
-#nice infographic: https://twitter.com/ISSF/status/1147943595942526978?s=03
 colfunc <- colorRampPalette(c("brown4","brown1","orange","yellow"))
   #Elasmos
 fun.horiz.bar=function(d,gear)
@@ -701,7 +707,58 @@ if(do.explrtn=="YES")
   plot(sort(table(Dat_obs$SPECIES)),type='h',ylab="# individuals")
 }
 
-#remove stuff
+
+# Get dataframe for infographic-------------------------------------------
+enough.data.yrs=Dat_obs%>%
+              distinct(SHEET_NO,year)%>%
+              group_by(year)%>%
+              tally()%>%
+              filter(n>50)
+n.shots=enough.data.yrs
+enough.data.yrs=enough.data.yrs%>%pull(year)
+size.titl=14
+size.subtitl=12
+a=Dat_obs%>%
+              left_join(Comm.disc.sp,by="SPECIES")%>%
+              filter(!SPECIES%in%c('XX','XX.T'))%>%
+              mutate(FATE=ifelse(FATE=="C","Retained",
+                          ifelse(FATE=="D","Discarded",NA)),
+                     FATE=factor(FATE))%>%
+              filter(year%in%enough.data.yrs)%>%
+              group_by(year,FATE)%>%
+              summarise(count=sum(Number))%>% 
+                mutate(perc = count/sum(count))%>%
+              left_join(n.shots,by="year")
+a$n[duplicated(a$n)] <- ""
+Infographic1=a%>%
+        ggplot(aes(x = year, y = perc*100, fill = FATE)) +
+          geom_bar(stat="identity", width = .9) +
+          labs(x = "Year",y="Percentage", y = NULL) +
+        geom_text(aes(x = year,y = 100, label = n),
+                  position = "identity",vjust = -0.5, 
+                  fontface='bold',color="grey30",size = 2.6)+
+          theme_minimal(base_size = 18) +
+        theme(legend.title=element_blank(),
+              legend.position="top",
+              legend.direction="horizontal",
+              legend.justification="right",
+              legend.margin=margin(0,5,0,0),
+              legend.box.margin=margin(-50,-10,-60,-10),
+              panel.grid.major.y = element_line( size=1, color="grey60" ),
+              panel.grid.minor.y = element_blank(),
+              panel.grid.major.x = element_blank(),
+              panel.grid.minor.x = element_blank(),
+              legend.text = element_text(size = 12),
+              axis.text.x = element_text(margin = margin(t = -10)),
+              plot.title = element_text(size =size.titl,face="bold"),
+              plot.subtitle = element_text(size =size.subtitl,face = "italic"),
+              plot.caption = element_text(size =8,face = "italic"),
+              plot.title.position = "plot")+
+              labs(title ="Observed percentage of total catch (by number)",
+                   subtitle = "(the number of shots per year is shown on top of each bar)",
+                   caption="Only years with more than 50 observed shots are displayed")
+  
+# remove stuff-------------------------------------------
 rm(DATA,Dat_obs,Dat_obs.LL,Dat_total.LL,DATA.bio,DATA.ecosystems)
 
 
@@ -820,12 +877,12 @@ PCM=rbind(PCM,add.PCM)%>%
 
   #add PCM for remaining discarded species
     #Angel Shark, from Braccini et al 2012; 
-    #Brown-banded catshark, set at average of Rusty and Varied carpetshark from Braccini et al 2012
+    #Brown-banded catshark & catsharks, set at average of Rusty and Varied carpetshark from Braccini et al 2012
     #Crocodile shark, no information available, set = to mako shark from Braccini et al 2012 as precaution
     # Southern fiddler ray no available information, set at 10% due to hardiness
     #Sliteye shark, set at 1, always dead when brought aboard
     #Guitarfish & shovelnose ray, set equal to Whitespot shovelnose 
-    #Spotted shovelnose, set equal to Whitespot shovelnose
+    #Spotted shovelnose & Western shovelnose ray, set equal to Whitespot shovelnose
     #White shark, set = to mako shark from Braccini et al 2012 
     #Whitespot shovelnose, Braodhurst & Cullis 2020 (immediate mortality)+25%
     #Cobbler wobbegong, set equal to Orectolobus parvimaculatus
@@ -838,22 +895,28 @@ PCM.remaining=data.frame(
          "Spotted shovelnose","Dwarf spotted wobbegong","White shark",               
          "Whitespot shovelnose","Other shark",
          'Cobbler wobbegong','Western Wobbegong','Floral banded wobbegong',
-         'Spikey dogfish','Stingrays'),
+         'Spikey dogfish','Stingrays',
+         'Catsharks','Western shovelnose ray'),
   Scien.nm=c("Myliobatis australis","Chiloscyllium punctatum","Pseudocarcharias kamoharai",
              "Trygonorrhina dumerilii","Loxodon macrorhinus","Families Rhinobatidae & Rhynchobatidae",
              "Aptychotrema timorensis","Orectolobus parvimaculatus","Carcharodon Carcharias",
              "Rhynchobatus australiae","",
              "Sutorectus tentaculatus",'Orectolobus hutchinsi','Orectolobus floridus',
-             "Squalus megalops","Dasyatidae"),
+             "Squalus megalops","Dasyatidae",
+             'Scyliorhinidae','Aptychotrema vincentiana'),
   PCM=c(1-0.854,1-mean(c(0.771,0.687)),1-0.242,
         1-.9,1,(0.29+0.29*.25),
         (0.29+0.29*.25),0.057,1-0.242,
         (0.29+0.29*.25),NA,
         0.0570,0.0570,0.0570,
-        0.1729,0.1460),
+        0.1729,0.1460,
+        0.2710,0.3625),
   SPECIES=c("ER","BC","CR","FR","SE","SH","SS","WM","WP","WR","XX",
             "PD",'WW',"WF", 
-            "SR","WC"))
+            "SR","WC",
+            "CA","AV"))
+
+
 
 PCM=rbind(PCM,PCM.remaining)%>%
   filter(!Name=='Spur Dog')%>%
@@ -869,7 +932,7 @@ PCM_teleosts=DATA_obs_teleosts$GN%>%
 
 # Annual discards by species (sum(D_i_h x P_i x Y_h)) -------------------------------------------
 set.seed(666)
-fn.total=function(disc.dat,tot.dat,pcm,Impute)
+fn.total=function(disc.dat,tot.dat,pcm,Impute,Dist)
 {
 
   #combine observed ratios and total reported catch
@@ -956,20 +1019,37 @@ fn.total=function(disc.dat,tot.dat,pcm,Impute)
     Total.discard[,this]=Total.discard[,this]*this.pcm
   }
   
+  #Remove blocks outside species' distribution
+  Dist=Dist%>%
+    mutate(SPECIES=paste("total",SPECIES,sep='.'))
+  this.colmns=match(Dist$SPECIES,colnames(Total.discard))
+  this.colmns=subset(this.colmns,!is.na(this.colmns))
+  for(q in this.colmns)
+  {
+    dd=Dist%>%filter(SPECIES==colnames(Total.discard)[q])
+    if(!(dd$Nor.east_block==2612 & dd$South.west_block==3330))
+    {
+      blks.outside.dist=which(!Total.discard$BLOCK%in%dd$Nor.east_block:(dd$South.west_block+300))
+      Total.discard[blks.outside.dist,q]=0
+    }
+  }
+  
   return(Total.discard)
 }
+
   #Elasmos
 Tot.discard.result=fn.total(disc.dat=Obs_ratio.strata,
                             tot.dat=Total_strata,
                             pcm=PCM,
-                            Impute='linear')
-
+                            Impute='linear',
+                            Dist=elasmos_dist)
 
   #Teleosts
 Tot.discard.result_teleosts=fn.total(disc.dat=Obs_ratio.strata_teleosts,
                                      tot.dat=Total_strata,
                                      pcm=PCM_teleosts,
-                                     Impute='linear')
+                                     Impute='linear',
+                                     Dist=teleosts_dist)
 
 
 # Sensitivity tests ---------------------------------------------------------
@@ -981,7 +1061,8 @@ if(do.sensitivity)
   S1=fn.total(disc.dat=Obs_ratio.strata,
               tot.dat=Total_strata,
               pcm=PCM.S1,
-              Impute='linear')
+              Impute='linear',
+              Dist=elasmos_dist)
   
   #S2: Min obs per block = 20 & min shots per block = 10 
   Obs_ratio.strata.S2=STRATA_obs(d=DATA_obs$GN,
@@ -991,7 +1072,8 @@ if(do.sensitivity)
   S2=fn.total(disc.dat=Obs_ratio.strata.S2,
               tot.dat=Total_strata,
               pcm=PCM,
-              Impute='linear')
+              Impute='linear',
+              Dist=elasmos_dist)
   
   
   #S3: Min obs per block = 5 & min shots per block = 2
@@ -1002,13 +1084,15 @@ if(do.sensitivity)
   S3=fn.total(disc.dat=Obs_ratio.strata.S3,
               tot.dat=Total_strata,
               pcm=PCM,
-              Impute='linear')
+              Impute='linear',
+              Dist=elasmos_dist)
   
   #S4: unobserved blocks imputed from random sample of observed blocks
   S4=fn.total(disc.dat=Obs_ratio.strata,
               tot.dat=Total_strata,
               pcm=PCM,
-              Impute='random')
+              Impute='random',
+              Dist=elasmos_dist)
   
   
   #Display scenarios
@@ -1086,9 +1170,9 @@ if(do.sensitivity)
   }
   mtext("Finacial year",1,1,outer=T,cex=1.15)
   mtext("Total discard (tonnes)",2,0.7,outer=T,las=3,cex=1.15)
-  plot.new()
-  legend("top",c("Base case","S1","S2","S3","S4"),lty=c(1,rep(3,4)),lwd=2.5,
-         bty='n',col=c("#000000",col.scen),cex=1.3)
+  #plot.new()
+  legend("bottom",c("Base case","S1","S2","S3","S4"),lty=c(1,rep(3,4)),lwd=2.5,
+         bty='n',col=c("#000000",col.scen),cex=1)
   dev.off()
 }
 
@@ -1159,7 +1243,8 @@ system.time({
     Tot.discard.boot=fn.total(disc.dat=Obs_ratio.strata.boot,
                               tot.dat=Total_strata,
                               pcm=PCM,
-                              Impute='linear')
+                              Impute='linear',
+                              Dist=elasmos_dist)
     rm(Dat_obs.boot)
     return(Tot.discard.boot)
   }
@@ -1203,7 +1288,8 @@ system.time({
       Tot.discard.boot=fn.total(disc.dat=Obs_ratio.strata.boot,
                                 tot.dat=Total_strata,
                                 pcm=PCM_teleosts,
-                                Impute='linear')
+                                Impute='linear',
+                                Dist=teleosts_dist)
       rm(Dat_obs.boot)
       return(Tot.discard.boot)
     }
@@ -1705,7 +1791,8 @@ for(o in 1:length(out))
   out[[o]]=dummy
   rm(dd,dummy,nm)
 }
-write.csv(do.call(rbind,out),"recons_discard_TDGDLF.csv",row.names = F)
+Out.elasmos=do.call(rbind,out)
+write.csv(Out.elasmos,"recons_discard_TDGDLF.csv",row.names = F)
 
   #S1
 get.this=names(S1)
@@ -1776,4 +1863,149 @@ for(o in 1:length(out))
   out[[o]]=dummy
   rm(dd,dummy,nm)
 }
-write.csv(do.call(rbind,out),"recons_discard_TDGDLF_teleosts.csv",row.names = F)
+Out.teleosts=do.call(rbind,out)
+write.csv(Out.teleosts,"recons_discard_TDGDLF_teleosts.csv",row.names = F)
+
+
+# Infographic-----------------------------------------------------------------------
+Info3.dat=Out.elasmos%>%
+        left_join(All.species.names,by='SPECIES')%>%
+        dplyr::select(FINYEAR,LIVEWT.c,Name,SPECIES)%>%
+        mutate(Class="elasmobranchs",
+               LIVEWT.c=LIVEWT.c/1000)
+Info3.dat.teleosts=Out.teleosts%>%
+              left_join(All.species.names_teleosts%>%
+                          mutate(SPEC=round(runif(nrow(All.species.names_teleosts),1e5,1e6))),
+                        by=c('SPECIES'='SPECIES.ori'))%>%
+              dplyr::select(FINYEAR,LIVEWT.c,Name,SPEC)%>%
+              rename(SPECIES=SPEC)%>%
+              mutate(Class="teleosts",
+                     LIVEWT.c=LIVEWT.c/1000)
+Info3.dat=rbind(Info3.dat,Info3.dat.teleosts)
+Last.5.yrs=sort(unique(Info3.dat$FINYEAR))
+Last.5.yrs=Last.5.yrs[(length(Last.5.yrs)-4):length(Last.5.yrs)]
+Info3.dat=Info3.dat%>%
+          group_by(Name,Class,SPECIES)%>%
+          summarise(Avrg=mean(LIVEWT.c))
+
+Avrg.retained=read.csv(paste('C:/Matias/Analyses/Catch and effort/State of fisheries/',
+                             Last.5.yrs[length(Last.5.yrs)],'/ERA_table.retained.species.csv',sep=''))
+                     
+Avrg.dat=data.frame(Class=c("Discarded","Retained"),
+                    Total=c(sum(Info3.dat$Avrg),sum(Avrg.retained$Average.catch)))                         
+              
+a=Avrg.dat%>% 
+  mutate(perc = Total/sum(Total))%>%
+  mutate(label=paste(round(100*perc/sum(perc),1),'%'),
+         ymax=cumsum(perc),
+         ymin = c(0, head(ymax, n=-1)),
+         labelPosition =(ymax + ymin) / 2)
+Infographic2=a%>%
+  ggplot(aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Class)) +
+  geom_rect()+
+  geom_label_repel(x=3.5,aes(y = labelPosition,label = paste(round(100*perc,1),"%")),
+                   size=4, color="black",fontface = 'bold',box.padding=-1.2, nudge_x = 5)+
+  coord_polar(theta="y")+theme_void() + xlim(c(2, 4))+
+  ggtitle(label ="Percentage of total catch (by weight)",
+          subtitle = paste("(average for the last 5 years= ",round(sum(a$Total))," tonnes)",sep=""))+
+  theme_void() +
+  theme(legend.position = "none",
+        legend.title = element_blank(),
+        plot.margin=unit(c(-1,-1,-1,-1), "cm"),
+        plot.title = element_text(size = size.titl, face = "bold"),
+        plot.subtitle = element_text(size = size.subtitl,face = "italic"),
+        plot.title.position = "plot")
+
+Info3.dat=Info3.dat%>%
+      data.frame%>%
+      mutate(Tot=sum(Avrg),
+             perc = round(100*Avrg/Tot,2),
+             Name2=ifelse(perc>2,Name,paste("Other",Class)),
+             SPECIES2=ifelse(Name2=="Other elasmobranchs",6e4,
+                      ifelse(Name2=="Other teleosts",1e7,
+                             SPECIES)))
+N.other.elas=length(Info3.dat%>%
+                filter(Name2=='Other elasmobranchs')%>%
+                  distinct(Name)%>%pull(Name))
+N.other.teleos=length(Info3.dat%>%
+                      filter(Name2=='Other teleosts')%>%
+                      distinct(Name)%>%pull(Name))
+Info3.dat=Info3.dat%>%
+          mutate(Name2=case_when(Name2=='Other elasmobranchs'~paste(Name2," (",N.other.elas," species)",sep=""),
+                                 Name2=='Other teleosts'~paste(Name2," (",N.other.teleos," species)",sep=""),
+                                 TRUE~Name2))
+
+Lvls=Info3.dat%>%
+  distinct(Name2,SPECIES2)%>%
+  arrange(SPECIES2)
+colfunc <- colorRampPalette(c("brown3", "orange","yellow"))
+MyClrs.elas=colfunc(length(Lvls%>%filter(SPECIES2<=6e4)%>%pull(SPECIES2)))
+colfunc <- colorRampPalette(c("lightblue1", "dodgerblue1","cyan3"))
+MyClrs.tel=colfunc(length(Lvls%>%filter(SPECIES2>6e4)%>%pull(SPECIES2)))
+MyClrs=c(MyClrs.elas,MyClrs.tel)
+
+Info3="barplot"
+if(Info3=="barplot")
+{
+  Infographic3=Info3.dat%>%
+    mutate(Name2=factor(Name2,levels=Lvls$Name2))%>%
+    group_by(Name2)%>%
+    summarise(perc=sum(perc))%>%
+    mutate(x=1)%>%
+    ggplot(aes(x=x,y = perc, fill = Name2)) +
+    geom_bar(stat="identity", width = 1.2) +
+    labs(x = "",y="") +
+    ggtitle(label ="Percentage of discarded catch") +
+    theme_minimal(base_size = 18)  +
+    theme(legend.title=element_blank(),
+          legend.position = "right",
+          panel.grid.major.y = element_line( size=1, color="grey60" ),
+          panel.grid.minor.y = element_blank(),
+          panel.grid.major.x = element_blank(),
+          panel.grid.minor.x = element_blank(),
+          legend.text = element_text(size = 12),
+          axis.ticks.x=element_blank(),
+          axis.text.x=element_blank(),
+          plot.title = element_text(size = size.titl, face = "bold"),
+          plot.subtitle = element_text(size = size.subtitl,face = "italic"),
+          plot.title.position = "plot") +
+    scale_fill_manual(aes(name = Name2),values = MyClrs)
+  
+}
+if(Info3=="pie")
+{
+  Infographic3=Info3.dat%>%
+  mutate(Name2=factor(Name2,levels=Lvls$Name2))%>%
+  group_by(Name2)%>%
+  summarise(perc=sum(perc))%>%
+  mutate(cs = rev(cumsum(rev(perc))), 
+         pos = perc/2 + lead(cs, 1),
+         pos = if_else(is.na(pos), perc/2, pos))%>%
+  ggplot(aes(x = "" , y = perc, fill = Name2)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar(theta = "y", start = 0 ) +
+  geom_label_repel(aes(y = pos,label = Name2), size=3.5, color="black",fontface = 'bold',
+                   box.padding=.3, nudge_x = 1,
+                   fill = alpha(MyClrs,0.5)) +
+  guides(fill = guide_legend(title = "Status")) +
+  labs(x = "",y="") +
+  ggtitle(label ="Percentage of discarded catch") +
+  theme_minimal(base_size = 18)  +
+  theme(legend.title=element_blank(),
+        legend.position = "none",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        legend.text = element_text(size = 14),
+        axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),
+        plot.title = element_text(size = size.titl, face = "bold"),
+        plot.subtitle = element_text(size = size.subtitl,face = "italic"))+
+    scale_fill_manual(aes(name = Name2),values = MyClrs) 
+}
+
+#Export infographic
+Infographic1 + Infographic2 / Infographic3 +plot_layout(ncol = 2, widths = unit(c(11.5, 5),c('cm','cm')))
+ggsave('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF/Results/Infographic.tiff',
+       width = 12,height = 7,compression = "lzw")
