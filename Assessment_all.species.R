@@ -1,31 +1,36 @@
 # ------ Script for running shark Stock assessments---- ###################
 
-#Notes:
-#     1. A range of assessment methods are used depending on data availability: 
-#               . Integrated size- and sex- structured models,
-#               . SPM,
-#               . Catch-MSY (Martell & Froese 2012)
-#               . aSPM(Haddon SimpleSA())
-#     2. Total catches are used (extracted from commercial, recreational and TDGDLF discarded catch reconstructions)
-#     3. Assumption: If catches have never been >1% carrying capacity, then it's in unexploited 
-#         status so catch series have no information on productivity
-#         The PSA filters out species from further analyses thru 'Criteria for selecting what species to assess'
-
-#Steps: 
-#     1. Define arguments used in each of the shark species/species complex assessed.
-#     2. Bring in available data and input parameters
-#     3. Determine which species to assessed based on PSA
-#     4. Run relevant population models according to data availability
-#     5. Generate relevant outputs
-
-
 #missing:  
 #     Include ALL species in final risk scoring
 #     review Smooth HH cpue and mako cpue...; SPM Tiger fit
 #     Milk shark SPM, hitting upper K boundary, no trend in cpue, crap Hessian, too uncertain....mention in text...
 #     aSPM: finish running for all species; issues with Tiger cpue fit...
+#     Size-based Catch curve (for some species, there's NSF size compo, not used at the moment)
+#     Implemente simple SS and LIME?
 #     set up integrated model for dusky and sandbar
-# Size-based Catch curve (for some species, there's NSF size compo, not used at the moment)
+#     set up SS3 model for indicator species
+#     Use .CPUE_Observer_TDGDLF.csv in likelihoods?
+#     'recons_NT_catch.csv'  Only dusky and sandbar, missing other shared stock (tiger, etc)
+
+
+#Notes:
+#     1. The PSA filters out species from further analyses thru 'Criteria for selecting what species to assess'
+#     2. A range of assessment methods are used depending on data availability: 
+#               . Integrated size- and sex- structured models,
+#               . SPM,
+#               . Catch-MSY (Martell & Froese 2012)
+#               . aSPM(Haddon SimpleSA())
+#     3. Total (reconstructed) catches are used (commercial, recreational and TDGDLF discards)
+#     4. Assumption: If catches have never been >1% carrying capacity, then it's in unexploited 
+#                    status so catch series have no information on productivity
+
+#Steps: 
+#     1. Update year of assessment and catches in 'GLOBALS' (update catch reconstructions, cpue stand., etc)
+#     2. Define arguments used in each of the shark species/species complex assessed.
+#     3. Bring in available data and input parameters
+#     4. Determine which species to assessed based on PSA
+#     5. Run relevant population models according to data availability
+#     6. Generate relevant outputs
 
 rm(list=ls(all=TRUE))
 options(dplyr.summarise.inform = FALSE)
@@ -52,7 +57,7 @@ library(datalowSA)
 library(zoo)
 library(MCDA)
 library(sfsmisc)   # p values from rlm
-
+library(data.table)
 
 source.hnld="C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/"
 fn.source=function(script)source(paste(source.hnld,script,sep=""))
@@ -66,7 +71,7 @@ source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
 
-#---DEFINE GLOBALS----- 
+#---1. DEFINE GLOBALS----- 
 
 #Year of assessment 
 Year.of.assessment=2021
@@ -218,16 +223,21 @@ do.other.ass=TRUE
 # Define if doing other species paper
 do.other.ass.paper=FALSE  
 
+# Assumed PCM for reconstructed discards in TDGLDF
+TDGLDF.disc.assumed.PCM="BaseCase" 
+#TDGLDF.disc.assumed.PCM="100%" 
 
-#---Data section-----   
+
+#---2. Catch and effort data section-----   
 Dat.repository='C:/Matias/Analyses/Data_outs/'  #where all input data are located
 
-#1. Species  
+#2.1. Species  
 All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv")
 All.species.names=All.species.names%>%
                     mutate(Name=tolower(Name))%>%
                     filter(!(SPECIES==18014 & Name=="australian blacktip shark"))%>%
-                    rename(SNAME=Name)
+                    rename(SNAME=Name)%>%
+                    arrange(SPECIES)
 Shark.species=5001:24900
 School.shark= 17008
 Indicator.species=c(17001,17003,18003,18007)
@@ -239,10 +249,11 @@ assessed.elsewhere=c("white shark","school shark","spot-tail shark",
 
 
 
-#2. Import Total effort
-fn.in=function(NM) read.csv(paste(Dat.repository,NM,sep=""),stringsAsFactors = F)
+#2.2. Import Total effort
+fn.in=function(NM) fread(paste(Dat.repository,NM,sep=""),data.table=FALSE)
   #TDGDLF
-Effort.monthly=fn.in(NM='Annual.total.eff.days.csv') 
+Effort.monthly=fn.in(NM='Annual.total.eff.days.csv')          #all years
+Effort.monthly_hours=fn.in(NM='Annual.total.eff.hours.csv')   #all years
 Effort.monthly_blocks=fn.in("Effort.monthly.csv")
 Effort.daily_blocks=fn.in("Effort.daily.csv")
   #NSF
@@ -251,7 +262,7 @@ Effort.monthly.north_blocks=fn.in("Effort.monthly.NSF.csv")
 Effort.daily.north_blocks=fn.in("Effort.daily.NSF.csv")
 
 
-#3. Import Total Catch
+#2.3. Import Total Catch
 Mode <- function(x)
 {
   ux <- unique(x)
@@ -261,22 +272,28 @@ fn.import.catch.data=function(KTCH.UNITS)
 {
   #2.1. Commercial
     #2.1.1 Catch_WA Fisheries
+  
   #..Historic
   Historic.ktch=fn.in(NM='recons_Hist.expnd.csv')%>%filter(!FINYEAR=='1975-76')
+  
   #..Ammended reported commercial catch including discards
   Data.monthly=fn.in(NM='recons_Data.monthly.csv')
   Data.monthly.north=fn.in(NM='recons_Data.monthly.north.csv')
+  
   #..TEPS
   Greynurse.ktch=fn.in(NM='recons_Greynurse.ktch.csv')
   TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
+  
   #..Droplines Western Rock Lobster
   WRL.ktch=fn.in(NM='Wetline_rocklobster.csv')
+  
   #..Discards from TDGDLF
-  discard_TDGDLF=fn.in(NM='recons_discard_TDGDLF.csv')
-  #discard_TDGDLF=fn.in(NM='recons_discard_TDGDLF_100.PCM')
+  if(TDGLDF.disc.assumed.PCM=="BaseCase") discard_TDGDLF=fn.in(NM='recons_discard_TDGDLF.csv')
+  if(TDGLDF.disc.assumed.PCM=="100%") discard_TDGDLF=fn.in(NM='recons_discard_TDGDLF_100.PCM')
   
   
     #2.1.2. Catch of non WA Fisheries
+  
   #..Taiwanese gillnet and longline
   Taiwan.gillnet.ktch=fn.in(NM='recons_Taiwan.gillnet.ktch.csv')
   Taiwan.longline.ktch=fn.in(NM='recons_Taiwan.longline.ktch.csv')
@@ -285,16 +302,21 @@ fn.import.catch.data=function(KTCH.UNITS)
   Taiwan=rbind(Taiwan.longline.ktch,Taiwan.gillnet.ktch)%>%
     mutate(Region="North")%>%
     mutate(year=as.numeric(substr(FINYEAR,1,4)))
+  
   #..Indonesian illegal fishing in Australia waters
   Indo_total.annual.ktch=fn.in(NM='recons_Indo.IUU.csv')
   Indo_total.annual.ktch=Indo_total.annual.ktch%>%filter(!is.na(SPECIES))
+  
   #..AFMA's GAB & SBT fisheries
   GAB.trawl_catch=fn.in(NM='recons_GAB.trawl_catch.csv') 
-  WTBF_catch=fn.in(NM='recons_WTBF_catch.csv') 
+  WTBF_catch=fn.in(NM='recons_WTBF_catch.csv')
+  
   #..SA Marine Scalefish fishery
   Whaler_SA=fn.in(NM='recons_Whaler_SA.csv') 
+  
   #..NT catches
   NT_catch=fn.in(NM='recons_NT_catch.csv') 
+  
   
   #2.2. WA Recreational catch
   Rec.ktch=fn.in(NM='recons_recreational.csv')  
@@ -677,21 +699,22 @@ KtCh=Get.ktch$Total
 KtCh.zone=Get.ktch$Zone
 
 
-#4. remove species assessed elsewhere
+#2.4. Remove species assessed elsewhere
 KtCh=KtCh%>%filter(!Name%in%assessed.elsewhere)
 KtCh.zone=KtCh.zone%>%filter(!Name%in%assessed.elsewhere)
 
 
 
-#---PSA to determine which species to assess ------------------------------------------------------  
+#---3. PSA to determine which species to assess ------------------------------------------------------  
 #note: PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
 
 if(First.run=="YES")
 {
+  #get catches of all species
   KtCh.method=Get.ktch$Total.method%>%filter(!Name%in%assessed.elsewhere)
   
-  PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv',stringsAsFactors=F)
-  
+  #biological and fishery attributes for psa
+  PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv')
   PSA.list=PSA.list%>%filter(!Species%in%assessed.elsewhere)
   
   
@@ -707,16 +730,18 @@ if(First.run=="YES")
     summarise(catch=sum(LIVEWT.c))%>%
     ggplot(aes(Year,catch))+
     geom_point(aes(colour = Gear),size = .8)+ylab("Catch (tonnes)")+
-    facet_wrap( ~ Name, scales = "free_y")+
+    facet_wrap( ~ Name, scales = "free_y")+ expand_limits(y = 0)+
     theme(strip.text.x = element_text(size = 6),
           axis.text=element_text(size=6.5),
           legend.position="top",
           legend.title = element_blank(),
           legend.key=element_blank(),
-          title=element_text(size=10),
+          legend.text = element_text(size = 10),
+          title=element_text(size=12),
           axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-    guides(colour = guide_legend(override.aes = list(size=5)))
-  ggsave(paste(Exprt,'Annual_ktch_by_species.tiff',sep='/'), width = 12,height = 7, dpi = 300, compression = "lzw")
+    guides(colour = guide_legend(override.aes = list(size=5)))+
+    xlab("Financial year") 
+  ggsave(paste(Exprt,'Annual_ktch_by_species.tiff',sep='/'), width = 14,height = 7, dpi = 300, compression = "lzw")
   
   #Export table of species catch by fishery
   write.csv(Get.ktch$Table1,paste(Exprt,'All.species.caught.csv',sep='/'),row.names = F)
@@ -775,9 +800,10 @@ if(First.run=="YES")
   
   UniSp=unique(KtCh$Name)
   UniSp=subset(UniSp,!UniSp%in%names(Indicator.species))
-  PSA.list=PSA.list%>%filter(Species%in%UniSp)
   
-  PSA.fn=function(d,line.sep,txt.size)  
+  PSA.list=PSA.list%>%filter(Species%in%UniSp)  
+  
+  PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)  
   {
     set.seed(101)
     PSA=data.frame(Species=d$Species,
@@ -815,58 +841,95 @@ if(First.run=="YES")
     PSA=PSA%>%
       rename(Vulnerability.score=Vulnerability)%>%
       mutate(Species=Hmisc::capitalize(as.character(Species)),
-             Vulnerability=factor(ifelse(Vulnerability.score<=Low.risk,'low',
-                                         ifelse(Vulnerability.score>Low.risk & Vulnerability.score<=medium.risk,'medium',
-                                                'high')),levels=c('low','medium','high')))%>%
-      arrange(Vulnerability.score)
-    cols=c(low="green",medium="yellow",high="red")
+             Vulnerability=Hmisc::capitalize(
+                      ifelse(Vulnerability.score<=Low.risk,'Low',
+                      ifelse(Vulnerability.score>Low.risk & Vulnerability.score<=medium.risk,'Medium',
+                      'High'))),
+             Vulnerability=factor(Vulnerability,levels=c('Low','Medium','High')))%>%
+      arrange(Vulnerability.score)%>%
+      mutate(Fnt.size=case_when(Vulnerability=='Low'~size.low,
+                                Vulnerability=='Medium'~size.med,
+                                Vulnerability=='High'~size.hig),
+             Species=case_when(Species=='Port jackson shark'~'Port Jackson shark',
+                               TRUE~Species))
+    cols=c(Low="green",Medium="yellow",High="red")
     p=ggplot(PSA,
              aes(Productivity, Susceptibility, label = Species,colour = Vulnerability, fill = Vulnerability)) +
       geom_point(shape = 21, size = 5,colour="black") + 
-      geom_text_repel(segment.colour=transparent("black",.75),col='black',box.padding = line.sep,size=txt.size) + 
+      geom_text_repel(aes(size=Fnt.size),show.legend  = F,segment.colour=transparent("black",.75),col='black',box.padding = line.sep) + 
       scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
-      xlim(0.75,3.25)+ylim(0.75,3.25)+
+      xlim(1.5,3.15)+ylim(0.85,3.05)+
       theme(panel.background = element_blank(),
             axis.line = element_line(colour = "black"),
             axis.text=element_text(size=12),
-            axis.title=element_text(size=14),
+            axis.title=element_text(size=18),
             legend.title=element_text(size=16),
-            legend.text=element_text(size=14),
+            legend.text=element_text(size=15),
             legend.position="top",
             legend.key=element_blank(),
-            panel.border = element_rect(colour = "black", fill=NA, size=1))
+            panel.border = element_rect(colour = "black", fill=NA, size=1))+
+      labs(fill = "")
     p
     library(yarrr)
-    ggsave(paste(Exprt,'Figure 2_PSA.tiff',sep='/'), width = 12,height = 8, dpi = 300, compression = "lzw")
+    ggsave(paste(Exprt,'Figure 2_PSA.tiff',sep='/'), width = W,height = H, dpi = 300, compression = "lzw")
     
-    return(as.character(PSA%>%filter(Vulnerability=="high")%>%pull(Species)))
+    return(as.character(PSA%>%filter(Vulnerability=="High")%>%pull(Species)))
   }
-  Keep.species=PSA.fn(d=PSA.list,line.sep=.35, txt.size=3.25)
+  Keep.species=PSA.fn(d=PSA.list,line.sep=.35,size.low=2,size.med=2.05,size.hig=2.5,W=10,H=10)
   Keep.species=tolower(Keep.species)
   Keep.species=sort(c(Keep.species,names(Indicator.species)))
   Drop.species=UniSp[which(!UniSp%in%Keep.species)]
 }
-if(!First.run=="YES") Keep.species=c("angel sharks","copper shark","dusky shark","great hammerhead",    
-                                     "grey nurse shark","gummy shark","lemon shark",
-                                     "milk shark","pigeye shark","sandbar shark",
-                                     "sawsharks","scalloped hammerhead","shortfin mako",
-                                     "smooth hammerhead","spinner shark","spurdogs",
-                                     "tiger shark","whiskery shark","wobbegongs")
+if(!First.run=="YES")
+{
+  Keep.species=sort(c("angel sharks","copper shark","lemon shark",
+                 "great hammerhead","scalloped hammerhead","smooth hammerhead",    
+                 "grey nurse shark","milk shark","pigeye shark",
+                 "sawsharks","shortfin mako","spinner shark",
+                 "spurdogs","tiger shark","wobbegongs",
+                 names(Indicator.species)))
+}
+  
 N.sp=length(Keep.species)
 
-#---Create list of species assessed-----
+#---4. Create list of species assessed and import species-specific data-----
+Species.data=vector('list',length=N.sp)
+names(Species.data)=Keep.species
+for(s in 1:N.sp) 
+{
+  this.one=capitalize(Keep.species[s])
+  if(this.one=="Angel sharks") this.one="Australian angelshark"
+  files <- list.files(path = paste(Dat.repository,this.one,sep=""), pattern = "*.csv", full.names = T)
+  file.names <- list.files(path = paste(Dat.repository,this.one,sep=""), pattern = "*.csv", full.names = F)
+  removE <- c(".csv", paste(this.one,"_",sep=''), this.one)
+  file.names <- gsub("^\\.","",str_remove_all(file.names, paste(removE, collapse = "|")))
+  files=sapply(files, fread, data.table=FALSE)
+  names(files)=file.names
+  Species.data[[s]]=files
+  rm(files)
+
+}
+
+
+#---5. Import input parameters, define modelling arguments and create pin file-----
+#note: For integrated model, S1 and S2 calculates pars in normal space but same order magnitude
+#       Other scenarios all pars in log.
+#       ln_RZERO is in 1,000 individuals so do 10 times the largest catch divided by 
+#       average weight and divided by 1,000. Best units to work in are 1,000 individuals for 
+#       numbers, catch in tonnes and length-weight in kg as all cancels out and predicted biomasses
+#       end up being in tonnes
+
 List.sp=vector('list',N.sp)
 names(List.sp)=Keep.species
 for(l in 1:N.sp)
 {
   this=subset(All.species.names,SNAME==Keep.species[l])%>%
-        mutate(SP=ifelse(SNAME=="sawsharks","SC",
-                   ifelse(SNAME=="spurdogs","SD",
-                   SP)),
-               name.inputs=ifelse(SNAME=="sawsharks","common sawshark",
-                           ifelse(SNAME=="spurdogs","spikey dogfish",
-                           SNAME)))
-  
+    mutate(SP=ifelse(SNAME=="sawsharks","SC",
+                     ifelse(SNAME=="spurdogs","SD",
+                            SP)),
+           name.inputs=ifelse(SNAME=="sawsharks","common sawshark",
+                              ifelse(SNAME=="spurdogs","spikey dogfish",
+                                     SNAME)))
   fst.yr=ifelse(this$SPECIES%in%Indicator.species,"1975-76",min(KtCh$FINYEAR))
   List.sp[[l]]=list(Name=this$SNAME,
                     Name.inputs=this$name.inputs,
@@ -875,44 +938,16 @@ for(l in 1:N.sp)
                     First.year=fst.yr)
 }
 
-
-#---Export all available input data to each species assessment folder-----
-if(First.run=="YES")
-{
-  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Organise data.R")
-  for(l in 1:N.sp)
-  {
-    print(paste("---------",names(List.sp)[l]))
-    fn.input.data(Name=List.sp[[l]]$Name,
-                  Name.inputs=List.sp[[l]]$Name.inputs,
-                  SP=List.sp[[l]]$SP,
-                  Species=List.sp[[l]]$Species,  
-                  First.year=List.sp[[l]]$First.year,
-                  Last.year=Last.yr.ktch,
-                  Min.obs=Min.obs,
-                  Min.shts=Min.shts,
-                  What.Efrt=What.Effort,
-                  Bin.size=TL.bins.cm,
-                  Yr.assess=AssessYr) 
-  } 
-}
-
-#---Define input parameters and modelling arguments and create pin file-----
-#note: For integrated model, S1 and S2 calculates pars in normal space but same order magnitude
-#       Other scenarios all pars in log.
-#       ln_RZERO is in 1,000 individuals so do 10 times the largest catch divided by 
-#       average weight and divided by 1,000. Best units to work in are 1,000 individuals for 
-#       numbers, catch in tonnes and length-weight in kg as all cancels out and predicted biomasses
-#       end up being in tonnes
 fn.mtch=function(WHAT,NMS) match(WHAT,names(NMS))
 Q_phz=c("lnq","lnq2","log_Qdaily")                           
 Zns.par.phz=c("lnR_prop_west","lnR_prop_zn1")
 MOv.par.phz=c("log_p11","log_p22","log_p21","log_p33")
+LH.data=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')
 for(l in 1:N.sp)
 {
   print(paste("---------",names(List.sp)[l]))
   
-  LH=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')%>%filter(SPECIES==List.sp[[l]]$Species)
+  LH=LH.data%>%filter(SPECIES==List.sp[[l]]$Species)
   
   #... Demography arguments
   Max_Age_max=LH$Max_Age_max
@@ -1890,19 +1925,48 @@ if(First.run=="YES")
   Rar.path=paste('C:/Matias/Reports/RARs', AssessYr,sep="/")
   if(!dir.exists(Rar.path))dir.create(Rar.path)
   setwd(Rar.path)
-  TabL=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')%>%
+  TabL=LH.data%>%
           filter(SPECIES%in%sapply(List.sp, "[[", "Species"))%>%
           dplyr::select(-SNAME)%>%
           left_join(All.species.names%>%dplyr::select(SPECIES,SNAME,Scien.nm),by="SPECIES")%>%
-          arrange(SPECIES)%>%
           mutate(K=round(as.numeric(as.character(K)),3),
-                 FL_inf=round(FL_inf))
+                 FL_inf=round(FL_inf),
+                 SNAME=capitalize(SNAME))%>%
+    rename(Species=SNAME)%>%
+    dplyr::select(-SPECIES,-Comment)%>%
+    relocate(Species,Scien.nm)%>%
+    arrange(Species)
   fn.word.table(WD=getwd(),TBL=TabL,Doc.nm="Table 1. Life history pars",caption=NA,paragph=NA,
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                 Zebra='NO',Zebra.col='grey60',Grid.col='black',
                 Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+  write.csv(TabL,"Table 1. Life history pars.csv",row.names = F)
 }
 
+
+
+#---6. Export all available input data to each species assessment folder----- #ACA
+if(First.run=="YES")
+{
+  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Organise data.R")
+  for(l in 1:N.sp)
+  {
+    print(paste("---------",names(List.sp)[l]))
+    fn.input.data(Name=List.sp[[l]]$Name,
+                  Name.inputs=List.sp[[l]]$Name.inputs,
+                  SP=List.sp[[l]]$SP,
+                  Species=List.sp[[l]]$Species,  
+                  First.year=List.sp[[l]]$First.year,
+                  Last.year=Last.yr.ktch,
+                  Min.obs=Min.obs,
+                  Min.shts=Min.shts,
+                  What.Efrt=What.Effort,
+                  Bin.size=TL.bins.cm,
+                  Yr.assess=AssessYr,
+                  Dat=Species.data[[l]],
+                  LH.par=LH.data%>%filter(SPECIES==List.sp[[l]]$Species)) 
+  } 
+}
 
 #---Build r prior -----------------------------------------------------------------------
 store.species.r=vector('list',N.sp)
@@ -2071,7 +2135,7 @@ for(r in 1:length(RESILIENCE))
 }
 
 
-# ---Extract selectivity at age -----------------------------------------------------------------------
+#---Extract selectivity at age -----------------------------------------------------------------------
 Sel.equivalence=data.frame(
       Name=c("Copper","Great hammerhead","Scalloped hammerhead",
              "Grey nurse","Wobbegongs",
