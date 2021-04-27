@@ -2,10 +2,10 @@ library(tidyverse)
 library(ggplot2)
 
 # DATA SECTION ------------------------------------------------------------
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+All.species.names=read.csv(handl_OneDrive("Data/Species_names_shark.only.csv"),stringsAsFactors = F)
 
-All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv",stringsAsFactors = F)
-
-fn.in=function(NM) read.csv(paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),stringsAsFactors = F)
+fn.in=function(NM) read.csv(paste(handl_OneDrive('Analyses/Data_outs/'),NM,sep=""),stringsAsFactors = F)
 
 
 #2.1 Catch_WA Fisheries
@@ -120,4 +120,4 @@ Tot.ktch=rbind(Com.ktch,Rec.ktch)%>%
 NT.blktips=c("spot-tail shark","blacktips")
 For.NT_blktips=Tot.ktch%>%filter(SNAME%in%NT.blktips)
 #ggplot(For.NT_blktips)+geom_line(aes(x=as.numeric(substr(FINYEAR,1,4)),y=LIVEWT_tonnes,colour =SNAME))
-write.csv(For.NT_blktips,"C:/Matias/Analyses/Catch and effort/Data_Resquests/Northern_Territory/Blacktips.and.spot.tail.total.reconstructed.catches.csv",row.names = F)
+write.csv(For.NT_blktips,handl_OneDrive("Analyses/Catch and effort/Data_Resquests/Northern_Territory/Blacktips.and.spot.tail.total.reconstructed.catches.csv"),row.names = F)

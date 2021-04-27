@@ -6,7 +6,8 @@
 
 
 library(dplyr)
-setwd('C:\\Matias\\Analyses\\Population dynamics\\White shark\\Mark_recapture')
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+setwd(handl_OneDrive('Analyses\\Population dynamics\\White shark\\Mark_recapture'))
 Data=read.csv('Data.csv',stringsAsFactors = F)
 
 

@@ -373,16 +373,17 @@ if(First.run=="YES")
   
 
 # Section B: BRING IN PARAMETERS ------------------------------------------
-  hndl=paste("C:/Matias/Analyses/Population dynamics/1.",Spec," shark/",sep='')
+  handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+  hndl=paste(handl_OneDrive("Analyses/Population dynamics/1.",Spec," shark/",sep=''))
   
   
   #add this bit which is from 'Other species'
   #Life history param for demography
-  LH.par=read.csv("C:/Matias/Data/Life history parameters/Life_History_other_sharks.csv",stringsAsFactors=F)
+  LH.par=read.csv(handl_OneDrive("Data/Life history parameters/Life_History_other_sharks.csv"),stringsAsFactors=F)
   
   
     #B.1 Source all input parameters
-  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Organise input parameters.R")
+  source(handl_OneDrive("Analyses/Population dynamics/Git_Stock.assessments/Organise input parameters.R"))
   ParS=fn.input.pars(SP=species,add.growth.cv="NO",add.Mrt.age="NO")$pars
   
   #Maximum age
@@ -494,7 +495,7 @@ if(First.run=="YES")
   #Steeepnes
   Steepness=ParS$STEEP
   
-  Hndl="C:/Matias/Data/Population dynamics/Parameter inputs for models/"
+  Hndl=handl_OneDrive("Data/Population dynamics/Parameter inputs for models/")
   Mortality.from.Ref.Point=read.csv(paste(Hndl,Sp2,".M_at_age.csv",sep=""))
   
   
@@ -1450,7 +1451,7 @@ if(First.run=="YES")
     
     #Create .dat file
     n=Movement.rate.data
-    setwd(paste("C:/Matias/Analyses/Movement rate estimation/Joint.estim_ind.base.mod/",Spec,sep=""))
+    setwd(paste(handl_OneDrive("Analyses/Movement rate estimation/Joint.estim_ind.base.mod/"),Spec,sep=""))
     FILE="model.dat"
     Hdr="#Model inputs"
     write(Hdr,file = FILE)
@@ -1475,7 +1476,7 @@ if(First.run=="YES")
   }
   
       #data for displaying inputs
-  hndl.mov.rte="C:/Matias/Analyses/Movement rate estimation/Joint.estim_ind.base.mod/Show Gummy and whiskery outputs/"
+  hndl.mov.rte=handl_OneDrive("Analyses/Movement rate estimation/Joint.estim_ind.base.mod/Show Gummy and whiskery outputs/")
   write.csv(Conv.tg.rec.exp,paste(hndl.mov.rte,"Conv.",Spec,".csv",sep=""),row.names=F)
   write.csv(Acous.tg.rec,paste(hndl.mov.rte,"Acous.",Spec,".csv",sep=""),row.names=F)
   setwd(a)
@@ -2405,7 +2406,7 @@ if(First.run=="YES")
 
   # Create all .tpl files
   fn.source("Copy_and_paste_files.R")
-  where.tpls.are="C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Repository_of_tpl"
+  where.tpls.are=handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_Repository_of_tpl")
   FIND.NM=list.files(where.tpls.are)
   for(i in 1:nrow(Scenarios))
   {
@@ -3028,7 +3029,7 @@ if(Do.MSY=="YES")
 
 # Section E: DISPLAY MODEL OUTPUTS ----------------------------------------
 fn.source("Pearson.Residuals.R")
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R")
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R"))
 library(plotrix)
 library(gridExtra)
 library(grid)
@@ -5803,7 +5804,7 @@ if(DO.MCMC=="YES")
 
 
 # Section G: RUN CATCH-MSY METHOD AND DISPLAY OUTPUTS ---------------------
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/Catch_MSY.R")
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/Catch_MSY.R"))
 if(DO.CatchMSY=="YES")
 {
   #r prior

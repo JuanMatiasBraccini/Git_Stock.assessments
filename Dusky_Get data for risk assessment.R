@@ -6,7 +6,8 @@ rm(list=ls(all=TRUE))
 
 
 # ................. Section A: BRING IN INPUT DATA ......................
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Population dynamics/Organise data.R")
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Population dynamics/Organise data.R"))
 
 #Select species and year of assessment
 SPEC=18003     #note: Dusky includes C. brachyurus as well (in "Organise data.R")

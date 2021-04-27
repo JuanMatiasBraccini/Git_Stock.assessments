@@ -8,8 +8,8 @@ SPEC="Gummy"
 Scen="S1"
 #Scen="S2"
 Last.yr=2015
-
-SCEN=paste("C:/Matias/Analyses/Population dynamics/",SPEC," shark/2017/",sep="")
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+SCEN=paste(handl_OneDrive("Analyses/Population dynamics/"),SPEC," shark/2017/",sep="")
 
 
 #Bring in ADMB outputs
@@ -96,7 +96,7 @@ fn.plt=function(d,Compare.what,CEx.tab,x.tab,y.tab)
       TABL[[n]]=EST
     }
   TABL=do.call(rbind,TABL)
-  TABL$MLE=paste(TABL$value," ±",TABL$std.dev,sep="")
+  TABL$MLE=paste(TABL$value," ?",TABL$std.dev,sep="")
   TABL=TABL[,-match(c("value","std.dev"),names(TABL))]
   #TABL <- reshape(TABL, v.names = "MLE", idvar = "Scenario",
    #               timevar = "name", direction = "wide")

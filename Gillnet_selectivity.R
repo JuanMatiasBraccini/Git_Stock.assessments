@@ -24,9 +24,11 @@ library(stringr)
 
 options(stringsAsFactors = FALSE,"max.print"=50000,"width"=240) 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
-source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/NextGeneration.R")
-source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/SelnCurveDefinitions.R") #These can be extended by the user
+
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R"))
+source(handl_OneDrive("Analyses/Population dynamics/Git_Stock.assessments/NextGeneration.R"))
+source(handl_OneDrive("Analyses/Population dynamics/Git_Stock.assessments/SelnCurveDefinitions.R")) #These can be extended by the user
 
 
 Do.K_W=FALSE   #some issues with data in par estimation (e.g. gummy, smooth HH)
@@ -49,7 +51,7 @@ close(channel)
 
 
 #2. SESSF 2007-2008 experimental mesh selectivity and survey 
-channel <- odbcConnectExcel2007("C:/Matias/Data/SSF_survey_07_08/SharkSurveyData_30_09_2008.xls")
+channel <- odbcConnectExcel2007(handl_OneDrive("Data/SSF_survey_07_08/SharkSurveyData_30_09_2008.xls"))
 F2_Sampling<- sqlFetch(channel,"F2_Sampling", colnames = F)
 F1_SamplingTwo<- sqlFetch(channel,"F1_SamplingTwo", colnames = F)
 close(channel)
@@ -59,18 +61,18 @@ close(channel)
 #note: this is for fishers using one type of net at a time.
 #      Not used as models cannot converge and not used simultaneously.
 #      Mean sizes of 6.5 and 7 inch similar, or 6.5 > 7 
-LFQ.south=read.csv("C:/Matias/Analyses/Selectivity_Gillnet/out.LFQ.south.csv")
+LFQ.south=read.csv(handl_OneDrive("Analyses/Selectivity_Gillnet/out.LFQ.south.csv"))
 
 
 #4. Species names
-SP.names=read.csv('C:/Matias/Data/Species_names_shark.only.csv')
-SP.codes=read.csv('C:/Matias/Data/Species.code.csv')
+SP.names=read.csv(handl_OneDrive('Data/Species_names_shark.only.csv'))
+SP.codes=read.csv(handl_OneDrive('Data/Species.code.csv'))
 
 #5. Life history
-LH=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')
+LH=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv'))
 
 #6. Rory's data published in McAuley et al 2007
-Rory.d=read.csv('C:/Matias/Analyses/Selectivity_Gillnet/Rory.sandbar/data.csv') #size is Fork length
+Rory.d=read.csv(handl_OneDrive('Analyses/Selectivity_Gillnet/Rory.sandbar/data.csv')) #size is Fork length
 
 
 # PARAMETERS  -------------------------------------------------------------------
@@ -215,7 +217,7 @@ if(Preliminary)
     labs(fill="Mesh size")+
     xlab("Total length (cm)")+
     facet_wrap(vars(name), scales = "free") 
-  ggsave('C:/Matias/Analyses/Selectivity_Gillnet/Size.frequency_experimental.WA.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  ggsave(handl_OneDrive('Analyses/Selectivity_Gillnet/Size.frequency_experimental.WA.tiff'), width = 10,height = 8, dpi = 300, compression = "lzw")
 }
 
 
@@ -262,7 +264,7 @@ if(Preliminary)
     labs(fill="Mesh size")+
     xlab("Size (cm)") +
     facet_wrap(vars(Species), scales = "free") 
-  ggsave('C:/Matias/Analyses/Selectivity_Gillnet/Size.frequency_SSF.tiff', width = 12,height = 8, dpi = 300, compression = "lzw")
+  ggsave(handl_OneDrive('Analyses/Selectivity_Gillnet/Size.frequency_SSF.tiff'), width = 12,height = 8, dpi = 300, compression = "lzw")
 }
 
 
@@ -311,7 +313,7 @@ if(Preliminary)
     labs(fill="Mesh size")+
     xlab("Total length (cm)") +
     facet_wrap(vars(Species), scales = "free") 
-  ggsave('C:/Matias/Analyses/Selectivity_Gillnet/Size.frequency_TDGDLF_observed.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  ggsave(handl_OneDrive('Analyses/Selectivity_Gillnet/Size.frequency_TDGDLF_observed.tiff'), width = 10,height = 8, dpi = 300, compression = "lzw")
 }
 
 #--2. Combine all data sets    
@@ -977,7 +979,7 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
     dat$'16.5'=pred.lognormal(l=dat$TL.mm,m=16.5,m1,mu,sigma)
     dat$'17.8'=pred.lognormal(l=dat$TL.mm,m=17.8,m1,mu,sigma)
   }
-  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',NM,'/',NM,"_gillnet.selectivity",".csv",sep=''),row.names = F)
+  write.csv(dat,paste(handl_OneDrive('Analyses/Data_outs/'),NM,'/',NM,"_gillnet.selectivity",".csv",sep=''),row.names = F)
   
     #lenght at age
   dat=data.frame(TL.mm=La$TL,Age=La$Age)
@@ -1015,7 +1017,7 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
     dat$'16.5'=pred.lognormal(l=dat$TL.mm,m=16.5,m1,mu,sigma)
     dat$'17.8'=pred.lognormal(l=dat$TL.mm,m=17.8,m1,mu,sigma)
   }
-  write.csv(dat,paste('C:/Matias/Analyses/Data_outs/',NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
+  write.csv(dat,paste(handl_OneDrive('Analyses/Data_outs/'),NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
 }
 
     #species
@@ -1046,7 +1048,7 @@ for(s in 1:length(n.sp.family))
 # REPORT  ------------------------------------------------------------------
 if(do.paper.figures)
 {
-  setwd('C:/Matias/Analyses/Selectivity_Gillnet')
+  setwd(handl_OneDrive('Analyses/Selectivity_Gillnet'))
   
   colfunc <- colorRampPalette(c("white", "yellow","orange",'brown2',"darkred"))
   

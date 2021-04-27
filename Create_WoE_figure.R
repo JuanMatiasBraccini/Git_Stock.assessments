@@ -1,8 +1,9 @@
-source('C:/Matias/Analyses/SOURCE_SCRIPTS/Population dynamics/Consequence_likelihood_plot.R')
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+source(handl_OneDrive'Analyses/SOURCE_SCRIPTS/Population dynamics/Consequence_likelihood_plot.R'))
 
 
 
-setwd('C:/Matias/Analyses/Population dynamics/WoE')
+setwd(handl_OneDrive'Analyses/Population dynamics/WoE'))
 
 #Figure 4. WOE risk assessment
 

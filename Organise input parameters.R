@@ -1,8 +1,9 @@
 # SCRIPT FOR ORGANISING INPUT PARAMETERS AND RELATIONSHIPS
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
 fn.input.pars=function(SP,add.growth.cv,add.Mrt.age)
 {
   #Read in parameters from centralised parameter data base
-  Pars=read.csv("C:/Matias/Data/Life history parameters/Shark input parameters.csv",stringsAsFactors=F)
+  Pars=read.csv(handl_OneDrive("Data/Life history parameters/Shark input parameters.csv"),stringsAsFactors=F)
   Pars=subset(Pars,Population%in%c("WA","Australia","southern Australia"))
   Pars$SP=with(Pars,ifelse(Species=='Sandbar',"TK",ifelse(Species=='Dusky',"BW",
           ifelse(Species=='Gummy',"GM",ifelse(Species=='Whiskery',"WH",NA)))))
@@ -12,7 +13,7 @@ fn.input.pars=function(SP,add.growth.cv,add.Mrt.age)
   Pars.southern.Oz=subset(Pars,Population=="southern Australia")
   Pars.Oz=subset(Pars,Population=="Australia")
   
-  hndl="C:/Matias/Data/Population dynamics/Prop.males.in.catch/prop.males."
+  hndl=handl_OneDrive("Data/Population dynamics/Prop.males.in.catch/prop.males.")
   Prop.males.in.ktch=read.csv(paste(hndl,SP,".csv",sep=""))
   Prop.males.in.ktch.all=read.csv(paste(hndl,"All.",SP,".csv",sep=""))
   names(Prop.males.in.ktch.all)="All"
@@ -78,7 +79,7 @@ fn.input.pars=function(SP,add.growth.cv,add.Mrt.age)
   }
   
   #2.2. Age dependent
-  setwd("C:/Matias/Data/Population dynamics/Parameter inputs for models")
+  setwd(handl_OneDrive("Data/Population dynamics/Parameter inputs for models"))
   if(add.Mrt.age=="YES")
   {
     #Median values from reference point paper. Calculated in "1.MSY proxy reference points.R"
@@ -386,7 +387,7 @@ fn.input.pars=function(SP,add.growth.cv,add.Mrt.age)
   #note: these vary by zone and time. Need Rory's expertise on what values to use
   
   #non-reporting rate, Simpfendorfer et al 1999 (page 91)
-  Rep.rate=read.csv("C:/Matias/Data/Reporting_rates_Simpfendorfer1999.csv") 
+  Rep.rate=read.csv(handl_OneDrive("Data/Reporting_rates_Simpfendorfer1999.csv")) 
   Rep.rate$Zn1=1-Rep.rate$Zn1
   Rep.rate$Zn2=1-Rep.rate$Zn2
   Rep.rate$WC=1-Rep.rate$WC

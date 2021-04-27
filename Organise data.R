@@ -20,8 +20,8 @@ Bio.col=c("dodgerblue","darkorchid4","cyan4","lightpink3")
 names(Bio.col)=c("North Coast","Gascoyne","West Coast","South Coast")
 
 
-
-if(!exists('fn.word.table')) source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+if(!exists('fn.word.table')) source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R"))
 if(!exists('fn.fig')) fn.fig=function(NAME,Width,Height,Do.tiff="YES",Do.jpeg="NO")
 {
   if(Do.tiff=="YES") tiff(file=paste(NAME,".tiff",sep=""),width=Width,height=Height,units="px",res=300,compression="lzw")
@@ -804,10 +804,10 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   
 
     #3.4.  Age and growth data for whiskery only
-  if(SP=="WH") Age.growth=read.csv("C:/Matias/Data/Age and growth/Simpfen.data.csv")
-  if(SP=="GM") Age.growth=read.csv("C:/Matias/Data/Age and growth/Terry/Gummy_Terry.csv")
-  if(SP=="BW") Age.growth=read.csv("C:/Matias/Data/Age and growth/Dusky.csv")
-  if(SP=="TK") Age.growth=read.csv("C:/Matias/Data/Age and growth/Sandbar.csv")
+  if(SP=="WH") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Simpfen.data.csv"))
+  if(SP=="GM") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Terry/Gummy_Terry.csv"))
+  if(SP=="BW") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Dusky.csv"))
+  if(SP=="TK") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Sandbar.csv"))
   
   
     #3.5.  Standardised Mean size
@@ -830,16 +830,16 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
 
     #3.6. Effort by zone (GN plus long line equivalent effort)
   #(in 1000 km gn days)
-  if(What.Efrt=="km.gn.days") Eff.zn=read.csv("C:/Matias/Analyses/Data_outs/Annual.zone.eff.days.csv")
+  if(What.Efrt=="km.gn.days") Eff.zn=read.csv(handl_OneDrive("Analyses/Data_outs/Annual.zone.eff.days.csv"))
   #(in 1000 km gn hours)
-  if(What.Efrt=="km.gn.hours") Eff.zn=read.csv("C:/Matias/Analyses/Data_outs/Annual.zone.eff.hours.csv")
+  if(What.Efrt=="km.gn.hours") Eff.zn=read.csv(handl_OneDrive("Analyses/Data_outs/Annual.zone.eff.hours.csv"))
   
   
     #3.7. Proportional effort by mesh size
-  Mesh.prop.eff=read.csv("C:/Matias/Analyses/Catch and effort/mesh.proportional.effort.csv")
-  Mesh.prop.eff.West=read.csv("C:/Matias/Analyses/Catch and effort/mesh.proportional.effort.West.csv")
-  Mesh.prop.eff.Zn1=read.csv("C:/Matias/Analyses/Catch and effort/mesh.proportional.effort.Zone1.csv")
-  Mesh.prop.eff.Zn2=read.csv("C:/Matias/Analyses/Catch and effort/mesh.proportional.effort.Zone2.csv")
+  Mesh.prop.eff=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.csv"))
+  Mesh.prop.eff.West=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.West.csv"))
+  Mesh.prop.eff.Zn1=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.Zone1.csv"))
+  Mesh.prop.eff.Zn2=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.Zone2.csv"))
   
 
     #3.8. Gillnet selectivity 
@@ -1048,7 +1048,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   
 
   #4. Set working directory for outputing figures
-  HandL="C:/Matias/Analyses/Population dynamics/1."
+  HandL=handl_OneDrive("Analyses/Population dynamics/1.")
   DiR=paste(HandL,capitalize(Name),"/",Yr.assess,"/1_Inputs/Visualise data",sep='')
   if(!file.exists(DiR))
   {
@@ -1151,7 +1151,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   n.plots=length(catch)
   WIDTH=ifelse(n.plots>5,2400,2400)
   LENGTH=ifelse(n.plots>5,2000,2400)
-  fn.fig("All catches",WIDTH, LENGTH)
+  fn.fig("All recons catches",WIDTH, LENGTH)
   par(las=1)
   smart.par(n.plots=n.plots,MAR=c(1.75,1.75,1.75,1.75),OMA=c(2,2,.1,.1),MGP=c(1.5,.6,0))
   fn.see.Ktch(DAT=catch,
@@ -1511,7 +1511,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
  
 
 # Export data for population dynamics modelling ---------------------------
-  HandL="C:/Matias/Data/Population dynamics/Data inputs for models/"
+  HandL=handl_OneDrive("Data/Population dynamics/Data inputs for models/")
   DiR=paste(HandL,str_remove(capitalize(Name), ' shark'),"/",Yr.assess,sep='')
   if(!file.exists(DiR)) dir.create(DiR)
   

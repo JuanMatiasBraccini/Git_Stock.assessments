@@ -74,10 +74,11 @@ sum(D100$Recapture)
 sum(D1000$Recapture)
 sum(D10000$Recapture)
 
-write.csv(D10000,"C:/Matias/Analyses/Population dynamics/White shark/Mark_recapture/dummy1.csv",row.names=F)
-write.csv(D1000,"C:/Matias/Analyses/Population dynamics/White shark/Mark_recapture/dummy2.csv",row.names=F)
-write.csv(D100,"C:/Matias/Analyses/Population dynamics/White shark/Mark_recapture/dummy3.csv",row.names=F)
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+write.csv(D10000,handl_OneDrive("Analyses/Population dynamics/White shark/Mark_recapture/dummy1.csv"),row.names=F)
+write.csv(D1000,handl_OneDrive("Analyses/Population dynamics/White shark/Mark_recapture/dummy2.csv"),row.names=F)
+write.csv(D100,handl_OneDrive("Analyses/Population dynamics/White shark/Mark_recapture/dummy3.csv"),row.names=F)
 
-write.csv(D100_10percent_20yrs[!duplicated(D100_10percent_20yrs$Shark.ID),],"C:/Matias/Analyses/Population dynamics/White shark/Mark_recapture/dummy4.csv",row.names=F)
+write.csv(D100_10percent_20yrs[!duplicated(D100_10percent_20yrs$Shark.ID),],handl_OneDrive("Analyses/Population dynamics/White shark/Mark_recapture/dummy4.csv"),row.names=F)
 
 

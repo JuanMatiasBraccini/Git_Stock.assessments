@@ -102,7 +102,8 @@ PCM=data.frame(Group=c("Sawfish","Sawsharks","Wobbegongs","Mackerel","Greynurse"
 # 2 -------------------DATA SECTION------------------------------------
 
 options(stringsAsFactors = FALSE)
-fn.hndl=function(x)paste('C:/Matias/Data/Catch and Effort/',x,sep='')
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+fn.hndl=function(x)paste(handl_OneDrive('Data/Catch and Effort/'),x,sep='')
 
 ## Fishery codes
 FisheryCodes=read_excel(fn.hndl('FisheryCodeTable.xlsx'), sheet = "CAEStoFISHCUBE")
@@ -126,11 +127,11 @@ AFMA_GAB_WTB= read.csv(fn.hndl('AFMA_GAB.trawl_WTB.csv'))  #catch in kg; source:
 
 
 ## Species codes
-All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for catch
+All.species.names=read.csv(handl_OneDrive("Data/Species_names_shark.only.csv")) #for catch
 
 
 ## 2.1 Catch_WA Fisheries
-setwd("C:/Matias/Analyses/Data_outs")
+setwd(handl_OneDrive("Analyses/Data_outs"))
 
   #-- 2.1.1 all monthly return and daily logbook fisheries from 1975-76
 
@@ -183,7 +184,7 @@ WRL.copper.dusky.prop=0.25  #average proportion copper sharks
 
     #2.1.4.1 TDGDLF
 #note: data obtained from Comments in TDGDLF returns
-TEPS=read.csv(paste('C:/Matias/Data/Catch and Effort',
+TEPS=read.csv(paste(handl_OneDrive('Data/Catch and Effort'),
               paste(Asses.year-2,substr(Asses.year-1,3,4),sep="_"),
               "TEPS_PROTECTEDSP.csv",sep='/'))
   #Length weigths
@@ -255,7 +256,7 @@ BRD_pilbara.trawl_year='2003-04'
   {
     ## Shark bio data
     User="Matias"
-    source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
+    source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R"))
     Observed.hours.Pilbara=DATA.bio%>%
       filter(Method=='TW')%>%
       distinct(SHEET_NO)%>%
@@ -430,7 +431,7 @@ Kimberley.GBF.observed.comp=data.frame(
 Kimberley.GBF.observed.effort=160  #days (McAuley et al 2005 page 26; 5 vessels observed)
 
     #total annual effort
-fn.rid.efrt=function(d) paste('C:/Matias/Data/Catch and Effort/Effort_other_fisheries',d,sep='/')
+fn.rid.efrt=function(d) paste(handl_OneDrive('Data/Catch and Effort/Effort_other_fisheries'),d,sep='/')
 Kimberley.GBF.annual.effort=read.csv(fn.rid.efrt('KGBF Annual catch and Bdays.csv'))    #days (KGBF and 80 mile beach combined)
 
 
@@ -577,7 +578,7 @@ Indo_assumed.n.trips.per.year=10  #assumed number of trips per vessel per year
 
 
 #Vanesa Jaiteh's thesis
-Indo_MOU.Vanesa=read.csv('C:/Matias/Data/Catch and Effort/Indonesia_Shark Data MasteR_updated_09_Sept_15.csv',stringsAsFactors = F)
+Indo_MOU.Vanesa=read.csv(handl_OneDrive('Data/Catch and Effort/Indonesia_Shark Data MasteR_updated_09_Sept_15.csv'),stringsAsFactors = F)
 #Indo_average.trip.length_MOU=mean(c(3*7,8*7))  #days 
 #Indo_assumed.n.trips.per.year_MOU=round(28*365/639) #number of trips between March 2012 and November 2013
 #Indo_average.shark.per.day_MOU=7 # 4 +/- 3 reported
@@ -597,7 +598,7 @@ prop_banjo_wedge_south=read.csv(fn.hndl('prop_banjo_wedge_south.csv'))
 
 
 #-- 2.2.6 M. Antarcticus proportion of all gummy sharks
-Gummies.prop=read.csv("C:/Matias/Analyses/Catch and effort/Gummies.prop.csv",stringsAsFactors=F)
+Gummies.prop=read.csv(handl_OneDrive("Analyses/Catch and effort/Gummies.prop.csv"),stringsAsFactors=F)
 
 
 
@@ -671,8 +672,8 @@ Scalefish.Trawl.fisheries=c('PFT')
 
 if(Do.recons.paper=="YES")
 {
-  fn.hnd.out=function(x)paste('C:/Matias/Analyses/Reconstruction_catch_commercial/',x,sep='')
-  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
+  fn.hnd.out=function(x)paste(handl_OneDrive('Analyses/Reconstruction_catch_commercial/'),x,sep='')
+  source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R"))
   
   dummy=Data.monthly%>%
     mutate(FishCubeName=ifelse(FishCubeCode=='OANCGCWC',"Open Access in the West Coast Bioregion",FishCubeName),
@@ -710,7 +711,7 @@ if(Do.recons.paper=="YES")
   dit=dit%>%left_join(dit.region,by='FishCubeCode')%>%
     dplyr::select(-c(FishCubeCode,FishCubeName,LAT))
   
-  setwd('C:/Matias/Analyses/Reconstruction_catch_commercial')
+  setwd(handl_OneDrive('Analyses/Reconstruction_catch_commercial'))
   fn.word.table(WD=getwd(),TBL=dit,Doc.nm="Fisheries.reporting.shark_rays_tonnes",caption=NA,paragph=NA,
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                 Zebra='NO',Zebra.col='grey60',Grid.col='black',
@@ -1730,7 +1731,7 @@ Data.monthly.north=Data.monthly.north%>%
 fn.out=function(d,NM)
 {
   d=subset(d,LIVEWT.c>0)
-  write.csv(d,paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),row.names = F)
+  write.csv(d,paste(handl_OneDrive('Analyses/Data_outs/'),NM,sep=""),row.names = F)
 }
  
 Yr.lim=c(as.numeric(substr(min(unique(Hist.expnd$FINYEAR)),1,4)),
@@ -1842,8 +1843,8 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
                     Historic,North,South,WRL,Protected,Taiwanese,Indonesian,WTB,GAB)
     
   
-  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")  
-  setwd('C:/Matias/Analyses/Reconstruction_catch_commercial')
+  source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R"))  
+  setwd(handl_OneDrive('Analyses/Reconstruction_catch_commercial'))
   fn.word.table(WD=getwd(),TBL=Table1,
                 Doc.nm="Table1",caption=NA,paragph=NA,
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
@@ -1852,7 +1853,7 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
 
   
   #Figure 1. species annual catch by fishery
-  source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R')
+  source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R'))
   these.sp=Table1[1:ID,]%>%pull(Common.name)
   
   

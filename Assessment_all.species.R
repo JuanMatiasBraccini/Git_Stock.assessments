@@ -11,7 +11,11 @@
 #     set up SS3 model for indicator species
 #     Use .CPUE_Observer_TDGDLF.csv in likelihoods?
 #     'recons_NT_catch.csv'  Only dusky and sandbar, missing other shared stock (tiger, etc)
-
+#     Double check that TwT calcultion uses TL and not FL, be consistent
+#     Bring in Pilbara sawfish catch (recons_Pilbara_trawl_sawfish.csv in Data_outs), need
+#         to multiply numbers by average weigth and account for PCS, and reconstruct prior to 
+#         using effort X average cpue.
+#     Make sure life history of wobbegongs is for banded (Orectolobus halei) and spotted (O. maculatus)
 
 #Notes:
 #     1. The PSA filters out species from further analyses thru 'Criteria for selecting what species to assess'
@@ -59,14 +63,16 @@ library(MCDA)
 library(sfsmisc)   # p values from rlm
 library(data.table)
 
-source.hnld="C:/Matias/Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/"
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+
+source.hnld=handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/")
 fn.source=function(script)source(paste(source.hnld,script,sep=""))
 fn.source("fn.fig.R")
 fn.source("Leslie.matrix.R") 
 fn.source("Steepness.R") 
 fn.source("Catch_MSY.R")
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R")
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R"))
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R"))
 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
@@ -229,10 +235,10 @@ TDGLDF.disc.assumed.PCM="BaseCase"
 
 
 #---2. Catch and effort data section-----   
-Dat.repository='C:/Matias/Analyses/Data_outs/'  #where all input data are located
+Dat.repository=handl_OneDrive('Analyses/Data_outs/')  #where all input data are located
 
 #2.1. Species  
-All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv")
+All.species.names=read.csv(handl_OneDrive("Data/Species_names_shark.only.csv"))
 All.species.names=All.species.names%>%
                     mutate(Name=tolower(Name))%>%
                     filter(!(SPECIES==18014 & Name=="australian blacktip shark"))%>%
@@ -714,12 +720,12 @@ if(First.run=="YES")
   KtCh.method=Get.ktch$Total.method%>%filter(!Name%in%assessed.elsewhere)
   
   #biological and fishery attributes for psa
-  PSA.list=read.csv('C:/Matias/Analyses/Population dynamics/PSA/PSA_scores_other.species.csv')
+  PSA.list=read.csv(handl_OneDrive('Analyses/Population dynamics/PSA/PSA_scores_other.species.csv'))
   PSA.list=PSA.list%>%filter(!Species%in%assessed.elsewhere)
   
   
   #Show annual catches
-  Exprt="C:/Matias/Analyses/Population dynamics/PSA"
+  Exprt=handl_OneDrive("Analyses/Population dynamics/PSA")
   KtCh.method%>%
     filter(Name%in%PSA.list$Species)%>%
     mutate(Year=as.numeric(substr(FINYEAR,1,4)),
@@ -942,7 +948,7 @@ fn.mtch=function(WHAT,NMS) match(WHAT,names(NMS))
 Q_phz=c("lnq","lnq2","log_Qdaily")                           
 Zns.par.phz=c("lnR_prop_west","lnR_prop_zn1")
 MOv.par.phz=c("log_p11","log_p22","log_p21","log_p33")
-LH.data=read.csv('C:/Matias/Data/Life history parameters/Life_History.csv')
+LH.data=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv'))
 for(l in 1:N.sp)
 {
   print(paste("---------",names(List.sp)[l]))
@@ -1490,7 +1496,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$n.areas=n.areas
     List.sp[[l]]$Areas.zones=data.frame(area=1:n.areas,zone=List.sp[[l]]$AREAS)
     
-    List.sp[[l]]$hndl=paste("C:/Matias/Analyses/Population dynamics/1.",capitalize(List.sp[[l]]$Name),"/",sep='')
+    List.sp[[l]]$hndl=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",sep='')
     
     List.sp[[l]]$Fo_SB=List.sp[[l]]$Fo  #fixed
     
@@ -1922,7 +1928,7 @@ for(l in 1:N.sp)
 if(First.run=="YES")
 {
   #Export Life history table
-  Rar.path=paste('C:/Matias/Reports/RARs', AssessYr,sep="/")
+  Rar.path=paste(handl_OneDrive('Reports/RARs'), AssessYr,sep="/")
   if(!dir.exists(Rar.path))dir.create(Rar.path)
   setwd(Rar.path)
   TabL=LH.data%>%
@@ -1948,7 +1954,7 @@ if(First.run=="YES")
 #---6. Export all available input data to each species assessment folder----- 
 if(First.run=="YES")
 {
-  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Organise data.R")
+  source(handl_OneDrive("Analyses/Population dynamics/Git_Stock.assessments/Organise data.R"))
   for(l in 1:N.sp)
   {
     print(paste("---------",names(List.sp)[l]))
@@ -2078,7 +2084,7 @@ if(do.r.prior)
   system.time({for(l in 1:N.sp)   #takes 0.013 sec per iteration per species
   {
     print(paste("r prior ","--",List.sp[[l]]$Name))
-    PATH=paste("C:/Matias/Analyses/Population dynamics/1.",
+    PATH=paste(handl_OneDrive("Analyses/Population dynamics/1."),
                capitalize(List.sp[[l]]$Name),"/",AssessYr,"/demography",sep='')
     if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))   
     setwd(PATH)
@@ -2116,7 +2122,7 @@ if(do.r.prior)
 {
   for(l in 1:N.sp) 
   {
-    store.species.r[[l]]=read.csv(paste("C:/Matias/Analyses/Population dynamics/1.",capitalize(List.sp[[l]]$Name),"/",
+    store.species.r[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
                                          AssessYr,"/demography/r.prior.csv",sep=''))
   }
 }
@@ -2147,7 +2153,7 @@ Sel.equivalence=data.frame(
                     rep('Carcharhinidae',6)))
 Selectivity.at.age=vector('list',N.sp)
 names(Selectivity.at.age)=Keep.species
-HandL="C:/Matias/Data/Population dynamics/Data inputs for models/"
+HandL=handl_OneDrive("Data/Population dynamics/Data inputs for models/")
 for(l in 1:N.sp)
 {
   #1. Read in selectivity at age data
@@ -2177,7 +2183,7 @@ for(l in 1:N.sp)
 #display selectivities
 if(First.run=="YES")
 {
-  fn.fig('C:\\Matias\\Analyses\\Population dynamics\\growth.and.selectivity',2400,2000) 
+  fn.fig(handl_OneDrive('Analyses\\Population dynamics\\growth.and.selectivity'),2400,2000) 
   smart.par(n.plots=N.sp,MAR=c(2,3,1,1),OMA=c(2.5,1,.05,2.5),MGP=c(1.8,.5,0))
   par(cex.lab=1.5,las=1)
   for(l in 1:N.sp)
@@ -2196,7 +2202,7 @@ if(First.run=="YES")
   mtext("TL", side = 4, line = 1,outer=T,las=3)
   dev.off()
   
-  fn.fig('C:\\Matias\\Analyses\\Population dynamics\\growth.and.selectivity2',2400,2000) 
+  fn.fig(handl_OneDrive('Analyses\\Population dynamics\\growth.and.selectivity2'),2400,2000) 
   smart.par(n.plots=N.sp,MAR=c(2,3,1,1),OMA=c(2.5,1,.05,2.5),MGP=c(1.8,.5,0))
   par(cex.lab=1.5,las=1)
   for(l in 1:N.sp)
@@ -2225,7 +2231,7 @@ if(do.steepness)
   system.time(for(l in 1: N.sp) 
   {
     print(paste("steepness ","--",List.sp[[l]]$Name))
-    PATH=paste("C:/Matias/Analyses/Population dynamics/1.",
+    PATH=paste(handl_OneDrive("Analyses/Population dynamics/1."),
                capitalize(List.sp[[l]]$Name),"/",AssessYr,"/steepness",sep='')
     if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))
     setwd(PATH)
@@ -2273,7 +2279,7 @@ if(do.steepness)
 {
   for(l in 1: N.sp)
   {
-    store.species.steepness[[l]]=read.csv(paste("C:/Matias/Analyses/Population dynamics/1.",capitalize(List.sp[[l]]$Name),"/",
+    store.species.steepness[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
                                                 AssessYr,"/steepness/h.prior.csv",sep=''))
   }
 }
@@ -2301,7 +2307,7 @@ if(do.steepness)
     geom_errorbar(aes(ymin=h-h.sd, ymax=h+h.sd),colour=COL)+
     geom_errorbarh(aes(xmin=r-r.sd, xmax=r+r.sd),colour=COL)
   p
-  ggsave('C:/Matias/Analyses/Population dynamics/Steepness_vs_r.tiff', width = 6,
+  ggsave(handl_OneDrive('Analyses/Population dynamics/Steepness_vs_r.tiff'), width = 6,
          height = 6, dpi = 300, compression = "lzw")
   
 }
@@ -2864,7 +2870,7 @@ if(do.other.ass)
       OM.out=Ktch.sim
       for(l in 1:length(OM.out)) OM.out[[l]]=OM(K=KK,r=rr,Ktch=Ktch.sim[[l]])
       Mxylim=ceiling(max(unlist(Ktch.sim)))
-      hndl.sim.test='C:\\Matias\\Analyses\\Population dynamics\\1.Other species\\2019\\Outputs\\Simulation_testing_catchMSY\\'
+      hndl.sim.test=handl_OneDrive('Analyses\\Population dynamics\\1.Other species\\2019\\Outputs\\Simulation_testing_catchMSY\\')
       names(OM.out)=c("High catch","Low catch")
       #names(OM.out)=c("S1","S1 low catch","S2","S2 low catch")
       fn.fig(paste(hndl.sim.test,"1.OM.outs",sep=''), 1800, 2400)
@@ -3043,7 +3049,7 @@ if(do.other.ass)
       #Execute Catch-MSY  
       print(paste("CMSY------","s=",s,names(List.sp)[Idd]))
       
-      PATH=paste("C:/Matias/Analyses/Population dynamics/1.",capitalize(List.sp[[Idd]]$Name),"/",AssessYr,"/CMSY",sep='')
+      PATH=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[Idd]]$Name),"/",AssessYr,"/CMSY",sep='')
       if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))   
       setwd(file.path(PATH))
       PHat=file.path(PATH)
@@ -3452,7 +3458,7 @@ suppressWarnings(rm(list=all.objects[which(all.objects%in%List.objs)]))
 for(l in 1:length(List.sp))
 {
   attach(List.sp[[l]])
-  source("C:/Matias/Analyses/Population dynamics/Git_Stock.assessments/Run.models.R")
+  source(handl_OneDrive("Analyses/Population dynamics/Git_Stock.assessments/Run.models.R"))
   detach(List.sp[[l]])
 }
 
@@ -3462,8 +3468,8 @@ for(l in 1:length(List.sp))
 #---RESULTS.'Other' species ------------------------------------------------- 
 if(do.other.ass)
 {
-  if(do.other.ass.paper) hNdl='C:/Matias/Analyses/Population dynamics/Other species/2020' else
-    hNdl=paste('C:/Matias/Analyses/Population dynamics/Other species/',AssessYr,sep='')
+  if(do.other.ass.paper) hNdl=handl_OneDrive('Analyses/Population dynamics/Other species/2020') else
+    hNdl=paste(handl_OneDrive('Analyses/Population dynamics/Other species/'),AssessYr,sep='')
   if(!dir.exists(hNdl))dir.create(hNdl)
   
   #---RESULTS. Catches of all species by fishery ----

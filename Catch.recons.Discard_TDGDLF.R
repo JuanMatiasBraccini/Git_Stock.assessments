@@ -25,8 +25,9 @@ library(ggrepel)
 library(patchwork)
 
 User="Matias"
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R")
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R")
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R"))
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R"))
 
 
 
@@ -45,33 +46,33 @@ Dat_obs=Dat_obs %>% filter(Method=="GN")
 
 
 # Commercial catch data   
-Dat_total=read.csv('C:\\Matias\\Analyses\\Data_outs\\Data.monthly.csv',stringsAsFactors = F)
+Dat_total=read.csv(handl_OneDrive('Analyses\\Data_outs\\Data.monthly.csv'),stringsAsFactors = F)
 
 
 # Species names
-All.species.names=read.csv("C:/Matias/Data/Species_names_shark.only.csv") #for catch
+All.species.names=read.csv(handl_OneDrive("Data/Species_names_shark.only.csv")) #for catch
 
 
 #List of discarded/retained species
-Comm.disc.sp=read.csv("C:/Matias/Analyses/Ecosystem indices and multivariate/Shark-bycatch/SPECIES+PCS+FATE.csv",stringsAsFactors = F)
+Comm.disc.sp=read.csv(handl_OneDrive("Analyses/Ecosystem indices and multivariate/Shark-bycatch/SPECIES+PCS+FATE.csv"),stringsAsFactors = F)
 
 
 #Length weight relationships
-Len.wei=read.csv("C:/Matias/Data/Length_Weights/length.weights.csv",stringsAsFactors = F)
+Len.wei=read.csv(handl_OneDrive("Data/Length_Weights/length.weights.csv"),stringsAsFactors = F)
 
 #Weight ranges
-Wei.range=read.csv("C:/Matias/Data/Length_Weights/Data.Ranges.csv")
-Wei.range.names=read.csv("C:/Matias/Data/Length_Weights/Species.names.csv")
+Wei.range=read.csv(handl_OneDrive("Data/Length_Weights/Data.Ranges.csv"))
+Wei.range.names=read.csv(handl_OneDrive("Data/Length_Weights/Species.names.csv"))
 
 
 #Post capture mortality
-PCM.north=read.csv('C:/Matias/Analyses/Reconstruction_catch_commercial/TableS1.PCM_North.csv')
-PCM.south=read.csv('C:/Matias/Analyses/Reconstruction_catch_commercial/TableS1.PCM_South.csv')
+PCM.north=read.csv(handl_OneDrive('Analyses/Reconstruction_catch_commercial/TableS1.PCM_North.csv'))
+PCM.south=read.csv(handl_OneDrive('Analyses/Reconstruction_catch_commercial/TableS1.PCM_South.csv'))
 
 
 #Spatial distribution of discarded species
-elasmos_dist=read.csv('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF/elasmos_dist.csv')
-teleosts_dist=read.csv('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF/teleosts_dist.csv')
+elasmos_dist=read.csv(handl_OneDrive('Analyses/Reconstruction_total_bycatch_TDGDLF/elasmos_dist.csv'))
+teleosts_dist=read.csv(handl_OneDrive('Analyses/Reconstruction_total_bycatch_TDGDLF/teleosts_dist.csv'))
 
 
 # 2. Parameter ---------------------------------------------------------
@@ -96,7 +97,7 @@ do.paper=FALSE
 Stingrays=35000:40000
 
 # Manipulate species names ---------------------------------------------------------
-setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF')
+setwd(handl_OneDrive('Analyses/Reconstruction_total_bycatch_TDGDLF'))
 All.species.names=All.species.names%>%
                     mutate(Name=capitalize(tolower(Name)),
                            Name=case_when(Name=='Port jackson shark'~'Port Jackson shark',
@@ -208,7 +209,7 @@ if(do.this)
     ylab("Proportion")+
     labs(fill = "") +
     facet_wrap(~zone)
-  ggsave('C:/Matias/Analyses/Reconstruction_catch_commercial/FigureS4.tiff',width = 10,height = 6,compression = "lzw")
+  ggsave(handl_OneDrive('Analyses/Reconstruction_catch_commercial/FigureS4.tiff'),width = 10,height = 6,compression = "lzw")
   
   
   #Commercial catch
@@ -238,7 +239,7 @@ if(do.this)
     ylab("Proportion")+
     labs(fill = "") +
     facet_wrap(~zone)
-  ggsave('C:/Matias/Analyses/Reconstruction_catch_commercial/FigureS5.tiff',width = 10,height = 6,compression = "lzw")
+  ggsave(handl_OneDrive('Analyses/Reconstruction_catch_commercial/FigureS5.tiff'),width = 10,height = 6,compression = "lzw")
   
 }
 
@@ -1310,8 +1311,8 @@ stopCluster(cl)
 tabulate.obs.eff=FALSE
 if(tabulate.obs.eff)
 {
-  Effort_total=read.csv('C:\\Matias\\Analyses\\Data_outs\\Effort.monthly.csv',stringsAsFactors = F)
-  Effort_total.daily=read.csv('C:\\Matias\\Analyses\\Data_outs\\Effort.daily.csv',stringsAsFactors = F)
+  Effort_total=read.csv(handl_OneDrive('Analyses\\Data_outs\\Effort.monthly.csv'),stringsAsFactors = F)
+  Effort_total.daily=read.csv(handl_OneDrive('Analyses\\Data_outs\\Effort.daily.csv'),stringsAsFactors = F)
 }
 
 
@@ -1357,13 +1358,13 @@ if(do.map)
   library(PBSmapping)
   data(worldLLhigh)
   library(rgdal)
-  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R")
+  source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R"))
   
-  SDGDLL_zone1=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/SDGDLL_zone1.shp", layer="SDGDLL_zone1") 
-  SDGDLL_zone2=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/SDGDLL_zone2.shp", layer="SDGDLL_zone2") 
-  WCDGDLL=readOGR("C:/Matias/Data/Mapping/Shark_shape_files/WCDGDLL.shp", layer="WCDGDLL") 
-  Bathymetry_120=read.table("C:/Matias/Data/Mapping/get_data112_120.cgi")
-  Bathymetry_138=read.table("C:/Matias/Data/Mapping/get_data120.05_138.cgi")
+  SDGDLL_zone1=readOGR(handl_OneDrive("Data/Mapping/Shark_shape_files/SDGDLL_zone1.shp", layer="SDGDLL_zone1")) 
+  SDGDLL_zone2=readOGR(handl_OneDrive("Data/Mapping/Shark_shape_files/SDGDLL_zone2.shp", layer="SDGDLL_zone2")) 
+  WCDGDLL=readOGR(handl_OneDrive("Data/Mapping/Shark_shape_files/WCDGDLL.shp", layer="WCDGDLL")) 
+  Bathymetry_120=read.table(handl_OneDrive("Data/Mapping/get_data112_120.cgi"))
+  Bathymetry_138=read.table(handl_OneDrive("Data/Mapping/get_data120.05_138.cgi"))
   
   Bathymetry=rbind(Bathymetry_120,Bathymetry_138)%>%
     arrange(V1,V2)%>%
@@ -1772,7 +1773,7 @@ if(do.paper)
 }
 
 # Export total discard estimates-----------------------------------------------------------------------
-setwd('C:\\Matias\\Analyses\\Data_outs')
+setwd(handl_OneDrive('Analyses\\Data_outs'))
 
   #Elasmos
     #Base Case
@@ -1846,7 +1847,7 @@ write.csv(d,"recons_discard_TDGDLF_100.PCM.csv",row.names = F)
 
 
   #Teleosts
-setwd('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF/Results/Recons.scalefish')
+setwd(handl_OneDrive('Analyses/Reconstruction_total_bycatch_TDGDLF/Results/Recons.scalefish'))
     #Base Case
 YR=Results.show_teleosts[[1]]$YEAR
 out=vector('list',length(Plt.this_teleosts))
@@ -1888,7 +1889,7 @@ Info3.dat=Info3.dat%>%
           group_by(Name,Class,SPECIES)%>%
           summarise(Avrg=mean(LIVEWT.c))
 
-Avrg.retained=read.csv(paste('C:/Matias/Analyses/Catch and effort/State of fisheries/',
+Avrg.retained=read.csv(paste(handl_OneDrive('Analyses/Catch and effort/State of fisheries/'),
                              Last.5.yrs[length(Last.5.yrs)],'/ERA_table.retained.species.csv',sep=''))
                      
 Avrg.dat=data.frame(Class=c("Discarded","Retained"),
@@ -2007,5 +2008,5 @@ if(Info3=="pie")
 
 #Export infographic
 Infographic1 + Infographic2 / Infographic3 +plot_layout(ncol = 2, widths = unit(c(11.5, 5),c('cm','cm')))
-ggsave('C:/Matias/Analyses/Reconstruction_total_bycatch_TDGDLF/Results/Infographic.tiff',
+ggsave(handl_OneDrive('Analyses/Reconstruction_total_bycatch_TDGDLF/Results/Infographic.tiff'),
        width = 12,height = 7,compression = "lzw")

@@ -55,7 +55,8 @@ Scenarios=data.frame(Scenario=c('Base Case','High','Low'),
 # 1 -------------------DATA SECTION------------------------------------
 
 # I-Survey
-Rec.hndl="C:/Matias/Data/Catch and Effort/Recreational/I.Survey."
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+Rec.hndl=handl_OneDrive("Data/Catch and Effort/Recreational/I.Survey.")
 #Rec.fish.catch.2011.12=read.csv(paste(Rec.hndl,"2011_12.csv",sep=''),stringsAsFactors=F) #Ryan et al 2013    
 #Rec.fish.catch.2013.14=read.csv(paste(Rec.hndl,"2013_14.csv",sep=''),stringsAsFactors=F) #Ryan et al 2015 
 #Rec.fish.catch.2015.16=read.csv(paste(Rec.hndl,"2015_16.csv",sep=''),stringsAsFactors=F) #Ryan et al 2017 
@@ -90,19 +91,19 @@ I.survey.years=unique(Rec.fish.catch$FinYear)
   # K_RSE = relative standard error associated with Kept
   # K_HHs = number of households that reported a Kept catch 
   # R = released, T = Total 
-Shore.based=read.csv("C:/Matias/Data/Catch and Effort/Recreational/statewide shark 2000_01.csv",stringsAsFactors=F)
+Shore.based=read.csv(handl_OneDrive("Data/Catch and Effort/Recreational/statewide shark 2000_01.csv"),stringsAsFactors=F)
 
 #Perth metro pilot survey (Claire Smallwood)
-Shore.based.metro.pilot=read.csv('C:/Matias/Data/Catch and Effort/Recreational/RawCatch_Sharks_Export.csv',stringsAsFactors=F)
+Shore.based.metro.pilot=read.csv('handl_OneDrive(Data/Catch and Effort/Recreational/RawCatch_Sharks_Export.csv'),stringsAsFactors=F)
 
 
 # Charter boats
-Charter=read_excel("C:\\Matias\\Data\\Catch and Effort\\Charter\\Charter.xlsx",sheet ='Data')
+Charter=read_excel("handl_OneDrive(Data\\Catch and Effort\\Charter\\Charter.xlsx"),sheet ='Data')
 
 
 # WA population for rec catch recons (ABS) (Google "What is the population of Western Australia 20xx?")
 #source: https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Dec%202018?OpenDocument
-WA.population=read.csv("C:/Matias/Data/AusBureauStatistics.csv",stringsAsFactors=F)
+WA.population=read.csv(handl_OneDrive("Data/AusBureauStatistics.csv"),stringsAsFactors=F)
 
 #Participationg rate (Ryan et al 2017)
 #Part.rate.hist=30
@@ -487,7 +488,7 @@ Rec.ktch=Rec.ktch$`Base Case`
 # 7 -------------------EXPORT CATCH DATA------------------------------------
 fn.out=function(d,NM)
 {
-  write.csv(d,paste('C:/Matias/Analyses/Data_outs/',NM,sep=""),row.names = F)
+  write.csv(d,paste(handl_OneDrive('Analyses/Data_outs/'),NM,sep=""),row.names = F)
 }
 fn.out(d=Rec.ktch,NM='recons_recreational.csv')
 
@@ -496,7 +497,7 @@ fn.out(d=Rec.ktch,NM='recons_recreational.csv')
 # 8 -------------------Report------------------------------------
 if(Do.recons.rec.fishn.paper=="YES")
 {
-  hndl.out="C:\\Matias\\Analyses\\Reconstruction_catch_recreational\\"
+  hndl.out=handl_OneDrive("Analyses\\Reconstruction_catch_recreational\\")
   
   #export summarised ISurvey and Charter logbooks
   Tab.2=Rec.fish.catch%>%
@@ -639,7 +640,7 @@ if(Do.recons.rec.fishn.paper=="YES")
   
   
   #3. Temporal trends in reconstructed catches      
-  source('C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R')
+  source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/Smart_par.R'))
   Rec.ktch=Rec.ktch%>%
     mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
     arrange(Common.Name)
@@ -694,11 +695,11 @@ if(Do.recons.rec.fishn.paper=="YES")
   
   
   #4. Bioregion map
-  hndl.map="C:/Matias/Data/Mapping/Bioregions"
+  hndl.map=handl_OneDrive("Data/Mapping/Bioregions")
   library(rgdal)
   library(PBSmapping)
   data(worldLLhigh)
-  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R")
+  source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R"))
   Bioregions=readOGR(paste(hndl.map,"Bioregions.shp",sep="/"), layer="Bioregions") 
   
   South.WA.long=c(109,129)
