@@ -15,7 +15,8 @@ mid.FL.fem=60:180
 sel.g=((mid.FL.fem*10/alphabeta.g)^alpha.g)*(exp(alpha.g-(mid.FL.fem*10/beta.g)))
 sel.w=((mid.FL.fem*10/alphabeta.w)^alpha.w)*(exp(alpha.w-(mid.FL.fem*10/beta.w)))
 
-handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
+
 setwd(handl_OneDrive('Analyses/Population dynamics/Visualise data'))
 tiff(file=paste("Selectivty.length.Whi.Gum.tiff"),width = 2400, height = 2400,
      units = "px", res = 300,compression = "lzw")

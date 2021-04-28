@@ -18,7 +18,7 @@ data(tanaka)
 #Mortality=mort.al(relyr = tanaka$relyr, tal = tanaka$tal, N = tanaka$N)
 
 
-handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 
 Dat=read.csv(handl_OneDrive("Analyses/Mark_recapture_analysis/Tagging.data.csv"),stringsAsFactors=T)
 Dat=subset(Dat,select=c(SHEET_NO,Species,Sex,Day.rel,Mn.rel,Yr.rel,Day.rec,Mn.rec,Yr.rec))

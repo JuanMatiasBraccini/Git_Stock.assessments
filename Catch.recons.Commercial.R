@@ -102,7 +102,8 @@ PCM=data.frame(Group=c("Sawfish","Sawsharks","Wobbegongs","Mackerel","Greynurse"
 # 2 -------------------DATA SECTION------------------------------------
 
 options(stringsAsFactors = FALSE)
-handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
+
 fn.hndl=function(x)paste(handl_OneDrive('Data/Catch and Effort/'),x,sep='')
 
 ## Fishery codes

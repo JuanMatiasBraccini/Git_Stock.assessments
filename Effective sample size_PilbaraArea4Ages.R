@@ -1,5 +1,6 @@
 
-handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
+
 # dat=read.csv("C:\\Ainslie\\Finfish\\Pilbara\\2015\\Peter\\PilbaraArea4Ages.csv", header=FALSE)
 # dat=read.csv("C:\\Ainslie\\Finfish\\Pilbara\\2015\\Peter\\PilbaraArea4Ages2.csv", header=FALSE)
 dat=read.csv(handl_OneDrive("Analyses/Effective_sample_size/PilbaraArea4Ages2.csv"), header=FALSE)

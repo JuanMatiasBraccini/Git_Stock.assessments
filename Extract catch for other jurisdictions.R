@@ -2,7 +2,8 @@ library(tidyverse)
 library(ggplot2)
 
 # DATA SECTION ------------------------------------------------------------
-handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
+
 All.species.names=read.csv(handl_OneDrive("Data/Species_names_shark.only.csv"),stringsAsFactors = F)
 
 fn.in=function(NM) read.csv(paste(handl_OneDrive('Analyses/Data_outs/'),NM,sep=""),stringsAsFactors = F)

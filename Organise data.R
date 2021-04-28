@@ -20,7 +20,8 @@ Bio.col=c("dodgerblue","darkorchid4","cyan4","lightpink3")
 names(Bio.col)=c("North Coast","Gascoyne","West Coast","South Coast")
 
 
-handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
+
 if(!exists('fn.word.table')) source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R"))
 if(!exists('fn.fig')) fn.fig=function(NAME,Width,Height,Do.tiff="YES",Do.jpeg="NO")
 {

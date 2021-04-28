@@ -74,7 +74,8 @@ sum(D100$Recapture)
 sum(D1000$Recapture)
 sum(D10000$Recapture)
 
-handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
+
 write.csv(D10000,handl_OneDrive("Analyses/Population dynamics/White shark/Mark_recapture/dummy1.csv"),row.names=F)
 write.csv(D1000,handl_OneDrive("Analyses/Population dynamics/White shark/Mark_recapture/dummy2.csv"),row.names=F)
 write.csv(D100,handl_OneDrive("Analyses/Population dynamics/White shark/Mark_recapture/dummy3.csv"),row.names=F)
