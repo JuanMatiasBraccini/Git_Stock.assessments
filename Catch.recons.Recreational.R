@@ -1,13 +1,12 @@
 #-- Script for reconstructing time series of recreational catch of sharks in WA
 
-#missing: consider "#Perth metro pilot survey (Claire Smallwood)"
-
-#         MAKE sure all species (rec, comm, discards) are considered (e.g PJs)     VIP!!!
+#missing: incorporate this to beach-based catch "#Perth metro pilot survey (Claire Smallwood)"
 
 # Annual updates:
-        # For each new I-survey, get data from Karina
-        # Update Charter boat data each year
-        # Update WA.population
+        # Rec. catch :
+              # get data from Karina for each new I-survey, 
+              # update Charter boat data each year
+              # update WA.population
 
 
 #notes: This script uses I-Survey (boat-based) point estimates to reconstruct
@@ -95,11 +94,11 @@ I.survey.years=unique(Rec.fish.catch$FinYear)
 Shore.based=read.csv(handl_OneDrive("Data/Catch and Effort/Recreational/statewide shark 2000_01.csv"),stringsAsFactors=F)
 
 #Perth metro pilot survey (Claire Smallwood)
-Shore.based.metro.pilot=read.csv('handl_OneDrive(Data/Catch and Effort/Recreational/RawCatch_Sharks_Export.csv'),stringsAsFactors=F)
+Shore.based.metro.pilot=read.csv(handl_OneDrive('Data/Catch and Effort/Recreational/RawCatch_Sharks_Export.csv'),stringsAsFactors=F)
 
 
 # Charter boats
-Charter=read_excel("handl_OneDrive(Data\\Catch and Effort\\Charter\\Charter.xlsx"),sheet ='Data')
+Charter=read_excel(handl_OneDrive("Data\\Catch and Effort\\Charter\\Charter.xlsx"),sheet ='Data')
 
 
 # WA population for rec catch recons (ABS) (Google "What is the population of Western Australia 20xx?")
@@ -650,49 +649,78 @@ if(Do.recons.rec.fishn.paper=="YES")
   Legdns=capitalize(tolower(Rec.sp))
   Legdns=ifelse(Legdns=="Port jackson shark","Port Jackson shark",Legdns)
   
-  tiff(file=paste(hndl.out,"Fig4. Time series.tiff",sep=''),width=2400,height=2000,
-       units="px",res=300,compression="lzw") 
-  smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1.2),OMA=c(1.75,2.5,.5,.1),MGP=c(1,.5,0))
-  for(i in 1:length(Rec.sp))
+  show.sensitivity=FALSE
+  if(show.sensitivity==TRUE)
   {
-    d=Rec.ktch%>%
-      filter(Common.Name==Rec.sp[i])%>%
-      mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
-      group_by(year)%>%
-      summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+    tiff(file=paste(hndl.out,"Fig4. Time series_sensitivity.tiff",sep=''),width=2400,height=2000,
+         units="px",res=300,compression="lzw") 
+    smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1.2),OMA=c(1.75,2.5,.5,.1),MGP=c(1,.5,0))
+    for(i in 1:length(Rec.sp))
+    {
+      d=Rec.ktch%>%
+        filter(Common.Name==Rec.sp[i])%>%
+        mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+        group_by(year)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+      
+      d.up=Rec.ktch.Upper%>%
+        filter(Common.Name==Rec.sp[i])%>%
+        mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+        group_by(year)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+      
+      d.low=Rec.ktch.Lower%>%
+        filter(Common.Name==Rec.sp[i])%>%
+        mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+        group_by(year)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+      
+      plot(sort(unique(d$year)),sort(unique(d$year)),col='transparent',cex=.8,ann=F,
+           ylim=c(0,max(d.up$LIVEWT.c,na.rm=T)))
+      if(nrow(d)>0) lines(d$year,d$LIVEWT.c,col="grey55",lwd=LWD)
+      if(nrow(d.up)>0) lines(d.up$year,d.up$LIVEWT.c,col="grey20",lwd=LWD)
+      if(nrow(d.low)>0) lines(d.low$year,d.low$LIVEWT.c,col="grey80",lwd=LWD)
+      #ySeq=seq(min(d.up$LIVEWT.c),max(d.up$LIVEWT.c),length.out = 3)
+      #if(trunc(ySeq)[1]>0) ySeq.lab=round(ySeq.lab) else
+      #ySeq.lab=round(ySeq,3)
+      #axis(2,ySeq,ySeq.lab)
+      
+      nm=Legdns[i]
+      #  nm=ifelse(nm=="Wobbegong","Wobbegongs",nm)
+      mtext(paste(nm),3,line=0.2,cex=0.8)  
+    }
+    plot.new()
+    legend('left',c("High","Base case","Low"),lty=1,col=c("grey20","grey55","grey80"),
+           lwd=LWD,bty='n',cex=1.3)
+    mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
+    mtext("Total harvest (tonnes)",2,las=3,line=.7,cex=1.5,outer=T)
+    dev.off()
     
-    d.up=Rec.ktch.Upper%>%
-      filter(Common.Name==Rec.sp[i])%>%
-      mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
-      group_by(year)%>%
-      summarise(LIVEWT.c=sum(LIVEWT.c/1000))
-    
-    d.low=Rec.ktch.Lower%>%
-      filter(Common.Name==Rec.sp[i])%>%
-      mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
-      group_by(year)%>%
-      summarise(LIVEWT.c=sum(LIVEWT.c/1000))
-    
-    plot(sort(unique(d$year)),sort(unique(d$year)),col='transparent',cex=.8,ann=F,
-         ylim=c(0,max(d.up$LIVEWT.c,na.rm=T)))
-    if(nrow(d)>0) lines(d$year,d$LIVEWT.c,col="grey55",lwd=LWD)
-    if(nrow(d.up)>0) lines(d.up$year,d.up$LIVEWT.c,col="grey20",lwd=LWD)
-    if(nrow(d.low)>0) lines(d.low$year,d.low$LIVEWT.c,col="grey80",lwd=LWD)
-    #ySeq=seq(min(d.up$LIVEWT.c),max(d.up$LIVEWT.c),length.out = 3)
-    #if(trunc(ySeq)[1]>0) ySeq.lab=round(ySeq.lab) else
-    #ySeq.lab=round(ySeq,3)
-    #axis(2,ySeq,ySeq.lab)
-    
-    nm=Legdns[i]
-  #  nm=ifelse(nm=="Wobbegong","Wobbegongs",nm)
-    mtext(paste(nm),3,line=0.2,cex=0.8)  
+  }else
+  {
+    tiff(file=paste(hndl.out,"Fig4. Time series.tiff",sep=''),width=2400,height=2000,
+         units="px",res=300,compression="lzw") 
+    smart.par(n.plots=length(Rec.sp),MAR=c(2,2,1,1.2),OMA=c(1.75,2.5,.5,.1),MGP=c(1,.5,0))
+    for(i in 1:length(Rec.sp))
+    {
+      d=Rec.ktch%>%
+        filter(Common.Name==Rec.sp[i])%>%
+        mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+        group_by(year)%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c/1000))
+      
+      plot(sort(unique(d$year)),sort(unique(d$year)),col='transparent',cex=.8,ann=F,
+           ylim=c(0,max(d$LIVEWT.c,na.rm=T)))
+      if(nrow(d)>0) lines(d$year,d$LIVEWT.c,col="grey25",lwd=LWD)
+      
+      nm=Legdns[i]
+      mtext(paste(nm),3,line=0.2,cex=0.8)  
+    }
+    plot.new()
+    mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
+    mtext("Total harvest (tonnes)",2,las=3,line=.7,cex=1.5,outer=T)
+    dev.off()
   }
-  plot.new()
-  legend('left',c("High","Base case","Low"),lty=1,col=c("grey20","grey55","grey80"),
-         lwd=LWD,bty='n',cex=1.3)
-  mtext("Financial year",1,line=0.5,cex=1.5,outer=T)
-  mtext("Total harvest (tonnes)",2,las=3,line=.7,cex=1.5,outer=T)
-  dev.off()
   
   
   #4. Bioregion map
@@ -728,6 +756,12 @@ if(Do.recons.rec.fishn.paper=="YES")
   text(113,-32.5,"Coast",cex=1.5)
   text(121,-35.8,"South Coast",cex=1.5)
   text(122,-26,"Western Australia",cex=2)
+  
+  text(115.64,-33.32,"Bunbury",cex=.8,pos=4);points(115.64,-33.32,pch=19)
+  text(115.8,-31.95,"Perth",cex=.8,pos=4);points(115.8,-31.95,pch=19)
+  text(114.3,-21.93,"Exmouth",cex=.8,pos=4);points(114.12,-21.93,pch=19)
+  text(122.23,-17.64,"Broome",cex=.8,pos=4);points(122.23,-17.64,pch=19)
+  text(117.88,-35.02,"Albany",cex=.8,pos=3);points(117.88,-35.02,pch=19)
   
   # #Australia
   par(fig = c(.05, .35, .7, 1), mar=c(0,0,0,0), new=TRUE)

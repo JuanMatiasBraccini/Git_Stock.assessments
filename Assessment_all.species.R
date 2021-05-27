@@ -1,4 +1,4 @@
-# ------ Script for running shark Stock assessments---- ###################
+# ------ Script for running stock assessments for WA sharks---- ###################
 
 #missing:  
 #     Include ALL species in final risk scoring

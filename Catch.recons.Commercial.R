@@ -20,10 +20,12 @@
 
 #1. "#Total landings time series". For fisheries listed in 'Calculate.discarding_catch' each year 
          #  download annual reported landings from FISHCUBE using the FishCube fishery code 
-         #  from 'Lista.reap.FishCubeCode' or could use the link provided in 
-         # Calculate.discarding.xlsx and run an update)
+         #  from 'Lista.reap.FishCubeCode' or could use the link provided in the front 
+         #  page of Calculate.discarding.xlsx and run an update)
 
-#2. Annual effort for "Kimberley.GBF.annual.effort"
+#2. Annual effort for "Kimberley.GBF.annual.effort" from Al Harry
+
+#3. Other jurisdictions (AFMA_GAB_WTB, Whaler_SA, NT_dusky_sandbar)
 
 options(dplyr.summarise.inform = FALSE)
 library(tidyverse)
@@ -34,7 +36,7 @@ library(tm)
 # 1 -------------------PARAMETERS SECTION------------------------------------
 
 Asses.year=2020    #enter year of assessment
-Last.yr.ktch="2018-19"  #enter year of last complete catches
+Last.yr.ktch="2019-20"  #enter year of last complete catches
 
 Shark.protection.yr=2007   #Commercial protection in non-shark fisheries came in November 2006 (Heupel & McAuley 2007 page 74)
 
@@ -119,9 +121,14 @@ Calculate.discarding_catch=read_excel(fn.hndl('Calculate.discarding.xlsx'), shee
          Group=Species.Group)
 
   #Non-WA fisheries 
+    #NT
 NT_dusky_sandbar=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "NT commercial") #catch in tonnes, source NT Thor Saunders & Michael Usher
 NT_dusky_sandbar.IUU=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "IUU")
+
+    #SA
 Whaler_SA=read.csv(fn.hndl("SA_marine_scalefish_whaler_ktch.csv"))  #catch in tonnes; source SARDI's Angelo Tsolos, Paul Rogers
+
+    #AFMA
 AFMA_GAB_WTB= read.csv(fn.hndl('AFMA_GAB.trawl_WTB.csv'))  #catch in kg; source: AFMA data request; Kehani Manson
 #WTBF_catch=read.csv(fn.hndl("WTBF_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
 #GAB.trawl_catch=read.csv(fn.hndl("Gab.trawl_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy

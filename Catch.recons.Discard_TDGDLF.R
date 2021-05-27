@@ -933,7 +933,7 @@ PCM_teleosts=DATA_obs_teleosts$GN%>%
 
 
 # Annual discards by species (sum(D_i_h x P_i x Y_h)) -------------------------------------------
-set.seed(666)
+set.seed(666) 
 fn.total=function(disc.dat,tot.dat,pcm,Impute,Dist)
 {
 
@@ -1018,7 +1018,7 @@ fn.total=function(disc.dat,tot.dat,pcm,Impute,Dist)
   {
     this=match(id[s],colnames(Total.discard))
     this.pcm=pcm%>%filter(SPECIES==str_remove(id[s], "total."))%>%pull(PCM)
-    Total.discard[,this]=Total.discard[,this]*this.pcm
+    Total.discard[,this]=Total.discard[,this]*this.pcm[1]
   }
   
   #Remove blocks outside species' distribution
@@ -1156,26 +1156,30 @@ if(do.sensitivity)
     
 
   }
-  tiff(file="Results/Figure3_Sensitivity.tiff",width = 2400, height = 2200,
-       units = "px", res = 300, compression = "lzw")    
-  smart.par(n.plots=length(this.sp.sen),MAR=c(1,2,2,1),OMA=c(2,2,.1,.12),MGP=c(1,.6,0))
-  par(las=1)
-  for(i in 1:length(this.sp.sen))
+  if(do.paper)
   {
-    fn.plt.sens(BC=Tot.discard.result[,c('BLOCK','YEAR',this.sp.sen[i])],
-                s1=S1[,c('BLOCK','YEAR',this.sp.sen[i])],
-                s2=S2[,c('BLOCK','YEAR',this.sp.sen[i])],
-                s3=S3[,c('BLOCK','YEAR',this.sp.sen[i])],
-                s4=S4[,c('BLOCK','YEAR',this.sp.sen[i])])
-    lgn=names(this.sp.sen[i])
-    mtext(lgn,3,cex=.88) 
+    tiff(file="Results/Figure3_Sensitivity.tiff",width = 2400, height = 2200,
+         units = "px", res = 300, compression = "lzw")    
+    smart.par(n.plots=length(this.sp.sen),MAR=c(1,2,2,1),OMA=c(2,2,.1,.12),MGP=c(1,.6,0))
+    par(las=1)
+    for(i in 1:length(this.sp.sen))
+    {
+      fn.plt.sens(BC=Tot.discard.result[,c('BLOCK','YEAR',this.sp.sen[i])],
+                  s1=S1[,c('BLOCK','YEAR',this.sp.sen[i])],
+                  s2=S2[,c('BLOCK','YEAR',this.sp.sen[i])],
+                  s3=S3[,c('BLOCK','YEAR',this.sp.sen[i])],
+                  s4=S4[,c('BLOCK','YEAR',this.sp.sen[i])])
+      lgn=names(this.sp.sen[i])
+      mtext(lgn,3,cex=.88) 
+    }
+    mtext("Finacial year",1,1,outer=T,cex=1.15)
+    mtext("Total discard (tonnes)",2,0.7,outer=T,las=3,cex=1.15)
+    #plot.new()
+    legend("bottom",c("Base case","S1","S2","S3","S4"),lty=c(1,rep(3,4)),lwd=2.5,
+           bty='n',col=c("#000000",col.scen),cex=1)
+    dev.off()
   }
-  mtext("Finacial year",1,1,outer=T,cex=1.15)
-  mtext("Total discard (tonnes)",2,0.7,outer=T,las=3,cex=1.15)
-  #plot.new()
-  legend("bottom",c("Base case","S1","S2","S3","S4"),lty=c(1,rep(3,4)),lwd=2.5,
-         bty='n',col=c("#000000",col.scen),cex=1)
-  dev.off()
+
 }
 
 # Show blocks interpolated by species ---------------------------------------------------------
@@ -1437,7 +1441,7 @@ if(do.map)
 }
 
 #Table 2. List of retained and discarded species
-write.csv(Table.disc.obs,"Results/Table_2.csv",row.names=F)
+if(do.paper) write.csv(Table.disc.obs,"Results/Table_2.csv",row.names=F)
 
 #Table of PCM and weights  
 if(do.paper)
@@ -1890,8 +1894,11 @@ Info3.dat=Info3.dat%>%
           group_by(Name,Class,SPECIES)%>%
           summarise(Avrg=mean(LIVEWT.c))
 
-Avrg.retained=read.csv(paste(handl_OneDrive('Analyses/Catch and effort/State of fisheries/'),
-                             Last.5.yrs[length(Last.5.yrs)],'/ERA_table.retained.species.csv',sep=''))
+This.file=paste(handl_OneDrive('Analyses/Catch and effort/State of fisheries/'),
+       Last.5.yrs[length(Last.5.yrs)],'/ERA_table.retained.species.csv',sep='')
+if(!file.exists(This.file)) This.file=paste(handl_OneDrive('Analyses/Catch and effort/State of fisheries/'),
+                                            Last.5.yrs[length(Last.5.yrs)-1],'/ERA_table.retained.species.csv',sep='')
+Avrg.retained=read.csv(This.file)
                      
 Avrg.dat=data.frame(Class=c("Discarded","Retained"),
                     Total=c(sum(Info3.dat$Avrg),sum(Avrg.retained$Average.catch)))                         
