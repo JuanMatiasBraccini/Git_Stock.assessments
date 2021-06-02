@@ -32,6 +32,7 @@ library(tidyverse)
 library(readxl)
 library(lubridate)
 library(tm)
+library(chron)
 
 # 1 -------------------PARAMETERS SECTION------------------------------------
 
@@ -122,6 +123,17 @@ Calculate.discarding_catch=read_excel(fn.hndl('Calculate.discarding.xlsx'), shee
 
   #Non-WA fisheries 
     #NT
+#note: these are the harks captured in NT offshore net and line fishery
+#https://nt.gov.au/__data/assets/pdf_file/0011/975584/nt-offshore-net-and-line-fishery-ecological-risk-assessment-2020.pdf
+NT.retained.sharks=c('Blacktip shark','Spot-tail shark',
+                     'Scalloped hammerhead','Great hammerhead',
+                     'Bull shark','Tiger shark','Lemon shark','Pigeye shark',
+                     'Grey reef shark','Spinner shark','Dusky shark','Sandbar shark',
+                     'winghead shark','Blacktip reef shark',
+                     'Creek whaler','Milk shark','Whitecheek shark',
+                     'Tawny shark','Fossil shark','Hardonse shark')
+NT.non.retained.sharks=c('Green sawfish','Narrow sawfish','Dwarf sawfish',
+                         'Largetooth sawfish','Manta rays','River sharks')
 NT_dusky_sandbar=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "NT commercial") #catch in tonnes, source NT Thor Saunders & Michael Usher
 NT_dusky_sandbar.IUU=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "IUU")
 
@@ -245,6 +257,10 @@ Pilbara.trawl.observed.comp=data.frame(
            1627.8,257.1,189.5,90.7,39.4,20.0,15.6,15.1,9.5,4.9,4.2,2,.8)
   )%>%
     mutate(Prop=Weight/sum(Weight))
+
+    #Number of sawfish interactions since 2005
+Pilbara_sawfish=read.csv(handl_OneDrive('Analyses/Sawfish/Pilbara/Data/20210330_1549 - Output.csv'),stringsAsFactors=F)
+
 
     #ratio observed shark catch to landed catch
 Pilbara.trawl.observed.landing=12901     # in kg; Table 9 Stephenson & Chidlow 2003
@@ -438,9 +454,17 @@ Kimberley.GBF.observed.comp=data.frame(
     #observed effort
 Kimberley.GBF.observed.effort=160  #days (McAuley et al 2005 page 26; 5 vessels observed)
 
-    #total annual effort
+    #total annual effort 
 fn.rid.efrt=function(d) paste(handl_OneDrive('Data/Catch and Effort/Effort_other_fisheries'),d,sep='/')
-Kimberley.GBF.annual.effort=read.csv(fn.rid.efrt('KGBF Annual catch and Bdays.csv'))    #days (KGBF and 80 mile beach combined)
+#KGB (effort in bdays, KGBF and 80 mile beach combined)
+#note: run the query in the Metadata spreadsheet
+Kimberley.GBF.annual.effort=read_excel(fn.rid.efrt('KGBF Annual catch and Bdays.xlsx'), sheet = "Data")%>%
+  rename(Total.Catch..kg.='Weight (kg)',
+         Total.Bdays='60x60NM Block Day Count',
+         Year='Financial Year')%>%
+         mutate(Year=as.numeric(substr(Year,1,4)))%>%
+         data.frame%>%
+  filter(Year<=as.numeric(substr(Last.yr.ktch,1,4)))
 
 
 #--Effort time series 
@@ -1353,7 +1377,33 @@ if(Do.recons.paper=="YES")
   
 }
 
-  #3.1.6. TEPS    
+  #3.1.6. TEPS  
+#Pilbara trawl sawfish  
+  #(Wakefield et al 2017a)
+  #no info on average weight from Pilbara trawl, using KGBF
+Sawfish.avrg.weight.pilbara.trawl=Kimberley.GBF.observed.comp%>%filter(Common.name%in%c('Narrow sawfish'))%>%mutate(Avrg=Weight/Numbers)%>%pull(Avrg)
+Pilbara_sawfish=Pilbara_sawfish%>%
+  mutate(StartTime=chron(times=StartTime),
+         StartDate=as.POSIXlt(as.character(StartDate),format='%d/%m/%Y'),
+         Year=year(StartDate),
+         Month=month(StartDate),
+         FINYEAR=ifelse(Month>=7,Year,Year-1),
+         FINYEAR=paste(FINYEAR,substr(FINYEAR+1,3,4),sep='-'))%>%
+  mutate(SawfishNarrowALIVE=ifelse(is.na(SawfishNarrowALIVE),0,SawfishNarrowALIVE),
+         SawfishNarrowDEAD=ifelse(is.na(SawfishNarrowDEAD),0,SawfishNarrowDEAD),
+         SawfishGreenALIVE=ifelse(is.na(SawfishGreenALIVE),0,SawfishGreenALIVE),
+         SawfishGreenDEAD=ifelse(is.na(SawfishGreenDEAD),0,SawfishGreenDEAD),
+         SawfishNarrow=SawfishNarrowALIVE*PCM%>%filter(Group=="Sawfish")%>%pull(Trawl)+SawfishNarrowDEAD,
+         SawfishGreen=SawfishGreenALIVE*PCM%>%filter(Group=="Sawfish")%>%pull(Trawl)+SawfishGreenDEAD)%>%
+  group_by(FINYEAR)%>%
+  summarise(SawfishNarrow=sum(SawfishNarrow),
+            SawfishGreen=sum(SawfishGreen))%>%
+  gather(Species,Number,-FINYEAR)%>%
+  mutate(LIVEWT.c=Number*Sawfish.avrg.weight.pilbara.trawl,
+         SPECIES=ifelse(Species=="SawfishGreen",25001,25002))%>%
+  dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
+
+
 #TDGDLF
 Size.comp.Dusky.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #from Comments in TDGDLF returns
 Size.comp.Greynurse.TEPS_TDGLDF=c(rep(.61,5),rep(.94,10),rep(1.22,10),
@@ -1763,6 +1813,7 @@ fn.out(d=Data.monthly.north%>%filter(FINYEAR%in%This.fin.yr)%>%
        NM='recons_Data.monthly.north.csv')
 
   #TEPS
+fn.out(d=Pilbara_sawfish%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Pilbara_sawfish.ktch.csv')
 fn.out(d=Greynurse.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Greynurse.ktch.csv')
 fn.out(d=TEPS_dusky%>%filter(FINYEAR%in%This.fin.yr),NM='recons_TEPS_dusky.csv')
 

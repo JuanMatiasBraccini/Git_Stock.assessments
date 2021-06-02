@@ -98,6 +98,7 @@ Shore.based.metro.pilot=read.csv(handl_OneDrive('Data/Catch and Effort/Recreatio
 
 
 # Charter boats
+#note: run query in the Metdata worksheet
 Charter=read_excel(handl_OneDrive("Data\\Catch and Effort\\Charter\\Charter.xlsx"),sheet ='Data')
 
 
@@ -419,8 +420,8 @@ for(s in 1:length(Rec.ktch))
             summarise(Kept.Number=sum(Kept.Number),
                       Rel.Number=sum(Rel.Number))%>%
             mutate(FINYEAR='2011-12')%>%
-            data.frame%>%
-            arrange(colnames(dd))
+            data.frame
+    dd.IID=dd.IID[names(dd)]
     dd=rbind(dd,dd.IID)
   }
   

@@ -5,12 +5,11 @@
 #     review Smooth HH cpue and mako cpue...; SPM Tiger fit
 #     Milk shark SPM, hitting upper K boundary, no trend in cpue, crap Hessian, too uncertain....mention in text...
 #     aSPM: finish running for all species; issues with Tiger cpue fit...
-#     Size-based Catch curve (for some species, there's NSF size compo, not used at the moment)
+#     Size-based Catch curve (for some species there's NSF size compo, not used at the moment)
 #     Implemente simple SS and LIME?
 #     set up integrated model for dusky and sandbar
 #     set up SS3 model for indicator species
 #     Use .CPUE_Observer_TDGDLF.csv in likelihoods?
-#     'recons_NT_catch.csv'  Only dusky and sandbar, missing other shared stock (tiger, etc)
 #     Double check that TwT calcultion uses TL and not FL, be consistent
 #     Bring in Pilbara sawfish catch (recons_Pilbara_trawl_sawfish.csv in Data_outs), need
 #         to multiply numbers by average weigth and account for PCS, and reconstruct prior to 
@@ -24,14 +23,14 @@
 #               . SPM,
 #               . Catch-MSY (Martell & Froese 2012)
 #               . aSPM(Haddon SimpleSA())
-#     3. Total (reconstructed) catches are used (commercial, recreational and TDGDLF discards)
+#     3. Total (reconstructed) catches are used (commercial, recreational and TDGDLF discards); recons_NT_catch.csv' only includes dusky and sandbar
 #     4. Assumption: If catches have never been >1% carrying capacity, then it's in unexploited 
 #                    status so catch series have no information on productivity
 
 #Steps: 
-#     1. Update year of assessment and catches in 'GLOBALS' (update catch reconstructions, cpue stand., etc)
+#     1. Update year of assessment in 'GLOBALS'  
 #     2. Define arguments used in each of the shark species/species complex assessed.
-#     3. Bring in available data and input parameters
+#     3. Bring in updated available data and input parameters
 #     4. Determine which species to assessed based on PSA
 #     5. Run relevant population models according to data availability
 #     6. Generate relevant outputs
@@ -86,7 +85,7 @@ AssessYr=Year.of.assessment
 
 
 #Last complete financial year of catches
-Last.yr.ktch="2018-19"
+Last.yr.ktch="2019-20"
 
 
 #Model run
@@ -287,6 +286,7 @@ fn.import.catch.data=function(KTCH.UNITS)
   Data.monthly.north=fn.in(NM='recons_Data.monthly.north.csv')
   
   #..TEPS
+  Sawfish_Pilbara.ktch=fn.in(NM='recons_Pilbara_sawfish.ktch.csv')
   Greynurse.ktch=fn.in(NM='recons_Greynurse.ktch.csv')
   TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
   
@@ -411,7 +411,21 @@ fn.import.catch.data=function(KTCH.UNITS)
     dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
   
-    #Add TEP interactions        
+    #Add TEP interactions     
+  a=Sawfish_Pilbara.ktch%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    mutate(BLOCKX=NA,
+           Region="North",
+           zone="North",
+           finyear=as.numeric(substr(FINYEAR,1,4)),
+           Name=SNAME,
+           Type="TEP_sawfish.Pilbara",
+           Data.set="TEP_sawfish.Pilbara",
+           METHOD='TW',
+           FishCubeCode="PFT")%>%
+    dplyr::select(names(Tot.ktch))
+  Tot.ktch=rbind(Tot.ktch,a)
+  
   a=Greynurse.ktch%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
