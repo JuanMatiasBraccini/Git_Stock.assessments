@@ -6,15 +6,11 @@
 #     Milk shark SPM, hitting upper K boundary, no trend in cpue, crap Hessian, too uncertain....mention in text...
 #     aSPM: finish running for all species; issues with Tiger cpue fit...
 #     Size-based Catch curve (for some species there's NSF size compo, not used at the moment)
-#     Implemente simple SS and LIME?
+#     Implemente simple SS?
 #     set up integrated model for dusky and sandbar
 #     set up SS3 model for indicator species
 #     Use .CPUE_Observer_TDGDLF.csv in likelihoods?
 #     Double check that TwT calcultion uses TL and not FL, be consistent
-#     Bring in Pilbara sawfish catch (recons_Pilbara_trawl_sawfish.csv in Data_outs), need
-#         to multiply numbers by average weigth and account for PCS, and reconstruct prior to 
-#         using effort X average cpue.
-#     Make sure life history of wobbegongs is for banded (Orectolobus halei) and spotted (O. maculatus)
 
 #Notes:
 #     1. The PSA filters out species from further analyses thru 'Criteria for selecting what species to assess'
@@ -28,13 +24,14 @@
 #                    status so catch series have no information on productivity
 
 #Steps: 
-#     1. Update year of assessment in 'GLOBALS'  
+#     1. Update year of assessment in '1. DEFINE GLOBALS'  
 #     2. Define arguments used in each of the shark species/species complex assessed.
 #     3. Bring in updated available data and input parameters
 #     4. Determine which species to assessed based on PSA
 #     5. Run relevant population models according to data availability
 #     6. Generate relevant outputs
 
+# ------ Header---- 
 rm(list=ls(all=TRUE))
 options(dplyr.summarise.inform = FALSE)
 options(stringsAsFactors = FALSE) 
@@ -61,22 +58,31 @@ library(zoo)
 library(MCDA)
 library(sfsmisc)   # p values from rlm
 library(data.table)
+library(ggpmisc)
+library(ggpubr)
 
 if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 
 source.hnld=handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/")
 fn.source=function(script)source(paste(source.hnld,script,sep=""))
 fn.source("fn.fig.R")
-fn.source("Leslie.matrix.R") 
-fn.source("Steepness.R") 
 fn.source("Catch_MSY.R")
 source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R"))
 source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R"))
 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
 colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
+fun.find.in.list=function(x,Drop)   #drop stuff from list
+{
+  x=x%>%discard(is.null)
+  if(!is.null(Drop))x=x[-match(Drop,names(x))]
+  return(x)
+}
 
-#---1. DEFINE GLOBALS----- 
+fn.get.stuff.from.list=function(lista,stuff) lapply(lista, function(x) x[[stuff]])# get stuff from list
+
+
+#---1.  DEFINE GLOBALS----- 
 
 #Year of assessment 
 Year.of.assessment=2021
@@ -95,10 +101,10 @@ Modl.rn="standard"   #for annual assessments
 #Modl.rn='first'    #for paper
 
 
-#Define if calculating r and steepness
-do.r.prior=do.steepness=FALSE
-
-
+#Define if calculating r, steepness and size-based catch curve
+do.r.prior=do.steepness=FALSE    #it's a one off, doesn't need update
+if(First.run=="YES") do.Size.based.Catch.curve=TRUE  else #needs update with each new year of data
+                     do.Size.based.Catch.curve=FALSE
 #Define if exporting figures as jpeg or tiff (creation of RAR requires jpeg)
 Do.tiff="YES" 
 Do.jpeg="NO"
@@ -118,7 +124,7 @@ if(KTCH.UNITS=="TONNES") Min.ktch=5
 
   #PSA
 PSA.min.tons=5
-PSA.min.years=5
+PSA.min.years=Min.yrs
 PSA.max.ton=50
 Low.risk=2.64  #risk thresholds from Micheli et al 2014
 medium.risk=3.18
@@ -194,6 +200,8 @@ Add.r.prior=0   #no r prior
 # Global arguments for non-indicator species
 Asses.Scalloped.HH=FALSE  #2020 scalloped HH assessment
 
+# Minimun number of annual observations in analysis of changes in size
+Min.annual.obs=300
 
 # Control which assessment methods to implement
 Do.SPM="YES"
@@ -233,8 +241,8 @@ TDGLDF.disc.assumed.PCM="BaseCase"
 #TDGLDF.disc.assumed.PCM="100%" 
 
 
-#---2. Catch and effort data section-----   
-Dat.repository=handl_OneDrive('Analyses/Data_outs/')  #where all input data are located
+#---2.  Catch and effort data section-----   
+Dat.repository=handl_OneDrive('Analyses/Data_outs/')  #location where all input data are located
 
 #2.1. Species  
 All.species.names=read.csv(handl_OneDrive("Data/Species_names_shark.only.csv"))
@@ -249,8 +257,10 @@ Indicator.species=c(17001,17003,18003,18007)
 names(Indicator.species)=c("gummy shark","whiskery shark","dusky shark","sandbar shark")
 Shar_other=22999
 Scien.nm=All.species.names[,c('SPECIES','Scien.nm')]
+
+#define what species are assessed elsewhere
 assessed.elsewhere=c("white shark","school shark","spot-tail shark",
-                     "blacktips","unidentified sharks")  #species assessed elsewhere
+                     "blacktips","unidentified sharks")  
 
 
 
@@ -551,9 +561,10 @@ fn.import.catch.data=function(KTCH.UNITS)
   Tot.ktch=rbind(Tot.ktch,a)
   
   
-  #Catch in tonnes
+  #set catch in tonnes
   if(KTCH.UNITS=="TONNES")Tot.ktch=Tot.ktch%>%mutate(LIVEWT.c=LIVEWT.c/1000) 
   
+  #fix some species names
   Tot.ktch=Tot.ktch%>%
     mutate(SNAME=ifelse(SPECIES%in%19003,"winghead hammerhead",SNAME),
            Name=ifelse(SPECIES%in%19003,'winghead hammerhead',Name),
@@ -571,7 +582,14 @@ fn.import.catch.data=function(KTCH.UNITS)
   
   Tot.ktch=Tot.ktch%>%
     mutate(Scien.nm=ifelse(Name=="australian blacktip",'Carcharhinus tilstoni',Scien.nm))
-           
+
+  Tot.ktch=Tot.ktch%>%
+    mutate(SPECIES=ifelse(SPECIES==20904,20906,SPECIES),
+           SNAME=ifelse(SPECIES==20906,"roughskin shark",SNAME),
+           Scien.nm=ifelse(SPECIES==20906,'Centroscymnus spp.',Scien.nm),
+           Name=ifelse( SPECIES==20906,'roughskin shark',Name))
+  
+  
   #list of all species caught
   Table1=Tot.ktch%>%  
     filter(!SPECIES%in%c(31000,22999))%>%
@@ -587,13 +605,24 @@ fn.import.catch.data=function(KTCH.UNITS)
 
   
   #Combine certain species with variable reporting resolution
+  unik=unique(Tot.ktch$Name)
+    #Catch sharks
+  this=unik[grep("catshark",unik)]
+  this=this[-match("brown-banded catshark", this)] #not a catshark
+  Tot.ktch=Tot.ktch%>%
+    mutate(SNAME=ifelse(Name%in%this,"catsharks",SNAME),
+           Scien.nm=ifelse(Name%in%this,'Scyliorhinidae',Scien.nm),
+           SPECIES=ifelse(Name%in%this,15000,SPECIES),
+           Name=ifelse(Name%in%this,'catsharks',Name))
+  
     #Sawsharks
   this=c(23000,23001,23002,23900)
   Tot.ktch=Tot.ktch%>%
       mutate(SNAME=ifelse(SPECIES%in%this,"sawsharks",SNAME),
              Name=ifelse(SPECIES%in%this,'sawsharks',Name),
              Scien.nm=ifelse(SPECIES%in%this,'Pristiophoridae',Scien.nm),
-             SPECIES=ifelse(SPECIES%in%this,23900,SPECIES))
+             SPECIES=ifelse(SPECIES%in%this,23900,SPECIES),
+             Name=ifelse(Name=='sawshark','sawsharks',Name))
   
     #Threshers
   this=c(12000,12001)
@@ -604,7 +633,7 @@ fn.import.catch.data=function(KTCH.UNITS)
            SPECIES=ifelse(SPECIES%in%this,12000,SPECIES))   
   
     #Wobbegongs
-  this=c(13000, 13001,13003,13011,13012,13017,13022)
+  this=c(13000, 13001,13003,13011,13012,13017,13022,13016,13021)
   Tot.ktch=Tot.ktch%>%
     mutate(SNAME=ifelse(SPECIES%in%this,'wobbegongs',SNAME),
            Name=ifelse(SPECIES%in%this,'wobbegongs',Name),
@@ -619,15 +648,15 @@ fn.import.catch.data=function(KTCH.UNITS)
            Scien.nm=ifelse(SPECIES%in%this,'Squatinidae',Scien.nm),
            SPECIES=ifelse(SPECIES%in%this,24900,SPECIES))  
   
-    #Sawfish
+    #Sawfishes
   this=c(25000, 25001,25002,25004)
   Tot.ktch=Tot.ktch%>%
-    mutate(SNAME=ifelse(SPECIES%in%this,'sawfish',SNAME),
-           Name=ifelse(SPECIES%in%this,'sawfish',Name),
+    mutate(SNAME=ifelse(SPECIES%in%this,'sawfishes',SNAME),
+           Name=ifelse(SPECIES%in%this,'sawfishes',Name),
            Scien.nm=ifelse(SPECIES%in%this,'Pristidae',Scien.nm),
            SPECIES=ifelse(SPECIES%in%this,25000,SPECIES))  
   
-  #Stingrays
+    #Stingrays
   this=c(35001, 35000)
   Tot.ktch=Tot.ktch%>%
     mutate(SNAME=ifelse(SPECIES%in%this,'smooth stingray',SNAME),
@@ -643,7 +672,7 @@ fn.import.catch.data=function(KTCH.UNITS)
            Scien.nm=ifelse(SPECIES%in%this,'Trygonorrhinidae',Scien.nm),
            SPECIES=ifelse(SPECIES%in%this,26999,SPECIES))     
   
-    #Wedgefish
+    #Wedgefishes
   this=c(26000,26001,26002)
   Tot.ktch=Tot.ktch%>%
     mutate(SNAME=ifelse(SPECIES%in%this,'wedgefishes',SNAME),
@@ -653,18 +682,17 @@ fn.import.catch.data=function(KTCH.UNITS)
   
     #Rays and skates
   Tot.ktch=Tot.ktch%>%
-    mutate(Name=ifelse(SNAME=='rays & skates','skates',Name),
-           Scien.nm=ifelse(SNAME=='rays & skates','Rajidae & Arhynchobatidae',Scien.nm),
-           SPECIES=ifelse(SNAME=='rays & skates',31000,SPECIES),
-           SNAME=ifelse(SNAME=='rays & skates','skates',SNAME))
+    mutate(Name=ifelse(SPECIES==31000,'rays & skates',Name),
+           Scien.nm=ifelse(SPECIES==31000,'Rajidae & Arhynchobatidae',Scien.nm),
+           SNAME=ifelse(SPECIES==31000,'rays & skates',SNAME))
 
-  #australian blacktip
+    #Australian blacktip
   Tot.ktch=Tot.ktch%>%
     mutate(Name=ifelse(SNAME=='australian blacktip','blacktips',Name),
            Scien.nm=ifelse(SNAME=='australian blacktip','C. limbatus & C. tilstoni',Scien.nm),
            SPECIES=ifelse(SNAME=='australian blacktip',18014,SPECIES),
            SNAME=ifelse(SNAME=='australian blacktip','blacktips',SNAME))
-  
+
   
   #Change bull to pigeye shark as bull not likely to be taken (Heupel & McAuley 2007 page  84)
   Tot.ktch=Tot.ktch%>%
@@ -673,10 +701,16 @@ fn.import.catch.data=function(KTCH.UNITS)
            Scien.nm=ifelse(SPECIES%in%c(18021),'C. amboinensis',Scien.nm),
            SPECIES=ifelse(SPECIES%in%c(18021),18026,SPECIES))
   
+  Tot.ktch=Tot.ktch%>%
+    mutate(Name=ifelse(Name=="port jackson shark","port Jackson shark",Name))
+ 
   
   #Final touches
   Tot.ktch=Tot.ktch%>%
     mutate(SNAME=ifelse(Name=='eusphyra blochii','winghead shark',Name))
+  
+  Tot.ktch=Tot.ktch%>%filter(!is.na(Name))
+  
   
   #Aggregate by species, year and fishery
   Tot.ktch.zone=Tot.ktch%>%
@@ -696,6 +730,7 @@ fn.import.catch.data=function(KTCH.UNITS)
                 ifelse(METHOD%in%c("FG","TW"),'trawl',
                 ifelse(METHOD%in%c("FT","PT"),'trap',
                 NA)))))
+  
   Tot.ktch.method=Tot.ktch.method%>%
     group_by(FishCubeCode) %>%
     arrange(FishCubeCode, is.na(Gear)) %>% # in case to keep non- NA elements for a tie
@@ -711,6 +746,12 @@ fn.import.catch.data=function(KTCH.UNITS)
     group_by(SPECIES,Name,FishCubeCode,Data.set,finyear,FINYEAR,Region)%>%
     summarise(LIVEWT.c=sum(LIVEWT.c))
   
+  # Tot.ktch=Tot.ktch%>%
+  #     mutate(Name=ifelse(Name=='sawshark','sawsharks',Name))
+  # Tot.ktch.zone=Tot.ktch.zone%>%
+  #   mutate(Name=ifelse(Name=='sawshark','sawsharks',Name))
+  # Tot.ktch.method=Tot.ktch.method%>%
+  #   mutate(Name=ifelse(Name=='sawshark','sawsharks',Name))
   
   return(list(Total=Tot.ktch,Zone=Tot.ktch.zone,Total.method=Tot.ktch.method,Table1=Table1))
 }
@@ -724,9 +765,16 @@ KtCh=KtCh%>%filter(!Name%in%assessed.elsewhere)
 KtCh.zone=KtCh.zone%>%filter(!Name%in%assessed.elsewhere)
 
 
+#2.5 Data used for analysis of changes in reported mean weight
+Wei.range=read.csv(handl_OneDrive("Data/Length_Weights/Data.Ranges.csv"),stringsAsFactors = F)
+Wei.range.names=read.csv(handl_OneDrive("Data/Length_Weights/Species.names.csv"),stringsAsFactors = F)
+Wei.range=merge(Wei.range,Wei.range.names,by="Sname",all.x=T)
 
-#---3. PSA to determine which species to assess ------------------------------------------------------  
-#note: PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
+Logbook=read.csv(handl_OneDrive("Analyses/Catch and effort/Logbook.data.mean.weight.csv"))
+
+
+#---3.  PSA to determine which species to assess ------------------------------------------------------  
+#note: run a PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
 
 if(First.run=="YES")
 {
@@ -751,23 +799,23 @@ if(First.run=="YES")
     ggplot(aes(Year,catch))+
     geom_point(aes(colour = Gear),size = .8)+ylab("Catch (tonnes)")+
     facet_wrap( ~ Name, scales = "free_y")+ expand_limits(y = 0)+
-    theme(strip.text.x = element_text(size = 6),
+    theme(strip.text.x = element_text(size = 8),
           axis.text=element_text(size=6.5),
           legend.position="top",
           legend.title = element_blank(),
           legend.key=element_blank(),
-          legend.text = element_text(size = 10),
+          legend.text = element_text(size = 12),
           title=element_text(size=12),
           axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
     guides(colour = guide_legend(override.aes = list(size=5)))+
     xlab("Financial year") 
-  ggsave(paste(Exprt,'Annual_ktch_by_species.tiff',sep='/'), width = 14,height = 7, dpi = 300, compression = "lzw")
+  ggsave(paste(Exprt,'Annual_ktch_by_species.tiff',sep='/'), width = 17,height = 7, dpi = 300, compression = "lzw")
   
   #Export table of species catch by fishery
   write.csv(Get.ktch$Table1,paste(Exprt,'All.species.caught.csv',sep='/'),row.names = F)
   
   
-  #which species not to set availability and ecounterability to 1 
+  #which species meet PSA criteria (and hence availability and ecounterability not set to 1)?
   psa.ktch=KtCh.method%>%
     filter(Name%in%PSA.list$Species)%>%
     group_by(Name,FINYEAR)%>%
@@ -778,7 +826,8 @@ if(First.run=="YES")
   aa[aa<=PSA.min.tons]=0
   aa[aa>PSA.min.tons]=1
   psa.species.series=names(which(colSums(aa)>PSA.min.years))
-  #species.meeting.condition=intersect(psa.species.series,psa.species.max.ever)
+  species.meeting.criteria=intersect(psa.species.series,psa.species.max.ever)
+  
   
   #replace missing gear info with most common value
   Agg=KtCh.method%>%
@@ -788,7 +837,6 @@ if(First.run=="YES")
            Gear=ifelse(is.na(Gear) & FishCubeCode %in% c('Historic','Indo','WTB','SA MSF'),'line',
                 ifelse(is.na(Gear) & FishCubeCode %in% c('GAB','PFT','SBSC'),'trawl',
                 Gear)))
-  
   Agg.PSA=Agg%>%
     filter(!is.na(Gear))%>%
     group_by(Name,Gear,FINYEAR)%>%
@@ -796,28 +844,25 @@ if(First.run=="YES")
     spread(FINYEAR,LIVEWT.c,fill=0)%>%
     data.frame
   names(Agg.PSA)[-(1:2)]=substr(names(Agg.PSA)[-(1:2)],2,5)
-  
-  #kip susceptibility as is for species meeting condition
   Agg.sp=unique(Agg.PSA$Name)
   KIP=vector('list',length(Agg.sp))
   for(s in 1:length(Agg.sp))
   {
     d=Agg.PSA%>%filter(Name==Agg.sp[s])
-    
     d1=d[,-c(1:2)]
     d1[d1<Min.ktch]=0
     d1[d1>=Min.ktch]=1
     kip=data.frame(Gear=d$Gear)%>%
-      mutate(
-        Name=d$Name,
-        Sum.yrs=rowSums(d1),
-        Keep=ifelse(Sum.yrs>=Min.yrs,"YES","NO"))
+      mutate(Name=d$Name,
+             Sum.yrs=rowSums(d1),
+             Keep=ifelse(Sum.yrs>=Min.yrs,"YES","NO"))
     KIP[[s]]=kip
   }
   KIP=do.call(rbind,KIP)%>%
     filter(Keep=="YES")%>%
     dplyr::select(Name,Gear)
   
+  #run PSA
   UniSp=unique(KtCh$Name)
   UniSp=subset(UniSp,!UniSp%in%names(Indicator.species))
   
@@ -833,7 +878,7 @@ if(First.run=="YES")
     for(p in 1:nrow(d))    
     {
       aa=d[p,]
-      if(!aa$Species%in%KIP$Name)  #reset availability and encounterability if low catches for a given gear
+      if(!aa$Species%in%species.meeting.criteria) #reset availability and encounterability if not meeting criteria
       {
         k=KIP%>%filter(Name==aa$Species)
         aa=aa%>%
@@ -904,7 +949,7 @@ if(!First.run=="YES")
 {
   Keep.species=sort(c("angel sharks","copper shark","lemon shark",
                  "great hammerhead","scalloped hammerhead","smooth hammerhead",    
-                 "grey nurse shark","milk shark","pigeye shark",
+                 "grey nurse shark","pigeye shark",
                  "sawsharks","shortfin mako","spinner shark",
                  "spurdogs","tiger shark","wobbegongs",
                  names(Indicator.species)))
@@ -912,7 +957,8 @@ if(!First.run=="YES")
   
 N.sp=length(Keep.species)
 
-#---4. Create list of species assessed and import species-specific data-----
+#---4.  Create list of species assessed and import species-specific data-----
+#note: this brings in any info on cpue, abundance, selectivity, size composition, tagging
 Species.data=vector('list',length=N.sp)
 names(Species.data)=Keep.species
 for(s in 1:N.sp) 
@@ -931,7 +977,7 @@ for(s in 1:N.sp)
 }
 
 
-#---5. Import input parameters, define modelling arguments and create pin file-----
+#---5.  Import input parameters, define modelling arguments and create pin file-----
 #note: For integrated model, S1 and S2 calculates pars in normal space but same order magnitude
 #       Other scenarios all pars in log.
 #       ln_RZERO is in 1,000 individuals so do 10 times the largest catch divided by 
@@ -986,8 +1032,10 @@ for(l in 1:N.sp)
   TLmax=LH$Max.TL,
   Lzero=LH$LF_o,
   NsimSS=1000,
-  r.prior="USER",  #demography
-  r.prior2=NA)    #uniform
+  r.prior="USER",                    #demography
+  r.prior2=NA,                       #uniform
+  a_FL.to.TL=LH$a_FL.to.TL,          # FL to TL
+  b_FL.to.TL=LH$b_FL.to.TL)                
 
   #indicator species arguments
   if(List.sp[[l]]$Species%in%Indicator.species)
@@ -1936,6 +1984,8 @@ for(l in 1:N.sp)
     
   }
   
+  
+  
 }
 
 #Export table of life history parameters
@@ -1956,7 +2006,7 @@ if(First.run=="YES")
     dplyr::select(-SPECIES,-Comment)%>%
     relocate(Species,Scien.nm)%>%
     arrange(Species)
-  fn.word.table(WD=getwd(),TBL=TabL,Doc.nm="Table 1. Life history pars",caption=NA,paragph=NA,
+  fn.word.table(WD=getwd(),TBL=TabL,Doc.nm="Table 1. Life history pars",caption=NA,paragph=NA,    
                 HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
                 Zebra='NO',Zebra.col='grey60',Grid.col='black',
                 Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
@@ -1965,7 +2015,7 @@ if(First.run=="YES")
 
 
 
-#---6. Export all available input data to each species assessment folder----- 
+#---6.  Export all available input data to each species assessment folder----- 
 if(First.run=="YES")
 {
   source(handl_OneDrive("Analyses/Population dynamics/Git_Stock.assessments/Organise data.R"))
@@ -1988,12 +2038,14 @@ if(First.run=="YES")
   } 
 }
 
-#---Build r prior ----------------------------------------------------------------------- #ACA
+
+#---7.  Demography. r prior ----------------------------------------------------------------------- 
 store.species.r=vector('list',N.sp)
 names(store.species.r)=Keep.species
 
 if(do.r.prior)
 {
+  fn.source("Leslie.matrix.R") 
   fun.rprior.dist=function(Nsims,K,LINF,K.sd,LINF.sd,k.Linf.cor,Amax,MAT,FecunditY,
                            Cycle,BWT,AWT,LO)
   {
@@ -2108,8 +2160,8 @@ if(do.r.prior)
     M.averaging<<-"min" #'min' yields rmax, Cortes pers com, but yields too high steepness for all species
     RESAMP="YES"
     
-    linear.fec="YES"
-    if(names(List.sp)[l]%in%c("grey nurse shark","sandbar shark")) linear.fec="NO"
+    linear.fec="NO"
+    #if(names(List.sp)[l]%in%c("grey nurse shark","sandbar shark")) linear.fec="NO"
     
       
     #Get r prior
@@ -2118,18 +2170,24 @@ if(do.r.prior)
                                    Amax=Max.age.F,
                                    MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle,
                                    BWT=BwT,AWT=AwT,LO=Lzero/.85))
+    #export r and M
     out.r=data.frame(shape=r.prior.dist$shape,rate=r.prior.dist$rate,
                      mean=r.prior.dist$mean,sd=r.prior.dist$sd)
     write.csv(out.r,'r.prior.csv',row.names = F)
     store.species.r[[l]]=r.prior.dist
     
+    n.dim=max(unlist(lapply(r.prior.dist$M,length)))
     out.M=r.prior.dist$M
     for(ss in 1:length(out.M))
     {
-      Hdr=paste("#",ss,sep='')
-      write(Hdr,file = "M.dat",append=T,sep = "\t")
-      write(as.matrix(out.M[[ss]]),file = "M.dat",sep = "\t",append=T)
+      a=out.M[[ss]]
+      delta=n.dim-length(a)
+      if(delta>0) out.M[[ss]]=c(a,rep(NA,delta))
+      rm(a)
     }
+    out.M=do.call(rbind,out.M)
+    names(out.M)=0:(n.dim-1)
+    write.csv(out.M,"M.csv",row.names=FALSE)
     rm(r.prior.dist,M.averaging,RESAMP,linear.fec)
   }})
 }else
@@ -2143,7 +2201,7 @@ if(do.r.prior)
 
 
 
-#---Assign Resilience -----------------------------------------------------------------------
+#---8.  Assign Resilience -----------------------------------------------------------------------
 RESILIENCE=vector('list',N.sp)
 names(RESILIENCE)=names(List.sp)
 for(r in 1:length(RESILIENCE))
@@ -2155,46 +2213,51 @@ for(r in 1:length(RESILIENCE))
 }
 
 
-#---Extract selectivity at age -----------------------------------------------------------------------
+#---9.  Extract selectivity at age -----------------------------------------------------------------------
+  #for species with no gillnet selectivity profile, set to closest species or family
 Sel.equivalence=data.frame(
-      Name=c("Copper","Great hammerhead","Scalloped hammerhead",
-             "Grey nurse","Wobbegongs",
-             "Sawsharks",
-              "Lemon","Milk","Pigeye","Shortfin mako","Spinner","Tiger"),
+      Name=c("copper shark","great hammerhead","scalloped hammerhead",
+             "grey nurse shark","wobbegongs",
+             "sawsharks",
+              "lemon shark","milk shark","pigeye shark","shortfin mako","spinner shark","tiger shark",
+             "spurdogs"),
       Equivalence=c("Dusky shark",rep("Smooth hammerhead",2),
                     rep("Hexanchidae",2),
                     "Common sawshark",
-                    rep('Carcharhinidae',6)))
+                    rep('Carcharhinidae',6),
+                    'Spikey dogfish'))
 Selectivity.at.age=vector('list',N.sp)
 names(Selectivity.at.age)=Keep.species
-HandL=handl_OneDrive("Data/Population dynamics/Data inputs for models/")
+HandL=handl_OneDrive("Analyses/Data_outs/")
 for(l in 1:N.sp)
 {
   #1. Read in selectivity at age data
-  Nm=capitalize(str_remove(names(Selectivity.at.age)[l]," shark"))
-  temp.wd=paste(HandL,Nm,'/',AssessYr,sep='')
-  Files=list.files(temp.wd)
-  if('Gillnet.selectivity_len.age.csv'%in%Files)
+  if('gillnet.selectivity_len.age'%in%names(Species.data[[l]]))
   {
-    GN.sel.at.age=read.csv(paste(temp.wd,'/Gillnet.selectivity_len.age.csv',sep=''))
+    GN.sel.at.age=Species.data[[l]]$gillnet.selectivity_len.age
   }else
   {
-    #allocate family selectivity
-    this.sel=Sel.equivalence%>%filter(Name==Nm)
-    temp.wd=paste(Dat.repository,this.sel$Equivalence,sep='')
-    GN.sel.at.age=read.csv(paste(temp.wd,'/',this.sel$Equivalence,
-                                 '_Gillnet.selectivity_len.age.csv',sep=''))
+    #allocate  selectivity                                  
+    this.sel=Sel.equivalence%>%filter(Name==names(Species.data)[l])
+    temp.wd=paste(HandL,this.sel$Equivalence,sep='')
+    GN.sel.at.age=read.csv(paste(temp.wd,'/',this.sel$Equivalence,'_Gillnet.selectivity_len.age.csv',sep=''))
   }
-  
+
   #2. Get combined selectivity
+  if(!"X16.5"%in%names(GN.sel.at.age))
+  {
+    GN.sel.at.age=GN.sel.at.age%>%
+      rename(X16.5='16.5',
+             X17.8='17.8')
+  }
   GN.sel.at.age=GN.sel.at.age%>%
-    mutate(Sum.sel=X16.5+X17.8,
-           Sel.combined=Sum.sel/max(Sum.sel),
-           Sel.combined=Sel.combined/max(Sel.combined),
-           TL=TL.mm/10)
+                  mutate(Sum.sel=X16.5+X17.8,
+                         Sel.combined=Sum.sel/max(Sum.sel),
+                         Sel.combined=Sel.combined/max(Sel.combined),
+                         TL=TL.mm)
   Selectivity.at.age[[l]]=GN.sel.at.age[,c('TL','Age','Sel.combined')]
 }
-#display selectivities
+#display selectivities    
 if(First.run=="YES")
 {
   fn.fig(handl_OneDrive('Analyses\\Population dynamics\\growth.and.selectivity'),2400,2000) 
@@ -2203,7 +2266,8 @@ if(First.run=="YES")
   for(l in 1:N.sp)
   {
     with(Selectivity.at.age[[l]],plot(Age,Sel.combined,col=2,ylim=c(0,1),
-                                      pch=19,main=names(Selectivity.at.age)[l],ylab='',xlab=""))
+                                      pch=19,main=capitalize(names(Selectivity.at.age)[l]),
+                                      ylab='',xlab=""))
     par(new = TRUE)
     with(Selectivity.at.age[[l]],plot(Age,TL,type='l',lwd=2,
                                       xaxt = "n", yaxt = "n",
@@ -2213,7 +2277,7 @@ if(First.run=="YES")
   }
   mtext("Age", side = 1, line = 1,outer=T)
   mtext("Selectivity", side = 2, line = -.5,las=3,col=2,outer=T)
-  mtext("TL", side = 4, line = 1,outer=T,las=3)
+  mtext("TL (cm)", side = 4, line = 1,outer=T,las=3)
   dev.off()
   
   fn.fig(handl_OneDrive('Analyses\\Population dynamics\\growth.and.selectivity2'),2400,2000) 
@@ -2222,7 +2286,8 @@ if(First.run=="YES")
   for(l in 1:N.sp)
   {
     with(Selectivity.at.age[[l]],plot(TL,Sel.combined,col=2,ylim=c(0,1),
-                                      pch=19,main=names(Selectivity.at.age)[l],ylab='',xlab=""))
+                                      pch=19,main=capitalize(names(Selectivity.at.age)[l]),
+                                      ylab='',xlab=""))
     par(new = TRUE)
     with(Selectivity.at.age[[l]],plot(TL,Age,type='l',lwd=2,
                                       xaxt = "n", yaxt = "n",
@@ -2230,18 +2295,19 @@ if(First.run=="YES")
     axis(side = 4)
     
   }
-  mtext("TL", side = 1, line = 1,outer=T)
+  mtext("TL (cm)", side = 1, line = 1,outer=T)
   mtext("Selectivity", side = 2, line = -.5,las=3,col=2,outer=T)
   mtext("Age", side = 4, line = 1,outer=T,las=3)
   dev.off()
 }
 
-#---Calculate steepness -----------------------------------------------------------------------
+#---10. Steepness ----------------------------------------------------------------------- 
 store.species.steepness=vector('list',N.sp)
 names(store.species.steepness)=Keep.species
 
 if(do.steepness)
 {
+  fn.source("Steepness.R")
   system.time(for(l in 1: N.sp) 
   {
     print(paste("steepness ","--",List.sp[[l]]$Name))
@@ -2261,9 +2327,9 @@ if(do.steepness)
     M.averaging<<-"mean"   #'min' yields too high h values for all species
     if(names(List.sp)[l]%in%"milk shark") M.averaging<-"min" #too low h if mean, considering biology
     RESAMP="YES"
-    linear.fec="YES"
-    if(names(List.sp)[l]%in%c("grey nurse shark","spurdogs")) RESAMP="NO"
-    if(names(List.sp)[l]%in%c("grey nurse shark","sandbar shark","sawsharks")) linear.fec="NO"
+    linear.fec="NO"
+    if(names(List.sp)[l]%in%c("angel sharks","grey nurse shark","spurdogs")) RESAMP="NO"   #endless loop due to life history combos <0.2
+
 
     steepNs=with(List.sp[[l]],fun.steepness(Nsims=2*NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf/.85,
                                                Linf.sd=Growth.F$FL_inf.sd/.85,k.sd=Growth.F$k.sd,
@@ -2274,19 +2340,27 @@ if(do.steepness)
                                                AWT=AwT,BWT=BwT,LO=Lzero/.85,
                                                Resamp=RESAMP))
     
+    
+    
+    ##
+    #export h and M
     out.h=data.frame(shape=steepNs$shape,rate=steepNs$rate,
                      mean=steepNs$mean,sd=steepNs$sd)
     write.csv(out.h,'h.prior.csv',row.names = F) 
     store.species.steepness[[l]]=steepNs
     
+    n.dim=max(unlist(lapply(steepNs$M,length)))
     out.M=steepNs$M
     for(ss in 1:length(out.M))
     {
-      Hdr=paste("#",ss,sep='')
-      write(Hdr,file = "M.dat",append=T,sep = "\t")
-      write(as.matrix(out.M[[ss]]),file = "M.dat",sep = "\t",append=T)
+      a=out.M[[ss]]
+      delta=n.dim-length(a)
+      if(delta>0) out.M[[ss]]=c(a,rep(NA,delta))
+      rm(a)
     }
-    
+    out.M=do.call(rbind,out.M)
+    names(out.M)=0:(n.dim-1)
+    write.csv(out.M,"M.csv",row.names=FALSE)
     rm(steepNs,RESAMP,M.averaging,out.M,linear.fec)
   }) 
 }else
@@ -2308,9 +2382,21 @@ if(do.steepness)
                    r.sd=unlist(sapply(store.species.r, `[`, 4)))
   rownames(CompR)=NULL
   COL=rgb(.1,.2,.8,alpha=.45)
-  p=ggplot(CompR,
-           aes(r, h, label = Name)) +
+  CompR=CompR%>%
+    arrange(r)%>%
+    mutate(Name=capitalize(Name))
+  my_formula=y ~ x
+  Omit.these=c("Great hammerhead","Scalloped hammerhead","Smooth hammerhead","Tiger shark")
+  p=CompR%>%
+    ggplot(aes(r, h, label = Name)) +
     geom_point(shape = 21, size = 5,fill=COL) + 
+    geom_smooth(method = "lm", data = CompR%>%filter(!Name%in%Omit.these),
+                se = F, fullrange = TRUE,colour="red")+
+    stat_poly_eq(data = CompR%>%filter(!Name%in%Omit.these),
+                 aes(label =  paste(stat(eq.label),stat(adj.rr.label),stat(p.value.label),
+                                    sep = "*\", \"*")),
+                 formula = my_formula, parse = TRUE,
+                 label.y = "bottom", label.x = "right", size = 4)+
     geom_text_repel(segment.colour='black',col='black',box.padding = 0.5) + 
     scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
     theme(panel.background = element_blank(),
@@ -2318,41 +2404,252 @@ if(do.steepness)
           axis.text=element_text(size=12),
           axis.title=element_text(size=14),
           panel.border = element_rect(colour = "black", fill=NA, size=1))+
-    geom_errorbar(aes(ymin=h-h.sd, ymax=h+h.sd),colour=COL)+
-    geom_errorbarh(aes(xmin=r-r.sd, xmax=r+r.sd),colour=COL)
+    ylim(0,1)
+  #  geom_errorbar(aes(ymin=h-h.sd, ymax=h+h.sd),colour=COL)+
+  #  geom_errorbarh(aes(xmin=r-r.sd, xmax=r+r.sd),colour=COL)
   p
-  ggsave(handl_OneDrive('Analyses/Population dynamics/Steepness_vs_r.tiff'), width = 6,
-         height = 6, dpi = 300, compression = "lzw")
+  ggsave(handl_OneDrive('Analyses/Population dynamics/Steepness_vs_r.tiff'), 
+         width = 8,height = 6, dpi = 300, compression = "lzw")
   
 }
 
 
-#---Size-based Catch curve---------------------------------------------------------------------
+#Recalculate  steepness for hammerheads and tiger using linear model of r on h 
+store.species.steepness.S2=fn.get.stuff.from.list(store.species.steepness,"mean")
+dis.sp.h=c("great hammerhead","scalloped hammerhead","smooth hammerhead","tiger shark")
 
-#1. Bring in available size composition data
-fn.extract.dat=function(STRING,Files) grepl(STRING, Files, perl = TRUE)
-size.comp.dat=vector('list',N.sp)
-names(size.comp.dat)=Keep.species
-for(l in 1: N.sp)
+for(s in 1:length(dis.sp.h))
 {
-  Nm=str_remove(List.sp[[l]]$Name.inputs, ' shark')
-  temp.wd=paste(HandL,capitalize(Nm),'/',AssessYr,sep='')
-  Files=list.files(temp.wd)
-  iid=Files[fn.extract.dat(STRING="size.comp.annual.TDGDLF",Files)]
-  if(length(iid)>0)
+  id=match(dis.sp.h[s],names(store.species.steepness))
+  store.species.steepness.S2[[id]]=store.species.r[[id]]$mean*0.856+0.197
+}
+  
+
+
+#---11. Size-based Catch curve with specified selectivity--------------------------------------
+#note: derive F from catch curve and gear selectivity
+#      assume start of year in January (coincides with birht of most species)
+if(do.Size.based.Catch.curve)
+{
+  fn.source("Length_based.catch.curve.R")
+  fn.extract.dat=function(STRING,Files) grep(paste(STRING,collapse="|"), Files, value=TRUE)
+  
+  fn.size.catch.curve=function(this.size.comp,outfile,MIN.OBS,LifeHis)
   {
-    dummy=list()
-    if("size.comp.annual.TDGDLF.csv"%in%iid) dummy$'6.5'=read.csv(paste(temp.wd,'/size.comp.annual.TDGDLF.csv',sep=''))
-    if("size.comp.annual.TDGDLF_7.csv"%in%iid) dummy$'7'=read.csv(paste(temp.wd,'/size.comp.annual.TDGDLF_7.csv',sep=''))
-    size.comp.dat[[l]]=dummy
-    rm(dummy)
+    Store=vector('list',N.sp)
+    names(Store)=Keep.species
+    
+    for(l in 1: N.sp)  
+    {
+      print(paste("Size-base catch curve for --",outfile,"---",names(Species.data)[l]))
+      
+      iid=Species.data[[l]][fn.extract.dat(this.size.comp,names(Species.data[[l]]))]
+      if(length(iid)>0)
+      {
+        dummy=do.call(rbind,iid)
+        if(grepl("TDGDLF",outfile))
+        {
+          dummy=dummy%>%
+            mutate(dummy=sub(".*Size_composition_", "", rownames(dummy)),
+                   Mesh=word(dummy,2,sep = "\\."),
+                   Mesh=ifelse(Mesh=='6','6.5',Mesh),
+                   Mesh=factor(Mesh,levels=c('6.5','7')),
+                   Zone=word(dummy,1,sep = "\\."))
+          
+        }
+        dummy=dummy%>%filter(year<=as.numeric(substr(Last.yr.ktch,1,4)))
+        
+        N.min=dummy%>%
+          group_by(year)%>%
+          tally()%>%
+          filter(n>=MIN.OBS)%>%
+          mutate(Keep=year)
+        
+        
+        if(nrow(N.min)>0)
+        {
+          dummy=dummy%>%
+            mutate(Keep=year)%>%
+            filter(Keep%in%N.min$Keep)
+          
+          #plot histogram by year and mesh
+          if(grepl("TDGDLF",outfile))
+          {
+            p=dummy%>%
+              ggplot( aes(x=FL, color=Mesh, fill=Mesh)) +
+              geom_histogram(alpha=0.6, binwidth = TL.bins.cm)
+            WHERE="top"
+          }else
+          {
+            p=dummy%>%
+              ggplot( aes(x=FL,color=year, fill=year)) +
+              geom_histogram(alpha=0.6, binwidth = TL.bins.cm)
+            WHERE="none"
+          }
+          p=p+
+            facet_wrap(~year)+
+            xlab("Fork length (cm)")+ylab("Count")+
+            theme(legend.position=WHERE,
+                  legend.title = element_blank(),
+                  legend.text=element_text(size=14),
+                  strip.text.x = element_text(size = 12),
+                  axis.text=element_text(size=12),
+                  axis.title=element_text(size=16))
+          print(p)
+          ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                       capitalize(List.sp[[l]]$Name),"/",AssessYr,
+                       "/1_Inputs/Visualise data/Size.comp.",outfile,".tiff",sep=''),
+                 width = 12,height = 10,compression = "lzw")
+          
+          #calculate F
+          ################  #replace with species.data
+          #initial value of F
+          params = 0.5   
+          
+          # age
+          MaxAge = LifeHis[[l]]$Max.age.F[1]
+          
+          # ages
+          Ages = 1:MaxAge
+          
+          # length structure of model
+          MaxLen = LifeHis[[l]]$TLmax
+          LenInc = TL.bins.cm
+          
+          # length bins
+          lbnd = seq(0,MaxLen - LenInc, LenInc)
+          ubnd = lbnd + LenInc
+          midpt = lbnd + (LenInc/2)
+          nLenCl = length(midpt)
+          
+          # natural mortality
+          PATH=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(List.sp[[l]]$Name),"/",AssessYr,"/demography",sep='')
+          
+          NatMort =read.csv(paste(PATH,'M.csv',sep='/')) # from demography
+          NatMort= mean(colMeans(NatMort,na.rm=T))
+          
+          # gillnet selectivity Kirkwood and Walker (1986) model           #MISSING 
+          MeshSize_mm = c(115, 127)   #change to cm MISSING!!
+          theta1 = 6
+          theta2 = 3000
+          nMeshes = length(MeshSize_mm)
+          
+          # Growth parameters
+          Linf = with(LifeHis[[l]],Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)  #need total length   #ACA
+          vbK = LifeHis[[l]]$Growth.F$k
+          Lo =  with(LifeHis[[l]],Lo*a_FL.to.TL+b_FL.to.TL)
+          #tzero = 0              
+          CVLenAtAge = 0.1      #assumption (MISSING... mention in Methods!!!)
+          
+          #Execute model functions
+
+          MeanSizeAtAge = CalcMeanSizeAtAge(Lo,Linf, vbK)  
+          #MeanSizeAtAge = CalcMeanSizeAtAge(Linf, vbK, tzero)
+          RecLenDist = CalcSizeDistOfRecruits(MeanSizeAtAge, CVLenAtAge)
+          SelAtLengthResults = CalcGillnetSelectivity(theta1, theta2, nMeshes, nLenCl, midpt)
+          SelAtLength = SelAtLengthResults$SelAtLength
+          LTM = CalcLTM(Linf, vbK, CVLenAtAge, midpt)
+          
+           #Fit model for each year with length data
+          ExpCatchAtLen = GetExpCatchAtLen(params)
+          nyrs=dummy%>%
+                group_by(year)%>%
+                tally()%>%pull(year)
+          
+          for(n in nyrs)
+          {
+            ObsCatchFreqAtLen=dummy%>%filter(year==n)
+            ObsCatchFreqAtLen = rmultinom(1, 5000, ExpCatchAtLen)  #replace with observed numbers
+            ObsRelCatchAtLen = ObsCatchFreqAtLen/sum(ObsCatchFreqAtLen)
+            nlmb <- nlminb(params, ObjectiveFunc, gradient = NULL, hessian = TRUE)
+            
+          }
+ 
+          #Calculate uncertianty for parameter estimates
+          #note: get variance-covariance matrix from fitted model
+          hess.out = optimHess(nlmb$par, ObjectiveFunc)
+          vcov.Params = solve(hess.out)
+          ses = sqrt(diag(vcov.Params)) # asymptotic standard errors of parameter estimates
+          EstFMort = c(nlmb$par[1], nlmb$par[1] + c(-1.96, 1.96) * ses[1])
+          Table.check=data.frame(objective.fun=nlmb$objective,
+                                 convergence=nlmb$convergence,
+                                 par.low95=EstFMort[2],
+                                 par=nlmb$par,
+                                 par.up95=EstFMort[3])   
+          
+          #Observed vs estimated
+          ExpCatchAtLen = GetExpCatchAtLen(nlmb$par)
+          plot(midpt, ObsRelCatchAtLen, xlab="Length", ylab="Prob - catch at length",
+               main=paste("Unfitted model: Z=",round(nlmb$par,2)), cex.main=0.8)
+          lines(midpt, ExpCatchAtLen, col="blue")
+          
+          #Clear log
+          rm(params,MaxAge,MaxLen,LenInc,NatMort,MeshSize_mm,theta1,theta2,Linf,vbK,tzero,
+             CVLenAtAge,MeanSizeAtAge,RecLenDist,SelAtLengthResults,SelAtLength,LTM,
+             ExpCatchAtLen,ObsCatchFreqAtLen,ObsRelCatchAtLen,nlmb)
+          
+          #Store F
+          #  Store[[l]]=     ACA function to calculate F, also need selectivity!!
+
+          #Export F
+          PATH=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(List.sp[[l]]$Name),"/",AssessYr,"/Size_based.Catch.curve",sep='')
+          if(!file.exists(file.path(PATH))) dir.create(file.path(PATH))   
+          #out=   #ACA export F by year
+          write.csv(out,paste(PATH,paste(unlist(strsplit(outfile, split='_', fixed=TRUE))[1],"F.csv",sep="."),sep='/'),row.names = F) 
+          rm(dummy)
+        }
+      }
+    }
+    return(Store)
+  }
+  
+  #11.1 TDGDLF
+  size.catch.curve_TDGDLF=fn.size.catch.curve(this.size.comp=paste('Size_composition',
+                                                                   c('West.6.5','West.7','Zone1.6.5','Zone1.7','Zone2.6.5','Zone2.7'),
+                                                                   sep="_"),
+                                              outfile='TDGDLF_histogram',
+                                              MIN.OBS=Min.annual.obs,
+                                              LifeHis=List.sp)
+  
+  
+  #11.2 NSF               what to do with NSF selectivity?
+  size.catch.curve_NSF=fn.size.catch.curve(this.size.comp='NSF.LONGLINE',
+                                           outfile='NSF_histogram',
+                                           MIN.OBS=Min.annual.obs)
+  
+  #11.3 Pilbara trawl
+  #note: not enough observations
+  size.catch.curve_Pilbara.trawl=fn.size.catch.curve(this.size.comp='Pilbara_Trawl',
+                                                     outfile='Pilbara.trawl_histogram',
+                                                     MIN.OBS=Min.annual.obs)
+  
+}else
+{
+  size.catch.curve_TDGDLF=vector('list',N.sp)
+  names(size.catch.curve_TDGDLF)=Keep.species
+  size.catch.curve_NSF=size.catch.curve_TDGDLF
+  for(l in 1: N.sp)
+  {
+    this.file=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                    capitalize(List.sp[[l]]$Name),"/",AssessYr,
+                    "/Size_based.Catch.curve/TDGDLF.F.csv",sep='')
+    if(file.exists(this.file)) size.catch.curve_TDGDLF[[l]]=read.csv(this.file)
+    
+    this.file=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                    capitalize(List.sp[[l]]$Name),"/",AssessYr,
+                    "/Size_based.Catch.curve/NSF.csv",sep='')
+    if(file.exists(this.file)) size.catch.curve_NSF[[l]]=read.csv(this.file)
+    rm(this.file)
   }
 }
 
-#2. Derive F from catch-curve and selectivity    #MISSING!!
 
 
-#---ASSESSMENT. 'Other' species-------------------------------------------------
+
+
+#---POPULATION DYNAMICS. 'Other' species-------------------------------------------------
 
 if(do.other.ass)
 {
@@ -3322,8 +3619,6 @@ if(do.other.ass)
       }
     }
 
-
-    #ACA
     #run aspm
     Store.aSPM=vector('list',N.sp.other)
     names(Store.aSPM)=names(aSPM.init)
@@ -3457,7 +3752,7 @@ if(do.other.ass)
   
 }
 
-#---ASSESSMENT. Indicator species-------------------------------------------------
+#---POPULATION DYNAMICS. Indicator species-------------------------------------------------
 #code from Assessment.R code
 #note: 'Run.models.R' outputs data and parameter inputs for models,
 #                     runs assessment models
@@ -3839,47 +4134,218 @@ if(do.other.ass)
   dev.off()
   
   
-  #---RESULTS. Mean weight of the catch ----
-  #Any trend in mean weights? Leitao 2019
-  r2 <- function(x){  
-    SSe <- sum((x$resid)^2);  
-    observed <- x$resid+x$fitted;  
-    SSt <- sum((observed-mean(observed))^2);  
-    value <- 1-SSe/SSt;  
-    return(value);  
-  }  
-  fn.plt.mn.ktch.wght=function(d)
+  #---RESULTS. Changes in observed mean length for TDGDLF----
+  Change.mean.length=vector('list',N.sp)
+  names(Change.mean.length)=names(Species.data)
+  fun.change.mean.len=function(d,NM,toMatch,min.annual.obs,XLIM)
   {
-    d$Year=as.numeric(substr(d$Finyear,1,4))
-    
-    Weighted_fit <- rlm(mean ~ Year, data = d, weights = 1/CV)   #robust linear model
-    Y_pred <- predict(Weighted_fit)
-    FormulA=coef(Weighted_fit)
-    Symb=ifelse(FormulA[2]>0,'+',"-")
-    FormulA=paste('Mean weight=',round(FormulA[1],2),Symb,abs(round(FormulA[2],2)),'year')
-    R2=r2(Weighted_fit)
-    p.value=f.robftest(Weighted_fit, var='Year')$p.value
-    
-    yr=d$Year
-    plot(yr,d$mean,ylab="",xlab="",pch=19,cex=1.5,cex.axis=1.25,
-         ylim=c(0,max(d$mean+d$CV)))
-    lines(yr,Y_pred,col="grey50",lwd=2)
-    arrows(yr,d$mean,yr,d$mean-d$CV, angle=90, length=0.05)
-    arrows(yr,d$mean,yr,d$mean+d$CV, angle=90, length=0.05)
-    text(yr[1],min(d$mean)*.85,FormulA,col="grey50",pos=4)
-    text(yr[1],min(d$mean)*0.7,bquote(R^2 == .(round(R2,2))~"; P"==.(round(p.value,2))),col="grey50",pos=4)
+    d.list=d[grep(paste(toMatch,collapse="|"),names(d))]
+    if(sum(grepl('Table',names(d.list)))>0)d.list=d.list[-grep('Table',names(d.list))]
+    if(length(d.list)>0)
+    {
+      my_formula = y ~ x
+      
+      #by mesh
+      d.list=do.call(rbind,d.list)
+      d.list=d.list%>%
+        mutate(mesh=case_when(grepl("6.5.inch",rownames(d.list))~6.5,
+                              grepl("7.inch",rownames(d.list))~7))
+      N.min=d.list%>%
+        group_by(FINYEAR,mesh)%>%
+        tally()%>%
+        filter(n>=min.annual.obs)%>%
+        mutate(Keep="YES")
+      
+      d.list=d.list%>%
+        left_join(N.min,by=c('FINYEAR','mesh'))%>%
+        filter(Keep=="YES")
+      if(nrow(d.list)>0 & length(unique(d.list$FINYEAR))>2)
+      {
+        p=d.list%>%
+          mutate(Finyear=as.numeric(substr(FINYEAR,1,4)),
+                 Finyear.d=factor(Finyear,levels=sort(unique(Finyear))),
+                 Mesh=paste(mesh,'inch'))%>%      
+          ggplot(aes(x = Finyear, y = FL)) +
+          geom_violin(aes(fill = Finyear.d, color = Finyear.d), alpha = 0.3) + 
+          facet_wrap(~Mesh)+
+          geom_smooth(color = "black", formula = my_formula, method = 'lm',se=TRUE)+ 
+          stat_poly_eq(aes(label =  paste(stat(eq.label),stat(adj.rr.label),stat(p.value.label),
+                                          sep = "*\", \"*")),
+                       formula = my_formula, parse = TRUE,
+                       label.y = "bottom", label.x = "right", size = 5) +
+          xlab("")+ylab("")+
+          theme(legend.position = "none",
+                strip.text = element_text(size = 16),
+                axis.text=element_text(size=14),
+                axis.title=element_text(size=18),
+                plot.title =element_text(size=20),
+                panel.background = element_blank(),
+                panel.grid.major = element_blank(), 
+                panel.grid.minor = element_blank(),
+                axis.line = element_line(colour = "black"),
+                strip.background = element_rect(fill = "white"),
+                panel.border = element_rect(colour = "black", fill=NA, size=1.25))+
+          labs(title=NM)+xlim(XLIM)+ylim(0,max(d.list$FL,na.rm=T))  
+        return(p)
+      }
+    }
   }
-  tiff(file="Figure_Trend Mean weight of ktch.tiff",width = 2400, height = 2400,units = "px", res = 300, compression = "lzw")    
-  smart.par(length(Mn.weit.ktch),MAR=c(1,3,3,.1),OMA=c(3,1,.1,.5),MGP=c(.1,.7,0))
-  for(i in 1:length(Mn.weit.ktch))
+  for(s in 1:N.sp) 
   {
-    fn.plt.mn.ktch.wght(d=Mn.weit.ktch[[i]])
-    mtext(capitalize(names(Mn.weit.ktch)[i]),cex=1.5)
+    print(paste("Change in mean length ","--",names(Species.data)[s]))
+    dummy=print(fun.change.mean.len(d=Species.data[[s]],
+                                    NM=capitalize(names(Species.data)[s]),
+                                    toMatch=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2"),
+                                    min.annual.obs=Min.annual.obs,
+                                    XLIM=c(1990,as.numeric(substr(Last.yr.ktch,1,4)))))
+    if(!is.null(dummy)) Change.mean.length[[s]]=dummy
+    rm(dummy)
   }
-  mtext("Relative mean weight of the catch",2,outer=T,cex=1.25,las=3,line=-.5)
-  mtext("Financial year",1,outer=T,cex=1.25,line=1.5)
-  dev.off() 
+  figure=ggarrange(plotlist=fun.find.in.list(x=Change.mean.length, Drop=names(Indicator.species)),
+            ncol=1)+
+          theme(plot.margin = margin(0.1,0.5,0.1,0.1, "cm"))
+   annotate_figure(figure,
+                   left = text_grob("Fork length (cm)", rot = 90,size=20,vjust=1),
+                   bottom = text_grob("Financial year",size=20,vjust=-1))
+   ggsave(paste(hNdl,'/Outputs/Figure 6_Changes in observed mean length_TDGDLF.tiff',sep=''),
+         width = 12,height = 10,compression = "lzw")
   
+  #---RESULTS. Changes in mean weight of individuals caught in the TDGDLF  ----
+   #Any strong declining trend in mean weights? (Leitao 2019)
+   Logbook=Logbook%>%
+     filter(LatDeg<=(-26) & method=='GN')%>%
+     mutate(species=ifelse(species==19000 & LongDeg>116,19004,species))%>%
+     group_by(Same.return.SNo,species,finyear,mshigh)%>%
+     summarise(nfish=sum(nfish),
+               livewt=sum(livewt))%>%
+     ungroup()%>%
+     dplyr::select(finyear,livewt,nfish,species,mshigh)%>%
+     mutate(Mean.wght=livewt/nfish)%>%
+     left_join(All.species.names,by=c("species"="SPECIES"))%>%
+     filter(SNAME%in%names(Species.data))%>%
+     filter(!SNAME%in%names(Indicator.species))%>%
+     left_join(Wei.range%>%dplyr::select(TW.min,TW.max,SPECIES),by=c("species"="SPECIES"))%>%
+     filter(Mean.wght>=TW.min & Mean.wght<=TW.max)
+   
+   
+   N.min=Logbook%>%
+     group_by(finyear,species,mshigh)%>%
+     tally()%>%
+     filter(n>=Min.annual.obs)%>%
+     mutate(Keep="YES")
+   
+   Logbook=Logbook%>%
+     left_join(N.min,by=c('finyear','species','mshigh'))%>%
+     filter(Keep=="YES")%>%
+     mutate(Finyear=as.numeric(substr(finyear,1,4)),
+            Finyear.d=factor(Finyear,levels=sort(unique(Finyear))))%>%
+     filter(!is.na(Mean.wght))%>%
+     mutate(Mesh=ifelse(mshigh==165,"6.5",ifelse(mshigh==178,'7',NA)))%>%
+     filter(!is.na(Mesh))
+   
+   Logbook.sp=sort(unique(Logbook$SNAME))
+   
+   
+   Change.mean.weight.catch=vector('list',length(Logbook.sp))
+   names(Change.mean.weight.catch)=Logbook.sp
+   fn.plt.mn.ktch.wght=function(d.list,NM,XLIM)
+   {
+     my_formula = y ~ x
+     if(nrow(d.list)>0 & length(unique(d.list$finyear))>2)
+     {
+       p=d.list%>%
+         mutate(Mesh=paste(Mesh,"inch"))%>%
+         ggplot(aes(x = Finyear, y = Mean.wght)) +
+         geom_violin(aes(fill = Finyear.d, color = Finyear.d), alpha = 0.3) + 
+         geom_smooth(color = "black", formula = my_formula, method = 'lm',se=TRUE)+ 
+         stat_poly_eq(aes(label =  paste(stat(eq.label),stat(adj.rr.label),stat(p.value.label),
+                                         sep = "*\", \"*")),
+                      formula = my_formula, parse = TRUE,
+                      label.y = "top", label.x = "right", size = 4.5) +
+         xlab("")+ylab("")+
+         theme(legend.position = "none",
+               strip.text = element_text(size = 14),
+               axis.text=element_text(size=14),
+               axis.title=element_text(size=18),
+               plot.title =element_text(size=20),
+               panel.background = element_blank(),
+               panel.grid.major = element_blank(), 
+               panel.grid.minor = element_blank(),
+               axis.line = element_line(colour = "black"),
+               strip.background = element_rect(fill = "white"),
+               panel.border = element_rect(colour = "black", fill=NA, size=1.25))+
+         labs(title=NM)+xlim(XLIM)+ylim(0,max(d.list$Mean.wght,na.rm=T))  
+       return(p)
+     }
+     
+   }
+   for(s in 1:length(Logbook.sp)) 
+   {
+     print(paste("Change in mean weight of landed individual ","--",Logbook.sp[s]))
+     dummy=print(fn.plt.mn.ktch.wght(d.list=Logbook%>%filter(SNAME==Logbook.sp[s]),
+                                     NM=capitalize(Logbook.sp[s]),
+                                     XLIM=c(min(Logbook$Finyear)-1,1+max(Logbook$Finyear))))
+     if(!is.null(dummy)) Change.mean.weight.catch[[s]]=dummy
+     rm(dummy)
+   }
+   figure=ggarrange(plotlist=fun.find.in.list(x=Change.mean.weight.catch, Drop=NULL))+
+     theme(plot.margin = margin(0.1,0.5,0.1,0.1, "cm"))
+   annotate_figure(figure,
+                   left = text_grob("Mean weight of caught individuals (kg)", rot = 90,size=25),
+                   bottom = text_grob("Financial year",size=25))
+   ggsave(paste(hNdl,'/Outputs/Figure 5_Changes in mean weight caught individual _TDGDLF.tiff',sep=''),
+          width = 15,height = 10,compression = "lzw")
+   
+   
+   do.model.based.mn.weight.ktch=FALSE
+  if(do.model.based.mn.weight.ktch)
+  {
+    Mn.weit.ktch=lapply(Species.data, function(x) x[["annual.mean.size_relative"]])
+    Mn.weit.ktch=fun.find.in.list(x=Mn.weit.ktch, Drop=names(Indicator.species))
+    
+    Change.mean.weight.catch=vector('list',length(Mn.weit.ktch))
+    names(Change.mean.weight.catch)=names(Mn.weit.ktch)
+    
+    fn.plt.mn.ktch.wght=function(d,NM)
+    {
+      my_formula = y ~ x
+      p=d%>%
+        mutate(Finyear.f=factor(Finyear),
+               Finyear=as.numeric(substr(Finyear,1,4)))%>%      
+        ggplot(aes(x = Finyear, y = mean)) +
+        geom_point(aes(colour=Finyear.f),size=3)+
+        geom_smooth(color = "black", formula = my_formula, method = 'lm',se=F)+ 
+        stat_poly_eq(aes(label =  paste(stat(eq.label),stat(adj.rr.label),stat(p.value.label),
+                                        sep = "*\", \"*")),
+                     formula = my_formula, parse = TRUE,
+                     label.y = "bottom", label.x = "right", size = 5) +
+        xlab("")+ylab("")+
+        theme(legend.position = "none",
+              strip.text = element_text(size = 16),
+              axis.text=element_text(size=14),
+              axis.title=element_text(size=18),
+              plot.title =element_text(size=20),
+              panel.background = element_blank(),
+              panel.grid.major = element_blank(), 
+              panel.grid.minor = element_blank(),
+              axis.line = element_line(colour = "black"),
+              strip.background = element_rect(fill = "white"),
+              panel.border = element_rect(colour = "black", fill=NA, size=1.25))+
+        labs(title=NM)+ylim(0,max(d$mean,na.rm=T)) 
+      return(p)
+    }
+    for(s in 1:length(Mn.weit.ktch))
+    {
+      Change.mean.weight.catch[[s]]=print(fn.plt.mn.ktch.wght(d=Mn.weit.ktch[[s]],NM=capitalize(names(Mn.weit.ktch)[s])))
+    }
+    figure=ggarrange(plotlist=Change.mean.weight.catch)
+    annotate_figure(figure,
+                    left = text_grob("Relative mean weight of caught individuals", rot = 90,size=20),
+                    bottom = text_grob("Financial year",size=20))
+    ggsave(paste(hNdl,'/Outputs/Figure_Changes in mean weight caught individual _TDGDLF.tiff',sep=''),
+           width = 10,height = 10,compression = "lzw")
+    
+  }
   
   #---RESULTS. SPM ------
   if(Do.SPM=="YES")
@@ -4470,6 +4936,8 @@ if(do.other.ass)
   #---RESULTS. aSPM ------
   if(Do.aSPM=="YES")
   {
+    #MISSING: output steepness for relevant species as r prior 'Figure 1_Prior_r'
+    
     #remove species with no aSPM
     no.null.Store.aSPM=Store.aSPM[!sapply(Store.aSPM, is.null)]
     
@@ -4626,6 +5094,10 @@ if(do.other.ass)
                   Zebra='NO',Zebra.col='grey60',Grid.col='black',
                   Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
   }
+  
+  #---RESULTS. Selectivity ------
+  #MISSING: display selectivity and Sel.equivalence only for those species for assessments used selectivity!!
+  
   
   #---RESULTS. RISK ------
   LoE.Weights=c(psa=.2,sptemp=.2,efman=.2,spmod=.5,srmod=.5,aspmod=.5)

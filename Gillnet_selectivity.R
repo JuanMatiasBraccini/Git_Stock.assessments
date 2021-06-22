@@ -290,12 +290,12 @@ add1=rbind(add1,add1)%>%mutate(name=c("Great hammerhead","Scalloped hammerhead")
 
 TL_FL_LFQ.south=rbind(TL_FL_LFQ.south,
                       add1,
-                      data.frame(name="Copper shark",intercept=5.801,slope=1.181),
-                      data.frame(name="Common sawshark",intercept=0,slope=1.2),
-                      data.frame(name="Grey nurse shark",intercept=0,slope=1.2),
-                      data.frame(name="Milk shark",intercept=0,slope=1.2),
-                      data.frame(name="Shortfin mako",intercept=0,slope=1.127),
-                      data.frame(name="Spinner shark",intercept=0,slope= 1.28))  
+                      data.frame(name="Copper shark",intercept=6.972,slope=1.214),
+                      data.frame(name="Common sawshark",intercept=0,slope=1.1),
+                      data.frame(name="Grey nurse shark",intercept=0,slope=1.3),
+                      data.frame(name="Milk shark",intercept=5.24,slope=1.1162),
+                      data.frame(name="Shortfin mako",intercept=1.71,slope=1.07689),
+                      data.frame(name="Spinner shark",intercept=3.44,slope= 1.1814))  
 
 LFQ.south=LFQ.south%>%
           left_join(TL_FL_LFQ.south,by=c(Species='name'))%>%
@@ -511,8 +511,10 @@ drop.one.mesh=data.frame(Species=c(rep("Carcharhinidae",4),
 Combined.family=left_join(Combined.family,drop.one.mesh,by=c('Species','Mesh.size'))%>%
         filter(is.na(Drop))%>%dplyr::select(-Drop)
 
+#Add scientific names to LH
+LH=LH%>%left_join(SP.names,by='SPECIES')   
 
-#Get length at age 
+#Get total length at age 
 len.at.age=function(Lo,Linf,k,Age.max)
 {
   VonB=data.frame(Age=0:Age.max)
@@ -523,15 +525,18 @@ LatAge=vector('list',length(n.sp))
 names(LatAge)=n.sp
 LatAge.family=vector('list',length(n.sp.family))
 names(LatAge.family)=n.sp.family
-LH=LH%>%left_join(SP.names,by='SPECIES')   
+
 for(s in 1:length(n.sp)) 
 {
   ii=n.sp[s]
   ii=ifelse(ii=="Southern sawshark","Common sawshark",
      ifelse(ii=="Spikey dogfish","Spurdogs",ii))
   this.par=LH%>%filter(Name==ii) 
-  if(is.na(this.par$Max_Age_max)) this.par$Max_Age_max=this.par$Max_Age*1.3
-  LatAge[[s]]=with(this.par,len.at.age(Lo=LF_o,Linf=FL_inf/.85,k=K,Age.max=Max_Age_max))
+  if(!is.na(this.par$K))
+  {
+    if(is.na(this.par$Max_Age_max)) this.par$Max_Age_max=this.par$Max_Age*1.3
+    LatAge[[s]]=with(this.par,len.at.age(Lo=LF_o*a_FL.to.TL+b_FL.to.TL,Linf=FL_inf*a_FL.to.TL+b_FL.to.TL,k=K,Age.max=Max_Age_max))
+  }
 }
 for(s in 1:length(n.sp.family)) 
 {
@@ -542,10 +547,20 @@ for(s in 1:length(n.sp.family))
     summarise(LF_o=mean(LF_o,na.rm=T),
               FL_inf=mean(FL_inf,na.rm=T),
               K=mean(K,na.rm=T),
-              Max_Age_max=mean(Max_Age_max,na.rm=T))
-  LatAge.family[[s]]=with(this.par,len.at.age(Lo=LF_o,Linf=FL_inf/.85,k=K,Age.max=Max_Age_max))
+              Max_Age_max=mean(Max_Age_max,na.rm=T),
+              a_FL.to.TL=mean(a_FL.to.TL,na.rm=T),
+              b_FL.to.TL=mean(b_FL.to.TL,na.rm=T))
+  if(!is.na(this.par$K))
+  {
+    LatAge.family[[s]]=with(this.par,len.at.age(Lo=LF_o*a_FL.to.TL+b_FL.to.TL,Linf=FL_inf*a_FL.to.TL+b_FL.to.TL,k=K,Age.max=Max_Age_max))
+  }
 }  
 
+# Remove species with no growth information
+LatAge=LatAge[-match(names(LatAge[sapply(LatAge, is.null)]),names(LatAge))]
+n.sp=names(LatAge)
+LatAge.family=LatAge.family[-match(names(LatAge.family[sapply(LatAge.family, is.null)]),names(LatAge.family))]
+n.sp.family=names(LatAge.family)
 
 #--3. Estimate selectivity parameters 
 #notes: shark size in cm
@@ -1149,7 +1164,8 @@ if(do.paper.figures)
     facet_wrap(vars(Species), scales = "free_y")+
     scale_color_manual("Mesh size (cm)",values=cols)+
     theme_dark()+ 
-    theme(strip.text.x = element_text(size = 11,face='bold',color="white"),
+    theme(legend.position="top",
+          strip.text.x = element_text(size = 11,face='bold',color="white"),
           axis.text.x = element_text(size = 10),
           axis.text.y = element_text(size = 10),
           axis.title.x = element_text(size = 18),
@@ -1172,12 +1188,14 @@ if(do.paper.figures)
   
     #family
   Tab2.mean=Combined.family%>%
+    filter(Species%in%n.sp.family)%>%
     group_by(Mesh.size,Species)%>%
     summarise(Mean=round(mean(Length),1))%>%
     spread(Mesh.size,Mean)%>%
     data.frame
   colnames(Tab2.mean)[-1]=substr(colnames(Tab2.mean)[-1],2,10)
   Combined.family%>%
+    filter(Species%in%n.sp.family)%>%
     group_by(Mesh.size,Species)%>%
     summarise(Mean=mean(Length),
               SD=sd(Length))%>%
@@ -1188,12 +1206,13 @@ if(do.paper.figures)
     facet_wrap(vars(Species), scales = "free_y")+
     scale_color_manual("Mesh size (cm)",values=colfunc(length(unique(Combined.family$Mesh.size))))+
     theme_dark()+ 
-    theme(strip.text.x = element_text(size = 11,face='bold',color="white"),
+    theme(legend.position="top",
+          strip.text.x = element_text(size = 11,face='bold',color="white"),
           axis.text.x = element_text(size = 10),
           axis.text.y = element_text(size = 10),
           axis.title.x = element_text(size = 18),
           axis.title.y = element_text(size = 18))
-  ggsave('Figure.S2_family.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  ggsave('Figure.S2_family.tiff', width = 10,height = 7, dpi = 300, compression = "lzw")
   
 
   #6. Display size frequencies 
@@ -1220,10 +1239,16 @@ if(do.paper.figures)
          mutate(MESH=as.factor(Mesh.size),
                 TL=Length)%>%
         filter(Species%in%n.sp.pub))
-  p=p+theme(legend.position="bottom")
-  reposition_legend(p , 'center',panel='panel-4-3')
-  #Manually save figrue as 'Figure 2.tiff', ggsave not working with reposition_legend
-  #ggsave('Figure 2.tiff', width = 10,height = 10, dpi = 300, compression = "lzw")
+  p=p+theme(legend.position="top",
+            legend.title=element_text(size = 14),
+            legend.text = element_text(size = 12),
+            strip.text.x = element_text(size = 14),
+            axis.text.x = element_text(size = 13),
+            axis.text.y = element_text(size = 13))
+  p
+  #p=p+theme(legend.position="bottom")
+  #reposition_legend(p , 'center',panel='panel-4-3')   #Manually save figrue as 'Figure 2.tiff', ggsave not working with reposition_legend
+  ggsave('Figure 2.tiff', width = 12,height = 10, dpi = 300, compression = "lzw")
   
       #all species
   p=fig2(d=Combined%>%
@@ -1235,11 +1260,19 @@ if(do.paper.figures)
       #family
   p=fig2(d=Combined.family%>%
          mutate(MESH=as.factor(Mesh.size),
-                TL=Length))
-  p=p+theme(legend.position="bottom")
-  reposition_legend(p , 'right',panel='panel-3-3')
+                TL=Length)%>%
+         filter(Species%in%n.sp.family))
+  p=p+theme(legend.position="top",
+            legend.title=element_text(size = 14),
+            legend.text = element_text(size = 12),
+            strip.text.x = element_text(size = 14),
+            axis.text.x = element_text(size = 13),
+            axis.text.y = element_text(size = 13))
+  p
+  #p=p+theme(legend.position="bottom")
+  #reposition_legend(p , 'right',panel='panel-3-3')
   #Manually save figrue as 'Figure 3.tiff', ggsave not working with reposition_legend
-  #ggsave('Figure 3_Size frequency_family.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
+  ggsave('Figure 3_Size frequency_family.tiff', width = 10,height = 8, dpi = 300, compression = "lzw")
   
   
   
@@ -1800,7 +1833,7 @@ if(do.paper.figures)
                  ifelse(Nms=="norm.sca","Normal prop.",
                         ifelse(Nms=="gamma","Gamma",
                                ifelse(Nms=="lognorm","Lognormal",NA))))
-      legend("left",Nms,bty='n',text.col=Cols.type,cex=1.1)
+      legend("left",Nms,bty='n',text.col=Cols.type,cex=1)
     }
     
     mtext(n.sp.family[s],4,line=.5,cex=.8,las=3)
@@ -1910,9 +1943,9 @@ if(do.paper.figures)
   {
     Store.Sels[[s]]=plot.sel(d=Fit.M_H[[s]],BEST=Best.fit[[s]],NM=n.sp[s],XMAX=Max.size)
   }
-  plot.new()
+  #plot.new()
   legend("right",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
-                    lwd=2,cex=1.25,title='Mesh (cm)')
+                    lwd=2,cex=.95,title='Mesh (cm)')
   mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
   mtext("Relative selectivity",2,outer=T,line=1,cex=1.25,las=3)
   dev.off() 
@@ -1956,7 +1989,7 @@ if(do.paper.figures)
     Store.Sels.fam[[s]]=plot.sel(d=Fit.M_H.family[[s]],BEST=Best.fit.family[[s]],
                                  NM=n.sp.family[s],XMAX=Max.size)
   }
-  plot.new()
+  #plot.new()
   legend("right",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
          lwd=2,cex=1.25,title='Mesh (cm)')
   mtext("Total length (cm)",1,outer=T,line=.3,cex=1.25)

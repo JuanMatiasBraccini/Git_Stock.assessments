@@ -1380,8 +1380,8 @@ if(Do.recons.paper=="YES")
   #3.1.6. TEPS  
 #Pilbara trawl sawfish  
   #(Wakefield et al 2017a)
-  #no info on average weight from Pilbara trawl, using KGBF
-Sawfish.avrg.weight.pilbara.trawl=Kimberley.GBF.observed.comp%>%filter(Common.name%in%c('Narrow sawfish'))%>%mutate(Avrg=Weight/Numbers)%>%pull(Avrg)
+Pilbara.mean.size=350
+Sawfish.avrg.weight.pilbara.trawl=0.00004*Pilbara.mean.size^2.56 #parameters from LH csv file
 Pilbara_sawfish=Pilbara_sawfish%>%
   mutate(StartTime=chron(times=StartTime),
          StartDate=as.POSIXlt(as.character(StartDate),format='%d/%m/%Y'),
