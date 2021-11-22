@@ -28,6 +28,9 @@
 #3. Other jurisdictions (AFMA_GAB_WTB, Whaler_SA, NT_dusky_sandbar)
 
 options(dplyr.summarise.inform = FALSE)
+options(stringsAsFactors = FALSE)
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
+
 library(tidyverse)
 library(readxl)
 library(lubridate)
@@ -103,10 +106,6 @@ PCM=data.frame(Group=c("Sawfish","Sawsharks","Wobbegongs","Mackerel","Greynurse"
 
 
 # 2 -------------------DATA SECTION------------------------------------
-
-options(stringsAsFactors = FALSE)
-if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
-
 fn.hndl=function(x)paste(handl_OneDrive('Data/Catch and Effort/'),x,sep='')
 
 ## Fishery codes
@@ -123,7 +122,7 @@ Calculate.discarding_catch=read_excel(fn.hndl('Calculate.discarding.xlsx'), shee
 
   #Non-WA fisheries 
     #NT
-#note: these are the harks captured in NT offshore net and line fishery
+#note: these are the sharks captured in NT offshore net and line fishery
 #https://nt.gov.au/__data/assets/pdf_file/0011/975584/nt-offshore-net-and-line-fishery-ecological-risk-assessment-2020.pdf
 NT.retained.sharks=c('Blacktip shark','Spot-tail shark',
                      'Scalloped hammerhead','Great hammerhead',
@@ -260,6 +259,11 @@ Pilbara.trawl.observed.comp=data.frame(
 
     #Number of sawfish interactions since 2005
 Pilbara_sawfish=read.csv(handl_OneDrive('Analyses/Sawfish/Pilbara/Data/20210330_1549 - Output.csv'),stringsAsFactors=F)
+Pilbara.mean.size=350         #ACA. Update with Corey's range
+
+    #Fishcube query to extract total catch prior to observer program
+#http://F01-FIMS-WEBP01/FishCubeWA/Query.aspx?CubeId=CommercialDPIRDOnly&QueryId=e9d57b8c-afa2-4d9c-b6e4-8a884059abb7
+PFT.total.catch <- read_excel(handl_OneDrive('Data/Catch and Effort/Pilbara trawl_Fish Cube WA.xlsx'), sheet = "Data") 
 
 
     #ratio observed shark catch to landed catch
@@ -1378,10 +1382,11 @@ if(Do.recons.paper=="YES")
 }
 
   #3.1.6. TEPS  
-#Pilbara trawl sawfish  
+#Pilbara trawl sawfish    
   #(Wakefield et al 2017a)
-Pilbara.mean.size=350
-Sawfish.avrg.weight.pilbara.trawl=0.00004*Pilbara.mean.size^2.56 #parameters from LH csv file
+Sawfish.avrg.weight.pilbara.trawl=data.frame(SPECIES=c(25002,25001),
+                                             avg.wt=c(0.00005*Pilbara.mean.size^2.474, #parameters from LH csv file
+                                                      0.00000171*Pilbara.mean.size^3.04))
 Pilbara_sawfish=Pilbara_sawfish%>%
   mutate(StartTime=chron(times=StartTime),
          StartDate=as.POSIXlt(as.character(StartDate),format='%d/%m/%Y'),
@@ -1399,10 +1404,35 @@ Pilbara_sawfish=Pilbara_sawfish%>%
   summarise(SawfishNarrow=sum(SawfishNarrow),
             SawfishGreen=sum(SawfishGreen))%>%
   gather(Species,Number,-FINYEAR)%>%
-  mutate(LIVEWT.c=Number*Sawfish.avrg.weight.pilbara.trawl,
-         SPECIES=ifelse(Species=="SawfishGreen",25001,25002))%>%
+  ungroup()%>%
+  mutate(SPECIES=ifelse(Species=="SawfishGreen",25001,25002))%>%
+  left_join(Sawfish.avrg.weight.pilbara.trawl,by=c('SPECIES'))%>%
+  mutate(LIVEWT.c=Number*avg.wt)%>%
   dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
 
+    #add years prior to 2005-06 (assume same proportion of catch)  
+#note: this calculates sawfish catch prior to observer data as average observed proportion of catch times total catch
+PFT.total.catch=PFT.total.catch%>%
+  rename(FINYEAR='Financial Year',
+         Livewt='Weight (kg) Total')%>%
+  group_by(FINYEAR)%>%
+  summarise(Tons=sum(Livewt/1000))
+Mean.prop=Pilbara_sawfish%>%
+  left_join(PFT.total.catch,by='FINYEAR')%>%
+  mutate(prop=LIVEWT.c/(Tons*1000))%>%
+  group_by(SPECIES)%>%
+  summarise(Prop=mean(prop,na.rm=T))
+PFT.total.catch=PFT.total.catch%>%
+  filter(!FINYEAR%in%unique(Pilbara_sawfish$FINYEAR))
+PFT.total.catch=rbind(PFT.total.catch,PFT.total.catch)%>%
+  arrange(FINYEAR)%>%
+  mutate(SPECIES=rep(unique(Mean.prop$SPECIES),nrow(PFT.total.catch)))%>%
+  left_join(Mean.prop,by='SPECIES')%>%
+  mutate(LIVEWT.c=1000*Tons*Prop)
+
+Pilbara_sawfish=rbind(Pilbara_sawfish,PFT.total.catch%>%
+                        dplyr::select(FINYEAR,SPECIES,LIVEWT.c))%>%
+                  arrange(FINYEAR)
 
 #TDGDLF
 Size.comp.Dusky.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #from Comments in TDGDLF returns
@@ -1774,7 +1804,7 @@ if(Do.recons.paper=="YES")
 Data.monthly=Data.monthly%>%mutate(FishCubeCode=ifelse(FishCubeCode=='OANCGCWC','OAWC',FishCubeCode))
 Data.monthly.north=Data.monthly.north%>%mutate(FishCubeCode=ifelse(FishCubeCode=='OANCGCWC','OANCGC',FishCubeCode))
 
-#Alocate 'unknwn' FishCubeCode
+#Alocate 'unknwn' FishCubeCodes 
 Data.monthly=Data.monthly%>%
             mutate(FishCubeCode=ifelse(FishCubeCode=='unknwn' & zone=='West','WCDGDL',
                                 ifelse(FishCubeCode=='unknwn' & zone%in%c('Zone1','Zone2'),'JASDGDL',
@@ -1784,6 +1814,27 @@ Data.monthly.north=Data.monthly.north%>%
                                 ifelse(FishCubeCode=='unknwn' & zone=='Closed','OANCGC',
                                 ifelse(FishCubeCode=='unknwn' & zone=='North','WANCS',
                                 FishCubeCode))))
+
+#Alocate NA FischCubeNames
+Data.monthly=Data.monthly%>%
+              left_join(FisheryCodes%>%
+                          distinct(FishCubeCode,FishCubeName)%>%
+                          rename(FishCubeName1=FishCubeName),
+                        by='FishCubeCode')%>%
+              mutate(FishCubeName=ifelse(is.na(FishCubeName),FishCubeName1,FishCubeName))%>%
+              dplyr::select(-FishCubeName1)
+
+Data.monthly.north=Data.monthly.north%>%
+                    left_join(FisheryCodes%>%
+                                distinct(FishCubeCode,FishCubeName)%>%
+                                rename(FishCubeName1=FishCubeName),
+                              by='FishCubeCode')%>%
+                    mutate(FishCubeName=ifelse(is.na(FishCubeName),FishCubeName1,FishCubeName),
+                           FishCubeName=ifelse(FishCubeCode=='OANCGC','Open access in North Coast and Gascoyne Coast',
+                                               FishCubeName))%>%
+                    dplyr::select(-FishCubeName1)
+  
+
 
 #export
 fn.out=function(d,NM)

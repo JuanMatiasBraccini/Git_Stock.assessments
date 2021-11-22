@@ -42,8 +42,14 @@ Dat_obs=DATA %>%
           dplyr::select(c(SHEET_NO,date,Month,year,BOAT,zone,BLOCK,SOAK.TIME,MESH_SIZE,
                    MESH_DROP,NET_LENGTH,Mid.Lat,Mid.Long,Method,SPECIES,Taxa,
                    COMMON_NAME,SCIENTIFIC_NAME,CAES_Code,TL,FL,Disc.width,Number)) 
-Dat_obs.LL=Dat_obs %>% filter(Method=="LL")
-Dat_obs=Dat_obs %>% filter(Method=="GN")
+Dat_obs.LL=Dat_obs%>%
+              filter(Method=="LL")
+Dat_obs=Dat_obs%>%
+              filter(Method=="GN")%>%
+              mutate(COMMON_NAME=ifelse(SPECIES=='SM' & is.na(Disc.width),'Stingrays',COMMON_NAME),  #one smooth ray with no size info set to 'Dasyatidae'
+                     SCIENTIFIC_NAME=ifelse(SPECIES=='SM' & is.na(Disc.width),'Family Dasyatidae',SCIENTIFIC_NAME),
+                     CAES_Code=ifelse(SPECIES=='SM' & is.na(Disc.width),35000,CAES_Code),
+                     SPECIES=ifelse(SPECIES=='SM' & is.na(Disc.width),'SR',SPECIES))   
 
 
 # Commercial catch data   
@@ -757,8 +763,8 @@ Infographic1=a%>%
               plot.caption = element_text(size =8,face = "italic"),
               plot.title.position = "plot")+
               labs(title ="Observed percentage of total catch (by number)",
-                   subtitle = "(the number of shots per year is shown on top of each bar)",
-                   caption="Only years with more than 50 observed shots are displayed")
+                   subtitle = "(the annual number of observed shots is shown above each bar)",
+                   caption="(Only years with more than 50 observed shots are displayed)")
   
 # remove stuff-------------------------------------------
 rm(DATA,Dat_obs,Dat_obs.LL,Dat_total.LL,DATA.bio,DATA.ecosystems)
@@ -1650,7 +1656,7 @@ if(do.paper)
     lines(yrs,d[id.med,]/d.ret,lwd=LWd,col=CL)
   }
   YMAX=.1
-  jpeg("Results/Total.jpg",width=2400,height=2400,units="px",res=300)
+  jpeg("Results/Total.discard.estimates/Total.jpg",width=2400,height=2400,units="px",res=300)
   par(mfcol=c(1,1),mar=c(1.5,1,1,1),oma=c(1,3,1,1),mgp=c(1,.6,0),las=1)
   fn.plt.prop(d=Stats$Total$total.discarded,d.ret=Stats$Total$total.retained[id.med,],CL=Col.totl,LWd=3)
   mtext("Proportion",2,1.5,las=3,outer=T,cex=1.5)
@@ -1738,7 +1744,7 @@ if(do.paper)
     xlab("Total length (cm)") +
     ylab("Frequency") +
     facet_wrap(~Name, scales = "free")
-  ggsave('Results/Recons.scalefish/FigureS2_size.frequency.tiff',width = 10,height = 10,compression = "lzw")
+  ggsave('Results/Recons.scalefish/FigureS2_size.frequency.tiff',width = 12,height = 10,compression = "lzw")
   
   
 }
@@ -1916,7 +1922,7 @@ Infographic2=a%>%
                    size=4, color="black",fontface = 'bold',box.padding=-1.2, nudge_x = 5)+
   coord_polar(theta="y")+theme_void() + xlim(c(2, 4))+
   ggtitle(label ="Percentage of total catch (by weight)",
-          subtitle = paste("(average for the last 5 years= ",round(sum(a$Total))," tonnes)",sep=""))+
+          subtitle = paste("(average for the last 5 years= ",round(sum(a$Total))," tonnes; discard estimates account for PCM)",sep=""))+
   theme_void() +
   theme(legend.position = "none",
         legend.title = element_blank(),
@@ -1964,7 +1970,7 @@ if(Info3=="barplot")
     ggplot(aes(x=x,y = perc, fill = Name2)) +
     geom_bar(stat="identity", width = 1.2) +
     labs(x = "",y="") +
-    ggtitle(label ="Percentage of discarded catch") +
+    ggtitle(label ="Percentage of discarded catch (accounting for PCM)") +
     theme_minimal(base_size = 18)  +
     theme(legend.title=element_blank(),
           legend.position = "right",
@@ -2015,6 +2021,6 @@ if(Info3=="pie")
 }
 
 #Export infographic
-Infographic1 + Infographic2 / Infographic3 +plot_layout(ncol = 2, widths = unit(c(11.5, 5),c('cm','cm')))
+Infographic1 + Infographic2 / Infographic3 +plot_layout(ncol = 2, widths = unit(c(14.5, 5),c('cm','cm')))
 ggsave(handl_OneDrive('Analyses/Reconstruction_total_bycatch_TDGDLF/Results/Infographic.tiff'),
-       width = 12,height = 7,compression = "lzw")
+       width = 13,height = 7,compression = "lzw")
