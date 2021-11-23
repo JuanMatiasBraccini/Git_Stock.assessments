@@ -253,13 +253,12 @@ Pilbara.trawl.observed.comp=data.frame(
   Retained=c(rep('yes',10),rep('no',13)),
   Numbers=c(90,7,3,27,80,5,238,559,114,102,101,4,115,25,1,12,43,1,4,6,1,1,2),
   Weight=c(2058.6,595.9,295.1,395.8,593.2,168.3,522.6,772.7,210.5,214.2,
-           1627.8,257.1,189.5,90.7,39.4,20.0,15.6,15.1,9.5,4.9,4.2,2,.8)
-  )%>%
+           1627.8,257.1,189.5,90.7,39.4,20.0,15.6,15.1,9.5,4.9,4.2,2,.8))%>%
     mutate(Prop=Weight/sum(Weight))
 
     #Number of sawfish interactions since 2005
 Pilbara_sawfish=read.csv(handl_OneDrive('Analyses/Sawfish/Pilbara/Data/20210330_1549 - Output.csv'),stringsAsFactors=F)
-Pilbara.mean.size=350         #ACA. Update with Corey's range
+Pilbara.mean.size=350         #Corey's obs
 
     #Fishcube query to extract total catch prior to observer program
 #http://F01-FIMS-WEBP01/FishCubeWA/Query.aspx?CubeId=CommercialDPIRDOnly&QueryId=e9d57b8c-afa2-4d9c-b6e4-8a884059abb7
@@ -302,8 +301,22 @@ BRD_pilbara.trawl_year='2003-04'
   }
 
 
-  #-- 2.1.6 WA scallop and prawn trawl fisheries (go to scientist: Mervi Kangas)
+  #-- 2.1.6 WA scallop and prawn trawl fisheries (go to scientist: Mervi Kangas or Inigo Koefoed)
 
+    #Prawn trawl reported interactions with sawfish
+Prawn.trawl.mean.size=300  #Inigo pers com
+Sawfish.interactions.prawn.trawl=read_excel(fn.hndl('Prawn_trawl/Sawfish Summary 04-20v2.xlsx'),
+                                            sheet = "Sheet1",skip=1)
+Sawfish.inter.PT.index=data.frame(Fishery=c('Shark.Bay.Prawn.Trawl','Exmouth.Gulf.Prawn.Trawl','Onslow.Prawn.Trawl',
+                                            'Nickol.Bay.Prawn.Trawl','Broome.Prawn.Trawl','Kimberly.Prawn.Trawl'),
+                                  Col.start=c(2,8,14,19,24,29),
+                                  Col.end=c(7,13,18,23,28,33),
+                                  Start.fishing=c(1962,1963,1985,
+                                                  1966,1991,1980))
+Sawfish.NPF.comp=data.frame(SPECIES=c(25002,25001,25004,25003),
+                            prop=c(.81,.16,.02,.01))
+
+  
     #South West Trawl (Laurenson et al 1993 Table 5)
 # notes: Authors grouped all sites and replicates in Table 5 
 #        Authors reported a range of number of individuals so the mid point is used
@@ -1398,8 +1411,8 @@ Pilbara_sawfish=Pilbara_sawfish%>%
          SawfishNarrowDEAD=ifelse(is.na(SawfishNarrowDEAD),0,SawfishNarrowDEAD),
          SawfishGreenALIVE=ifelse(is.na(SawfishGreenALIVE),0,SawfishGreenALIVE),
          SawfishGreenDEAD=ifelse(is.na(SawfishGreenDEAD),0,SawfishGreenDEAD),
-         SawfishNarrow=SawfishNarrowALIVE*PCM%>%filter(Group=="Sawfish")%>%pull(Trawl)+SawfishNarrowDEAD,
-         SawfishGreen=SawfishGreenALIVE*PCM%>%filter(Group=="Sawfish")%>%pull(Trawl)+SawfishGreenDEAD)%>%
+         SawfishNarrow=round(SawfishNarrowALIVE*PCM%>%filter(Group=="Sawfish")%>%pull(Trawl))+SawfishNarrowDEAD,
+         SawfishGreen=round(SawfishGreenALIVE*PCM%>%filter(Group=="Sawfish")%>%pull(Trawl))+SawfishGreenDEAD)%>%
   group_by(FINYEAR)%>%
   summarise(SawfishNarrow=sum(SawfishNarrow),
             SawfishGreen=sum(SawfishGreen))%>%
@@ -1433,6 +1446,58 @@ PFT.total.catch=rbind(PFT.total.catch,PFT.total.catch)%>%
 Pilbara_sawfish=rbind(Pilbara_sawfish,PFT.total.catch%>%
                         dplyr::select(FINYEAR,SPECIES,LIVEWT.c))%>%
                   arrange(FINYEAR)
+
+#Prawn trawl sawfish 
+#note: no sawfish catch reported in CAESS so reconstruct whole time series
+Sawfish.avrg.weight.prawn.trawl=data.frame(SPECIES=c(25002,25001,25004,25003),
+                                           avg.wt=c(0.00005*Prawn.trawl.mean.size^2.474, #parameters from LH csv file
+                                                    0.00000171*Prawn.trawl.mean.size^3.04,
+                                                    0.000003*Prawn.trawl.mean.size^3.006,
+                                                    0.000003*Prawn.trawl.mean.size^2.998))
+Prawn.trawl_sawfish=vector('list',length=nrow(Sawfish.inter.PT.index))
+names(Prawn.trawl_sawfish)=Sawfish.inter.PT.index$Fishery
+for(p in 1:length(Prawn.trawl_sawfish))
+{
+  DD=Sawfish.interactions.prawn.trawl[,Sawfish.inter.PT.index$Col.start[p]:Sawfish.inter.PT.index$Col.end[p]]
+  names(DD)=word(names(DD),1,sep = "\\...")
+  DD=DD%>%
+    rename(Catch_tonnes='Catch (t)')%>%
+    mutate(Catch_tonnes=as.numeric(Catch_tonnes),
+           Fishery=Sawfish.inter.PT.index$Fishery[p],
+           Year=Sawfish.interactions.prawn.trawl$Year,
+           Alive=ifelse(Alive%in%c('ND','table and text figures don’t match in report'),NA,Alive),
+           Dead=ifelse(Dead%in%c('ND'),NA,Dead),
+           Unknown=ifelse(Unknown%in%c('ND'),NA,Unknown),
+           Alive=as.numeric(Alive),
+           Dead=as.numeric(Dead),
+           Unknown=as.numeric(Unknown))%>%
+    data.frame%>%
+    filter(Year>=Sawfish.inter.PT.index$Start.fishing[p])%>%
+    mutate(Nsawfish=round(Alive*PCM%>%filter(Group=="Sawfish")%>%pull(Trawl))+Dead+Unknown)%>%   #sum numbers dead and alive with PCM
+    full_join(Sawfish.NPF.comp%>%
+                mutate(Fishery=Sawfish.inter.PT.index$Fishery[p]),
+              by='Fishery')%>%
+    mutate(N=Nsawfish*prop)%>%      #species breakdown 
+    left_join(Sawfish.avrg.weight.prawn.trawl,by='SPECIES')%>%
+    mutate(LIVEWT.c=N*avg.wt)  #add weights
+  Mean.prop.of.ktch=DD%>%
+    filter(Year>2004)%>%
+    mutate(Prop=LIVEWT.c/(Catch_tonnes*1000))%>%    #calculate mean proportion of catch
+    group_by(SPECIES)%>%
+    summarise(Mean.prop=mean(Prop,na.rm=T)) 
+  DD=DD%>%
+    left_join(Mean.prop.of.ktch,
+              by='SPECIES')%>%
+    mutate(LIVEWT.c=ifelse(is.na(LIVEWT.c),Mean.prop*Catch_tonnes*1000,LIVEWT.c))%>%   #replace NA interactions
+    mutate(FINYEAR=paste(Year,substr(Year+1,3,4),sep='-'))%>%
+    dplyr::select(FINYEAR,SPECIES,LIVEWT.c)%>%
+    arrange(FINYEAR)
+  
+  Prawn.trawl_sawfish[[p]]=DD
+  rm(DD)
+}
+
+
 
 #TDGDLF
 Size.comp.Dusky.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #from Comments in TDGDLF returns
@@ -1853,7 +1918,7 @@ This.fin.yr=paste(Yr.lim[1]:Yr.lim[2],substr((Yr.lim[1]+1):(Yr.lim[2]+1),3,4),se
 Hist.expnd$zone=NA
 fn.out(d=Hist.expnd%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Hist.expnd.csv')
 
-  #Ammended reported catch including discards
+  #Amended reported catch including discards
 fn.out(d=Data.monthly%>%filter(FINYEAR%in%This.fin.yr)%>%
          dplyr::select(FINYEAR,FishCubeCode,METHOD,BLOCKX,LAT,LONG,SPECIES,LIVEWT.c,
                        Estuary,zone),               
@@ -1865,6 +1930,11 @@ fn.out(d=Data.monthly.north%>%filter(FINYEAR%in%This.fin.yr)%>%
 
   #TEPS
 fn.out(d=Pilbara_sawfish%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Pilbara_sawfish.ktch.csv')
+for(p in 1:length(Prawn.trawl_sawfish))
+{
+  fn.out(d=Prawn.trawl_sawfish[[p]]%>%filter(FINYEAR%in%This.fin.yr),
+         NM=paste('recons_',names(Prawn.trawl_sawfish)[p],'_sawfish.ktch.csv',sep=''))
+}
 fn.out(d=Greynurse.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Greynurse.ktch.csv')
 fn.out(d=TEPS_dusky%>%filter(FINYEAR%in%This.fin.yr),NM='recons_TEPS_dusky.csv')
 

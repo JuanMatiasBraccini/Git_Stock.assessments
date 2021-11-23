@@ -308,6 +308,12 @@ fn.import.catch.data=function(KTCH.UNITS)
   Sawfish_Pilbara.ktch=fn.in(NM='recons_Pilbara_sawfish.ktch.csv')
   Greynurse.ktch=fn.in(NM='recons_Greynurse.ktch.csv')
   TEPS_dusky=fn.in(NM='recons_TEPS_dusky.csv')
+  Sawfish_KPTF.ktch=fn.in(NM='recons_Kimberly.Prawn.Trawl_sawfish.ktch.csv')
+  Sawfish_NBPTF.ktch=fn.in(NM='recons_Nickol.Bay.Prawn.Trawl_sawfish.ktch.csv')
+  Sawfish_OPTF.ktch=fn.in(NM='recons_Onslow.Prawn.Trawl_sawfish.ktch.csv')
+  Sawfish_SBPTF.ktch=fn.in(NM='recons_Shark.Bay.Prawn.Trawl_sawfish.ktch.csv')
+  Sawfish_EGPTF.ktch=fn.in(NM='recons_Exmouth.Gulf.Prawn.Trawl_sawfish.ktch.csv')
+  Sawfish_BPTF.ktch=fn.in(NM='recons_Broome.Prawn.Trawl_sawfish.ktch.csv')
   
   #..Droplines Western Rock Lobster
   WRL.ktch=fn.in(NM='Wetline_rocklobster.csv')
@@ -444,7 +450,91 @@ fn.import.catch.data=function(KTCH.UNITS)
            FishCubeCode="PFT")%>%
     dplyr::select(names(Tot.ktch))
   Tot.ktch=rbind(Tot.ktch,a)
+
+  a=Sawfish_KPTF.ktch%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    mutate(BLOCKX=NA,
+           Region="North",
+           zone="North",
+           finyear=as.numeric(substr(FINYEAR,1,4)),
+           Name=SNAME,
+           Type="TEP_sawfish.KPTF",
+           Data.set="TEP_sawfish.KPTF",
+           METHOD='TW',
+           FishCubeCode="KP")%>%   
+    dplyr::select(names(Tot.ktch))
+  Tot.ktch=rbind(Tot.ktch,a)
   
+  a=Sawfish_NBPTF.ktch%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    mutate(BLOCKX=NA,
+           Region="North",
+           zone="North",
+           finyear=as.numeric(substr(FINYEAR,1,4)),
+           Name=SNAME,
+           Type="TEP_sawfish.NBPTF",
+           Data.set="TEP_sawfish.NBPTF",
+           METHOD='TW',
+           FishCubeCode="NBP")%>%
+    dplyr::select(names(Tot.ktch))
+  Tot.ktch=rbind(Tot.ktch,a)
+  
+  a=Sawfish_OPTF.ktch%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    mutate(BLOCKX=NA,
+           Region="North",
+           zone="North",
+           finyear=as.numeric(substr(FINYEAR,1,4)),
+           Name=SNAME,
+           Type="TEP_sawfish.OPTF",
+           Data.set="TEP_sawfish.OPTF",
+           METHOD='TW',
+           FishCubeCode="OP")%>%
+    dplyr::select(names(Tot.ktch))
+  Tot.ktch=rbind(Tot.ktch,a)
+  
+  a=Sawfish_SBPTF.ktch%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    mutate(BLOCKX=NA,
+           Region="North",
+           zone="North",
+           finyear=as.numeric(substr(FINYEAR,1,4)),
+           Name=SNAME,
+           Type="TEP_sawfish.SBPTF",
+           Data.set="TEP_sawfish.SBPTF",
+           METHOD='TW',
+           FishCubeCode="SBP")%>%
+    dplyr::select(names(Tot.ktch))
+  Tot.ktch=rbind(Tot.ktch,a)
+  
+  a=Sawfish_EGPTF.ktch%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    mutate(BLOCKX=NA,
+           Region="North",
+           zone="North",
+           finyear=as.numeric(substr(FINYEAR,1,4)),
+           Name=SNAME,
+           Type="TEP_sawfish.EGPTF",
+           Data.set="TEP_sawfish.EGPTF",
+           METHOD='TW',
+           FishCubeCode="EGP")%>%
+    dplyr::select(names(Tot.ktch))
+  Tot.ktch=rbind(Tot.ktch,a)
+  
+  a=Sawfish_BPTF.ktch%>%
+    left_join(All.species.names,by='SPECIES')%>%
+    mutate(BLOCKX=NA,
+           Region="North",
+           zone="North",
+           finyear=as.numeric(substr(FINYEAR,1,4)),
+           Name=SNAME,
+           Type="TEP_sawfish.BPTF",
+           Data.set="TEP_sawfish.BPTF",
+           METHOD='TW',
+           FishCubeCode="BP")%>%
+    dplyr::select(names(Tot.ktch))
+  Tot.ktch=rbind(Tot.ktch,a)
+
   a=Greynurse.ktch%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
@@ -1070,17 +1160,17 @@ if(do.sawfish)
   
   Sawfish.ktch%>%
     filter(LIVEWT.c>0)%>%
-    mutate(Fishery.gear=paste(FishCubeCode,Gear,sep='-'))%>%
+    mutate(Fishery.gear=paste(Gear,FishCubeCode,sep='-'))%>%
     ggplot(aes(finyear,LIVEWT.c,colour=Fishery.gear))+
-    geom_point()+
+    geom_point()+geom_line(alpha=0.25)+
     facet_wrap(~Name,nrow=3,scales='free')+
     theme_PA(strx.siz=14,leg.siz=11,axs.t.siz=13,axs.T.siz=16)+
     ylab("Catch (tonnes)")+xlab("Financial year")+
     theme(legend.position="top",
           legend.title = element_blank(),
           legend.key=element_blank())+
-    guides(colour = guide_legend(override.aes = list(size=5)))
-  ggsave(paste(hNdl.sawfish,'Annual_ktch_by_species.tiff',sep='/'), width = 7.5,height = 10, dpi = 300, compression = "lzw")
+    guides(colour = guide_legend(override.aes = list(size=5,linetype = 0)))
+  ggsave(paste(hNdl.sawfish,'Annual_ktch_by_species.tiff',sep='/'), width = 10,height = 10, dpi = 300, compression = "lzw")
   
   
   #Get Pilbara Trawl cpue
