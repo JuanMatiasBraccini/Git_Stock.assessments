@@ -65,7 +65,11 @@ library(ggpubr)
 library(doParallel)
 library(flextable)
 library(officer)
-
+library(fishmethods)
+#devtools::install_github("cfree14/datalimited2")
+library(datalimited2)
+#devtools::install_github("jabbamodel/JABBA")
+library(JABBA)
 
 source.hnld=handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/")
 fn.source=function(script)source(paste(source.hnld,script,sep=""))
@@ -227,7 +231,7 @@ B.target=Tar.prop*B.threshold
 B.limit=Lim.prop*B.threshold
 
     #Empirical reference points
-Fmsy.emp=function(M) 0.41*M     #Zhou et al 2012
+Fmsy.emp=function(M) 0.41*M     #Zhou et al 2012 but see Cortes & Brooks 2018
 SPR.thre=0.3   #Punt 2000 Extinction of marine renewable resources: a demographic analysis. 
 SPR.tar=0.4                # Population Ecology 42, 
 
@@ -1140,15 +1144,171 @@ if(!First.run=="YES")
   
 N.sp=length(Keep.species)
 
-#---5.  Sawfish stand-alone assessment-----
+#---5.   Apply CMSY, DB-SRA, OCOM, JABBA-------------------------------------------------------
+apply.CMSY=function(year,catch,r.range,Bo.low,Bo.hi,Int.yr,Bint.low,Bint.hi,Bf.low,Bf.hi)
+{
+  inputs= list(r.low=r.range[1],
+               r.hi=r.range[2],
+               stb.low=Bo.low,
+               stb.hi=Bo.hi,
+               int.yr=Int.yr,
+               intb.low = Bint.low,
+               intb.hi = Bint.hi,
+               endb.low=Bf.low,
+               endb.hi=Bf.hi)
+  
+  output <- cmsy2(year=year,
+                  catch=catch,
+                  r.low=r.range[1],
+                  r.hi=r.range[2],
+                  stb.low=Bo.low,
+                  stb.hi=Bo.hi,
+                  int.yr=Int.yr,
+                  intb.low = Bint.low,
+                  intb.hi = Bint.hi,
+                  endb.low=Bf.low,
+                  endb.hi=Bf.hi)
+  
+  # Extract reference points and time series from output
+  output$ref_pts <- output[["ref_pts"]]
+  output$ref_ts <- output[["ref_ts"]]
+  
+  return(list(inputs=inputs,output=output))
+}
+
+apply.DBSRA=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,bmsyk,M,graph,nsims,grout,WD)
+{
+  setwd(WD)  #dbsra automatically exports the biomass trajectories
+  #store inputs
+  inputs=list(year=year,
+              catch=catch,
+              catchCV=catchCV,
+              catargs=catargs,
+              agemat=agemat,
+              k=k,
+              b1k=b1k,
+              btk=btk,
+              fmsym=fmsym,
+              bmsyk=bmsyk,
+              M=M,
+              graph=graph,
+              nsims=nsims,
+              grout=grout)
+  
+  #run model
+  outputs <- dbsra(year=year,
+                   catch=catch,
+                   catchCV=catchCV,
+                   catargs=catargs,
+                   agemat=agemat,
+                   k=k,
+                   b1k=b1k,
+                   btk=btk,
+                   fmsym=fmsym,
+                   bmsyk=bmsyk,
+                   M=M,
+                   graph=graph,
+                   nsims=nsims,
+                   grout=grout)
+  
+  return(list(inputs=inputs,outputs=outputs))
+}
+
+apply.OCOM=function(year,catch,M)
+{
+  inputs= list(m=M)
+  output <- ocom(year=year,catch=catch,m=M)
+  
+  # Extract reference points and time series from output
+  output$ref_pts <- output[["ref_pts"]]
+  output$ref_ts <- output[["ref_ts"]]
+  
+  return(list(inputs=inputs,output=output))
+}
+
+apply.JABBA=function(Ktch,CPUE=NULL,CPUE.SE=NULL,MDL,ASS,Rdist,Rprior,Kdist,Kprior,PsiDist,Psiprior,Bprior,output.dir)
+{
+  # Compile JABBA JAGS model
+  if(is.null(CPUE))
+  {
+    jbinput = build_jabba(catch=Ktch,
+                          model.type = MDL,
+                          assessment=ASS,
+                          scenario =  "CatchOnly",
+                          r.dist = Rdist,
+                          r.prior = Rprior,
+                          K.dist= Kdist,
+                          K.prior=Kprior,
+                          psi.dist=PsiDist,
+                          psi.prior=Psiprior,
+                          b.prior= Bprior)
+  }else
+  {
+    jbinput = build_jabba(catch=Ktch,
+                          cpue=CPUE,
+                          se=CPUE.SE,
+                          model.type = MDL,
+                          assessment=ASS,
+                          scenario =  "CatchOnly",
+                          r.dist = Rdist,
+                          r.prior = Rprior,
+                          K.dist= Kdist,
+                          K.prior=Kprior,
+                          psi.dist=PsiDist,
+                          psi.prior=Psiprior,
+                          b.prior= Bprior)
+  }
+
+  # Fit JABBA
+  return(fit_jabba(jbinput,save.csvs=TRUE,output.dir=output.dir))
+}
+
+#---6.   Bring in demography and steepness functions-------------------------------------------------------
+if(do.r.prior)
+{
+  fn.source("Leslie.matrix.R") 
+  fun.rprior.dist=function(Nsims,K,LINF,K.sd,LINF.sd,k.Linf.cor,Amax,MAT,FecunditY,
+                           Cycle,BWT,AWT,LO)
+  {
+    Fecu=unlist(FecunditY)
+    Rprior=fun.Leslie(N.sims=Nsims,k=K,Linf=LINF,k.sd=K.sd,Linf.sd=LINF.sd,k.Linf.cor=k.Linf.cor,
+                      A=Amax,first.age=0,RangeMat=MAT,Rangefec=Fecu,
+                      sexratio=0.5,Reprod_cycle=Cycle,
+                      bwt=BWT,awt=AWT,Lo=LO,
+                      Resamp=RESAMP)  
+    
+    #get mean and sd from gamma and normal distribution
+    normal.pars=suppressWarnings(fitdistr(Rprior$r.prior, "normal"))
+    gamma.pars=suppressWarnings(fitdistr(Rprior$r.prior, "gamma"))  
+    shape=gamma.pars$estimate[1]        
+    rate=gamma.pars$estimate[2]      
+    return(list(shape=shape,rate=rate,
+                mean=normal.pars$estimate[1],sd=normal.pars$estimate[2],
+                M=Rprior$M))
+    
+    #get mean and sd from lognormal distribution
+    #LogN.pars=fitdistr(Rprior, "lognormal")  
+    #log_mean.r=LogN.pars$estimate[1]    #already in log space     
+    #log_sd.r=LogN.pars$estimate[2]      #already in log space     
+    #return(list(log_mean.r=log_mean.r,log_sd.r=log_sd.r))
+  }
+}
+if(do.steepness)
+{
+  fn.source("Steepness.R")
+}
+#---7.  Sawfish stand-alone assessment-----
+#notes: Run whatever assessment is appropriate see Pillans et al 2021.
+# Do spatial by year presence/absence Pilbara trawl to see shrinkage
 if(do.sawfish)
 {
   hNdl.sawfish=handl_OneDrive(paste('Analyses/Population dynamics/Other species/Sawfishes/',Year.of.assessment,sep=''))
   if(!dir.exists(hNdl.sawfish))dir.create(hNdl.sawfish)
   
-  #Get catch
-  Sawfish.ktch=KtCh.method%>%
+  #1. Get catch
+  Sawfish.ktch=Get.ktch$Total.method%>%
     filter(SPECIES%in%25000:25020)%>%
+    filter(finyear>=1960)%>%
     mutate(Name=capitalize(Name))
   
   xx=Sawfish.ktch%>%
@@ -1172,8 +1332,16 @@ if(do.sawfish)
     guides(colour = guide_legend(override.aes = list(size=5,linetype = 0)))
   ggsave(paste(hNdl.sawfish,'Annual_ktch_by_species.tiff',sep='/'), width = 10,height = 10, dpi = 300, compression = "lzw")
   
+  #combined catches (in tonnes)
+  Sawfish.ktch.combined=Sawfish.ktch%>%
+                group_by(SPECIES,Name,finyear)%>%
+                summarise(Tonnes=sum(LIVEWT.c,na.rm=T))
   
-  #Get Pilbara Trawl cpue
+  #2. Remove freshwater sawfish due to extremely low catches, unaccounted customary catch, model convergence, etc
+  assessed.sawfish=subset(assessed.sawfish,!assessed.sawfish=="Freshwater sawfish")
+  n.sawfish=length(assessed.sawfish)
+  
+  #3. Get Pilbara Trawl cpue
   hNdl.sawfish.PFT.cpue=handl_OneDrive('Analyses/Data_outs')
   Sawfish.cpue.list=vector('list',n.sawfish)
   names(Sawfish.cpue.list)=assessed.sawfish
@@ -1194,20 +1362,242 @@ if(do.sawfish)
       }
     }
   }
-    
   
-  #Get Life history
+  #4. Get Life history
   Sawfish.life.history=vector('list',n.sawfish)
   names(Sawfish.life.history)=assessed.sawfish
   for(n in 1:n.sawfish)
   {
-    Sawfish.life.history[[n]]=LH.data%>%filter(SPECIES==names(assessed.sawfish)[n])
+    DD=LH.data%>%filter(SPECIES==names(assessed.sawfish)[n])
+    if(is.na(DD$k.sd))DD$k.sd=DD$K*.2
+    if(is.na(DD$FL_inf.sd))DD$FL_inf.sd=DD$FL_inf*.2
+    if(is.na(DD$Max_Age_max))DD$Max_Age_max=round(DD$Max_Age*1.3)
+    if(is.na(DD$Fecu_max))DD$Fecu_max=DD$Fecu_min
+    if(is.na(DD$Cycle_max))DD$Cycle_max=DD$Cycle
+    Sawfish.life.history[[n]]=DD
   }
   
-  #ACA Run whatever assessment is appropriate see Pillans et al 2021. Do spatial by year presence/absence Pilbara trawl to see shrinkage
+  #5. Get population growth rate thru demography
+  store.sawfish.r=vector('list',n.sawfish)
+  names(store.sawfish.r)=assessed.sawfish
+  store.sawfish.M=store.sawfish.r
+  if(do.r.prior)
+  {
+    system.time({for(l in 1:n.sawfish)   #takes 0.013 sec per iteration per species
+    {
+      M.averaging<<-"min" #'min' yields rmax, Cortes pers com, but yields too high steepness for all species
+      RESAMP="YES"
+      linear.fec="NO"
+      print(paste("r prior ","--",names(Sawfish.life.history)[l]))
+      r.prior.dist=with(Sawfish.life.history[[l]],fun.rprior.dist(Nsims=1000,K=K,LINF=FL_inf,
+                                                                  K.sd=k.sd,LINF.sd=FL_inf.sd,k.Linf.cor=-0.99,
+                                                                  Amax=c(Max_Age,Max_Age_max),
+                                                                  MAT=c(Age_50_Mat_min,Age_50_Mat_max),
+                                                                  FecunditY=c(Fecu_min,Fecu_max),
+                                                                  Cycle=c(Cycle,Cycle_max),
+                                                                  BWT=b_w8t,AWT=a_w8t,
+                                                                  LO=LF_o))
+      
+      #export r and M
+      hndl1=paste(hNdl.sawfish,names(store.sawfish.r)[l],sep='/')
+      if(!dir.exists(hndl1))dir.create(hndl1)
+      out.r=data.frame(shape=r.prior.dist$shape,rate=r.prior.dist$rate,
+                       mean=r.prior.dist$mean,sd=r.prior.dist$sd)
+      write.csv(out.r,paste(hndl1,'r.prior.csv',sep='/'),row.names = F)
+      store.sawfish.r[[l]]=r.prior.dist
+      
+      n.dim=max(unlist(lapply(r.prior.dist$M,length)))
+      out.M=r.prior.dist$M
+      for(ss in 1:length(out.M))
+      {
+        a=out.M[[ss]]
+        delta=n.dim-length(a)
+        if(delta>0) out.M[[ss]]=c(a,rep(NA,delta))
+        rm(a)
+      }
+      out.M=do.call(rbind,out.M)
+      names(out.M)=0:(n.dim-1)
+      write.csv(out.M,paste(hndl1,'M.csv',sep='/'),row.names=FALSE)
+      store.sawfish.M[[l]]=out.M
+      rm(r.prior.dist,M.averaging,RESAMP,linear.fec)
+    }})
+  }else
+  {
+    for(l in 1:n.sawfish) 
+    {
+      hndl1=paste(hNdl.sawfish,names(store.sawfish.r)[l],sep='/')
+      store.sawfish.r[[l]]=read.csv(paste(hndl1,"r.prior.csv",sep='/'))
+      store.sawfish.M[[l]]=read.csv(paste(hndl1,"M.csv",sep='/'))
+    }
+  }
+  
+  #6. Get Maximum lifetime reproductive rate (alpha)
+  fn.source("Steepness.R")
+  store.sawfish.alpha=store.sawfish.r
+  for(l in 1:n.sawfish) 
+  {
+    store.sawfish.alpha[[l]]=with(Sawfish.life.history[[l]],
+                                  Alpha.Brooks(max.age=mean(c(Max_Age,Max_Age_max),na.rm=T),
+                                          M=apply(store.sawfish.M[[l]],2,mean,na.rm=T),
+                                          age.mat=mean(c(Age_50_Mat_min,Age_50_Mat_max),na.rm=T),
+                                          Meanfec=mean(c(Fecu_min,Fecu_max),na.rm=T),
+                                          CyclE=mean(c(Cycle,Cycle_max),na.rm=T)))
+  }
+  
+  #7. Get scaler for Fmsy.to.M relationship (Fmsy= scaler x M)
+  Fmsy.M.scaler=store.sawfish.alpha
+  for(l in 1:n.sawfish)
+  {
+    Fmsy.M.scaler[[l]]=Cortes.Brooks.2018(alpha=store.sawfish.alpha[[l]])
+  }
+  
+  
+  #ACA set up scenarios for each model
+  #8. Run DBSRA assessment (Dick and MAcCall (2011))
+  # summary of method: http://toolbox.frdc.com.au/wp-content/uploads/sites/19/2020/07/DBSRA3.html
+  DBSRA.sawfish=store.sawfish.r
+  system.time({for(i in 1:length(DBSRA.sawfish))  #takes 0.3 secs per iteration
+  {
+    print(paste("DBSRA ","--",names(DBSRA.sawfish)[i]))
+    this.wd=paste(hNdl.sawfish,names(DBSRA.sawfish)[i],'DBSRA',sep='/')
+    if(!dir.exists(this.wd))dir.create(this.wd)
+    ktch=Sawfish.ktch.combined%>%
+      filter(Name==names(DBSRA.sawfish)[i])
+    Run=apply.DBSRA(year=ktch$finyear,
+                    catch=ktch$Tonnes,
+                    catchCV=NULL,  #catch CV not available
+                    catargs=list(dist="none",low=0,up=Inf,unit="MT"),  #not catch CV available
+                    agemat=Sawfish.life.history[[i]]$Age_50_Mat_min,
+                    k=list(low=max(ktch$Tonnes),up=max(c(max(ktch$Tonnes)*100,500)),
+                          tol=0.01,permax=1000),
+                    b1k=list(dist="unif",low=0.8,up=0.99,mean=1,sd=0.1),
+                    btk=list(dist="unif",low=0.15,up=0.95,mean=1,sd=0.1,
+                             refyr=max(ktch$finyear)),  #reference year
+                    fmsym=list(dist="lnorm",low=0.1,up=2,
+                               mean=log(Fmsy.M.scaler[[i]]),sd=0.2), # Cortes & Brooks 2018
+                    bmsyk=list(dist="beta",low=0.05,up=0.95,mean=0.5,sd=0.1),
+                    M=list(dist="lnorm",low=0.001,up=1,
+                           mean=log(mean(apply(store.sawfish.M[[i]],2,mean,na.rm=T))),
+                                          sd=mean(apply(store.sawfish.M[[i]],2,sd,na.rm=T))),
+                    graph=c(1:14),
+                    nsims=1e3, #MISSING, replace by 1e4
+                    grout=1,
+                    WD=this.wd)
+    legend('topright',names(DBSRA.sawfish)[i],bty='n')
+    Run$outputs$Biom.traj=read.csv(paste(this.wd,"Biotraj-dbsra.csv",sep='/'),header=FALSE)%>%
+                            filter(V1==1)%>%  #select only possible runs
+                            dplyr::select(-V1)
+
+    DBSRA.sawfish[[i]]=Run
+  }})
+  
+  #9. Run CMSY (Froese et al 2017)    #does not converge for dwarf or freshwater
+  #summary of method: http://toolbox.frdc.com.au/wp-content/uploads/sites/19/2021/04/CMSY.html
+  CMSY.sawfish=store.sawfish.r
+  system.time({for(i in 1:length(CMSY.sawfish))  #takes 150 secs per species (1e4 iterations)
+  {
+    print(paste("CMSY ","--",names(CMSY.sawfish)[i]))
+    
+    ktch=Sawfish.ktch.combined%>%
+      filter(Name==names(CMSY.sawfish)[i])
+    r.range=quantile(rnorm(1e3,mean=store.sawfish.r[[i]]$mean,sd=store.sawfish.r[[i]]$sd),
+                     probs=c(0.025,0.975))
+    year=ktch$finyear
+    catch=ktch$Tonnes
+    Int.yr=round(mean(ktch$finyear))
+    CMSY.sawfish[[i]]=apply.CMSY(year,catch,r.range,Bo.low=0.8,Bo.hi=0.99,
+                                 Int.yr,Bint.low=0.15,Bint.hi=0.95,
+                                 Bf.low=0.15,Bf.hi=0.95)
+    
+  }})
+  
+  #10. Run OCOM assessment (Zhou et al (2018))
+  OCOM.sawfish=store.sawfish.r
+  system.time({for(i in 1:length(OCOM.sawfish))  #takes 20 secs per species (1e4 iterations)
+  {
+    print(paste("OCOM ","--",names(OCOM.sawfish)[i]))
+    
+    ktch=Sawfish.ktch.combined%>%
+      filter(Name==names(OCOM.sawfish)[i])
+    OCOM.sawfish[[i]] <-apply.OCOM(year=ktch$finyear,
+                                   catch=ktch$Tonnes,
+                                   M=mean(apply(store.sawfish.M[[i]],2,mean,na.rm=T)))
+    
+  }})
+  
+  #11. JABBA - catch only (Winker et al 2018)
+  #summary of method: https://github.com/jabbamodel/JABBA
+  JABBA.sawfish=store.sawfish.r
+  system.time({for(i in 1:length(JABBA.sawfish))  #takes XX secs per species
+  {
+    print(paste("JABBA ","--",names(JABBA.sawfish)[i]))
+    this.wd=paste(hNdl.sawfish,names(JABBA.sawfish)[i],'JABBA',sep='/')
+    if(!dir.exists(this.wd))dir.create(this.wd)
+    
+    ktch=Sawfish.ktch.combined%>%
+      filter(Name==names(JABBA.sawfish)[i])%>%
+      rename(Year=finyear,
+             Total=Tonnes)%>%
+      ungroup()%>%
+      dplyr::select(Year,Total)%>%
+      arrange(Year)%>%
+      data.frame
+    Bint=runif(1000,0.8,0.99)
+    Bint.mean=mean(Bint)
+    Bint.CV=sd(Bint)/Bint.mean
+    
+    Bfin=runif(1000,0.15,0.95)
+    Bfin.mean=mean(Bfin)
+    Bfin.CV=sd(Bfin)/Bfin.mean
+    
+    input=list(Ktch=ktch,
+               MDL="Fox",
+               ASS=names(JABBA.sawfish)[i],
+               Rdist = "lnorm",
+               Rprior = c(store.sawfish.r[[i]]$mean,store.sawfish.r[[i]]$sd),
+               Kdist="range",
+               Kprior=c(max(ktch$Total),max(c(max(ktch$Total)*100,500))),
+               PsiDist='lnorm',
+               Psiprior=c(Bint.mean,Bint.CV),
+               Bprior=c(Bfin.mean,Bfin.CV,max(ktch$Year),"bk"))
+    
+    output=apply.JABBA(Ktch=ktch,
+                       MDL="Fox",
+                       ASS=names(JABBA.sawfish)[i],
+                       Rdist = "lnorm",
+                       Rprior = c(store.sawfish.r[[i]]$mean,store.sawfish.r[[i]]$sd),
+                       Kdist="range",
+                       Kprior=c(max(ktch$Total),max(c(max(ktch$Total)*100,500))),
+                       PsiDist='lnorm',
+                       Psiprior=c(Bint.mean,Bint.CV),
+                       Bprior=c(Bfin.mean,Bfin.CV,max(ktch$Year),"bk"),
+                       output.dir=this.wd)
+    
+    JABBA.sawfish[[i]]=list(input=unput,output=output)
+  }})
+  
+  ##Move this to outputs evaluation
+  #JABBA outputs
+  jbplot_catch(output)
+  jbplot_ppdist(output)
+  jbplot_mcmc(output)
+  jbplot_procdev(output)
+  jbplot_bprior(output)
+  jbplot_trj(output,type="BBmsy",add=T)
+  jbplot_trj(output,type="FFmsy",add=T)
+  
+  # status summary
+  par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
+  jbplot_trj(output,type="B",add=T)
+  jbplot_trj(output,type="F",add=T)
+  jbplot_trj(output,type="BBmsy",add=T)
+  jbplot_trj(output,type="FFmsy",add=T)
+  jbplot_spphase(output,add=T)
+  jbplot_kobe(output,add=T)
+
 }
 
-#---6.  Create list of species assessed and import species-specific data-----
+#---8.  Create list of species assessed and import species-specific data-----
 #note: this brings in any info on cpue, abundance, selectivity, size composition, tagging
 Species.data=vector('list',length=N.sp)
 names(Species.data)=Keep.species
@@ -1227,7 +1617,7 @@ for(s in 1:N.sp)
 }
 
 
-#---7.  Import input parameters, define modeling arguments and create pin file-----
+#---9.  Import input parameters, define modeling arguments and create pin file-----
 #note: For integrated model, S1 and S2 calculates pars in normal space but same order magnitude
 #       Other scenarios all pars in log.
 #       ln_RZERO is in 1,000 individuals so do 10 times the largest catch divided by 
@@ -2264,7 +2654,7 @@ if(First.run=="YES")
 
 
 
-#---8.  Export all available input data to each species assessment folder----- 
+#---10.  Export all available input data to each species assessment folder----- 
 if(First.run=="YES")
 {
   source(handl_OneDrive("Analyses/Population dynamics/Git_Stock.assessments/Organise data.R"))
@@ -2288,38 +2678,12 @@ if(First.run=="YES")
 }
 
 
-#---9.  Demography. r prior ----------------------------------------------------------------------- 
+#---11.  Demography. r prior ----------------------------------------------------------------------- 
 store.species.r=vector('list',N.sp)
 names(store.species.r)=Keep.species
 
 if(do.r.prior)
 {
-  fn.source("Leslie.matrix.R") 
-  fun.rprior.dist=function(Nsims,K,LINF,K.sd,LINF.sd,k.Linf.cor,Amax,MAT,FecunditY,
-                           Cycle,BWT,AWT,LO)
-  {
-    Fecu=unlist(FecunditY)
-    Rprior=fun.Leslie(N.sims=Nsims,k=K,Linf=LINF,k.sd=K.sd,Linf.sd=LINF.sd,k.Linf.cor=k.Linf.cor,
-                      A=Amax,first.age=0,RangeMat=MAT,Rangefec=Fecu,
-                      sexratio=0.5,Reprod_cycle=Cycle,
-                      bwt=BWT,awt=AWT,Lo=LO,
-                      Resamp=RESAMP)  
-    
-    #get mean and sd from gamma and normal distribution
-    normal.pars=suppressWarnings(fitdistr(Rprior$r.prior, "normal"))
-    gamma.pars=suppressWarnings(fitdistr(Rprior$r.prior, "gamma"))  
-    shape=gamma.pars$estimate[1]        
-    rate=gamma.pars$estimate[2]      
-    return(list(shape=shape,rate=rate,
-                mean=normal.pars$estimate[1],sd=normal.pars$estimate[2],
-                M=Rprior$M))
-    
-    #get mean and sd from lognormal distribution
-    #LogN.pars=fitdistr(Rprior, "lognormal")  
-    #log_mean.r=LogN.pars$estimate[1]    #already in log space     
-    #log_sd.r=LogN.pars$estimate[2]      #already in log space     
-    #return(list(log_mean.r=log_mean.r,log_sd.r=log_sd.r))
-  }
   density.fun2=function(what,MAIN)
   {
     #Prob of ref point
@@ -2450,7 +2814,7 @@ if(do.r.prior)
 
 
 
-#---10.  Assign Resilience -----------------------------------------------------------------------
+#---12.  Assign Resilience -----------------------------------------------------------------------
 RESILIENCE=vector('list',N.sp)
 names(RESILIENCE)=names(List.sp)
 for(r in 1:length(RESILIENCE))
@@ -2462,7 +2826,7 @@ for(r in 1:length(RESILIENCE))
 }
 
 
-#---11.  Extract selectivity at age and at size-----------------------------------------------------------------------
+#---13.  Extract selectivity at age and at size-----------------------------------------------------------------------
   #for species with no gillnet selectivity profile, set to closest species or family
 Sel.equivalence=data.frame(
       Name=c("copper shark","great hammerhead","scalloped hammerhead",
@@ -2564,13 +2928,12 @@ if(First.run=="YES")
   dev.off()
 }
 
-#---12. Steepness ----------------------------------------------------------------------- 
+#---14. Steepness ----------------------------------------------------------------------- 
 store.species.steepness=vector('list',N.sp)
 names(store.species.steepness)=Keep.species
 
 if(do.steepness)
 {
-  fn.source("Steepness.R")
   system.time(for(l in 1: N.sp) 
   {
     print(paste("steepness ","--",List.sp[[l]]$Name))
@@ -2688,7 +3051,7 @@ for(s in 1:length(dis.sp.h))
   
 
 
-#---13. Size-based Catch curve with specified selectivity--------------------------------------
+#---15. Size-based Catch curve with specified selectivity--------------------------------------
 #note: derive F from catch curve and gear selectivity
 #      assume start of year in January (coincides with birht of most species)
 if(do.Size.based.Catch.curve)
