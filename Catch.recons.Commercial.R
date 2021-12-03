@@ -263,7 +263,10 @@ Pilbara.mean.size=350         #Corey's obs
     #Fishcube query to extract total catch prior to observer program
 #http://F01-FIMS-WEBP01/FishCubeWA/Query.aspx?CubeId=CommercialDPIRDOnly&QueryId=e9d57b8c-afa2-4d9c-b6e4-8a884059abb7
 PFT.total.catch <- read_excel(handl_OneDrive('Data/Catch and Effort/Pilbara trawl_Fish Cube WA.xlsx'), sheet = "Data") 
+PFT.EM.catch.comp <- read_excel(handl_OneDrive('Data/Catch and Effort/Pilbara_EM_catch.comp.xlsx'), sheet = "2016 observer program") 
 
+Pilbara.trawl.greens.cpue=1/145   #one per 145 shots  #source: cpue stand paper   
+Pilbara.trawl.narrows.cpue=1/175   #one per 175 shots  #source: cpue stand paper  
 
     #ratio observed shark catch to landed catch
 Pilbara.trawl.observed.landing=12901     # in kg; Table 9 Stephenson & Chidlow 2003
@@ -276,7 +279,7 @@ BRD_pilbara.trawl_prop.ray=0.36
 BRD_pilbara.trawl_year='2003-04'
 
     #Observed effort
-  #Pilbara.trawl.observed.effort=100  #days (Stephenson & Chidlow 2003 fide in McAuley et al 2005 page 25)
+  Pilbara.trawl.observed.days=100  #days (Stephenson & Chidlow 2003 fide in McAuley et al 2005 page 25)
   Pilbara.trawl.observed.effort=1601.898   #hours; derived from get.observed.Pilbara
   get.observed.Pilbara=FALSE
   if(get.observed.Pilbara)
@@ -640,13 +643,17 @@ Indo_MOU.annual.trips.prop=data.frame(year=c(1975:2019),
                                       trips.prop=rep(1,length(1975:2019)))
 Indo_missed.appr.rate=1.75  
 
+  #-- 2.2.5 Taiwanese trawl
+#source: Althaus et al 2006 & Ramm 1994
+Taiwan.trawl.NWS=read.csv(fn.hndl('North.West.Shelf.csv')) 
 
-#-- 2.2.5 Observed banjo and wegefish
+
+## 2.3 Observed banjo and wegefish
 prop_banjo_wedge_north=read.csv(fn.hndl('prop_banjo_wedge_north.csv'))
 prop_banjo_wedge_south=read.csv(fn.hndl('prop_banjo_wedge_south.csv'))
 
 
-#-- 2.2.6 M. Antarcticus proportion of all gummy sharks
+## 2.4 M. Antarcticus proportion of all gummy sharks
 Gummies.prop=read.csv(handl_OneDrive("Analyses/Catch and effort/Gummies.prop.csv"),stringsAsFactors=F)
 
 
@@ -1824,7 +1831,7 @@ Indo_total.annual.ktch=rbind(Indo_total.annual.ktch,Indo_total.annual.ktch_MOU)%
               data.frame
 
 
-# Ammend banjo and wedgefish catches using observer data   
+# Amend banjo and wedgefish catches using observer data   
 prop_banjo_wedge_south=prop_banjo_wedge_south%>%
                         mutate(SPECIES=ifelse(Group=="Banjo rays",27909,
                                        ifelse(Group=="Wedgefishes",26000,NA)))%>%
@@ -1861,6 +1868,55 @@ if(Do.recons.paper=="YES")
   Data.monthly.north_high.PCM=fn.expanda(d=subset(Data.monthly.north_high.PCM,!is.na(SPECIES)),
                                 Prop=prop_banjo_wedge_north)
 }
+
+
+#-- 3.2.6 Taiwanese trawl in North West Shelf  
+#get species composition from McAuley et al 2005
+Taiwan.trawl.comp=Pilbara.trawl.observed.comp%>%dplyr::select(SPECIES,Numbers,Weight)
+
+#Add sawfish comp from Pilbara electronic monitoring
+Pilbara.N.saw_shark=PFT.EM.catch.comp%>%
+  mutate(MegafaunaGroup=tolower(MegafaunaGroup))%>%
+  filter(grepl(paste(c('sawfish','shark'),collapse="|"),MegafaunaGroup))%>%
+  mutate(group=ifelse(grepl('sawfish',MegafaunaGroup),'Sawfish','Shark'))%>%
+  group_by(group)%>%
+  summarise(N=sum(SumOfnumbercaught,na.rm=T))%>%
+  ungroup()
+Pilbara.ratio.saw_shark=Pilbara.N.saw_shark%>%filter(group=='Sawfish')%>%pull(N)/
+  Pilbara.N.saw_shark%>%filter(group=='Shark')%>%pull(N)
+
+nsaw=Pilbara.trawl.greens.cpue+Pilbara.trawl.narrows.cpue
+Pilbara.ratio.saw_shark_green=Pilbara.ratio.saw_shark*(Pilbara.trawl.greens.cpue/nsaw)
+Pilbara.ratio.saw_shark_narrow=Pilbara.ratio.saw_shark*(Pilbara.trawl.narrows.cpue/nsaw)
+
+nsharks.rory=sum(Pilbara.trawl.observed.comp$Numbers)
+
+Taiwan.trawl.comp.add.sawfish=Taiwan.trawl.comp[1:2,]%>%
+  mutate(SPECIES=c(25001,25002),
+         Numbers=c(round(Pilbara.ratio.saw_shark_green*nsharks.rory),
+                   round(Pilbara.ratio.saw_shark_narrow*nsharks.rory)))%>%
+  left_join(Sawfish.avrg.weight.pilbara.trawl,by='SPECIES')%>%
+  mutate(Weight=Numbers*avg.wt)%>%
+  dplyr::select(-avg.wt)
+
+Taiwan.trawl.comp=rbind(Taiwan.trawl.comp,Taiwan.trawl.comp.add.sawfish)%>%
+  mutate(Prop=Weight/sum(Weight))%>%
+  dplyr::select(SPECIES,Prop)
+
+#split catch by species composition
+Taiwan.trawl.NWS=Taiwan.trawl.NWS%>%
+  mutate(FINYEAR=paste(Year,substr(Year+1,3,4),sep='-'),
+         LIVEWT.c=Tonnes*1000)%>%
+  dplyr::select(FINYEAR,LIVEWT.c)
+Expnded <- expand.grid(Taiwan.trawl.NWS$FINYEAR, Taiwan.trawl.comp$SPECIES)
+colnames(Expnded) <- c("FINYEAR", "SPECIES")
+Expnded=Expnded%>%
+  left_join(Taiwan.trawl.comp,by='SPECIES')%>%
+  left_join(Taiwan.trawl.NWS,by="FINYEAR")
+Taiwan.trawl.NWS=Expnded%>%
+  mutate(LIVEWT.c=Prop*LIVEWT.c)%>%
+  dplyr::select(-Prop)
+
 
 
 # 4 -------------------EXPORT CATCH DATA------------------------------------
@@ -1971,6 +2027,9 @@ fn.out(d=Whaler_SA%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Whaler_SA.csv')
 Indo_total.annual.ktch$zone=NA
 fn.out(d=Indo_total.annual.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Indo.IUU.csv')
 
+  #Taiwanese trawl
+Taiwan.trawl.NWS$zone=NA
+fn.out(d=Taiwan.trawl.NWS%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Taiwan.trawl.ktch.csv')
 
 
 # 5 -------------------REPORT SECTION------------------------------------
