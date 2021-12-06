@@ -1205,8 +1205,7 @@ Res.fn=function(r)
 apply.CMSY=function(year,catch,r.range,k.range,Bo.low,Bo.hi,Int.yr,Bint.low,Bint.hi,
                     Bf.low,Bf.hi,outfile,CMSY=CMSY.method,nsims=Niters,Proc.error,RES)
 {
-  input= list(r.low=r.range[1],
-               r.hi=r.range[2],
+  input= list(r.range=r.range,
                stb.low=Bo.low,
                stb.hi=Bo.hi,
                int.yr=Int.yr,
@@ -1672,21 +1671,21 @@ if(do.sawfish)
   Sawfish.assumptions=Sawfish.life.history
   for(i in 1:n.sawfish)
   {
-    Sawfish.assumptions[[i]]=list(depletn.init_low=0.9,
+    Sawfish.assumptions[[i]]=list(depletn.init_low=0.95,
                                   depletn.init_high=1,
                                   depletn.final_low=0.15,
                                   depletn.final_high=0.95)
   }
   
   #9. Other modelling inputs
-  Niters=2e4
-  Niters_JABBA=3e4
+  Niters=1e5
+  Niters_JABBA=Niters
   Proc.error.CMSY=1e-05  #process error for CMSY
   Proc.error.JABBA=5e-02  #process error   (Winker et al 2018 School shark)
   k.fun.low=function(KTCH) max(c(max(KTCH),100))  #K boundaries
   k.fun.up=function(KTCH) max(c(max(KTCH)*60,1000))  
   
-  #10 Sensitivity test (scenarios)  
+  #10 Define scenarios for sensitivity tests   
   Sawfish.sens.test=vector('list',n.sawfish)
   names(Sawfish.sens.test)=assessed.sawfish
   for(i in 1:n.sawfish)
@@ -1696,7 +1695,7 @@ if(do.sawfish)
     Mmean=mean(apply(store.sawfish.M[[i]],2,mean,na.rm=T))
     Msd=mean(apply(store.sawfish.M[[i]],2,sd,na.rm=T))
     ktch=Sawfish.ktch.combined%>%
-      filter(Name==names(DBSRA.sawfish)[i])
+      filter(Name==names(Sawfish.sens.test)[i])
     Klow=k.fun.low(ktch$Tonnes) 
     Kup=k.fun.up(ktch$Tonnes)
     
@@ -1727,253 +1726,432 @@ if(do.sawfish)
       JABBA=data.frame(Scenario=paste("S",1:3,sep=''),
                        r.CV.multiplier=c(r.CV.multiplier,2,r.CV.multiplier),
                        Klow=c(Klow,max(ktch$Tonnes),Klow),
-                       Kup=c(2*k.fun.low(ktch$Tonnes),max(ktch$Tonnes)*100,2*k.fun.low(ktch$Tonnes)),
+                       Kup=c(Kup,max(2000,max(ktch$Tonnes)*100),Kup),
+                       #Kup=c(2*k.fun.low(ktch$Tonnes),max(ktch$Tonnes)*100,2*k.fun.low(ktch$Tonnes)),
                        Ktch.CV=c(rep(Ktch.CV,2),0.002))    
       )
       
   }
 
-  
-  #11. Run DBSRA assessment (Dick and MAcCall (2011))
-  # summary of method: http://toolbox.frdc.com.au/wp-content/uploads/sites/19/2020/07/DBSRA3.html
-  DBSRA.sawfish=vector('list',n.sawfish)     #takes 0.06 secs per iteration (for three scenarios)
-  names(DBSRA.sawfish)=assessed.sawfish
-  system.time({for(i in 1:length(DBSRA.sawfish))  
-  {
-    print(paste("DBSRA ","--",names(DBSRA.sawfish)[i]))
-    ktch=Sawfish.ktch.combined%>%
-      filter(Name==names(DBSRA.sawfish)[i])
-    this.wd=paste(hNdl.sawfish,names(DBSRA.sawfish)[i],'DBSRA',sep='/')
-    if(!dir.exists(this.wd))dir.create(this.wd)
-    
-    Scens=Sawfish.sens.test[[i]]$DBSRA
-    Store.sens=vector('list',nrow(Scens))
-    names(Store.sens)=Scens$Scenario
-    for(s in 1:length(Store.sens))
-    {
-      print(paste("___________________Scenario",Scens$Scenario[s]))
-      this.wd=paste(hNdl.sawfish,names(DBSRA.sawfish)[i],'DBSRA',names(Store.sens)[s],sep='/')
-      if(!dir.exists(this.wd))dir.create(this.wd)
-      
-      AgeMat=Scens$AgeMat[s]
-      Mmean=Scens$Mmean[s]  
-      Msd=Scens$Msd[s]
-      Klow=Scens$Klow[s]
-      Kup=Scens$Kup[s]
-      Btklow=Sawfish.assumptions[[i]]$depletn.final_low
-      Btkup=Sawfish.assumptions[[i]]$depletn.final_high
-      
-      Run=apply.DBSRA(year=ktch$finyear,
-                      catch=ktch$Tonnes,
-                      catchCV=NULL,  
-                      catargs=list(dist="none",low=0,up=Inf,unit="MT"),  #catch CV not available
-                      agemat=AgeMat,
-                      k=list(low=Klow,up=Kup,tol=0.01,permax=1000),
-                      b1k=list(dist="unif",
-                               low=Sawfish.assumptions[[i]]$depletn.init_low,
-                               up=Sawfish.assumptions[[i]]$depletn.init_high,
-                               mean=1,sd=0.1),  #mean and sd not used if 'unif'
-                      btk=list(dist="unif",low=Btklow,up=Btkup,mean=1,sd=0.1,refyr=max(ktch$finyear)),  #reference year
-                      fmsym=list(dist="lnorm",low=0.1,up=2,             #low and up not used if 'lnorm'
-                                 mean=log(Fmsy.M.scaler[[i]]),sd=0.2), # Cortes & Brooks 2018
-                      bmsyk=list(dist="beta",low=0.05,up=0.95,mean=0.5,sd=0.1),
-                      M=list(dist="lnorm",low=0.001,up=1,mean=log(Mmean),sd=Msd),
-                      graph=c(13,14), 
-                      grout=1,
-                      WD=this.wd,
-                      outfile="Appendix_fit")
-      legend('topright',names(DBSRA.sawfish)[i],bty='n')
-      #extract biomass and F
-      Run$output$Biom.traj=read.csv(paste(this.wd,"Biotraj-dbsra.csv",sep='/'),header=FALSE)%>%
-        filter(V1==1)%>%  #select only possible runs
-        dplyr::select(-V1)
-      Run$output$F.series=F.from.U((ktch$Tonnes/apply(Run$output$Biom.traj,2,median)[1:length(ktch$Tonnes)]))
-      Run$output$Years=ktch$finyear
-      Store.sens[[s]]=Run
-    }
-    DBSRA.sawfish[[i]]=Store.sens
-  }}) 
-  
-  #12. Run CMSY    # Froese et al 2017 does not converge for dwarf or freshwater
-  #summary of method: http://toolbox.frdc.com.au/wp-content/uploads/sites/19/2021/04/CMSY.html
-  CMSY.sawfish=vector('list',n.sawfish)     #takes 0.0013 secs per iteration (for three scenarios)
-  names(CMSY.sawfish)=assessed.sawfish      
-  system.time({for(i in 1:length(CMSY.sawfish))  
-  {
-    print(paste("CMSY ","--",names(CMSY.sawfish)[i]))
-    this.wd=paste(hNdl.sawfish,names(CMSY.sawfish)[i],'CMSY',sep='/')
-    if(!dir.exists(this.wd))dir.create(this.wd)
-    
-    ktch=Sawfish.ktch.combined%>%
-      filter(Name==names(CMSY.sawfish)[i])
-    year=ktch$finyear
-    catch=ktch$Tonnes
-    Int.yr=round(mean(ktch$finyear))
-    
-    Scens=Sawfish.sens.test[[i]]$CMSY
-    Store.sens=vector('list',nrow(Scens))
-    names(Store.sens)=Scens$Scenario
-    for(s in 1:length(Store.sens))
-    {
-      print(paste("___________________Scenario",Scens$Scenario[s]))
-      this.wd=paste(hNdl.sawfish,names(CMSY.sawfish)[i],'CMSY',names(Store.sens)[s],sep='/')
-      if(!dir.exists(this.wd))dir.create(this.wd)
-      
-      #Priors
-      RES=Res.fn(store.sawfish.r[[i]]$mean)
-      if(Scens$r.prob.min[s]==0)
-      {
-        r.range=NA
-        k.range=NA
-        Bf.low=NA
-        Bf.hi=NA
-      }else
-      {
-        r.range=quantile(rnorm(1e3,mean=store.sawfish.r[[i]]$mean,sd=store.sawfish.r[[i]]$sd),
-                         probs=c(Scens$r.prob.min[s],Scens$r.prob.max[s]))
-        k.range=c(Scens$Klow[s],Scens$Kup[s])
-        Bf.low=Sawfish.assumptions[[i]]$depletn.final_low
-        Bf.hi=Sawfish.assumptions[[i]]$depletn.final_high
-      }
-      Proc.error=Scens$Proc.error[s]
-      
-      #Run model  
-      Store.sens[[s]]=apply.CMSY(year=year,
-                                 catch=catch,
-                                 r.range=r.range,
-                                 k.range=k.range,
-                                 Bo.low=Sawfish.assumptions[[i]]$depletn.init_low,
-                                 Bo.hi=Sawfish.assumptions[[i]]$depletn.init_high,
-                                 Int.yr=Int.yr,
-                                 Bint.low=Sawfish.assumptions[[i]]$depletn.final_low,
-                                 Bint.hi=Sawfish.assumptions[[i]]$depletn.final_high,
-                                 Bf.low=Bf.low,
-                                 Bf.hi=Bf.hi,
-                                 outfile=paste(this.wd,'Appendix_fit',sep='/'),
-                                 Proc.error=Proc.error,
-                                 RES=RES)
-    }
-    CMSY.sawfish[[i]]=Store.sens
-  }})
-  
-  #13. Run OCOM assessment (Zhou et al (2018))
-  #note: not used as it doesn't allow for lightly depleted stocks and catch reductions
-          # due to effort reduction rather than abundance
+  #11. Run catch-only assessments
   do.OCOM=FALSE
-  if(do.OCOM)
+  catch.only=c('DBSRA','CMSY','JABBA')
+  if(do.OCOM) catch.only=c(catch.only,'OCOM')
+  n.catch.only=length(catch.only)
+  Catch_only_sawfish=vector('list',n.catch.only)
+  names(Catch_only_sawfish)=catch.only
+  
+  
+  for(w in 1:length(Catch_only_sawfish))
   {
-    OCOM.sawfish=vector('list',n.sawfish)  #takes 20 secs per species (1e4 iterations)    
-    names(OCOM.sawfish)=assessed.sawfish             
-    system.time({for(i in 1:length(OCOM.sawfish))  
+    #11.1 DBSRA assessment (Dick and MAcCall (2011))
+    # summary of method: http://toolbox.frdc.com.au/wp-content/uploads/sites/19/2020/07/DBSRA3.html
+    if(names(Catch_only_sawfish)[w]=="DBSRA")
     {
-      print(paste("OCOM ","--",names(OCOM.sawfish)[i]))
-      this.wd=paste(hNdl.sawfish,names(OCOM.sawfish)[i],'OCOM',sep='/')
-      if(!dir.exists(this.wd))dir.create(this.wd)
-      ktch=Sawfish.ktch.combined%>%
-        filter(Name==names(OCOM.sawfish)[i])
-      OCOM.sawfish[[i]] <-apply.OCOM(year=ktch$finyear,
-                                     catch=ktch$Tonnes,
-                                     M=mean(apply(store.sawfish.M[[i]],2,mean,na.rm=T)),
-                                     outfile=paste(this.wd,'Appendix_fit',sep='/'))
-    }})
+      dummy.store=vector('list',n.sawfish)     #takes 0.02 secs per iteration per species per scenario
+      names(dummy.store)=assessed.sawfish
+      for(i in 1:length(dummy.store))  
+      {
+        print(paste("DBSRA ","--",names(dummy.store)[i]))
+        ktch=Sawfish.ktch.combined%>%
+          filter(Name==names(dummy.store)[i])
+        this.wd=paste(hNdl.sawfish,names(dummy.store)[i],'DBSRA',sep='/')
+        if(!dir.exists(this.wd))dir.create(this.wd)
+        
+        Scens=Sawfish.sens.test[[i]]$DBSRA
+        Store.sens=vector('list',nrow(Scens))
+        names(Store.sens)=Scens$Scenario
+        for(s in 1:length(Store.sens))
+        {
+          print(paste("___________________Scenario",Scens$Scenario[s]))
+          this.wd=paste(hNdl.sawfish,names(dummy.store)[i],'DBSRA',names(Store.sens)[s],sep='/')
+          if(!dir.exists(this.wd))dir.create(this.wd)
+          
+          AgeMat=Scens$AgeMat[s]
+          Mmean=Scens$Mmean[s]  
+          Msd=Scens$Msd[s]
+          Klow=Scens$Klow[s]
+          Kup=Scens$Kup[s]
+          Btklow=Sawfish.assumptions[[i]]$depletn.final_low
+          Btkup=Sawfish.assumptions[[i]]$depletn.final_high
+          
+          Run=apply.DBSRA(year=ktch$finyear,
+                          catch=ktch$Tonnes,
+                          catchCV=NULL,  
+                          catargs=list(dist="none",low=0,up=Inf,unit="MT"),  #catch CV not available
+                          agemat=AgeMat,
+                          k=list(low=Klow,up=Kup,tol=0.01,permax=1000),
+                          b1k=list(dist="unif",
+                                   low=Sawfish.assumptions[[i]]$depletn.init_low,
+                                   up=Sawfish.assumptions[[i]]$depletn.init_high,
+                                   mean=1,sd=0.1),  #mean and sd not used if 'unif'
+                          btk=list(dist="unif",low=Btklow,up=Btkup,mean=1,sd=0.1,refyr=max(ktch$finyear)),  #reference year
+                          fmsym=list(dist="lnorm",low=0.1,up=2,             #low and up not used if 'lnorm'
+                                     mean=log(Fmsy.M.scaler[[i]]),sd=0.2), # Cortes & Brooks 2018
+                          bmsyk=list(dist="beta",low=0.05,up=0.95,mean=0.5,sd=0.1),
+                          M=list(dist="lnorm",low=0.001,up=1,mean=log(Mmean),sd=Msd),
+                          graph=c(13,14), 
+                          grout=1,
+                          WD=this.wd,
+                          outfile="Appendix_fit")
+          legend('topright',names(dummy.store)[i],bty='n')
+          #extract biomass and F
+          Run$output$Biom.traj=read.csv(paste(this.wd,"Biotraj-dbsra.csv",sep='/'),header=FALSE)%>%
+            filter(V1==1)%>%  #select only possible runs
+            dplyr::select(-V1)
+          Run$output$F.series=F.from.U((ktch$Tonnes/apply(Run$output$Biom.traj,2,median)[1:length(ktch$Tonnes)]))
+          Run$output$Years=ktch$finyear
+          Store.sens[[s]]=Run
+        }
+        dummy.store[[i]]=Store.sens
+      }
+      Catch_only_sawfish[[w]]=dummy.store
+      rm(dummy.store)
+    }
+
+    #11.2. CMSY    # Froese et al 2017 does not converge for dwarf or freshwater
+    #summary of method: http://toolbox.frdc.com.au/wp-content/uploads/sites/19/2021/04/CMSY.html
+    if(names(Catch_only_sawfish)[w]=="CMSY")
+    {
+      dummy.store=vector('list',n.sawfish)     #takes 0.0013 secs per iteration (for three scenarios)
+      names(dummy.store)=assessed.sawfish      
+      for(i in 1:length(dummy.store))  
+      {
+        print(paste("CMSY ","--",names(dummy.store)[i]))
+        this.wd=paste(hNdl.sawfish,names(dummy.store)[i],'CMSY',sep='/')
+        if(!dir.exists(this.wd))dir.create(this.wd)
+        
+        ktch=Sawfish.ktch.combined%>%
+          filter(Name==names(dummy.store)[i])
+        year=ktch$finyear
+        catch=ktch$Tonnes
+        Int.yr=round(mean(ktch$finyear))
+        
+        Scens=Sawfish.sens.test[[i]]$CMSY
+        Store.sens=vector('list',nrow(Scens))
+        names(Store.sens)=Scens$Scenario
+        for(s in 1:length(Store.sens))
+        {
+          print(paste("___________________Scenario",Scens$Scenario[s]))
+          this.wd=paste(hNdl.sawfish,names(dummy.store)[i],'CMSY',names(Store.sens)[s],sep='/')
+          if(!dir.exists(this.wd))dir.create(this.wd)
+          
+          #Priors
+          RES=Res.fn(store.sawfish.r[[i]]$mean)
+          if(Scens$r.prob.min[s]==0)
+          {
+            r.range=NA
+            k.range=NA
+            Bf.low=NA
+            Bf.hi=NA
+          }else
+          {
+            r.range=quantile(rnorm(1e3,mean=store.sawfish.r[[i]]$mean,sd=store.sawfish.r[[i]]$sd),
+                             probs=c(Scens$r.prob.min[s],Scens$r.prob.max[s]))
+            k.range=c(Scens$Klow[s],Scens$Kup[s])
+            Bf.low=Sawfish.assumptions[[i]]$depletn.final_low
+            Bf.hi=Sawfish.assumptions[[i]]$depletn.final_high
+          }
+          Proc.error=Scens$Proc.error[s]
+          
+          #Run model  
+          Store.sens[[s]]=apply.CMSY(year=year,
+                                     catch=catch,
+                                     r.range=r.range,
+                                     k.range=k.range,
+                                     Bo.low=Sawfish.assumptions[[i]]$depletn.init_low,
+                                     Bo.hi=Sawfish.assumptions[[i]]$depletn.init_high,
+                                     Int.yr=Int.yr,
+                                     Bint.low=Sawfish.assumptions[[i]]$depletn.final_low,
+                                     Bint.hi=Sawfish.assumptions[[i]]$depletn.final_high,
+                                     Bf.low=Bf.low,
+                                     Bf.hi=Bf.hi,
+                                     outfile=paste(this.wd,'Appendix_fit',sep='/'),
+                                     Proc.error=Proc.error,
+                                     RES=RES)
+        }
+        dummy.store[[i]]=Store.sens
+      }
+      Catch_only_sawfish[[w]]=dummy.store
+      rm(dummy.store)
+    }
+    
+    #11.3. OCOM assessment (Zhou et al (2018))
+    #note: not used as it doesn't allow for lightly depleted stocks and catch reductions
+    # due to effort reduction rather than abundance
+    if(names(Catch_only_sawfish)[w]=="OCOM")
+    {
+      dummy.store=vector('list',n.sawfish)  #takes 20 secs per species (1e4 iterations)    
+      names(dummy.store)=assessed.sawfish             
+      system.time({for(i in 1:length(dummy.store))  
+      {
+        print(paste("OCOM ","--",names(dummy.store)[i]))
+        this.wd=paste(hNdl.sawfish,names(dummy.store)[i],'OCOM',sep='/')
+        if(!dir.exists(this.wd))dir.create(this.wd)
+        ktch=Sawfish.ktch.combined%>%
+          filter(Name==names(dummy.store)[i])
+        dummy.store[[i]] <-apply.OCOM(year=ktch$finyear,
+                                      catch=ktch$Tonnes,
+                                      M=mean(apply(store.sawfish.M[[i]],2,mean,na.rm=T)),
+                                      outfile=paste(this.wd,'Appendix_fit',sep='/'))
+      }})
+      Catch_only_sawfish[[w]]=dummy.store
+      rm(dummy.store)
+    }
+    
+    #11.4. JABBA - catch only (Winker et al 2018)   
+    #summary of method: https://github.com/jabbamodel/JABBA
+    if(names(Catch_only_sawfish)[w]=="JABBA")
+    {
+      dummy.store=vector('list',n.sawfish)     #takes 0.002 secs per iteration per species per scenario
+      names(dummy.store)=assessed.sawfish
+      for(i in 1:length(dummy.store))  
+      {
+        print(paste("JABBA ","--",names(dummy.store)[i]))
+        this.wd=paste(hNdl.sawfish,names(dummy.store)[i],'JABBA',sep='/')
+        if(!dir.exists(this.wd))dir.create(this.wd)
+        
+        #Catch
+        ktch=Sawfish.ktch.combined%>%
+          filter(Name==names(dummy.store)[i])%>%
+          rename(Year=finyear,
+                 Total=Tonnes)%>%
+          ungroup()%>%
+          dplyr::select(Year,Total)%>%
+          arrange(Year)%>%
+          data.frame
+        
+        Scens=Sawfish.sens.test[[i]]$JABBA
+        Store.sens=vector('list',nrow(Scens))
+        names(Store.sens)=Scens$Scenario
+        for(s in 1:length(Store.sens))
+        {
+          print(paste("___________________Scenario",Scens$Scenario[s]))
+          this.wd=paste(hNdl.sawfish,names(dummy.store)[i],'JABBA',names(Store.sens)[s],sep='/')
+          if(!dir.exists(this.wd))dir.create(this.wd)
+          
+          #Priors   
+          K.prior=c(Scens$Klow[s],Scens$Kup[s])
+          r.prior=c(store.sawfish.r[[i]]$mean,
+                    (store.sawfish.r[[i]]$sd/store.sawfish.r[[i]]$mean)*Scens$r.CV.multiplier[s])
+          Ktch.CV=Scens$Ktch.CV[s]
+          
+          # Bint=runif(1000,Sawfish.assumptions[[i]]$depletn.init_low,Sawfish.assumptions[[i]]$depletn.init_high)
+          # Bint.mean=mean(Bint)
+          # Bint.CV=sd(Bint)/Bint.mean
+          #psi.prior=c(Bint.mean,Bint.CV)
+          psi.prior=c(1,0.1) #Winker et al 2018 School shark
+          
+          Bfin=runif(1000,Sawfish.assumptions[[i]]$depletn.final_low,Sawfish.assumptions[[i]]$depletn.final_high)
+          Bfin.mean=mean(Bfin)          
+          Bfin.CV=sd(Bfin)/Bfin.mean
+          b.prior=c(Bfin.mean,Bfin.CV,max(ktch$Year),"bk")
+          
+          #Put inputs together
+          input=list(Ktch=ktch,
+                     MDL="Schaefer",
+                     Ktch.CV=Ktch.CV,
+                     ASS=names(dummy.store)[i],
+                     Rdist = "lnorm",
+                     Rprior = r.prior,
+                     r.CV.multiplier=r.CV.multiplier[s],
+                     Kdist="range",
+                     Kprior=K.prior,    
+                     PsiDist='lnorm',
+                     Psiprior=psi.prior,   
+                     Bprior=b.prior,    
+                     BMSYK=0.5)
+          
+          #run model
+          output=apply.JABBA(Ktch=input$Ktch,
+                             CPUE=NULL,
+                             CPUE.SE=NULL,
+                             MDL=input$MDL,
+                             Ktch.CV=input$Ktch.CV,
+                             ASS=input$ASS,
+                             Rdist = input$Rdist,
+                             Rprior = input$Rprior,
+                             Kdist=input$Kdist,
+                             Kprior=input$Kprior,
+                             PsiDist=input$PsiDist,
+                             Psiprior=input$Psiprior,
+                             Bprior=input$Bprior,
+                             BMSYK=input$BMSYK,
+                             output.dir=this.wd,
+                             outfile="Appendix_fit",
+                             Sims=Niters_JABBA)
+          
+          Store.sens[[s]]=list(input=input,output=output)
+        }
+        dummy.store[[i]]=Store.sens
+      }
+      Catch_only_sawfish[[w]]=dummy.store
+      rm(dummy.store)
+    }
+  }
+
+  
+  #12. Outputs      
+  
+    #12.1 Table of Scenarios
+  fn.out.ktch.only.scenarios=function(Sens,sp,mods,inputs,outfile)
+  {
+    Sens.sp=vector('list',length(sp))
+    names(Sens.sp)=sp
+    for(i in 1:length(sp))
+    {
+      store=vector('list',length(mods))
+      names(store)=mods
+      for(m in 1:length(mods))
+      {
+        store[[m]]=Sens[[i]][[m]]%>%mutate(Species=names(Sens)[i])
+        
+        ##
+        Scens=names(inputs[[m]][[i]])
+        Scens.list=vector('list',length(Scens))
+        for(s in 1:length(Scens))
+        {
+          if(mods[m]=='DBSRA')
+          {
+            a=inputs[[m]][[i]][[s]]$input[c('b1k', 'btk')]
+            if(a$b1k$dist=="unif")  bo=with(a$b1k,data.frame(Init.dep.dist=dist,Init.dep.low=low,Init.dep.up=up))
+            if(!a$b1k$dist=="unif") bo=with(a$b1k,data.frame(Init.dep.dist=dist,Init.dep.mean=mean,Init.dep.sd=sd))
+            
+            if(a$btk$dist=="unif")  bf=with(a$btk,data.frame(Curnt.dep.dist=dist,Curnt.dep.low=low,Curnt.dep.up=up))
+            if(!a$btk$dist=="unif") bf=with(a$btk,data.frame(Curnt.dep.dist=dist,Curnt.dep.mean=mean,Curnt.dep.sd=sd))
+            
+            Scens.list[[s]]=cbind(Scenario=Scens[s],bo,bf)
+          }
+          
+          if(mods[m]=='CMSY')
+          {
+            a=inputs[[m]][[i]][[s]]$input[c('RES','r.range', 'k.range', 'stb.low', 'stb.hi', 'endb.low', 'endb.hi', 'Proc.error')]
+            
+            Scens.list[[s]]=data.frame(Scenario=Scens[s],Resilience=a$RES,r.low=a$r.range[1],r.up=a$r.range[2],
+                                       k.low=a$k.range[1],k.up=a$k.range[2],
+                                       Init.dep.low=a$stb.low,Init.dep.up=a$stb.hi,
+                                       Curnt.dep.low=a$endb.low,Curnt.dep.up=a$endb.hi)
+          }
+          
+          if(mods[m]=='JABBA')
+          {
+            a=inputs[[m]][[i]][[s]]$input[c('Rprior','Kdist', 'Kprior', 'Psiprior', 'Bprior')]
+            
+            if(a$Kdist=="range")  K=data.frame(k.dist=a$Kdist,k.low=a$Kprior[1],k.up=a$Kprior[2])
+            if(!a$Kdist=="range") K=data.frame(k.dist=a$Kdist,k.mean=a$Kprior[1],k.cv=a$Kprior[2])
+            Scens.list[[s]]=cbind(Scenario=Scens[s],r.mean=a$Rprior[1],r.cv=a$Rprior[2],
+                                  K,
+                                  Init.dep.mean=a$Psiprior[1],Init.dep.cv=a$Psiprior[2],
+                                  Curnt.dep.mean=a$Bprior[1],Curnt.dep.cv=a$Bprior[2])
+          }
+          
+        }
+        
+        if(mods[m]=='DBSRA') store[[m]]=store[[m]]%>%dplyr::select(-c(Klow,Kup))
+        if(mods[m]=='CMSY') store[[m]]=store[[m]]%>%dplyr::select(-c(r.prob.min,r.prob.max,Klow,Kup)) 
+        if(mods[m]=='JABBA') store[[m]]=store[[m]]%>%dplyr::select(-c(r.CV.multiplier,Klow,Kup))
+        
+        store[[m]]=store[[m]]%>%left_join(do.call(rbind,Scens.list),by="Scenario")
+        
+      }
+      Sens.sp[[i]]=store
+    }
+    
+    #export table
+    for(m in 1:length(mods))
+    {
+      TAb=do.call("rbind", lapply(Sens.sp, "[[", m))%>%
+        relocate(Species,Scenario)
+      write.csv(TAb,paste(outfile,paste('Scenarios_',mods[m],'.csv',sep=''),sep='/'),row.names = F)
+    }
+    
     
   }
+  fn.out.ktch.only.scenarios(Sens=Sawfish.sens.test,
+                             sp=assessed.sawfish,
+                             mods=catch.only,
+                             inputs=Catch_only_sawfish,
+                             outfile=hNdl.sawfish)
   
-  #14. JABBA - catch only (Winker et al 2018)   
-  #summary of method: https://github.com/jabbamodel/JABBA
-  JABBA.sawfish=vector('list',n.sawfish)     #takes 0.006 secs per iteration (for three scenarios)
-  names(JABBA.sawfish)=assessed.sawfish
-  system.time({for(i in 1:length(JABBA.sawfish))  
+  #12.2 Table of parameter estimates
+  fn.output.ktch.only.estimates=function(d,basecase,outfile)
   {
-    print(paste("JABBA ","--",names(JABBA.sawfish)[i]))
-    this.wd=paste(hNdl.sawfish,names(JABBA.sawfish)[i],'JABBA',sep='/')
-    if(!dir.exists(this.wd))dir.create(this.wd)
-    
-    #Catch
-    ktch=Sawfish.ktch.combined%>%
-      filter(Name==names(JABBA.sawfish)[i])%>%
-      rename(Year=finyear,
-             Total=Tonnes)%>%
-      ungroup()%>%
-      dplyr::select(Year,Total)%>%
-      arrange(Year)%>%
-      data.frame
-    
-    Scens=Sawfish.sens.test[[i]]$JABBA
-    Store.sens=vector('list',nrow(Scens))
-    names(Store.sens)=Scens$Scenario
-    for(s in 1:length(Store.sens))
+    mods=names(d)
+    for(m in 1:length(d))
     {
-      print(paste("___________________Scenario",Scens$Scenario[s]))
-      this.wd=paste(hNdl.sawfish,names(JABBA.sawfish)[i],'JABBA',names(Store.sens)[s],sep='/')
-      if(!dir.exists(this.wd))dir.create(this.wd)
-      
-      #Priors   
-      K.prior=c(Scens$Klow[s],Scens$Kup[s])
-      r.prior=c(store.sawfish.r[[i]]$mean,
-                (store.sawfish.r[[i]]$sd/store.sawfish.r[[i]]$mean)*Scens$r.CV.multiplier[s])
-      Ktch.CV=Scens$Ktch.CV[s]
-      
-      # Bint=runif(1000,Sawfish.assumptions[[i]]$depletn.init_low,Sawfish.assumptions[[i]]$depletn.init_high)
-      # Bint.mean=mean(Bint)
-      # Bint.CV=sd(Bint)/Bint.mean
-      #psi.prior=c(Bint.mean,Bint.CV)
-      psi.prior=c(1,0.1) #Winker et al 2018 School shark
-      
-      Bfin=runif(1000,Sawfish.assumptions[[i]]$depletn.final_low,Sawfish.assumptions[[i]]$depletn.final_high)
-      Bfin.mean=mean(Bfin)          
-      Bfin.CV=sd(Bfin)/Bfin.mean
-      b.prior=c(Bfin.mean,Bfin.CV,max(ktch$Year),"bk")
-      
-      #Put inputs together
-      input=list(Ktch=ktch,
-                 MDL="Schaefer",
-                 Ktch.CV=Ktch.CV,
-                 ASS=names(JABBA.sawfish)[i],
-                 Rdist = "lnorm",
-                 Rprior = r.prior,
-                 r.CV.multiplier=r.CV.multiplier[s],
-                 Kdist="range",
-                 Kprior=K.prior,    
-                 PsiDist='lnorm',
-                 Psiprior=psi.prior,   
-                 Bprior=b.prior,    
-                 BMSYK=0.5)
-      
-      #run model
-      output=apply.JABBA(Ktch=input$Ktch,
-                         CPUE=NULL,
-                         CPUE.SE=NULL,
-                         MDL=input$MDL,
-                         Ktch.CV=input$Ktch.CV,
-                         ASS=input$ASS,
-                         Rdist = input$Rdist,
-                         Rprior = input$Rprior,
-                         Kdist=input$Kdist,
-                         Kprior=input$Kprior,
-                         PsiDist=input$PsiDist,
-                         Psiprior=input$Psiprior,
-                         Bprior=input$Bprior,
-                         BMSYK=input$BMSYK,
-                         output.dir=this.wd,
-                         outfile="Appendix_fit",
-                         Sims=Niters_JABBA)
-      
-      Store.sens[[s]]=list(input=input,output=output)
+      SP=vector('list',length(d[[m]]))
+      names(SP)=names(d[[m]])
+      for(i in 1:length(sp))
+      {
+        s=match(basecase,names(d[[m]][[i]]))
+        sp.name=names(d[[m]])[i]
+        if(mods[m]=='DBSRA')
+        {
+          
+          d1=d[[m]][[i]][[s]]$output$Parameters
+          d1=d1[,grep(paste(c('Median','2.5%','97.5%'),collapse='|'),names(d1))]
+          names(d1)=c("Median","Lower.95","Upper.95")
+          
+          d2=d[[m]][[i]][[s]]$output$Estimates
+          
+          d2=d2[,grep(paste(c('Median','2.5%','97.5%'),collapse='|'),names(d2))]
+          names(d2)=c("Median","Lower.95","Upper.95")
+          
+          d1=rbind(d2,d1)
+          
+          d1=d1%>%
+            mutate(Parameter=rownames(d1),
+                   Model='DBSRA')
+        }
+        
+        if(mods[m]=='CMSY')
+        {
+          d1=d[[m]][[i]][[s]]$output$Statistics$output
+          d1=d1[,grep(paste(c('50%','2.5%','97.5%'),collapse='|'),colnames(d1))]%>%
+            data.frame
+          d1=d1[,-grep('Perc',colnames(d1))]
+          colnames(d1)=c("Lower.95","Median","Upper.95")
+          d1=d1%>%
+            mutate(Parameter=rownames(d1),
+                   Model='CMSY')
+        }
+        
+        if(mods[m]=='JABBA')
+        {
+          d1=d[[m]][[i]][[s]]$output$pars
+          
+          d1=d1[,grep(paste(c('Median','LCI','UCI'),collapse='|'),colnames(d1))]%>%
+            data.frame
+          colnames(d1)=c("Median","Lower.95","Upper.95")
+          d1=d1%>%
+            mutate(Parameter=rownames(d1),
+                   Model='JABBA')
+          
+        }
+        
+        d1=cbind(Species=sp.name,d1)%>%
+          relocate(Model,Species,Parameter,Lower.95,Median,Upper.95)
+        
+        SP[[i]]=d1
+      }
+      write.csv(do.call(rbind,SP),paste(outfile,paste('Estimates_',names(d)[m],'.csv',sep=''),sep='/'),row.names = F)
     }
-    JABBA.sawfish[[i]]==Store.sens
-  }})
+    
+  }
+  fn.output.ktch.only.estimates(d=Catch_only_sawfish,
+                                basecase='S1',
+                                outfile=hNdl.sawfish)
+  
+
   
   
-  #15. Outputs      #ACA. Try to wrap 15.1 to 15.X in a function that can be loop over species and scenarios
+  #ACA. 
+  #Try to wrap 15.2 to 15.X in a function that can be looped over species and scenarios
+    #12.2 Summary table of model estimates
   
-    #15.1 Table of Scenarios and assumptions
+    #12.3. Priors vs Posteriors
   
-    #15.2 Summary table of model estimates
-  
-    #15.3. Priors vs Posteriors
-  
-    #15.4. Kobe plots (add prob of overfishing and overfished or reference points)
+    #12.4. Kobe plots (add prob of overfishing and overfished or reference points)
   for(i in 1:n.sawfish)
   {
     Estimates=DBSRA.sawfish[[i]]$output$Estimates
@@ -2026,29 +2204,90 @@ if(do.sawfish)
     
   }
    
-    #15.5. Time series
+    #12.5. Time series
+  fn.ribbon=function(Dat,YLAB,XLAB)
+  {
+    p=Dat%>%
+      ggplot(aes(year, median))+
+      geom_line()  +
+      geom_ribbon(aes(ymin = lower.95, ymax = upper.95), alpha = 0.2) +
+      geom_ribbon(aes(ymin = lower.50, ymax = upper.50), alpha = 0.1) +
+      theme_PA()+ylab(YLAB)+xlab(XLAB)+
+      ylim(0,1)
+    return(p)
+  }
   
-      #15.5.1 Base case (S1)
+  fn.plot.ktch.only.timeseries=function(d,basecase,outfile)
+  {
+    mods=names(d)
+    store.modes=vector('list',length(mods))
+    names(store.modes)=mods
+    for(m in 1:length(d))
+    {
+      SP=vector('list',length(d[[m]]))
+      names(SP)=names(d[[m]])
+      for(i in 1:length(sp))
+      {
+        s=match(basecase,names(d[[m]][[i]]))
+        sp.name=names(d[[m]])[i]
+        if(mods[m]=='DBSRA')
+        {
+          d1=d[[m]][[i]][[s]]$output$Biom.traj[,-1]    #ACA need to divide by K but Biom.traj only has V=1, i.e. those retained, so calculate depletion before exporting Biom.traj
+          names(d1)=d[[m]][[i]][[s]]$output$Years
+         
+          Dat=data.frame(year=as.numeric(colnames(d1)),
+                         median=apply(d1,2,median),
+                         upper.95=apply(d1,2,function(x)quantile(x,probs=0.975,na.rm=T)),
+                         lower.95=apply(d1,2,function(x)quantile(x,probs=0.025,na.rm=T)),
+                         upper.50=apply(d1,2,function(x)quantile(x,probs=0.75,na.rm=T)),
+                         lower.50=apply(d1,2,function(x)quantile(x,probs=0.25,na.rm=T)))
+          p=fn.ribbon(Dat,YLAB='Depletion',XLAB="Financial year")
+
+          
+        }
+        
+        if(mods[m]=='CMSY')
+        {
+          d1=pulloutStats(d[[m]][[i]][[s]]$output$R1,probabs=c(0.5))
+          d1=d1$deplet
+          d1=d1[,-c(match(c('r','K','bd'),colnames(d1)))]
+          Dat=data.frame(year=as.numeric(colnames(d1)),
+                         median=apply(d1,2,median),
+                         upper.95=apply(d1,2,function(x)quantile(x,probs=0.975,na.rm=T)),
+                         lower.95=apply(d1,2,function(x)quantile(x,probs=0.025,na.rm=T)),
+                         upper.50=apply(d1,2,function(x)quantile(x,probs=0.75,na.rm=T)),
+                         lower.50=apply(d1,2,function(x)quantile(x,probs=0.25,na.rm=T)))
+          p=fn.ribbon(Dat,YLAB='Depletion',XLAB="Financial year")
+          
+          
+        }
+        
+        if(mods[m]=='JABBA')
+        {
+          d1=d[[m]][[i]][[s]]$output$pars
+          
+          
+          
+        }
+        
+        
+        SP[[i]]=p
+      }
+      store.modes[[m]]=SP
+      #write.csv(do.call(rbind,SP),paste(outfile,paste('Estimates_',names(d)[m],'.csv',sep=''),sep='/'),row.names = F)
+    }
+    return(store.modes)
+  }
+  fn.plot.ktch.only.timeseries(d=Catch_only_sawfish,
+                               basecase='S1',
+                               outfile=hNdl.sawfish)
   
-      #15.5.2 Sensitivity tests
+      #12.5.1 Base case (S1)
+  
+      #12.5.2 Sensitivity tests
   
   
   #CMSY show outputs
-  results_r_Binit_k_Bfinal_0.6 <- pulloutStats(Mod$R1,probabs=c(0.5,0.975))
-  a=results_r_Binit_k_Bfinal_0.6$deplet
-  a=a[,-c(match(c('r','K','bd'),colnames(a)))]
-  Dat=data.frame(year=as.numeric(colnames(a)),
-                 median=apply(a,2,median),
-                 upper.95=apply(a,2,function(x)quantile(x,probs=0.975)),
-                 lower.95=apply(a,2,function(x)quantile(x,probs=0.025)),
-                 upper.50=apply(a,2,function(x)quantile(x,probs=0.75)),
-                 lower.50=apply(a,2,function(x)quantile(x,probs=0.25)))  
-  Dat%>%
-    ggplot(aes(year, median))+
-    geom_line()  +
-    geom_ribbon(aes(ymin = lower.95, ymax = upper.95), alpha = 0.2) +
-    geom_ribbon(aes(ymin = lower.50, ymax = upper.50), alpha = 0.1) +
-    theme_light()
 
   # ? out <- plotconstC(ans$deplet,endyear=2017,constC=0,console=FALSE,intensity=NA)
   # ? outC <- doconstC(answer$R1,constCatch=50,lastyear=2017,console=FALSE,intensity=NA)
