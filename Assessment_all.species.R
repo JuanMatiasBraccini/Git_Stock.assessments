@@ -1162,37 +1162,78 @@ apply.DBSRA=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,bmsyk,M,g
   setwd(WD)  #dbsra automatically exports the biomass trajectories
   #store inputs
   input=list(year=year,
-              catch=catch,
-              catchCV=catchCV,
-              catargs=catargs,
-              agemat=agemat,
-              k=k,
-              b1k=b1k,
-              btk=btk,
-              fmsym=fmsym,
-              bmsyk=bmsyk,
-              M=M,
-              graph=graph,
-              nsims=nsims,
-              grout=grout)
+             catch=catch,
+             catchCV=catchCV,
+             catargs=catargs,
+             agemat=agemat,
+             k=k,
+             b1k=b1k,
+             btk=btk,
+             fmsym=fmsym,
+             bmsyk=bmsyk,
+             M=M,
+             graph=graph,
+             nsims=nsims,
+             grout=grout)
   
   #run model
   pdf(paste(outfile,".pdf",sep=''))
   output <- dbsra(year=year,
-                   catch=catch,
-                   catchCV=catchCV,
-                   catargs=catargs,
-                   agemat=agemat,
-                   k=k,
-                   b1k=b1k,
-                   btk=btk,
-                   fmsym=fmsym,
-                   bmsyk=bmsyk,
-                   M=M,
-                   graph=graph,
-                   nsims=nsims,
-                   grout=grout)
+                  catch=catch,
+                  catchCV=catchCV,
+                  catargs=catargs,
+                  agemat=agemat,
+                  k=k,
+                  b1k=b1k,
+                  btk=btk,
+                  fmsym=fmsym,
+                  bmsyk=bmsyk,
+                  M=M,
+                  graph=graph,
+                  nsims=nsims,
+                  grout=grout)
   dev.off()
+  
+  
+  #extract biomass trajectories
+  Biom.traj=read.csv(paste(WD,"Biotraj-dbsra.csv",sep='/'),header=FALSE)
+  
+  output$Biom.traj=Biom.traj%>%
+    filter(V1==1)%>%  #select only possible runs
+    dplyr::select(-V1)
+  
+  output$Depletion.traj=Biom.traj%>%
+    mutate_at(vars(- V1), ~ . / output$Values$K)%>%
+    filter(V1==1)%>%  #select only possible runs
+    dplyr::select(-V1)
+  
+  output$B.Bmsy=Biom.traj%>%
+    mutate_at(vars(- V1), ~ . / output$Values$Bmsy)%>%
+    filter(V1==1)%>%  #select only possible runs
+    dplyr::select(-V1)  
+  
+  
+  #extract F trajectories
+  U.series=Biom.traj[,-ncol(Biom.traj)]
+  U.series[,-1]=mapply('/',catch,U.series[,-1])
+  
+  F.series=U.series%>%
+    mutate_at(vars(- V1), function(x) -log(1-x))
+  
+  output$F.series=F.series%>%
+    filter(V1==1)%>%  #select only possible runs
+    dplyr::select(-V1)
+  #output$F.series=F.from.U((catch/apply(output$Biom.traj,2,median)[1:length(catch)]))
+  
+  output$F.Fmsy=F.series%>%
+    mutate_at(vars(- V1), ~ . / output$Values$Fmsy)%>%
+    filter(V1==1)%>%  #select only possible runs
+    dplyr::select(-V1)
+  
+  #extract years
+  output$Years=year
+  
+  
   return(list(input=input,output=output))
 }
 Res.fn=function(r)
@@ -1273,6 +1314,26 @@ apply.CMSY=function(year,catch,r.range,k.range,Bo.low,Bo.hi,Int.yr,Bint.low,Bint
     pdf(paste(outfile,'.pdf',sep=''))
     plotcMSY6(summarycMSY(output,indat,final=TRUE),indat[,"catch"])
     dev.off()
+    
+    #get B.bmsy and F.fmsy
+    d1=pulloutStats(output$R1,probabs=c(0.5))
+    d1=d1$traject
+    d1=data.frame(d1)
+    Kei=d1$K
+    Ar=d1$r
+    Fmsy=Ar/2
+    Bmsy=Kei/2
+    d1=d1%>%
+      dplyr::select(-c(r,K,bd))
+    U.series=mapply('/',catch,d1[,1:length(catch)])
+    F.series=apply(U.series,2,function(x) -log(1-x))
+    
+    output$B.traj=d1
+    output$Depletion.traj=d1/Kei
+    output$B.Bmsy=d1/Bmsy
+    output$F.Fmsy=F.series/Fmsy
+    output$F.traj=F.series
+    output$Years=year
   }
   return(list(input=input,output=output))
 }
@@ -1794,13 +1855,6 @@ if(do.sawfish)
                           grout=1,
                           WD=this.wd,
                           outfile="Appendix_fit")
-          legend('topright',names(dummy.store)[i],bty='n')
-          #extract biomass and F
-          Run$output$Biom.traj=read.csv(paste(this.wd,"Biotraj-dbsra.csv",sep='/'),header=FALSE)%>%
-            filter(V1==1)%>%  #select only possible runs
-            dplyr::select(-V1)
-          Run$output$F.series=F.from.U((ktch$Tonnes/apply(Run$output$Biom.traj,2,median)[1:length(ktch$Tonnes)]))
-          Run$output$Years=ktch$finyear
           Store.sens[[s]]=Run
         }
         dummy.store[[i]]=Store.sens
@@ -2154,34 +2208,39 @@ if(do.sawfish)
     #12.4. Kobe plots (add prob of overfishing and overfished or reference points)
   for(i in 1:n.sawfish)
   {
-    Estimates=DBSRA.sawfish[[i]]$output$Estimates
-    Fmsy=Estimates[match('Fmsy',rownames(Estimates)),grep('Median',colnames(Estimates))]
-    Bmsy=Estimates[match('Bmsy',rownames(Estimates)),grep('Median',colnames(Estimates))]
-    p.DBSRA=with(DBSRA.sawfish[[i]]$output,
-                 {
-                   kobePlot(f.traj=F.series/Fmsy,
-                            b.traj=apply(Biom.traj,2,median)[1:length(F.series)]/Bmsy,
-                            Years=Years,
-                            Titl=paste("DBSRA",names(DBSRA.sawfish)[i],sep='-'))
-                 })
-    rm(Estimates,Fmsy,Bmsy)
+    #DBSRA
+    yrs=Catch_only_sawfish$DBSRA[[i]][['S1']]$output$Years
+    Bmsy=apply(Catch_only_sawfish$DBSRA[[i]][['S1']]$output$B.Bmsy,2,median,na.rm=T)
+    Fmsy=apply(Catch_only_sawfish$DBSRA[[i]][['S1']]$output$F.Fmsy,2,median,na.rm=T)
+    p.DBSRA=kobePlot(f.traj=Fmsy[1:length(yrs)],
+                     b.traj=Bmsy[1:length(yrs)],
+                     Years=yrs,
+                     Titl=paste("DBSRA",names(Catch_only_sawfish$DBSRA)[i],sep='-'))
+    rm(yrs,Fmsy,Bmsy)
     
+    #CMSY
+    if(CMSY.method=="Froese")
+    {
+      yrs=Catch_only_sawfish$CMSY[[i]][['S1']]$output$ref_ts$year
+      Bmsy=Catch_only_sawfish$CMSY[[i]][['S1']]$output$ref_ts$bbmsy
+      Fmsy=Catch_only_sawfish$CMSY[[i]][['S1']]$output$ref_ts$ffmsy
+        
+    }
+    if(CMSY.method=="Haddon")
+    {
+      yrs=Catch_only_sawfish$CMSY[[i]][['S1']]$output$Years
+      Bmsy=apply(Catch_only_sawfish$CMSY[[i]][['S1']]$output$B.Bmsy,2,median,na.rm=T)[1:length(yrs)]
+      Fmsy=apply(Catch_only_sawfish$CMSY[[i]][['S1']]$output$F.Fmsy,2,median,na.rm=T)[1:length(yrs)]
+    }
+     
+    p.CMSY=kobePlot(f.traj=Fmsy,
+                    b.traj=Bmsy,
+                    Years=yrs,
+                    Titl=paste("CMSY",names(Catch_only_sawfish$DBSRA)[i],sep='-'))
+    rm(yrs,Fmsy,Bmsy)
     
-    p.CMSY=with(CMSY.sawfish[[i]]$output,
-                {
-                  if(CMSY.method=="Froese")
-                  {
-                    kobePlot(f.traj=ref_ts$ffmsy,
-                             b.traj=ref_ts$bbmsy,
-                             Years=ref_ts$year,
-                             Titl=paste("CMSY",names(CMSY.sawfish)[i],sep='-'))
-                  }
-                  if(CMSY.method="Haddon")
-                  {
-                    #MISSING
-                  }
-                })
-    p.JABBA=with(JABBA.sawfish[[i]]$output,
+    #JABBA
+    p.JABBA=with(Catch_only_sawfish$JABBA[[i]][['S1']]$output,
                  {
                    kobePlot(f.traj=timeseries[, , "FFmsy"][,"mu"],
                             b.traj=timeseries[, , "BBmsy"][,"mu"],
@@ -2200,6 +2259,8 @@ if(do.sawfish)
                     bottom = text_grob(expression(B/~B[MSY]), size=16),
                     left = text_grob(expression(F/~F[MSY]), rot = 90,size=16))
     
+    ggsave(paste(hNdl.sawfish,paste('Kobe_',names(Catch_only_sawfish$DBSRA)[i],'.tiff',sep=''),sep='/'),
+           width = 8,height = 14, dpi = 300, compression = "lzw")
     
     
   }
@@ -2211,9 +2272,9 @@ if(do.sawfish)
       ggplot(aes(year, median))+
       geom_line()  +
       geom_ribbon(aes(ymin = lower.95, ymax = upper.95), alpha = 0.2) +
-      geom_ribbon(aes(ymin = lower.50, ymax = upper.50), alpha = 0.1) +
       theme_PA()+ylab(YLAB)+xlab(XLAB)+
-      ylim(0,1)
+      ylim(0,max(Dat$upper.95))
+    if(any(!is.na(Dat$upper.50))) p=p+geom_ribbon(aes(ymin = lower.50, ymax = upper.50), alpha = 0.1)
     return(p)
   }
   
@@ -2232,10 +2293,9 @@ if(do.sawfish)
         sp.name=names(d[[m]])[i]
         if(mods[m]=='DBSRA')
         {
-          d1=d[[m]][[i]][[s]]$output$Biom.traj[,-1]    #ACA need to divide by K but Biom.traj only has V=1, i.e. those retained, so calculate depletion before exporting Biom.traj
-          names(d1)=d[[m]][[i]][[s]]$output$Years
-         
-          Dat=data.frame(year=as.numeric(colnames(d1)),
+          Years=d[[m]][[i]][[s]]$output$Years
+          d1=d[[m]][[i]][[s]]$output$Depletion.traj[1:length(Years)]    
+          Dat=data.frame(year=Years,
                          median=apply(d1,2,median),
                          upper.95=apply(d1,2,function(x)quantile(x,probs=0.975,na.rm=T)),
                          lower.95=apply(d1,2,function(x)quantile(x,probs=0.025,na.rm=T)),
@@ -2248,12 +2308,11 @@ if(do.sawfish)
         
         if(mods[m]=='CMSY')
         {
-          d1=pulloutStats(d[[m]][[i]][[s]]$output$R1,probabs=c(0.5))
-          d1=d1$deplet
-          d1=d1[,-c(match(c('r','K','bd'),colnames(d1)))]
-          Dat=data.frame(year=as.numeric(colnames(d1)),
+          Years=d[[m]][[i]][[s]]$output$Years
+          d1=d[[m]][[i]][[s]]$output$Depletion.traj[1:length(Years)]    
+          Dat=data.frame(year=as.numeric(Years),
                          median=apply(d1,2,median),
-                         upper.95=apply(d1,2,function(x)quantile(x,probs=0.975,na.rm=T)),
+                         upper.95=apply(d1,2,function(x)quantile(x,probs=0.975,na.rm=T)),  #can we speed up this?
                          lower.95=apply(d1,2,function(x)quantile(x,probs=0.025,na.rm=T)),
                          upper.50=apply(d1,2,function(x)quantile(x,probs=0.75,na.rm=T)),
                          lower.50=apply(d1,2,function(x)quantile(x,probs=0.25,na.rm=T)))
@@ -2264,8 +2323,18 @@ if(do.sawfish)
         
         if(mods[m]=='JABBA')
         {
-          d1=d[[m]][[i]][[s]]$output$pars
-          
+          Years=d[[m]][[i]][[s]]$output$yr
+          d1=data.frame(d[[m]][[i]][[s]]$output$timeseries[, , "B"])  
+          K=d[[m]][[i]][[s]]$output$pars
+          K=K[match("K",rownames(K)),"Median"]
+            
+          Dat=data.frame(year=as.numeric(Years),
+                         median=d1$mu/K,
+                         upper.95=d1$uci/K,  
+                         lower.95=d1$lci/K,
+                         upper.50=NA,
+                         lower.50=NA)
+          p=fn.ribbon(Dat,YLAB='Depletion',XLAB="Financial year")
           
           
         }
