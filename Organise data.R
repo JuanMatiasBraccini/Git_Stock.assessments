@@ -651,204 +651,205 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   #3. Bring in all species-specific data files
   #nm.Dat=''
   #Dat=fn.bring.all.data(path=capitalize(Name.inputs))
-  if(!is.null(Dat)) nm.Dat=names(Dat)
-  
+  if(!is.null(Dat))
+  {
+    nm.Dat=names(Dat)
     #3.1 RELATIVE ABUNDANCE    
       #3.1.1  TDGDLF  
-  #monthly
-  iid=nm.Dat[fn.extract.dat(STRING="(?=.*annual.abundance.basecase)(?=.*relative)(?=.*monthly)",nm.Dat)]
-  if(length(iid)>0)
-  {
-    Ab.indx.TDGDLF= Dat[match(iid,nm.Dat)]
-    Nms=fn.rename.dat(x=names(Ab.indx.TDGDLF),y=c('.annual.abundance.basecase.monthly.','relative','.csv','_'))
-    Nms=ifelse(Nms=='annual.abundance.basecase.monthly','all',Nms)
-    names(Ab.indx.TDGDLF)=Nms
-    
-    Ab.indx.TDGDLF.all=Ab.indx.TDGDLF$all
-    Ab.indx.TDGDLF=Ab.indx.TDGDLF[names(Ab.indx.TDGDLF) != "all"] 
-    if(length(Ab.indx.TDGDLF)==0) rm(Ab.indx.TDGDLF) else
+        #monthly
+    iid=nm.Dat[fn.extract.dat(STRING="(?=.*annual.abundance.basecase)(?=.*relative)(?=.*monthly)",nm.Dat)]
+    if(length(iid)>0)
     {
-      for(z in 1:length(Ab.indx.TDGDLF)) Ab.indx.TDGDLF[[z]]$zone=capitalize(names(Ab.indx.TDGDLF)[z])
-      Ab.indx.TDGDLF=do.call(rbind,Ab.indx.TDGDLF)
+      Ab.indx.TDGDLF= Dat[match(iid,nm.Dat)]
+      Nms=fn.rename.dat(x=names(Ab.indx.TDGDLF),y=c('.annual.abundance.basecase.monthly.','relative','.csv','_'))
+      Nms=ifelse(Nms=='annual.abundance.basecase.monthly','all',Nms)
+      names(Ab.indx.TDGDLF)=Nms
+      
+      Ab.indx.TDGDLF.all=Ab.indx.TDGDLF$all
+      Ab.indx.TDGDLF=Ab.indx.TDGDLF[names(Ab.indx.TDGDLF) != "all"] 
+      if(length(Ab.indx.TDGDLF)==0) rm(Ab.indx.TDGDLF) else
+      {
+        for(z in 1:length(Ab.indx.TDGDLF)) Ab.indx.TDGDLF[[z]]$zone=capitalize(names(Ab.indx.TDGDLF)[z])
+        Ab.indx.TDGDLF=do.call(rbind,Ab.indx.TDGDLF)
+      }
     }
-  }
-  
-  #daily
-  iid=nm.Dat[fn.extract.dat(STRING="(?=.*annual.abundance.basecase)(?=.*relative)(?=.*daily)",nm.Dat)]
-  if(length(iid)>0)
-  {
-    Ab.indx.TDGDLF.daily=Dat[match(iid,nm.Dat)]
-    Nms=fn.rename.dat(x=names(Ab.indx.TDGDLF.daily),y=c('.annual.abundance.basecase.daily.','relative','.csv','_'))
-    Nms=ifelse(Nms=='annual.abundance.basecase.daily','all',Nms)
-    names(Ab.indx.TDGDLF.daily)=Nms
-    
-    Ab.indx.TDGDLF.all.daily=Ab.indx.TDGDLF.daily$all
-    Ab.indx.TDGDLF.daily=Ab.indx.TDGDLF.daily[names(Ab.indx.TDGDLF.daily) != "all"] 
-    if(length( Ab.indx.TDGDLF.daily)==0) rm( Ab.indx.TDGDLF.daily) else
+        #daily
+    iid=nm.Dat[fn.extract.dat(STRING="(?=.*annual.abundance.basecase)(?=.*relative)(?=.*daily)",nm.Dat)]
+    if(length(iid)>0)
     {
-      for(z in 1:length(Ab.indx.TDGDLF.daily)) Ab.indx.TDGDLF.daily[[z]]$zone=capitalize(names(Ab.indx.TDGDLF.daily)[z])
-      Ab.indx.TDGDLF.daily=do.call(rbind,Ab.indx.TDGDLF.daily)
+      Ab.indx.TDGDLF.daily=Dat[match(iid,nm.Dat)]
+      Nms=fn.rename.dat(x=names(Ab.indx.TDGDLF.daily),y=c('.annual.abundance.basecase.daily.','relative','.csv','_'))
+      Nms=ifelse(Nms=='annual.abundance.basecase.daily','all',Nms)
+      names(Ab.indx.TDGDLF.daily)=Nms
+      
+      Ab.indx.TDGDLF.all.daily=Ab.indx.TDGDLF.daily$all
+      Ab.indx.TDGDLF.daily=Ab.indx.TDGDLF.daily[names(Ab.indx.TDGDLF.daily) != "all"] 
+      if(length( Ab.indx.TDGDLF.daily)==0) rm( Ab.indx.TDGDLF.daily) else
+      {
+        for(z in 1:length(Ab.indx.TDGDLF.daily)) Ab.indx.TDGDLF.daily[[z]]$zone=capitalize(names(Ab.indx.TDGDLF.daily)[z])
+        Ab.indx.TDGDLF.daily=do.call(rbind,Ab.indx.TDGDLF.daily)
+      }
     }
-  }
-  
+    
       #3.1.2  NSF 
-  if('annual.abundance.NSF_relative'%in%nm.Dat) Ab.indx.NSF=Dat$annual.abundance.NSF_relative
-  
-
+    if('annual.abundance.NSF_relative'%in%nm.Dat) Ab.indx.NSF=Dat$annual.abundance.NSF_relative
+    
       #3.1.3. Naturaliste survey
-  if('Srvy.FixSt'%in%nm.Dat)
-  {
-    Ab.index.Srvy.FixSt=Dat$Srvy.FixSt
-    Size.index.Srvy.FixSt=Dat$Srvy.FixSt_size
-    Ab.index.Srvy.FixSt$CV=Ab.index.Srvy.FixSt$CV/100
-    Ab.index.Srvy.FixSt$FINYEAR=paste(Ab.index.Srvy.FixSt$yr,"-",fn.subs(Ab.index.Srvy.FixSt$yr+1),sep="")
-    Size.index.Srvy.FixSt$FINYEAR=paste(Size.index.Srvy.FixSt$yr,"-",fn.subs(Size.index.Srvy.FixSt$yr+1),sep="")
-  }
-  
+    if('Srvy.FixSt'%in%nm.Dat)
+    {
+      Ab.index.Srvy.FixSt=Dat$Srvy.FixSt
+      Size.index.Srvy.FixSt=Dat$Srvy.FixSt_size
+      Ab.index.Srvy.FixSt$CV=Ab.index.Srvy.FixSt$CV/100
+      Ab.index.Srvy.FixSt$FINYEAR=paste(Ab.index.Srvy.FixSt$yr,"-",fn.subs(Ab.index.Srvy.FixSt$yr+1),sep="")
+      Size.index.Srvy.FixSt$FINYEAR=paste(Size.index.Srvy.FixSt$yr,"-",fn.subs(Size.index.Srvy.FixSt$yr+1),sep="")
+    }
+    
       #3.1.4  Observer TDGDLF 
-  if('CPUE_Observer_TDGDLF'%in%nm.Dat) Ab.indx.observer.TDGDLF=Dat$CPUE_Observer_TDGDLF
-  
-
+    if('CPUE_Observer_TDGDLF'%in%nm.Dat) Ab.indx.observer.TDGDLF=Dat$CPUE_Observer_TDGDLF
+    
+      #3.1.5 Pilbara trawil 
+    if('CPUE_Pilbara.trawl'%in%nm.Dat) Ab.indx.PFT=Dat$CPUE_Pilbara.trawl
+    
+    
     #3.2 CATCH SIZE COMPOSITION
       #3.2.1 Heald 1987 
-  # description: Partial length in cm obtained from Perth fish marke.
-  #             Unspecified fishing method, most likely gillnets.
-  # Not used, very unreliable and strange size measures and unsure about how measured
-  #PL_Heald_1987=read.csv("C:/Matias/Data/Size_composition/Heald(1987).csv",stringsAsFactors=F)  
-  
-      #3.2.2 Stevens 1990 (citation in Simpfendorfer & Donohue 1998)
-  # description: TL (fish market) or FL (measured at sea) depending on period, in cm.
-  #             gillnet of 6.5 and 7 inch mesh size.
-  # Not used, cannot be allocated to a zone and unsure about how measured
-  #TL_FL_Stevens_1990=read.csv("C:/Matias/Data/Size_composition/Stevens_1990_size_comp_6.5_7_inch.csv",stringsAsFactors=F)    
-  
-      #3.2.3.TDGDLF observing programs
-  #description: FL (cm) composition observed as part of different research projects on commercial gillnet vessels. 
-  #           6.5 and 7 inch mesh combined (also available are data by mesh size). Souce: "Shark database"
-  iid=nm.Dat[fn.extract.dat(STRING="(?=.*inch.raw)",nm.Dat)]
-  if(length(iid)>0)
-  {
-    FL.TDGDFL= Dat[match(iid,nm.Dat)]
-    Nms=fn.rename.dat(x=names(FL.TDGDFL),y=c('Size_composition_','.inch.raw'))
-    Nms=ifelse(Nms=='','all',Nms)
-    names(FL.TDGDFL)=Nms
-    if('Size_composition_Numb_obs_size.freq.TDGDLF'%in%nm.Dat) TDGDFL.size.numbers= Dat$Size_composition_Numb_obs_size.freq.TDGDLF
+    # description: Partial length in cm obtained from Perth fish marke.
+    #             Unspecified fishing method, most likely gillnets.
+    # Not used, very unreliable and strange size measures and unsure about how measured
+    #PL_Heald_1987=read.csv("C:/Matias/Data/Size_composition/Heald(1987).csv",stringsAsFactors=F)  
     
-    if(nrow(do.call(rbind,FL.TDGDFL))==0)
+      #3.2.2 Stevens 1990 (citation in Simpfendorfer & Donohue 1998)
+    # description: TL (fish market) or FL (measured at sea) depending on period, in cm.
+    #             gillnet of 6.5 and 7 inch mesh size.
+    # Not used, cannot be allocated to a zone and unsure about how measured
+    #TL_FL_Stevens_1990=read.csv("C:/Matias/Data/Size_composition/Stevens_1990_size_comp_6.5_7_inch.csv",stringsAsFactors=F)    
+    
+      #3.2.3.TDGDLF observing programs
+    #description: FL (cm) composition observed as part of different research projects on commercial gillnet vessels. 
+    #           6.5 and 7 inch mesh combined (also available are data by mesh size). Souce: "Shark database"
+    iid=nm.Dat[fn.extract.dat(STRING="(?=.*inch.raw)",nm.Dat)]
+    if(length(iid)>0)
     {
-      rm(FL.TDGDFL,TDGDFL.size.numbers)
+      FL.TDGDFL= Dat[match(iid,nm.Dat)]
+      Nms=fn.rename.dat(x=names(FL.TDGDFL),y=c('Size_composition_','.inch.raw'))
+      Nms=ifelse(Nms=='','all',Nms)
+      names(FL.TDGDFL)=Nms
+      if('Size_composition_Numb_obs_size.freq.TDGDLF'%in%nm.Dat) TDGDFL.size.numbers= Dat$Size_composition_Numb_obs_size.freq.TDGDLF
+      
+      if(nrow(do.call(rbind,FL.TDGDFL))==0)
+      {
+        rm(FL.TDGDFL,TDGDFL.size.numbers)
+      }
     }
-  }
-  
-  #keep years with at least 10 observations from at least 10 shots by zone
-  if(exists('TDGDFL.size.numbers'))
-  {
-    TDGDFL.size.numbers=subset(TDGDFL.size.numbers,N.observations>=Min.obs & N.shots>=Min.shts)
-    This.yr.zn=with(TDGDFL.size.numbers,paste(FINYEAR,zone))
-  }
-  
+    
+    #keep years with at least 10 observations from at least 10 shots by zone
+    if(exists('TDGDFL.size.numbers'))
+    {
+      TDGDFL.size.numbers=subset(TDGDFL.size.numbers,N.observations>=Min.obs & N.shots>=Min.shts)
+      This.yr.zn=with(TDGDFL.size.numbers,paste(FINYEAR,zone))
+    }
+    
       #3.2.4 Pilbara trawl
-  #description: FL (cm) composition observed on Pilbara trawl vessels. Source: "Shark database"
-  if('Size_composition_Pilbara_Trawl'%in%nm.Dat) FL_Pilbara_trawl=Dat$Size_composition_Pilbara_Trawl
-
+    #description: FL (cm) composition observed on Pilbara trawl vessels. Source: "Shark database"
+    if('Size_composition_Pilbara_Trawl'%in%nm.Dat) FL_Pilbara_trawl=Dat$Size_composition_Pilbara_Trawl
+    
       #3.2.5 NSF longline
-  #description: FL (cm) composition observed on NSF longline vessels. Source: "Shark database"
-  if('Size_composition_NSF.LONGLINE'%in%nm.Dat) FL_NSF=Dat$Size_composition_NSF.LONGLINE
-  
-
+    #description: FL (cm) composition observed on NSF longline vessels. Source: "Shark database"
+    if('Size_composition_NSF.LONGLINE'%in%nm.Dat) FL_NSF=Dat$Size_composition_NSF.LONGLINE
+    
+    
       #3.2.6 TEPS_TDGLDF
-  if(Name=="dusky shark") Size.comp.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #raw data from Comments in TDGDLF returns
-  
-
+    if(Name=="dusky shark") Size.comp.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #raw data from Comments in TDGDLF returns
+    
+    
     #3.3. TAGGING
       #3.3.1 Conventional
-  #note: there's also info by block but very few observations at this level....
-  
-  #Individual based model
-  if('Con_tag_Ind.based.mod'%in%nm.Dat) Rel_rec_Conv.Tag=Dat$Con_tag_Ind.based.mod
-  
-  #at age
-  if('Con_tag_Zn.rel_Conv.Tag'%in%nm.Dat) Zn.rel_Conv.Tag=Dat$Con_tag_Zn.rel_Conv.Tag
-  if('Con_tag_Zn.rec_Conv.Tag'%in%nm.Dat) Zn.rec_Conv.Tag=Dat$Con_tag_Zn.rec_Conv.Tag
-
-  #at size
-    #all sizes
-  if('Con_tag_Zn.rel_Conv.Tag_size'%in%nm.Dat) Zn.rel_Conv.Tag_size=Dat$Con_tag_Zn.rel_Conv.Tag_size
-  if('Con_tag_Zn.rec_Conv.Tag_size'%in%nm.Dat) Zn.rec_Conv.Tag_size=Dat$Con_tag_Zn.rec_Conv.Tag_size
-
-    #adults and juvenlies
-  if('Con_tag_Zn.rel.adul_Conv.Tag_size'%in%nm.Dat) Zn.rel_Conv.Tag_size_adu=Dat$Con_tag_Zn.rel.adul_Conv.Tag_size
-  if('Con_tag_Zn.rel.juv_Conv.Tag_size'%in%nm.Dat) Zn.rel_Conv.Tag_size_juv=Dat$Con_tag_Zn.rel.juv_Conv.Tag_size
-  if('Con_tag_Zn.rec.adul_Conv.Tag_size'%in%nm.Dat) Zn.rec_Conv.Tag_size_adu=Dat$Con_tag_Zn.rec.adul_Conv.Tag_size
-  if('Con_tag_Zn.rec.juv_Conv.Tag_size'%in%nm.Dat) Zn.rec_Conv.Tag_size_juv=Dat$Con_tag_Zn.rec.juv_Conv.Tag_size
-  if('Con_tag_Smallest.size_Conv.Tag_size'%in%nm.Dat) Smallest_size_tagged=Dat$Con_tag_Smallest.size_Conv.Tag_size
- 
-
-      #3.3.2 Acoustic
-  #note: there's also info by block but very few observations at this level....
-  
-  #Taylor 2011 approach
-  if('Acous.Tag_Zn.rel_Acous.Tag'%in%nm.Dat) Zn.rel_Acous.Tag=Dat$Acous.Tag_Zn.rel_Acous.Tag
-  if('Acous.Tag_Zn.rec_Acous.Tag'%in%nm.Dat) Zn.rec_Acous.Tag=Dat$Acous.Tag_Zn.rec_Acous.Tag
-
-  #Proportion of time approach
-  if('Acous.Tag_Zn.rel_Acous.Tag.prop'%in%nm.Dat) Zn.rel_Acous.Tag.prop=Dat$Acous.Tag_Zn.rel_Acous.Tag.prop
-  if('Acous.Tag_Zn.rec_Acous.Tag.prop'%in%nm.Dat) Zn.rec_Acous.Tag.prop=Dat$Acous.Tag_Zn.rec_Acous.Tag.prop
-
-  #Individual based model
-  iid=nm.Dat[fn.extract.dat(STRING="(?=.*Acous.Tag)(?=.*Ind_based)",nm.Dat)]
-  if(length(iid)>0) Indiv_based_Acous.Tag= Dat[match(iid,nm.Dat)]$`_Acous.Tag_Acous.Tag.Ind_based.csv`
-  
-  #Reported recaptures and releases of acoustic tagging
-  if('Acous.Tag_Rep.Recap'%in%nm.Dat) Rep.Recap=Dat$Acous.Tag_Rep.Recap
-  
-  
-
-    #3.4.  Age and growth data for whiskery only
-  if(SP=="WH") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Simpfen.data.csv"))
-  if(SP=="GM") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Terry/Gummy_Terry.csv"))
-  if(SP=="BW") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Dusky.csv"))
-  if(SP=="TK") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Sandbar.csv"))
-  
-  
-    #3.5.  Standardised Mean size
-  iid=nm.Dat[fn.extract.dat(STRING="(?=.*annual.mean.size)",nm.Dat)]
-  if(length(iid)>0)
-  {
-    Avr.wt.yr.zn=Dat[match(iid,nm.Dat)]
-    Nms=fn.rename.dat(x=names(Avr.wt.yr.zn),y=c('annual.mean.size','relative','_'))
-    Nms=ifelse(Nms=='','all',Nms)
-    names(Avr.wt.yr.zn)=Nms
-    Avr.wt.yr=Avr.wt.yr.zn$all
-    Avr.wt.yr.zn=Avr.wt.yr.zn[names(Avr.wt.yr.zn) != "all"] 
-    if(length(Avr.wt.yr.zn)==0) rm(Avr.wt.yr.zn) else
-    {
-      for(z in 1:length(Avr.wt.yr.zn)) Avr.wt.yr.zn[[z]]$zone=capitalize(names(Avr.wt.yr.zn)[z])
-      Avr.wt.yr.zn=do.call(rbind,Avr.wt.yr.zn)
-    }
-  }
-  
-
-    #3.6. Effort by zone (GN plus long line equivalent effort)
-  #(in 1000 km gn days)
-  if(What.Efrt=="km.gn.days") Eff.zn=read.csv(handl_OneDrive("Analyses/Data_outs/Annual.zone.eff.days.csv"))
-  #(in 1000 km gn hours)
-  if(What.Efrt=="km.gn.hours") Eff.zn=read.csv(handl_OneDrive("Analyses/Data_outs/Annual.zone.eff.hours.csv"))
-  
-  
-    #3.7. Proportional effort by mesh size
-  Mesh.prop.eff=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.csv"))
-  Mesh.prop.eff.West=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.West.csv"))
-  Mesh.prop.eff.Zn1=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.Zone1.csv"))
-  Mesh.prop.eff.Zn2=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.Zone2.csv"))
-  
-
-    #3.8. Gillnet selectivity 
-  if('gillnet.selectivity'%in%nm.Dat) Gillnet.selectivity=Dat$gillnet.selectivity
-  if('gillnet.selectivity_len.age'%in%nm.Dat) Gillnet.selectivity_len.age=Dat$gillnet.selectivity_len.age
-
+    #note: there's also info by block but very few observations at this level....
     
-  
+    #Individual based model
+    if('Con_tag_Ind.based.mod'%in%nm.Dat) Rel_rec_Conv.Tag=Dat$Con_tag_Ind.based.mod
+    
+    #at age
+    if('Con_tag_Zn.rel_Conv.Tag'%in%nm.Dat) Zn.rel_Conv.Tag=Dat$Con_tag_Zn.rel_Conv.Tag
+    if('Con_tag_Zn.rec_Conv.Tag'%in%nm.Dat) Zn.rec_Conv.Tag=Dat$Con_tag_Zn.rec_Conv.Tag
+    
+    #at size
+    #all sizes
+    if('Con_tag_Zn.rel_Conv.Tag_size'%in%nm.Dat) Zn.rel_Conv.Tag_size=Dat$Con_tag_Zn.rel_Conv.Tag_size
+    if('Con_tag_Zn.rec_Conv.Tag_size'%in%nm.Dat) Zn.rec_Conv.Tag_size=Dat$Con_tag_Zn.rec_Conv.Tag_size
+    
+    #adults and juvenlies
+    if('Con_tag_Zn.rel.adul_Conv.Tag_size'%in%nm.Dat) Zn.rel_Conv.Tag_size_adu=Dat$Con_tag_Zn.rel.adul_Conv.Tag_size
+    if('Con_tag_Zn.rel.juv_Conv.Tag_size'%in%nm.Dat) Zn.rel_Conv.Tag_size_juv=Dat$Con_tag_Zn.rel.juv_Conv.Tag_size
+    if('Con_tag_Zn.rec.adul_Conv.Tag_size'%in%nm.Dat) Zn.rec_Conv.Tag_size_adu=Dat$Con_tag_Zn.rec.adul_Conv.Tag_size
+    if('Con_tag_Zn.rec.juv_Conv.Tag_size'%in%nm.Dat) Zn.rec_Conv.Tag_size_juv=Dat$Con_tag_Zn.rec.juv_Conv.Tag_size
+    if('Con_tag_Smallest.size_Conv.Tag_size'%in%nm.Dat) Smallest_size_tagged=Dat$Con_tag_Smallest.size_Conv.Tag_size
+    
+    
+      #3.3.2 Acoustic
+    #note: there's also info by block but very few observations at this level....
+    
+    #Taylor 2011 approach
+    if('Acous.Tag_Zn.rel_Acous.Tag'%in%nm.Dat) Zn.rel_Acous.Tag=Dat$Acous.Tag_Zn.rel_Acous.Tag
+    if('Acous.Tag_Zn.rec_Acous.Tag'%in%nm.Dat) Zn.rec_Acous.Tag=Dat$Acous.Tag_Zn.rec_Acous.Tag
+    
+    #Proportion of time approach
+    if('Acous.Tag_Zn.rel_Acous.Tag.prop'%in%nm.Dat) Zn.rel_Acous.Tag.prop=Dat$Acous.Tag_Zn.rel_Acous.Tag.prop
+    if('Acous.Tag_Zn.rec_Acous.Tag.prop'%in%nm.Dat) Zn.rec_Acous.Tag.prop=Dat$Acous.Tag_Zn.rec_Acous.Tag.prop
+    
+    #Individual based model
+    iid=nm.Dat[fn.extract.dat(STRING="(?=.*Acous.Tag)(?=.*Ind_based)",nm.Dat)]
+    if(length(iid)>0) Indiv_based_Acous.Tag= Dat[match(iid,nm.Dat)]$`_Acous.Tag_Acous.Tag.Ind_based.csv`
+    
+    #Reported recaptures and releases of acoustic tagging
+    if('Acous.Tag_Rep.Recap'%in%nm.Dat) Rep.Recap=Dat$Acous.Tag_Rep.Recap
+    
+    
+    #3.4.  Age and growth data for whiskery only
+    if(SP=="WH") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Simpfen.data.csv"))
+    if(SP=="GM") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Terry/Gummy_Terry.csv"))
+    if(SP=="BW") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Dusky.csv"))
+    if(SP=="TK") Age.growth=read.csv(handl_OneDrive("Data/Age and growth/Sandbar.csv"))
+    
+    
+    #3.5.  Standardised Mean size
+    iid=nm.Dat[fn.extract.dat(STRING="(?=.*annual.mean.size)",nm.Dat)]
+    if(length(iid)>0)
+    {
+      Avr.wt.yr.zn=Dat[match(iid,nm.Dat)]
+      Nms=fn.rename.dat(x=names(Avr.wt.yr.zn),y=c('annual.mean.size','relative','_'))
+      Nms=ifelse(Nms=='','all',Nms)
+      names(Avr.wt.yr.zn)=Nms
+      Avr.wt.yr=Avr.wt.yr.zn$all
+      Avr.wt.yr.zn=Avr.wt.yr.zn[names(Avr.wt.yr.zn) != "all"] 
+      if(length(Avr.wt.yr.zn)==0) rm(Avr.wt.yr.zn) else
+      {
+        for(z in 1:length(Avr.wt.yr.zn)) Avr.wt.yr.zn[[z]]$zone=capitalize(names(Avr.wt.yr.zn)[z])
+        Avr.wt.yr.zn=do.call(rbind,Avr.wt.yr.zn)
+      }
+    }
+    
+    
+    #3.6. Effort by zone (GN plus long line equivalent effort)
+    #(in 1000 km gn days)
+    if(What.Efrt=="km.gn.days") Eff.zn=read.csv(handl_OneDrive("Analyses/Data_outs/Annual.zone.eff.days.csv"))
+    #(in 1000 km gn hours)
+    if(What.Efrt=="km.gn.hours") Eff.zn=read.csv(handl_OneDrive("Analyses/Data_outs/Annual.zone.eff.hours.csv"))
+    
+    
+    #3.7. Proportional effort by mesh size
+    Mesh.prop.eff=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.csv"))
+    Mesh.prop.eff.West=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.West.csv"))
+    Mesh.prop.eff.Zn1=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.Zone1.csv"))
+    Mesh.prop.eff.Zn2=read.csv(handl_OneDrive("Analyses/Catch and effort/mesh.proportional.effort.Zone2.csv"))
+    
+    
+    #3.8. Gillnet selectivity 
+    if('gillnet.selectivity'%in%nm.Dat) Gillnet.selectivity=Dat$gillnet.selectivity
+    if('gillnet.selectivity_len.age'%in%nm.Dat) Gillnet.selectivity_len.age=Dat$gillnet.selectivity_len.age
+    
+  }
+    
 
   #----PARAMETERS SECTIONS ------- 
   a.TL=LH.par$a_FL.to.TL
@@ -1061,6 +1062,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     dir.create(file.path(mainDir,subDir))
   }
   setwd(DiR)
+  ff=do.call(file.remove, list(list.files(DiR, full.names = TRUE)))
   
   
   #5. Years with data for conventional tagging data
@@ -1365,14 +1367,8 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     Shots.SF[is.na(Shots.SF)]=""
     
     #create nice table 
-    fn.word.table(WD=getwd(),TBL=Numbers.SF,Doc.nm="Size.comp.n.observations",caption=NA,paragph=NA,
-                  HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
-                  Zebra='NO',Zebra.col='grey60',Grid.col='black',
-                  Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
-    fn.word.table(WD=getwd(),TBL=Shots.SF,Doc.nm="Size.comp.n.shots",caption=NA,paragph=NA,
-                  HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
-                  Zebra='NO',Zebra.col='grey60',Grid.col='black',
-                  Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+    fn.word.table(TBL=Numbers.SF,Doc.nm="Size.comp.n.observations")
+    fn.word.table(TBL=Shots.SF,Doc.nm="Size.comp.n.shots")
     write.csv(Numbers.SF,"Numbers.SF.csv",row.names=F)
     write.csv(Shots.SF,"Shots.SF.csv",row.names=F)
   }
@@ -1401,8 +1397,8 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
 
   
   #4. Select effort years
-  Eff.zn=subset(Eff.zn,FINYEAR%in%YR.span)
-  Eff.total=data.frame(FINYEAR=Eff.zn$FINYEAR,Total=Eff.zn$West+Eff.zn$Zone1+Eff.zn$Zone2)
+  if(exists("Eff.zn")) Eff.zn=subset(Eff.zn,FINYEAR%in%YR.span)
+  if(exists("Eff.total")) Eff.total=data.frame(FINYEAR=Eff.zn$FINYEAR,Total=Eff.zn$West+Eff.zn$Zone1+Eff.zn$Zone2)
   
   
   #5. Visualize data availability
@@ -1429,6 +1425,12 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     if(exists('Abun'))Abun$observer.TDGDLF=Ab.indx.observer.TDGDLF
     if(!exists('Abun'))Abun=list(observer.TDGDLF=Ab.indx.observer.TDGDLF)
   }
+  if(exists('Ab.indx.PFT'))
+  {
+    if(exists('Abun'))Abun$PFT=Ab.indx.PFT
+    if(!exists('Abun'))Abun=list(PFT=Ab.indx.PFT)
+  }
+  
   d.list=list(Catch=catch) 
   if(exists('All.size'))
   {
@@ -1470,10 +1472,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
                                         "size.group.y"),names(TBL.conv.rel))]
     TBL.conv.rel[is.na(TBL.conv.rel)]=0
     write.csv(TBL.conv.rel,"TBL.conv.releases.csv",row.names=F)
-    fn.word.table(WD=getwd(),TBL=TBL.conv.rel,Doc.nm="TBL.conv.releases",caption=NA,paragph=NA,
-                  HdR.col='black',HdR.bg='white',Hdr.fnt.sze=10,Hdr.bld='normal',body.fnt.sze=10,
-                  Zebra='NO',Zebra.col='grey60',Grid.col='black',
-                  Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
+    fn.word.table(TBL=TBL.conv.rel,Doc.nm="TBL.conv.releases")
   }
   
   
@@ -1516,7 +1515,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   DiR=paste(HandL,str_remove(capitalize(Name), ' shark'),"/",Yr.assess,sep='')
   if(!file.exists(DiR)) dir.create(DiR)
   
-  ff=do.call(file.remove, list(list.files(DiR, full.names = TRUE))) #remove all files
+  ff=do.call(file.remove, list(list.files(DiR, full.names = TRUE))) #remove all old files first
   setwd(DiR)
   
 
@@ -1532,8 +1531,8 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
  
 
   #Effort
-  write.csv(Eff.zn,"effort.annual.by.zone.TDGDLF.csv",row.names=F) 
-  write.csv(Eff.total,"effort.annual.TDGDLF.csv",row.names=F)
+  if(exists("Eff.zn")) write.csv(Eff.zn,"effort.annual.by.zone.TDGDLF.csv",row.names=F) 
+  if(exists("Eff.total")) write.csv(Eff.total,"effort.annual.TDGDLF.csv",row.names=F)
 
    
   #avg weight 
@@ -1563,6 +1562,8 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   #Observer TDGDLF cpue     
   if(exists('Ab.indx.observer.TDGDLF')) write.csv(Ab.indx.observer.TDGDLF,"cpue.annual.observer.TDGDLF.csv",row.names=F)
   
+  #Pilbara fish trawl cpue     
+  if(exists('Ab.indx.PFT')) write.csv(Ab.indx.PFT,"cpue.annual.PFT.csv",row.names=F)
   
   #Size composition 
   if(exists('All.size'))
