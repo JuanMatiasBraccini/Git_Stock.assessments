@@ -678,7 +678,7 @@ Millar.Holst=function(d,size.int,length.at.age,weight.by.effort=NULL)
                                   plotlens_age=length.at.age,
                                   details=T)
       Equal.power[[f]]$Warnings=warnings()
-      reset.warnings()
+      #reset.warnings()
     }
   }
   if(Fitfunction=='NetFit')
@@ -713,7 +713,7 @@ Millar.Holst=function(d,size.int,length.at.age,weight.by.effort=NULL)
                                   plotlens_age=length.at.age,
                                   details=T)
       Prop.power[[f]]$Warnings=warnings()
-      reset.warnings()
+      #reset.warnings()
     }
   }
   if(Fitfunction=='NetFit')
@@ -1388,7 +1388,7 @@ if(do.paper.figures)
       ggplot( aes(x=TL, fill=MESH)) +
       geom_histogram(binwidth = 10, alpha=0.8,colour='grey40',size=.1)  +
       labs(fill="Mesh size (cm)")+
-      facet_wrap(vars(Species), scales = "free")+
+      facet_wrap(vars(Species), scales = "free_y")+
       xlab("Total length (cm)")+ ylab("Frequency")+scale_fill_manual(values=cols)+
       theme(legend.title = element_text(size = 10),
             legend.text = element_text(size = 9),
@@ -1409,7 +1409,7 @@ if(do.paper.figures)
             strip.text.x = element_text(size = 14),
             axis.text.x = element_text(size = 13),
             axis.text.y = element_text(size = 13))
-  p
+  p+ guides(fill = guide_legend(nrow = 1))
   #p=p+theme(legend.position="bottom")
   #reposition_legend(p , 'center',panel='panel-4-3')   #Manually save figrue as 'Figure 2.tiff', ggsave not working with reposition_legend
   ggsave('Figure 2.tiff', width = 12,height = 10, dpi = 300, compression = "lzw")
@@ -1897,11 +1897,17 @@ if(do.paper.figures)
       if(as.character(Nets[i])%in%Msh)
       {
         ii=match(paste('X',Nets[i],sep=''),colnames(d$tab))
-        plot(d$tab$Size.class,d$tab[,ii],type='h',ylab='',xlab='', lwd = 4,col=rgb(.5,.5,.5,alpha=.5))
+        dmax=ceiling(max(c(max(d$tab[,ii]),max(N.fish.caught[[3]][,ii-1]))))
+        plot(d$tab$Size.class,d$tab[,ii],type='h',ylab='',xlab='', lwd = 4,
+             col=rgb(.5,.5,.5,alpha=.5), yaxt = "n",
+             ylim=c(0,dmax))
         for(m in 1:length(N.fish.caught))
         {
           lines(d$tab$Size.class,N.fish.caught[[m]][,ii-1],col=Cols.type[m],lwd=1.5)
         }
+        RANGO=round(seq(0,dmax,length.out=4))
+        if(nchar(RANGO[4])>=2 & RANGO[4]>30) RANGO=10*round(RANGO/10)
+        axis(2, at = RANGO,las=2)
       }
       if(net.names) mtext(paste(Nets[i],'cm'),3,cex=.9)
       
@@ -1924,7 +1930,8 @@ if(do.paper.figures)
     fn.freq.obs.pred1(d=Fit.M_H[[s]],
                       d.KW=dummy,
                       net.names=net.names)
-    if(s==nn[nn1-1])
+    #if(s==nn[nn1-1])
+    if(s==1)
     {
       Nms=names(Cols.type)
       Nms=ifelse(Nms=="norm.loc","Normal fixed",
@@ -1950,7 +1957,8 @@ if(do.paper.figures)
     fn.freq.obs.pred1(d=Fit.M_H[[s]],
                       d.KW=dummy,
                       net.names=net.names)
-    if(s==nn[length(nn)])
+    #if(s==nn[length(nn)])
+    if(s==8)
     {
       Nms=names(Cols.type)
       Nms=ifelse(Nms=="norm.loc","Normal fixed",
@@ -2097,11 +2105,11 @@ if(do.paper.figures)
   show.this.mesh=c('15.2','16.5','17.8')
   CLS=CLS[match(show.this.mesh,names(CLS))]
   
-  plot.sel=function(d,NM,XMAX)  
+  plot.sel=function(d,NM,XMIN=min(d$Size.class),XMAX)  
   {
     d=d%>%rename(Size.class=TL.mm)
     plot(d$Size.class,d$'15.2',type='l',lwd=2,col=CLS[1],ylab='',xlab='',
-         xlim=c(min(d$Size.class),XMAX),ylim=c(0,1))
+         xlim=c(XMIN,XMAX),ylim=c(0,1))
     lines(d$Size.class,d$'16.5',lwd=2,col=CLS[2],lty=2)
     lines(d$Size.class,d$'17.8',lwd=2,col=CLS[3],lty=3)
     mtext(NM,3)
@@ -2118,11 +2126,14 @@ if(do.paper.figures)
   {
     Store.Sels[[s]]=plot.sel(d=Pred.sels.main.mesh[[s]],
                              NM=n.sp[s],
-                             XMAX=1.5*max(Combined%>%
-                                        filter(Species==n.sp[s])%>%
+                             XMIN=min(Combined%>%
+                                        filter(Species%in%n.sp)%>%
+                                        pull(Length)),
+                             XMAX=max(Combined%>%
+                                        filter(Species%in%n.sp)%>%
                                         pull(Length)))
   }
-  legend("topleft",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
+  legend("topright",paste(round(as.numeric(names(CLS)),2)),col=CLS,bty='n',
                     lwd=2,cex=1.25,lty=1:3,title='Mesh (cm)')
   mtext("Total length (cm)",1,outer=T,line=.35,cex=1.25)
   mtext("Relative selectivity",2,outer=T,line=1,cex=1.25,las=3)

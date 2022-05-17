@@ -25,7 +25,7 @@
 
 #2. Annual effort for "Kimberley.GBF.annual.effort" from Al Harry
 
-#3. Other jurisdictions (AFMA_GAB_WTB, Whaler_SA, NT_dusky_sandbar)
+#3. Other jurisdictions (AFMA_GAB_WTB, Whaler_SA, Bronze.whaler_NSW, NT_dusky_sandbar)
 
 options(dplyr.summarise.inform = FALSE)
 options(stringsAsFactors = FALSE)
@@ -39,7 +39,7 @@ library(chron)
 
 # 1 -------------------PARAMETERS SECTION------------------------------------
 
-Asses.year=2020    #enter year of assessment
+Asses.year=2021    #enter year of assessment
 Last.yr.ktch="2019-20"  #enter year of last complete catches
 
 Shark.protection.yr=2007   #Commercial protection in non-shark fisheries came in November 2006 (Heupel & McAuley 2007 page 74)
@@ -139,6 +139,10 @@ NT_dusky_sandbar.IUU=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = 
     #SA
 Whaler_SA=read.csv(fn.hndl("SA_marine_scalefish_whaler_ktch.csv"))  #catch in tonnes; source SARDI's Angelo Tsolos, Paul Rogers
 
+    #NSW 
+Bronze.whaler_NSW=read.csv(fn.hndl("NSW_whaler_ktch.csv")) #Source: Vic Peddemors
+Bronze.whaler_NSW_beach.protection=read.csv(fn.hndl("NSW_whaler_beach.protection.csv"))
+
     #AFMA
 AFMA_GAB_WTB= read.csv(fn.hndl('AFMA_GAB.trawl_WTB.csv'))  #catch in kg; source: AFMA data request; Kehani Manson
 #WTBF_catch=read.csv(fn.hndl("WTBF_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
@@ -159,8 +163,12 @@ Data.monthly=read.csv("Data.monthly.csv")
 #note:  this has catch of sharks from monthly returns of all fisheries 
 #       but from daily records of shark fisheries only 
 
-daily.other=read.csv("Data.daily.other.fisheries.csv")                
-#note:  this has shark catch from daily records from other fisheries   
+Add.daily.other=FALSE #not needed, already un SQL queries 
+if(Add.daily.other)
+{
+  daily.other=read.csv("Data.daily.other.fisheries.csv")                
+  #note:  this has shark catch from daily records from other fisheries
+}
   
     #north of 26 S
 Data.monthly.north=read.csv("Data.monthly.NSF.csv")
@@ -669,13 +677,17 @@ Data.monthly.north=Data.monthly.north%>%left_join(FisheryCodes,by=c("FisheryCode
                                                'Joint Authority Northern Shark Fishery',FishCubeName),
                            FishCubeCode=ifelse(FishCubeCode=='NCS','JANS',FishCubeCode))%>%
                     mutate(DATA.type="Data.monthly.north")
-daily.other=daily.other%>%left_join(FisheryCodes,by=c("fishery"="SASCode"))%>%
-              rename(SPECIES=species,
-                     LIVEWT=livewt,
-                     FisheryCode=fishery,
-                     FINYEAR=finyear)%>%
-              mutate(FishCubeCode=ifelse(is.na(FishCubeCode),FisheryCode,FishCubeCode),
-                     DATA.type="daily.other")
+if(Add.daily.other)
+{
+  daily.other=daily.other%>%left_join(FisheryCodes,by=c("fishery"="SASCode"))%>%
+    rename(SPECIES=species,
+           LIVEWT=livewt,
+           FisheryCode=fishery,
+           FINYEAR=finyear)%>%
+    mutate(FishCubeCode=ifelse(is.na(FishCubeCode),FisheryCode,FishCubeCode),
+           DATA.type="daily.other")
+  
+}
 
 
 #- Correct gummy catches by proportion of M antarcticus per zone  (Rory McAuley pers com)  
@@ -687,22 +699,26 @@ Data.monthly=Data.monthly%>%
 
 
 ## Add 'daily.other' to Data.monthly or Data.monthly.north accordingly
-dummy.daily.oder=Data.monthly[1:nrow(daily.other),]
-dummy.daily.oder[,]=NA
-dummy.daily.oder=dummy.daily.oder%>%
-                  mutate(FINYEAR=daily.other$FINYEAR,
-                         MONTH=NA,
-                         YEAR.c=daily.other$year,
-                         SPECIES=daily.other$SPECIES,
-                         LIVEWT.c=daily.other$LIVEWT,
-                         FishCubeCode=daily.other$FishCubeCode,
-                         FishCubeName=daily.other$FishCubeName,
-                         DATA.type=daily.other$DATA.type)
-Data.monthly=rbind(Data.monthly,subset(dummy.daily.oder,FishCubeCode%in%c("SWT","OASC")))
-Data.monthly.north=rbind(Data.monthly.north,
-                         dummy.daily.oder%>%
-                            filter(FishCubeCode%in%c("NDS","PFT","OP","OANCGCWC"))%>%
-                            dplyr::select(-NETLEN.c))
+if(Add.daily.other)
+{
+  dummy.daily.oder=Data.monthly[1:nrow(daily.other),]
+  dummy.daily.oder[,]=NA
+  dummy.daily.oder=dummy.daily.oder%>%
+    mutate(FINYEAR=daily.other$FINYEAR,
+           MONTH=NA,
+           YEAR.c=daily.other$year,
+           SPECIES=daily.other$SPECIES,
+           LIVEWT.c=daily.other$LIVEWT,
+           FishCubeCode=daily.other$FishCubeCode,
+           FishCubeName=daily.other$FishCubeName,
+           DATA.type=daily.other$DATA.type)
+  Data.monthly=rbind(Data.monthly,subset(dummy.daily.oder,FishCubeCode%in%c("SWT","OASC")))
+  Data.monthly.north=rbind(Data.monthly.north,
+                           dummy.daily.oder%>%
+                             filter(FishCubeCode%in%c("NDS","PFT","OP","OANCGCWC"))%>%
+                             dplyr::select(-NETLEN.c))
+}
+
 
 ## Keep only sharks and rays and set NA FishCubeCode to 'unknwn'
 Data.monthly=Data.monthly%>%
@@ -1918,6 +1934,48 @@ Taiwan.trawl.NWS=Expnded%>%
   dplyr::select(-Prop)
 
 
+#-- 3.2.7 NSW Fisheries
+#note: All fisheries reporting bronze whaler (Estuary General,	Estuary Prawn Trawl,
+#        Ocean Haul,	Ocean Trap and Line,	Ocean Trawl,	Southern Fish Trawl)
+Bronze.whaler_NSW=Bronze.whaler_NSW%>%
+  rename(LIVEWT.c=Live_wt.tons.)%>%
+  mutate(LIVEWT.c=LIVEWT.c*1000)    #convert to kg
+           
+
+  #add beach protection  
+#note: length is FL so convert to TL and use length-weight pars (which are for TL) to derive weight.
+#       some lengths are beyond max size to reset to max size
+a.w=1.04e-05; b.w=2.9; a.FL.to.TL=1.214; b.FL.to.TL=6.972; MaxSize=3 #metres
+Mean.size=mean(Bronze.whaler_NSW_beach.protection%>%filter(!(Size==0 | Size>MaxSize))%>%pull(Size))
+Bronze.whaler_NSW_beach.protection=Bronze.whaler_NSW_beach.protection%>%
+  mutate(date=as.POSIXlt(as.character(Date),format='%d/%m/%Y'),
+         Month=month(date),
+         Year=year(date),
+         Year2=ifelse(Month%in%c(1:6),Year,Year+1),
+         Year1=ifelse(Month%in%c(1:6),Year-1,Year),
+         FINYEAR=paste(Year1,substr(Year2,3,4),sep='-'),
+         Size=ifelse(Size==0 | Size>MaxSize,Mean.size,Size),
+         TL=(100*Size*a.FL.to.TL+b.FL.to.TL),
+         LIVEWT.c=a.w*TL^b.w)
+Bronze.whaler_NSW_beach.protection.dead=Bronze.whaler_NSW_beach.protection%>%
+                filter(grepl('Dead',Dead_Alive))%>%
+                group_by(FINYEAR)%>%
+                summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+                ungroup()
+Bronze.whaler_NSW_beach.protection.alive=Bronze.whaler_NSW_beach.protection%>%
+                filter(grepl('Alive',Dead_Alive))%>%
+                mutate(LIVEWT.c=LIVEWT.c*PCM%>%filter(Group=='Whalers')%>%pull(GN))%>%
+                group_by(FINYEAR)%>%
+                summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+                ungroup()
+
+Bronze.whaler_NSW=rbind(Bronze.whaler_NSW,
+                        Bronze.whaler_NSW_beach.protection.dead,
+                        Bronze.whaler_NSW_beach.protection.alive)%>%
+                  group_by(FINYEAR)%>%
+                  summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+                  ungroup()%>%
+                  mutate(SPECIES=18001)
 
 # 4 -------------------EXPORT CATCH DATA------------------------------------
 
@@ -2022,6 +2080,9 @@ fn.out(d=NT_catch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_NT_catch.csv')
 Whaler_SA$zone=NA
 fn.out(d=Whaler_SA%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Whaler_SA.csv')
 
+  #NSW Fisheries
+Bronze.whaler_NSW$zone=NA
+fn.out(d=Bronze.whaler_NSW%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Bronzewhaler_NSW.csv')
 
   #Indonesian illegal fishing in Australia waters
 Indo_total.annual.ktch$zone=NA
@@ -2385,3 +2446,53 @@ if(Do.recons.paper=="YES")   #for paper, report only IUU and reconstructions (no
 }
 
 
+
+# 6 -------------------Check greynurse catch--------------------------------------------
+#note: compare proportion of total catch before protection with TEP reporting
+check.grynurse.ktch=FALSE
+if(check.grynurse.ktch)
+{
+  Tot.ktch=Data.monthly%>%
+    group_by(FINYEAR,zone)%>%
+    summarise(Total=sum(LIVEWT.c,na.rm=T))%>%
+    ungroup()%>%
+    mutate(Yr=as.numeric(substr(FINYEAR,1,4)))
+  
+  Tabl.tep=Greynurse.ktch%>%data.frame%>%dplyr::select(-SPECIES)%>%mutate(Dat='TEP')
+  Tabl.mon=Data.monthly%>%filter(SPECIES==8001)%>%
+    group_by(FINYEAR,zone)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+    data.frame%>%mutate(Dat='Logbook')
+  
+  rbind(Tabl.tep,Tabl.mon)%>%
+    mutate(Yr=as.numeric(substr(FINYEAR,1,4)))%>%
+    ggplot(aes(Yr,LIVEWT.c,color=Dat))+
+    geom_point()+
+    facet_wrap(~zone,scales='free')+
+    theme(legend.position = 'top')
+  
+  
+  Prop=left_join(Tot.ktch,Tabl.mon,by=c('FINYEAR','zone'))%>%
+    mutate(Prop=LIVEWT.c/Total)
+  Prop%>%
+    ggplot(aes(Yr,Prop,color=zone))+
+    geom_point()+
+    theme(legend.position = 'top')
+  
+  
+  Expected=Tot.ktch%>%filter(Yr>1999)%>%
+    left_join(Prop%>%
+                group_by(FINYEAR,zone)%>%
+                summarise(Prop=mean(Prop,na.rm=T)),
+              by=c('FINYEAR','zone'))%>%
+    mutate(LIVEWT.c=Total*Prop,
+           Dat='Expected')
+  
+  
+  rbind(Tabl.tep,Expected%>%dplyr::select(FINYEAR,zone,LIVEWT.c,Dat))%>%
+    mutate(Yr=as.numeric(substr(FINYEAR,1,4)))%>%
+    ggplot(aes(Yr,LIVEWT.c,color=Dat))+
+    geom_point()+
+    facet_wrap(~zone,scales='free')+
+    theme(legend.position = 'top')
+}

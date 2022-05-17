@@ -42,6 +42,7 @@ library(tidyverse)
 library(readxl)
 library(lubridate)
 library(Hmisc)
+library(RODBC)
 
 Do.recons.rec.fishn.paper="NO"
 
@@ -99,7 +100,16 @@ Shore.based.metro.pilot=read.csv(handl_OneDrive('Data/Catch and Effort/Recreatio
 
 # Charter boats
 #note: run query in the Metdata worksheet
-Charter=read_excel(handl_OneDrive("Data\\Catch and Effort\\Charter\\Charter.xlsx"),sheet ='Data')
+# Charter=read_excel(handl_OneDrive("Data\\Catch and Effort\\Charter\\Charter.xlsx"),sheet ='Data') superseded by SQL query
+system.time({Charter<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQL Server};
+                                                        server=CP-SDBS0001P-19\\RESP01;database=ResearchDataWarehouseQuery;
+                                                        trusted_connection=yes;"), 
+                                   query="SELECT  * 
+                                          FROM fcTourOperatorCatch c
+                                          INNER JOIN rsSpecies sp ON c.SpeciesId = sp.SpeciesId
+                                          WHERE  sp.[HighLevelGroup] like 'Sharks & Rays'
+                                          ")})
+
 
 
 # WA population for rec catch recons (ABS) (Google "What is the population of Western Australia 20xx?")
@@ -257,7 +267,16 @@ Rec.fish.catch=Rec.fish.catch%>%
 
 
 # 4 -------------------Charter boats------------------------------------
-Charter=Charter%>%data.frame
+Charter=Charter%>%
+      mutate(Calendar.Year = year(TripDate),  
+             Month = month(TripDate))%>%
+      rename(TO.Zone = TourOperatorManagementZoneName, 
+             Species.Common.Name = SpeciesCommonName,
+             Fish.Kept.Count = FishKeptCount, 
+             Fish.Released.Count = FishReleasedCount)%>%
+      data.frame%>%
+  dplyr::select(TripDate,Calendar.Year,Month,TO.Zone,Species.Common.Name,Fish.Kept.Count,Fish.Released.Count)
+
 charter.shk.sp=unique(Charter$Species.Common.Name)
 charter.shk.sp=charter.shk.sp[grep('Shark|Whaler|Hammerhead',charter.shk.sp)]
 
