@@ -6027,8 +6027,174 @@ if(do.model.based.mn.weight.ktch)
 #       Selectivity is assumed to be known.
 #       Uncertainty derived from resampling variance-cov matrix
 source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/Apply Alex dynamic catch size model.R")) 
+fn.extract.dat=function(STRING,Files) grep(paste(STRING,collapse="|"), Files, value=TRUE)
 
-#ACA. Replace by  Alex's data poor size based
+
+#24.1 TDGDLF size composition
+size.catch.only_TDGDLF=vector('list',N.sp)
+names(size.catch.only_TDGDLF)=Keep.species
+system.time({for(l in 1: N.sp)  
+{
+  # Calculate F
+  Outfile='TDGDLF' 
+  this.size.comp=paste('Size_composition',c('West.6.5','West.7','Zone1.6.5','Zone1.7','Zone2.6.5','Zone2.7'),sep="_")
+  outfile=paste(Outfile,'_histogram',sep='')
+  
+  #get size composition
+  iid=Species.data[[l]][fn.extract.dat(this.size.comp,names(Species.data[[l]]))]
+  if(length(iid)>0)
+  {
+    print(paste("Dynamic catch-only size based model with dome-shape selectivity for --",names(Species.data)[l],"---",Outfile))
+    
+    dummy=do.call(rbind,iid)
+    if(grepl("TDGDLF",outfile))
+    {
+      dummy=dummy%>%
+        mutate(dummy=sub(".*Size_composition_", "", rownames(dummy)),
+               Mesh=word(dummy,2,sep = "\\."),
+               Mesh=ifelse(Mesh=='6','6.5',Mesh),
+               Mesh=factor(Mesh,levels=c('6.5','7')),
+               Zone=word(dummy,1,sep = "\\."))
+      
+    }
+    dummy=dummy%>%filter(year<=as.numeric(substr(Last.yr.ktch,1,4)))
+    
+    N.min=dummy%>%
+      group_by(year)%>%
+      tally()%>%
+      filter(n>=Min.annual.obs_catch.curve)%>%
+      mutate(Keep=year)
+    if(nrow(N.min)>0)
+    {
+      dummy=dummy%>%
+        mutate(Keep=year)%>%
+        filter(Keep%in%N.min$Keep)%>%
+        mutate(TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)     
+      
+      
+      #1. Plot observed size frequency by year and mesh for years with minimum sample size
+      if(grepl("TDGDLF",outfile))
+      {
+        p=dummy%>%
+          ggplot( aes(x=TL, color=Mesh, fill=Mesh)) +
+          geom_histogram(alpha=0.6, binwidth = TL.bins.cm)
+        WHERE="top"
+      }else
+      {
+        p=dummy%>%
+          ggplot( aes(x=TL,color=year, fill=year)) +
+          geom_histogram(alpha=0.6, binwidth = TL.bins.cm)
+        WHERE="none"
+      }
+      p=p+
+        facet_wrap(~year,scales='free_y')+
+        xlab("Total length (cm)")+ylab("Count")+
+        theme(legend.position=WHERE,
+              legend.title = element_blank(),
+              legend.text=element_text(size=14),
+              strip.text.x = element_text(size = 12),
+              axis.text=element_text(size=12),
+              axis.title=element_text(size=16))
+      print(p)
+      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                   capitalize(List.sp[[l]]$Name),"/",AssessYr,
+                   "/1_Inputs/Visualise data/Size.comp_catch.curve.",outfile,".tiff",sep=''),
+             width = 8,height = 8,compression = "lzw")
+      
+      #2. Fit model #ACA.
+      
+      #life history
+      attach(List.sp[[l]]) 
+      MaxAge = ceiling(mean(Max.age.F))
+      Linf = Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL  #total length in cm
+      vbK = Growth.F$k
+      Lo =  Lzero*a_FL.to.TL+b_FL.to.TL   #total length in cm 
+      MaxLen= 10*round(TLmax/10)
+      LenInc=TL.bins.cm
+      MatL50=TL.50.mat
+      MatL95=TL.95.mat
+      PropFemAtBirth=pup.sx.ratio
+      wtlen_b=BwT
+      wtlen_a=AwT
+      detach(List.sp[[l]])
+      NatMort=mean(colMeans(store.species.M[[l]],na.rm=T))
+      NatMort_sd=sd(colMeans(store.species.M[[l]],na.rm=T))
+      Steepness=store.species.steepness.S2[[l]]
+      Steepness_sd=store.species.steepness[[l]]$sd
+      lbnd = seq(0,MaxLen - LenInc, LenInc)
+      ubnd = lbnd + LenInc
+      midpt = lbnd + (LenInc/2)
+      #assumed values
+      UnfishRec=1
+      CVLenAtAge = 0.1 
+      SDGrowthRec = 20
+      lnRecDev=0
+      lnSigmaR=0.2 #assumed recruitment variation,assumed fairly low value for sharks
+      #Missing: ask Alext about Init_F & InitRec
+      
+      #selectivity (combined meshes)
+      SelAtLength=Selectivity.at.totalength[[l]]%>%               
+        mutate(TL=TL)%>%
+        filter( TL%in%midpt)%>%
+        pull(Sel.combined)
+      
+      #total catch
+      Katch=ktch.combined%>%
+        filter(Name==names(size.catch.only_TDGDLF)[l])%>%
+        ungroup()%>%
+        dplyr::select(finyear,Tonnes)
+      
+      #size composition
+      n.size.comp=dummy%>%
+        group_by(year)%>%
+        tally()
+      Len_SimYr=match(n.size.comp$year,Katch$finyear)
+      n_SimLen=n.size.comp$n
+      
+      add.dummy=data.frame(bin=midpt)
+      ObsLenComp=vector('list',nrow(n.size.comp))
+      for(o in 1:length(ObsLenComp))
+      {
+        x=dummy%>%
+          filter(year==n.size.comp$year[o])%>%
+          mutate(bin=LenInc*floor(TL/LenInc)+LenInc/2)%>%
+          group_by(bin)%>%
+          tally()%>%
+          full_join(add.dummy,by='bin')%>%
+          arrange(bin)%>%
+          mutate(n=ifelse(is.na(n),0,n))%>%
+          filter(bin%in%midpt)
+        xx=x$n
+        names(xx)=x$bin
+        ObsLenComp[[o]]=xx
+      }
+      ObsLenComp=do.call(rbind,ObsLenComp)%>%data.frame
+      names(ObsLenComp)=str_remove(colnames(ObsLenComp), "[X]")
+      
+      size.catch.only_TDGDLF[[l]]=apply.Alex.catch.length(Init_F=0.025,InitRec=10,NatMort=NatMort,NatMort_sd=NatMort_sd,
+                                                          Steepness=Steepness,Steepness_sd=Steepness_sd,lnRecDev=lnRecDev,
+                                                          Lo=Lo,Linf=Linf,vbK=vbK,CVLenAtAge=CVLenAtAge,SDGrowthRec=SDGrowthRec,
+                                                          MaxLen=MaxLen,LenInc=LenInc,MaxAge=MaxAge,
+                                                          MatL50=MatL50,MatL95=MatL95,PropFemAtBirth=PropFemAtBirth,
+                                                          wtlen_a=wtlen_a,wtlen_b=wtlen_b,
+                                                          SelAtLength=SelAtLength,SelL50=MatL50, SelL95=MatL95,
+                                                          Len_SimYr=Len_SimYr,n_SimLen=n_SimLen,ObsLenComp=ObsLenComp,
+                                                          Katch=Katch,nsims=500,UnfishRec=UnfishRec,lnSigmaR=lnSigmaR )
+      res$Table.estimates
+      
+      plot(res$Observed.catch)
+      lines(res$Predicted.catch)
+      
+      for(x in 1:nrow(res$Observed.LenComp))
+      {
+        plot(res$midpt,res$Observed.LenComp[x,],type='h')
+        lines(res$midpt,res$Predicted.LenComp[x,],col='4')
+      }
+      
+    }
+  }
+}
+})
 
 ######### remove this
 # ObsLenComp=read.csv(handl_OneDrive("Analyses/Population dynamics/Other people's code/Alex dynamic catch & size/ObsLenComp.csv"))
@@ -6038,28 +6204,10 @@ source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/Apply Ale
 # 
 # SelAtLength=read.csv(handl_OneDrive("Analyses/Population dynamics/Other people's code/Alex dynamic catch & size/SelAtLength.csv"))
 # SelAtLength=SelAtLength$x
-#########
+##
 #lnSigmaR: assumed recruitment variation,assumed fairly low value for sharks
 
-res=apply.Alex.catch.length(Init_F=0.025,InitRec=10,NatMort=0.2,NatMort_sd=0.02,
-                            Steepness=0.75,Steepness_sd=0.05,lnRecDev=0,
-                            Lo=1000,Linf=3000,vbK=0.2,CVLenAtAge=0.1,SDGrowthRec = 20,
-                            MaxLen=4000,LenInc=50,MaxAge=20,
-                            MatL50=1000,MatL95=1200,PropFemAtBirth=0.5,
-                            wtlen_a=0.00002,wtlen_b=3,
-                            SelAtLength=SelAtLength,SelL50=1000, SelL95=1200,
-                            Len_SimYr=c(30),n_SimLen=300,ObsLenComp=ObsLenComp,
-                            Katch=Katch,nsims=500,UnfishRec = 1,lnSigmaR = 0.2)
-res$Table.estimates
 
-plot(res$Observed.catch)
-lines(res$Predicted.catch)
-
-for(x in 1:nrow(res$Observed.LenComp))
-{
-  plot(res$midpt,res$Observed.LenComp[x,],type='h')
-  lines(res$midpt,res$Predicted.LenComp[x,],col='4')
-}
 
 ###########
 
@@ -6071,8 +6219,7 @@ if(do.Size.based.Catch.curve)
   #      size is TL in mm
   mm.conv=10 # convert total length to mm  
   fn.source("Length_based.catch.curve.R")
-  fn.extract.dat=function(STRING,Files) grep(paste(STRING,collapse="|"), Files, value=TRUE)
-  
+ 
   
     #24.1 TDGDLF 
   size.catch.curve_TDGDLF=vector('list',N.sp)
