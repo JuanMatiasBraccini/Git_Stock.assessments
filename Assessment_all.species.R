@@ -1729,6 +1729,8 @@ for(l in 1:N.sp)
                            k.Linf.cor=-0.99,    #assumed correlation between growth parameters
                            Max.age.F=c(LH$Max_Age,Max_Age_max),
                            Age.50.mat=c(LH$Age_50_Mat_min,LH$Age_50_Mat_max),
+                           TL.50.mat=LH$TL.50.mat,
+                           TL.95.mat=LH$TL.95.mat,
                            Fecundity=c(LH$Fecu_min,LH$Fecu_max),
                            Breed.cycle=c(LH$Cycle,LH$Cycle_max),
                            TEMP=LH$Temperature,
