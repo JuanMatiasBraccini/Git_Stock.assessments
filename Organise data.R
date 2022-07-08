@@ -1118,7 +1118,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   
   #7. Add missing years to prop.eff.mesh
   #note: back fill using temporal change in 7inch upto 2009-10
-  if('TDGDLF'%in%names(catch))
+  if('TDGDLF'%in%names(catch) & exists('Mesh.prop.eff'))
   {
     dum.yr=sort(as.character(unique(catch$TDGDLF%>%filter(Data.set=='Data.monthly')%>%pull(FINYEAR))))
     id=dum.yr[which(!dum.yr%in%Mesh.prop.eff$finyear)]
@@ -1462,7 +1462,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
 
   
   
-  #6. Table of released indivuals with conventional tags 
+  #6. Table of released individuals with conventional tags 
   if(exists('Zn.rel_Conv.Tag_size_adu'))
   {
     TBL.conv.rel=merge(Zn.rel_Conv.Tag_size_adu[,-match("TG.zn",names(Zn.rel_Conv.Tag_size_adu))],

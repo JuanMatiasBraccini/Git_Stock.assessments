@@ -19,6 +19,7 @@ library(Hmisc)
 library(magrittr)
 library(expandFunctions)
 library(stringr)
+library(msm)
 
 options(stringsAsFactors = FALSE,"max.print"=50000,"width"=240) 
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
@@ -82,7 +83,7 @@ min.obs.per.mesh=Min.sample  #for each kept species, use nets with a minimum # o
 
 Size.Interval=5 #size intervals for selectivity estimation (in cm)
 
-Min.length=20  #min and max total length considered (in cm)
+Min.length=0  #min and max total length considered (in cm)
 Max.length=600
 
 do.paper.figures=FALSE
@@ -740,7 +741,14 @@ for(s in 1:length(n.sp))
 {
   if(!n.sp[s]%in%Published.sel.pars_K.W$Species)
   {
-    Fit.M_H[[s]]=Millar.Holst(d=Combined%>%filter(Species==n.sp[s]),
+    d=Combined%>%filter(Species==n.sp[s])
+    if(n.sp[s]=='Smooth hammerhead') #combined data for smooth HH yields too broad sel. profiles way beyond the observed data
+    {
+      d=Exp.net.WA%>%
+        filter(Species=='Smooth hammerhead' & !Mesh.size%in%c(4,10))
+    }
+       
+    Fit.M_H[[s]]=Millar.Holst(d=d,
                               size.int=Size.Interval,
                               length.at.age=LatAge[[s]]$TL,
                               weight.by.effort='Yes')
@@ -1022,7 +1030,7 @@ pred.normal.prop=function(l,m,a1,a2) exp(-(((l- a1*m)^2)/(2*a2*m^2)))
 pred.gamma=function(l,m,k,alpha) ((l/((alpha-1)*k*m))^(alpha-1))*exp(alpha-1-(l/(k*m)))
 pred.lognormal=function(l,m,m1,mu,sigma) (1/l)*exp(mu+(log(m/m1))-((sigma^2)/2)-((log(l)-mu-log(m/m1))^2)/(2*(sigma^2)))
 
-#Export sel at-length and -age 
+#Export sel at-length and -age  
 out.sel=function(d,BEST,NM,La,Fixed.equal.power)
 {
   if(NM%in%Published.sel.pars_K.W$Species)
