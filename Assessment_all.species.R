@@ -77,6 +77,7 @@ library(yarrr)
 library(coda)
 library(ggmcmc)
 library("Rcpp")
+library(tseries)
 
   #source stuff and create handy functions
 source.hnld=handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_Population.dynamics/")
@@ -128,6 +129,7 @@ if(New.assessment=="YES") do.r.prior=TRUE  else
                           do.r.prior=FALSE
 do.steepness=do.r.prior
 do.Size.based.Catch.curve=FALSE  #superseded by dynamic catch-only and size model
+do.Dynamic.catch.size.comp=FALSE #not applicable due to poor contrast in available size comp
 
   #Define if exporting figures as jpeg or tiff (creation of RAR requires jpeg)
 Do.tiff="YES" 
@@ -147,6 +149,14 @@ if(KTCH.UNITS=="TONNES") Min.ktch=5
   #CPUEs
 Min.cpue.yrs=5 #minimum number of years in abundance index
 drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not
+survey_not.representative=c("scalloped hammerhead","great hammerhead",
+                            "lemon shark","pigeye shark") #Very few individuals (typically <5 per trip)  
+                                                          # caught and CVs are huge.
+NSF_not.representative=c(survey_not.representative,'tiger shark')
+tdgdlf_not.representative=NULL
+#tdgdlf_not.representative=c('copper shark')  #prelim analysis showed very poor fit (RMSE >>0.5, huge CVs)
+drop2007.daily=TRUE  #drop 2007 from TDGDLF daily cpue (consistently higher cpues across all species due to reporting bias, possible effort under-reporting?)
+
 
   #Size composition
 MN.SZE=0    # initial bin size
@@ -154,8 +164,8 @@ MN.SZE=0    # initial bin size
 TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
-Min.annual.obs=300 #Minimum number of annual observations for size composition analyses
-
+Min.annual.obs=100 #Minimum number of annual observations for size composition analyses
+Min.annual.obs.ktch=50 #Minium number for catch mean weight
   #Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
 prop.disc.ER=.4 
 
@@ -201,10 +211,7 @@ Present.in.log="NO"  #present cpue in log space or normal space
   #Control which assessment methods to implement
 Do.Ktch.only=TRUE
 Do.StateSpaceSPM=TRUE
-do.Haddon.aSPM=FALSE  # preliminary analysis showed poor signal in the catch rates of non-indicator species 
-                      #   (see 'Total catch vs cpues.tiff') so this method was not used as it struggles
-                      #   to converge and/or fits a straight line. Also uncertain selectivity schedules
-do.integrated=TRUE
+Do.integrated=FALSE
 
   #Catch-only Models
 do.ensemble.simulations=FALSE
@@ -216,6 +223,8 @@ CMSY.method="Haddon"    # Select which CMSY method to use. Haddon's datalowSA
 
   #State space Surplus Production Models
 state.space.SPM='JABBA'
+use.auxiliary.effort=FALSE  #using effort as auxiliary data yielded very high RMSE and poor fits to effort
+
 
   #Integrated size-based model                    MISSING: is this used???
 Do.zero.Ktch="NO" #do zero catch projections of size-based model?
@@ -253,6 +262,9 @@ msy.sd.rec=0  #no recruitment deviations (in log space)
 msy.sims=100
 f.vec=seq(0,.2,by=.01)
 
+
+# Weight of Evidence
+LoE.Weights=c(psa=.25,sptemp=.25,efman=.25,srmod=.5,spmod=.5,intmod=.75)  
 
 #---2. Catch and effort data -----   
 Dat.repository=handl_OneDrive('Analyses/Data_outs/')  #location where all input data are located
@@ -1034,6 +1046,9 @@ LH.data=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv')
 
 #---4. PSA (which species to assess quantitatively) -----------------------------------------------  
 #note: run a PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
+#      catsharks, sawsharks, thresher sharks, wobbegongs, angel sharks, stingrays, banjo rays, 
+#        wedgefishes, and rays and skates were aggregated and assessed as a group due to unreliable 
+#        species reporting. hence the difference between species in the catch and in PSA assessment
 
 #get catches of all species
 KtCh.method=Get.ktch$Total.method%>%filter(!Name%in%assessed.elsewhere)
@@ -1217,10 +1232,11 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
               by='Species')%>%
     mutate(Vulnerability.score=round(Vulnerability.score,2))
   write.csv(Table.PSA,paste(Exprt,'Table S2_PSA scores.csv',sep='/'),row.names=F)
-  return(as.character(PSA%>%filter(Vulnerability=="High")%>%pull(Species)))
+  return(PSA)
 }
-Keep.species=PSA.fn(d=PSA.list,line.sep=.35,size.low=2.1,size.med=2.15,size.hig=2.5,W=10,H=10)
-Keep.species=tolower(Keep.species)
+PSA.out=PSA.fn(d=PSA.list,line.sep=.35,size.low=2.1,size.med=2.15,size.hig=2.5,W=10,H=10)
+
+Keep.species=tolower(as.character(PSA.out%>%filter(Vulnerability=="High")%>%pull(Species)))
 Keep.species=sort(c(Keep.species,names(Indicator.species)))
 Drop.species=UniSp[which(!UniSp%in%Keep.species)]
 
@@ -1461,9 +1477,11 @@ apply.OCOM=function(year,catch,M,outfile)
   return(list(input=input,output=output))
 }
 
-apply.JABBA=function(Ktch,CPUE,CPUE.SE,MDL,Ktch.CV,ASS,Rdist,Rprior,Kdist,Kprior,
-                     PsiDist,Psiprior,Bprior,BMSYK,output.dir,outfile,Sims,Proc.error.JABBA,
-                     thinning = 5,nchains = 2,burn.in=5000)
+apply.JABBA=function(Ktch,CPUE,CPUE.SE,auxil=NULL,auxil.se=NULL,auxil.type=NULL,
+                     MDL,Ktch.CV,ASS,Rdist,Rprior,Kdist,Kprior,
+                     PsiDist,Psiprior,Bprior,BMSYK,output.dir,outfile,Sims,
+                     Proc.error.JABBA,Obs.Error=NULL,
+                     thinning = 5,nchains = 2,burn.in=5000,ktch.error="random")
 {
   # Compile JABBA JAGS model
   if(is.null(CPUE))
@@ -1471,6 +1489,7 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,MDL,Ktch.CV,ASS,Rdist,Rprior,Kdist,Kprior
     jbinput = build_jabba(catch=Ktch,
                           model.type = MDL,
                           catch.cv=Ktch.CV,
+                          catch.error=ktch.error,
                           assessment=ASS,
                           scenario =  "CatchOnly",
                           r.dist = Rdist,
@@ -1488,8 +1507,12 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,MDL,Ktch.CV,ASS,Rdist,Rprior,Kdist,Kprior
     jbinput = build_jabba(catch=Ktch,
                           cpue=CPUE,
                           se=CPUE.SE,
+                          auxiliary=auxil,
+                          auxiliary.se=auxil.se,
+                          auxiliary.type=auxil.type,
                           model.type = MDL,
                           catch.cv=Ktch.CV,
+                          catch.error=ktch.error,
                           assessment=ASS,
                           scenario =  "CPUE",
                           r.dist = Rdist,
@@ -1501,7 +1524,8 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,MDL,Ktch.CV,ASS,Rdist,Rprior,Kdist,Kprior
                           b.prior= Bprior,
                           BmsyK = BMSYK,
                           sigma.est = FALSE,
-                          sigma.proc=Proc.error.JABBA) # Fixed Process error (set to TRUE if estimating) 
+                          sigma.proc=Proc.error.JABBA,  # Fixed Process error (set sigma.est to TRUE if estimating) 
+                          fixed.obsE=Obs.Error) 
   }
 
   # Fit JABBA
@@ -1511,7 +1535,7 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,MDL,Ktch.CV,ASS,Rdist,Rprior,Kdist,Kprior
                    nb = burn.in,  #burn-in
                    nc = nchains,    #number of chains
                    init.values = FALSE,    #set to TRUE if specifying initial value
-                   init.K = mean(Kprior),
+                   init.K = Kprior[1],
                    init.r = Rprior[1],
                    init.q = 1e-3,
                    save.all=TRUE,
@@ -1561,7 +1585,7 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,MDL,Ktch.CV,ASS,Rdist,Rprior,Kdist,Kprior
 F.from.U=function(U) -log(1-U) 
 
 #---6. Create function for Kobe plot  ------------------------------------------------
-kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=3)
+kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=4)
 {
   dta=data.frame(x=b.traj,
                  y=f.traj,
@@ -1612,8 +1636,8 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
     
   }
   kobe <-kobe +
-          geom_path(linetype = 2, size = 0.5,color='blue')+
-          geom_point(size=2,color='blue')+
+          geom_path(linetype = 2, size = 0.5,color='steelblue')+
+          geom_point(size=2,color='steelblue')+
           geom_point(aes(x=dta[1,'x'],y=dta[1,'y']),size=4,shape=22,fill='white',alpha=.3)+
           geom_point(aes(x=dta[nrow(dta),'x'],y=dta[nrow(dta),'y']),size=4,shape=25,fill='white',alpha=.3)+      
           geom_text_repel(data=dta[1,],aes(x=x,y=y,label=yr),size=YrSize,color=txt.col)+
@@ -1958,6 +1982,94 @@ if(do.r.prior)
   
 }
 
+  #FishLife approach
+compare.FishLife=FALSE
+if(compare.FishLife)
+{
+  library(FishLife)
+  normal.scale=c('Temperature','rho','h','r','G') #Mean_pred parameters in normal scale
+  fn.convert.normal.space=function(d,normal.scale)
+  {
+    id=match(normal.scale,names(d[[1]]$Mean_pred))
+    Median=c(exp(d[[1]]$Mean_pred[-id]),d[[1]]$Mean_pred[id])
+    Mean=c(exp(d[[1]]$Mean_pred[-id]+0.5*diag(d[[1]]$Cov_pred)[-id]),d[[1]]$Mean_pred[id]) #biased-corrected mean
+    return(list(Median=Median,Mean=Mean))
+  }
+  sp.list=data.frame(Common.name=capitalize(Keep.species),
+                     Genus=c("Squatina","Carcharhinus","Carcharhinus",
+                             "Sphyrna","Pristis","Carcharias",
+                             "Mustelus","Negaprion","Rhizoprionodon",
+                             "Anoxypristis","Carcharhinus","Carcharhinus",
+                             "Pristiophorus","Sphyrna","Isurus",
+                             "Sphyrna","Carcharhinus","Squalus",
+                             "Galeocerdo","Furgaleus","Orectolobus"),
+                     Species=c("australis","brachyurus","obscurus",
+                               "mokarran","zijsron","taurus",
+                               "antarcticus","acutidens","acutus",
+                               "cuspidata","amboinensis","plumbeus",
+                               "cirratus","lewini","oxyrinchus",
+                               "zygaena","brevipinna","megalops",
+                               "cuvier","macki","maculatus"))
+  Store.taxa.fishlife=vector('list',nrow(sp.list))
+  names(Store.taxa.fishlife)=sp.list$Common.name
+  for(s in 1:nrow(sp.list))
+  {
+    Store.taxa.fishlife[[s]]=Plot_taxa(Search_species(Genus=sp.list$Genus[s],
+                                                      Species=sp.list$Species[s],add_ancestors=FALSE)$match_taxonomy,
+                                       mfrow=c(3,3))
+  }
+  Store.keypars.fishlife=Store.taxa.fishlife
+  keypars=c('Loo','K','tmax','tm','M','Lm','ln_Fmsy_over_M','ln_Fmsy','h','r','G')
+  for(s in 1:nrow(sp.list))
+  {
+    Median.and.mean=fn.convert.normal.space(d=Store.taxa.fishlife[[s]],normal.scale)
+    dummy=rbind(Median.and.mean$Median,Median.and.mean$Mean)%>%
+      data.frame%>%
+      dplyr::select(all_of(keypars))%>%
+      summarise_all(list(mean))%>%
+      rename(Fmsy_over_M=ln_Fmsy_over_M,
+             Fmsy=ln_Fmsy)%>%
+      mutate(Species=sp.list$Common.name[s])%>%
+      relocate(Species)%>%
+      mutate(across(where(is.numeric), round, 3))
+    Store.keypars.fishlife[[s]]=dummy
+    rm(dummy)
+  }
+  a=getwd()
+  setwd(handl_OneDrive('Analyses/Population dynamics/FishLife'))
+  write.csv(do.call(rbind,Store.keypars.fishlife),'FishLife parameters.csv',row.names = F) 
+  
+  #r prior with FishLife and SPMpriors
+  #devtools::install_github("henning-winker/SPMpriors")
+  library(SPMpriors)
+  
+  #Loo optional tuning prior dist for Linf c(mu, cv)
+  #K optional tuning prior dist for brody K c(mu, cv)
+  #tmax optional tuning prior dist for maximum age c(mu, cv)
+  #tm	optional tuning prior dist for age maturity c(mu, cv)
+  #Lm	optional tuning prior dist for length maturity c(mu, cv)
+  #h optional uniform tuning prior dist for steepness h c(min, max)
+  Store.r.fishlife=vector('list',nrow(sp.list))
+  names(Store.r.fishlife)=sp.list$Common.name
+  for(s in 1:nrow(sp.list))
+  {
+    attach(List.sp[[s]])
+    K=Growth.F$k
+    LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL
+    K.sd=Growth.F$k.sd
+    LINF.sd=Growth.F$FL_inf.sd*a_FL.to.TL+b_FL.to.TL
+    Amax=mean(Max.age.F)
+    MAT=mean(unlist(Age.50.mat))
+    detach(List.sp[[s]])
+    dummy=flmvn_traits(Genus=sp.list$Genus[s],Species=sp.list$Species[s],
+                       Loo=c(LINF,LINF.sd/LINF),K=c(K,K.sd/K),tmax=c(Amax,0.1),tm=c(MAT,0.1),
+                       Plot=T,savepng = T)
+    Store.r.fishlife[[s]]=dummy$mvnstk$r
+  }
+  setwd(a)
+  
+}
+
 #---12. Assign Resilience -----------------------------------------------------------------------
 RESILIENCE=vector('list',N.sp)
 names(RESILIENCE)=names(List.sp)
@@ -2114,6 +2226,8 @@ for(l in 1:N.sp)
       d=Species.data[[l]]$annual.abundance.basecase.monthly_relative%>%
         mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
         filter(yr.f<=Last.yr.ktch.numeric)
+      Inf.CI=which(is.infinite(d$UP.CI))
+      if(length(Inf.CI)>0) d[Inf.CI,match(c('Mean','CV','LOW.CI','UP.CI'),names(d))]=NA
       if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.monthly=d
       rm(d)
     }
@@ -2415,7 +2529,7 @@ Q_phz=c("lnq","lnq2","log_Qdaily")
 Zns.par.phz=c("lnR_prop_west","lnR_prop_zn1")
 MOv.par.phz=c("log_p11","log_p22","log_p21","log_p33")
 
-for(l in 1:N.sp)   #ACA
+for(l in 1:N.sp)   
 {
   print(paste("---------Modelling arguments for --",names(List.sp)[l]))
   
@@ -2535,7 +2649,7 @@ for(l in 1:N.sp)   #ACA
   
     # JABBA scenarios
   r.CV.multiplier=1
-  Ktch.CV=0.05   #Winker et al 2019 set it at 0.2 for uncertain reconstructed school shark catches
+  Ktch.CV=0.1   #Winker et al 2019 set it at 0.2 for uncertain reconstructed school shark catches
   
   
     # Put all catch-only input pars and assumptions in list  
@@ -2641,6 +2755,7 @@ for(l in 1:N.sp)   #ACA
                                #Data
                                AREAS=c("West","Zone1","Zone2"),  #Define spatial areas; 1 is West, 2 is Zn1, 3 is Zn2.
                                Yr_q_change=1982,   #last year before targeting practices changed (Simpfendorfer 2000)
+                               Yr_q_change_transition=1981:1983,  #Disregard 80-83 as transitional years (Braccini et al 2021)
                                Yr_q_daily=2006,
                                Do_var=0,    #How to calculate cpue variance in age-structured
                                Var1=0.0296133485565278,   #fixed variances used by Simpfendorfer et al 2000
@@ -4101,7 +4216,7 @@ if(Do.Ktch.only)
     
     #3. OCOM assessment (Zhou et al (2018))
     #note: not used as it doesn't allow for lightly depleted stocks and catch reductions
-    # due to effort reduction rather than abundance
+    # due to effort reduction rather than abundance. Also cannot define depletion ranges
     if(names(Catch_only)[w]=="OCOM")
     {
       dummy.store=vector('list',N.sp)  #takes 20 secs per species (1e4 iterations)    
@@ -4188,7 +4303,7 @@ if(Do.Ktch.only)
           
           Rdist = "lnorm"
           Kdist="lnorm"  
-          PsiDist='lnorm'
+          PsiDist='beta'
           
           #Put inputs together
           input=list(Ktch=ktch,
@@ -4821,7 +4936,7 @@ if(Do.Ktch.only)
       
       Rdist = "lnorm"
       Kdist="lnorm"  
-      PsiDist='lnorm'
+      PsiDist='beta'
       
       #Put inputs together
       Ktch=ifelse(Ktch<1,1,Ktch)   #Jabba fails if catches are negligible
@@ -5134,7 +5249,7 @@ if(Do.Ktch.only)
   
   #21.3. Time series   
   #note: JABBA only outputs 95% CI so only report 95% for all COMs
-  make_plot <- function(da)
+  make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,Hline,addKtch)
   {
     p=da%>%
       ggplot(aes(year, median))+
@@ -5162,7 +5277,7 @@ if(Do.Ktch.only)
   fn.ribbon=function(Dat,YLAB,XLAB,Titl,Hline,addKtch,nfacets=1,AXST=14,AXSt=12,STRs=14,InrMarg=.25,dropTitl=FALSE)
   {
     data2 <- split(Dat, Dat$Scenario)
-    p_lst <- lapply(data2, make_plot)
+    p_lst <- lapply(data2, make_plot,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,Hline,addKtch)
     figure <- ggarrange(plotlist=p_lst,ncol=nfacets,nrow=ceiling(length(p_lst)/nfacets),
                         common.legend = FALSE)
     if(!dropTitl) figure <- annotate_figure(figure,top=text_grob(Titl, size=20))
@@ -5232,7 +5347,7 @@ if(Do.Ktch.only)
   }
   
   #21.3.1 Display all scenarios for each species
-  YLAB=''
+  YLAB=XLAB=''
     #21.3.1.1 Relative biomass (i.e. Depletion)
   Ref.points=vector('list',N.sp)
   names(Ref.points)=Keep.species
@@ -5478,8 +5593,8 @@ if(Do.Ktch.only)
       Var=compact(Var)
       
       if(length(Var)>8)  Nfast=round(length(Var)/5)
-      if(length(Var)>2 & length(Var)<8) Nfast=2
-      if(length(Var)<=2) Nfast=1
+      if(length(Var)>3 & length(Var)<8) Nfast=2
+      if(length(Var)<=3) Nfast=1
       
       Dat=do.call(rbind,Var)
       if('Catch'%in%names(Dat))Dat=Dat%>%dplyr::select(-Catch)
@@ -5568,7 +5683,7 @@ if(Do.Ktch.only)
   
   
   #21.4. Kobe plots (Scenario 1)   
-  fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE)
+  fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE)
   {
     id=match(sp,Keep.species)
     
@@ -5585,7 +5700,6 @@ if(Do.Ktch.only)
                        Titl="DBSRA")
       rm(yrs,Fmsy,Bmsy,dummy)
     }
-    
     
     #CMSY
     if('CMSY'%in%names(d))
@@ -5611,18 +5725,28 @@ if(Do.Ktch.only)
       rm(yrs,Fmsy,Bmsy,dummy)
     }
     
-    
     #JABBA
     dummy=d$JABBA$B.Bmsy[[id]]%>%filter(Scenario==Scen)
     yrs=dummy%>%pull(year)
     Bmsy=dummy$median
     Fmsy=d$JABBA$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
-    p.JABBA=kobePlot(f.traj=Fmsy,
-                     b.traj=Bmsy,
-                     Years=yrs,
-                     Titl="JABBA")
-    # Probs=data.frame(x=d$JABBA$Kobe.probs[[id]]$stock,   
-    #                   y=d$JABBA$Kobe.probs[[id]]$harvest))
+    if(!do.probs)
+    {
+      p.JABBA=kobePlot(f.traj=Fmsy,
+                       b.traj=Bmsy,
+                       Years=yrs,
+                       Titl="JABBA")
+    }
+    if(do.probs)
+    {
+      p.JABBA=kobePlot(f.traj=Fmsy,
+                       b.traj=Bmsy,
+                       Years=yrs,
+                       Titl="JABBA",
+                       Probs=data.frame(x=d$JABBA$Kobe.probs[[id]]$stock,
+                                        y=d$JABBA$Kobe.probs[[id]]$harvest))
+    }
+    
     
     #Combine plots
     if('DBSRA'%in%names(d) & 'CMSY'%in%names(d))
@@ -5648,6 +5772,7 @@ if(Do.Ktch.only)
     print(figure)
     return(plotlist)
   }
+
   
     #21.4.1 by species
   store.kobes=vector('list',N.sp)
@@ -5727,7 +5852,7 @@ if(Do.Ktch.only)
   
   
     #21.4.3 Display combined species: COM model-average 
-  fn.get.Kobe.plot=function(this.sp,d,NKOL,NRW)
+  fn.get.Kobe.plot=function(this.sp,d,NKOL,NRW,do.probs=FALSE)
   {
     id=match(this.sp,names(d$rel.biom))
     Bmsy=d$B.Bmsy[id]
@@ -5735,11 +5860,26 @@ if(Do.Ktch.only)
     plotlist=vector('list',length(Bmsy))
     for(x in 1:length(Bmsy))
     {
-      plotlist[[x]]=kobePlot(f.traj=Fmsy[[x]]$median,
-                             b.traj=Bmsy[[x]]$median,
-                             Years=Bmsy[[x]]$year,
-                             Titl=capitalize(names(Bmsy)[x]),
-                             YrSize=6)+rremove("axis.title")
+      if(!do.probs)
+      {
+        dd=kobePlot(f.traj=Fmsy[[x]]$median,
+                    b.traj=Bmsy[[x]]$median,
+                    Years=Bmsy[[x]]$year,
+                    Titl=capitalize(names(Bmsy)[x]),
+                    YrSize=6)+rremove("axis.title")
+      }
+      
+      if(do.probs)
+      {
+        dd=kobePlot(f.traj=Fmsy[[x]]$median,
+                    b.traj=Bmsy[[x]]$median,
+                    Years=Bmsy[[x]]$year,
+                    Titl=capitalize(names(Bmsy)[x]),
+                    YrSize=6,
+                    Probs=data.frame(x=d$Kobe.probs[[id[x]]]$stock,
+                                     y=d$Kobe.probs[[id[x]]]$harvest))+rremove("axis.title")
+      }
+      plotlist[[x]]=dd
     }
     figure <- ggarrange(plotlist=plotlist,ncol=NKOL,nrow=NRW,common.legend = FALSE)
     figure=annotate_figure(figure,
@@ -5747,6 +5887,7 @@ if(Do.Ktch.only)
                            left = text_grob(expression(F/~F[MSY]), rot = 90,size=22))
     print(figure)
   }
+
   for(l in 1:length(Lista.sp.outputs))
   {
     this.sp=Lista.sp.outputs[[l]]
@@ -5814,91 +5955,193 @@ if(Do.Ktch.only)
 
 #---22. Spatio-temporal catch and effort. Reported TDGLF and NSF ----   
 #note: bubble size is proportion of blocks fished out of maximum number of blocks fished for each species
+
   #get reported catch
 dis.sp=All.species.names%>%filter(SNAME%in%unlist(Lista.sp.outputs))%>%pull(SPECIES)
 dis.sp=c(dis.sp,19000)
 Southern=fn.in(NM='Data.monthly.csv')%>%
-  filter(!Shark.fishery=='non.shark.fishery' & SPECIES%in%dis.sp)%>%
-  filter(!is.na(BLOCKX))%>%
-  group_by(FINYEAR,BLOCKX,SPECIES)%>%
-  summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
+              filter(!Shark.fishery=='non.shark.fishery' & SPECIES%in%dis.sp)%>%
+              filter(!is.na(BLOCKX))%>%
+              group_by(FINYEAR,BLOCKX,SPECIES)%>%
+              summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
 Northern=fn.in(NM='Data.monthly.NSF.csv')%>%
-  filter(!Shark.fishery=='non.shark.fishery' & SPECIES%in%dis.sp)%>%
-  filter(!is.na(BLOCKX))%>%
-  group_by(FINYEAR,BLOCKX,SPECIES)%>%
-  summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
-Spatio.temp.dat=rbind(Southern,Northern)
+            filter(!Shark.fishery=='non.shark.fishery' & SPECIES%in%dis.sp)%>%
+            filter(!is.na(BLOCKX))%>%
+            group_by(FINYEAR,BLOCKX,SPECIES)%>%
+            summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
+Spatio.temp.dat=rbind(Southern%>%
+                        mutate(Fishery='Southern'),
+                      Northern%>%
+                        mutate(Fishery='Northern'))
 rm(Southern,Northern)
 
-do.reconstructed.spatial=FALSE
-if(do.reconstructed.spatial)
-{
-  Spatio.temp.dat=rbind(fn.in(NM='recons_Data.monthly.csv')%>%
-                          filter(FishCubeCode%in%c('JASDGDL','WCDGDL'))%>%
-                          filter(!is.na(BLOCKX))%>%
-                          dplyr::select(FINYEAR,SPECIES,BLOCKX,LIVEWT.c),
-                        fn.in(NM='recons_Data.monthly.north.csv')%>%
-                          filter(FishCubeCode%in%c('JANS','WANCS','OANCGC'))%>%
-                          filter(!is.na(BLOCKX))%>%
-                          dplyr::select(FINYEAR,SPECIES,BLOCKX,LIVEWT.c))%>%
-    filter(LIVEWT.c>1) #reconstruction creates artificially large number of blocks with tiny catch, remove
-  
-}
+
   #get effort
+Relevant.yrs=sort(unique(KtCh.method$FINYEAR))
+
 Effort.monthly_blocks=fn.in(NM='Effort.monthly.csv')
 Effort.daily_blocks=fn.in(NM='Effort.daily.csv') 
 Effort.monthly.north_blocks=fn.in(NM='Effort.monthly.NSF.csv')
 Effort.daily.north_blocks=fn.in(NM='Effort.daily.NSF.csv')
 
-Relevant.yrs=sort(unique(KtCh.method$FINYEAR))
+  #spatial effort
+FINYrS=sort(unique(c(as.character(unique(Effort.monthly_blocks$FINYEAR))),sort(as.character(unique(Effort.daily_blocks$finyear)))))
+grouping=5
+FINYrS.gp=seq(1,length(FINYrS),by=grouping)
+FINYrS.gped=vector('list',length(FINYrS.gp))
+for(f in 1:length(FINYrS.gped))
+{
+  if(f==length(FINYrS.gped))
+  {
+    FINYrS.gped[[f]]=FINYrS[FINYrS.gp[f]:length(FINYrS)]
+    if(length(FINYrS.gped[[f]])==1)
+    {
+      names(FINYrS.gped)[f]=FINYrS.gped[[f]][1]
+    }else
+    {
+      names(FINYrS.gped)[f]=paste(FINYrS.gped[[f]][1],"to",FINYrS.gped[[f]][length(FINYrS.gped[[f]])])
+    }
+    
+  }else
+  {
+    FINYrS.gped[[f]]=FINYrS[FINYrS.gp[f]:(FINYrS.gp[f+1]-1)]
+    names(FINYrS.gped)[f]=paste(FINYrS.gped[[f]][1],"to",FINYrS.gped[[f]][length(FINYrS.gped[[f]])])
+  }
+}
+FINYrS.gped=FINYrS.gped[which(unlist(lapply(FINYrS.gped,function(x) length(x)==5)))]
+FINYrS.gped=do.call(cbind,FINYrS.gped)%>%
+              data.frame%>%
+              gather('Rango','FINYEAR')%>%
+              mutate(Rango=substr(Rango,2,50),
+                     Rango=sub(".to.", " to ", Rango),
+                     Rango=str_replace_all(Rango, c("\\."), "-"))
+daily.years=unique(Effort.daily_blocks$finyear)
+daily.years=subset(daily.years,!daily.years=="2005-06")
+Spatial.effort_monthly=Effort.monthly_blocks%>%
+                        filter(!Shark.fishery=='non.shark.fishery' &
+                                 FINYEAR%in%Relevant.yrs&
+                                 !FINYEAR%in%daily.years)%>%
+                        mutate(Effort=Km.Gillnet.Days.c,
+                               LAT1=-floor(abs(LAT)),
+                               LONG1=floor(LONG))%>%
+                        filter(!is.na(Effort) | !is.na(LAT))%>%
+                        filter(METHOD=='GN')%>%
+                        group_by(Same.return,LAT1,LONG1,FINYEAR)%>%
+                        summarise(Effort=max(Effort))%>%
+                        ungroup()%>%
+                        group_by(LAT1,LONG1,FINYEAR)%>%
+                        summarise(Effort=sum(Effort))
+Spatial.effort_daily=Effort.daily_blocks%>%
+                        filter(!Shark.fishery=='non.shark.fishery' &
+                                 finyear%in%Relevant.yrs )%>%
+                        mutate(Effort=Km.Gillnet.Days.c,
+                               LAT1=-floor(abs(LAT)),
+                               LONG1=floor(LONG))%>%
+                        filter(!is.na(Effort) | !is.na(LAT))%>%
+                        filter(method=='GN')%>%
+                        group_by(Same.return.SNo,LAT1,LONG1,finyear)%>%
+                        summarise(Effort=max(Effort))%>%
+                        ungroup()%>%
+                        rename(FINYEAR=finyear)%>%
+                        group_by(LAT1,LONG1,FINYEAR)%>%
+                        summarise(Effort=sum(Effort))
+Spatial.effort_monthly.north=Effort.monthly.north_blocks%>%
+                        filter(FINYEAR%in%Relevant.yrs &
+                                 !FINYEAR%in%unique(Effort.daily.north_blocks$finyear))%>%
+                        mutate(Effort=hook.days,
+                               LAT1=-floor(abs(as.numeric(substr(BLOCKX,1,2)))),
+                               LONG1=floor(100+as.numeric(substr(BLOCKX,3,4))),
+                               LAT1=ifelse(BLOCKX%in%c(96021),-25,LAT1),
+                               LONG1=ifelse(BLOCKX%in%c(96021),113,LONG1))%>%
+                        filter(!is.na(Effort) | !is.na(LAT1))%>%
+                        filter(METHOD=='LL')%>%
+                        group_by(Same.return,LAT1,LONG1,FINYEAR)%>%
+                        summarise(Effort=max(Effort))%>%
+                        ungroup()%>%
+                        group_by(LAT1,LONG1,FINYEAR)%>%
+                        summarise(Effort=sum(Effort))
+Spatial.effort_daily.north=Effort.daily.north_blocks%>%
+                              rename(METHOD=method,
+                                     FINYEAR=finyear,
+                                     BLOCKX=blockx)%>%
+                              filter(FINYEAR%in%Relevant.yrs)%>%
+                              mutate(Effort=hook.days,
+                                     LAT1=-floor(abs(as.numeric(substr(BLOCKX,1,2)))),
+                                     LONG1=floor(100+as.numeric(substr(BLOCKX,3,4))),
+                                     LAT1=ifelse(BLOCKX%in%c(96021),-25,LAT1),
+                                     LONG1=ifelse(BLOCKX%in%c(96021),113,LONG1))%>%
+                              filter(!is.na(Effort) | !is.na(LAT1))%>%
+                              filter(METHOD=='LL')%>%
+                              group_by(Same.return.SNo,LAT1,LONG1,FINYEAR)%>%
+                              summarise(Effort=max(Effort))%>%
+                              ungroup()%>%
+                              group_by(LAT1,LONG1,FINYEAR)%>%
+                              summarise(Effort=sum(Effort))
+Spatial.effort=rbind(Spatial.effort_monthly%>%mutate(Fishery='Southern'),
+                     Spatial.effort_daily%>%mutate(Fishery='Southern'),
+                     Spatial.effort_monthly.north%>%mutate(Fishery='Northern'),
+                     Spatial.effort_daily.north%>%mutate(Fishery='Northern'))%>%
+                  filter(!is.na(Effort))%>%
+                  left_join(FINYrS.gped,by='FINYEAR')%>%
+                  group_by(LAT1,LONG1,Rango,Fishery)%>%
+                  summarise(Effort=sum(Effort))%>%
+                  group_by(Fishery)%>%
+                  mutate(Rel.effort=Effort/max(Effort))%>%
+                  ungroup()
+  
+  #number of fished blocks
 Effort.monthly_blocks=Effort.monthly_blocks%>%
-  filter(FINYEAR%in%Relevant.yrs)%>%
-  count(FINYEAR,BLOCKX)%>%
-  group_by(FINYEAR,BLOCKX)%>%
-  mutate(n=ifelse(n>0,1,0))
+                  filter(FINYEAR%in%Relevant.yrs)%>%
+                  count(FINYEAR,BLOCKX)%>%
+                  group_by(FINYEAR,BLOCKX)%>%
+                  mutate(n=ifelse(n>0,1,0))
 Effort.daily_blocks=Effort.daily_blocks%>%
-  rename(FINYEAR=finyear,
-         BLOCKX=blockx)%>%
-  filter(FINYEAR%in%Relevant.yrs)%>%
-  count(FINYEAR,BLOCKX)%>%
-  group_by(FINYEAR,BLOCKX)%>%
-  mutate(n=ifelse(n>0,1,0))
+                  rename(FINYEAR=finyear,
+                         BLOCKX=blockx)%>%
+                  filter(FINYEAR%in%Relevant.yrs)%>%
+                  count(FINYEAR,BLOCKX)%>%
+                  group_by(FINYEAR,BLOCKX)%>%
+                  mutate(n=ifelse(n>0,1,0))
 Effort_blocks=rbind(Effort.monthly_blocks,Effort.daily_blocks)%>%
-  count(FINYEAR,BLOCKX)%>%
-  group_by(FINYEAR,BLOCKX)%>%
-  mutate(n=ifelse(n>0,1,0))%>%
-  group_by(FINYEAR)%>%
-  summarise(Tot=sum(n))%>%
-  data.frame
+                  count(FINYEAR,BLOCKX)%>%
+                  group_by(FINYEAR,BLOCKX)%>%
+                  mutate(n=ifelse(n>0,1,0))%>%
+                  group_by(FINYEAR)%>%
+                  summarise(Tot=sum(n))%>%
+                  data.frame
 
 Effort.monthly.north_blocks=Effort.monthly.north_blocks%>%
-  filter(FINYEAR%in%Relevant.yrs)%>%
-  count(FINYEAR,BLOCKX)%>%
-  group_by(FINYEAR,BLOCKX)%>%
-  mutate(n=ifelse(n>0,1,0))
+                    filter(FINYEAR%in%Relevant.yrs)%>%
+                    count(FINYEAR,BLOCKX)%>%
+                    group_by(FINYEAR,BLOCKX)%>%
+                    mutate(n=ifelse(n>0,1,0))
 Effort.daily.north_blocks=Effort.daily.north_blocks%>%
-  rename(FINYEAR=finyear,
-         BLOCKX=blockx)%>%
-  filter(FINYEAR%in%Relevant.yrs)%>%
-  count(FINYEAR,BLOCKX)%>%
-  group_by(FINYEAR,BLOCKX)%>%
-  mutate(n=ifelse(n>0,1,0))
+                    rename(FINYEAR=finyear,
+                           BLOCKX=blockx)%>%
+                    filter(FINYEAR%in%Relevant.yrs)%>%
+                    count(FINYEAR,BLOCKX)%>%
+                    group_by(FINYEAR,BLOCKX)%>%
+                    mutate(n=ifelse(n>0,1,0))
 Effort.north_blocks=rbind(Effort.monthly.north_blocks,Effort.daily.north_blocks)%>%
-  count(FINYEAR,BLOCKX)%>%
-  group_by(FINYEAR,BLOCKX)%>%
-  mutate(n=ifelse(n>0,1,0))%>%
-  group_by(FINYEAR)%>%
-  summarise(Tot=sum(n))%>%
-  data.frame
+                    count(FINYEAR,BLOCKX)%>%
+                    group_by(FINYEAR,BLOCKX)%>%
+                    mutate(n=ifelse(n>0,1,0))%>%
+                    group_by(FINYEAR)%>%
+                    summarise(Tot=sum(n))%>%
+                    data.frame
 
-Effort_blocks=rbind(Effort_blocks,Effort.north_blocks)%>%
-  group_by(FINYEAR)%>%
-  summarise(Tot=sum(Tot))%>%
-  data.frame
+NSF.no.fishing=data.frame(FINYEAR=Effort_blocks$FINYEAR[which(!Effort_blocks$FINYEAR%in%Effort.north_blocks$FINYEAR)],
+                          Tot=0)
+Effort_blocks.all=rbind(Effort_blocks%>%mutate(Fishery='Southern'),
+                        rbind(Effort.north_blocks,NSF.no.fishing)%>%
+                          arrange(FINYEAR)%>%
+                          mutate(Fishery='Northern'))
+                    
 
   #plot
-fn.spatio.temp.catch.dist=function(d,Snames)
+fn.spatio.temp.catch.dist=function(d,Snames,prop.by='fishery')
 {
+  #some manipulations
   this.sp=All.species.names%>%filter(SNAME%in%Snames)
   
   d1=d%>%
@@ -5923,9 +6166,119 @@ fn.spatio.temp.catch.dist=function(d,Snames)
   Ylab=capitalize(Unik.sp$SNAME)
   names(Ylab)=Unik.sp$id.y
   
-  Dummy=Effort_blocks%>%
+  Dummy=Effort_blocks.all%>%
     left_join(Unik.yr,by='FINYEAR')
+  
+  #spatio-temporal effort distribution
+  p1=Spatial.effort%>%
+    ggplot(aes(LONG1,LAT1))+
+    geom_raster(aes(fill = Rel.effort))+
+    facet_wrap(~Rango,ncol=2)+
+    scale_fill_gradientn(colours=c('ivory2','gold',"red2","darkred"))+
+    theme_PA(leg.siz=12.5,axs.t.siz=13,axs.T.siz=19,Sbt.siz=14,strx.siz=14)+
+    theme(
+          legend.title=element_blank(),
+          legend.key.size = unit(1, 'cm'),
+          legend.position = c(0.8, 0.075))+
+    ylab('Latitude (S)')+xlab('Longitude (E)')
+
+    
+  #annual blocks with catch over blocks fished
+  Max.ktch=d1%>%
+    group_by(SNAME)%>%
+    summarise(Ktch.mx=sum(LIVEWT.c,na.rm=T))%>%
+    ungroup()
+  
+  ktch.yr.sp=d1%>%
+    group_by(SNAME,FINYEAR)%>%
+    summarise(Ktch=sum(LIVEWT.c,na.rm=T))%>%
+    ungroup()%>%
+    left_join(Max.ktch,by='SNAME')%>%
+    mutate(prop.ktch=Ktch/Ktch.mx)%>%
+    dplyr::select(-c(Ktch,Ktch.mx))
+  
+  d2=d1%>%
+    count(FINYEAR,SNAME,BLOCKX,Fishery)%>%
+    group_by(FINYEAR,SNAME,Fishery)%>%
+    mutate(n=ifelse(n>0,1,0))%>%
+    group_by(FINYEAR,SNAME,Fishery)%>%
+    summarise(n=sum(n,na.rm=T))%>%
+    ungroup
+  if(prop.by=='fishery')
+  {
+    Max.blk.yr=d1%>%
+      distinct(BLOCKX,Fishery)%>%
+      count(BLOCKX,Fishery)%>%
+      group_by(Fishery)%>%
+      mutate(n=ifelse(n>0,1,0))%>%
+      group_by(Fishery)%>%
+      summarise(Max.n=sum(n,na.rm=T))%>%
+      ungroup
+
+        d2=d2%>%
+      left_join(Max.blk.yr,by=c('Fishery'))%>%
+      mutate(prop=n/Max.n)%>%
+      ungroup%>%
+      data.frame
+  }
+  if(prop.by=='year.fishery')
+  {
+    Max.blk.yr=d1%>%
+      count(FINYEAR,BLOCKX,Fishery)%>%
+      group_by(FINYEAR,Fishery)%>%
+      mutate(n=ifelse(n>0,1,0))%>%
+      group_by(FINYEAR,Fishery)%>%
+      summarise(Max.n=sum(n,na.rm=T))%>%
+      ungroup
+    
+    d2=d2%>%
+      left_join(Max.blk.yr,by=c('FINYEAR','Fishery'))%>%
+      mutate(prop=n/Max.n)%>%
+      ungroup%>%
+      data.frame
+  }
+    
+  d2=d2%>%
+    left_join(ktch.yr.sp,by=c('SNAME','FINYEAR'))%>%
+    filter(!(SNAME%in%c('gummy shark','whiskery shark') & Fishery=='Northern' ))
+  
   coeff=max(Dummy$Tot)
+  p2=d2%>%
+    mutate(yr=as.numeric(substr(FINYEAR,1,4)),
+           SNAME=capitalize(SNAME))%>%
+    ggplot(aes(yr,prop,colour=Fishery))+
+    geom_point(size=1,show.legend = FALSE)+
+    geom_line(linetype=1,size=1)+
+    facet_wrap(~SNAME,ncol=2)+
+    ylab('Proportion of fished blocks with catch')+
+    xlab('Financial year')+
+    theme_PA(axs.t.siz=13,axs.T.siz=19,Sbt.siz=14,leg.siz=20,strx.siz=16)+
+    ylim(0,1)+
+    theme(legend.position = 'top',
+          legend.title=element_blank())+
+    guides(colour = guide_legend(override.aes = list(size=2)))+
+    geom_line(data=Dummy%>%filter(Fishery=='Southern'), 
+              aes(x=year,y=Tot/coeff),size=1,color='black',alpha=0.3,linetype = 'dotted')+
+    geom_line(data=Dummy%>%filter(Fishery=='Northern'),
+              aes(x=year,y=Tot/coeff),size=1,color='black',alpha=0.5,linetype = 'longdash')+
+    scale_y_continuous(sec.axis = sec_axis(~.*coeff, name="Total number of fished blocks"))+
+    theme(axis.title.y.right = element_text(margin = margin(t = 0, r = 0, b = 0, l = 10)))+
+    theme(axis.title.y.left = element_text(margin = margin(t = 0, r = 5, b = 0, l = 0)))
+  
+  #combine figures
+  figure=ggarrange(plotlist=list(p1,p2),ncol=2,heights=c(1,1))+
+    theme(plot.margin = margin(0.1,0.5,0.1,0.1, "cm"))
+  print(figure)
+  
+  
+  #annual blocks with catch over blocks ever catching the species
+  Max.blk.sp=d1%>%
+              count(SNAME,BLOCKX)%>%
+              group_by(SNAME)%>%
+              mutate(n=ifelse(n>0,1,0))%>%
+              group_by(SNAME)%>%
+              summarise(Max.n=sum(n,na.rm=T))%>%
+              ungroup
 
   d1=d1%>%
     count(FINYEAR,SNAME,BLOCKX)%>%
@@ -5934,9 +6287,8 @@ fn.spatio.temp.catch.dist=function(d,Snames)
     group_by(FINYEAR,SNAME)%>%
     summarise(n=sum(n,na.rm=T))%>%
     ungroup%>%
-    group_by(SNAME)%>%
-    mutate(Max.n=max(n),
-           prop=n/Max.n)%>%
+    left_join(Max.blk.sp,by='SNAME')%>%
+    mutate(prop=n/Max.n)%>%
     ungroup%>%
     data.frame%>%
     left_join(Unik.yr,by='FINYEAR')%>%
@@ -5952,35 +6304,54 @@ fn.spatio.temp.catch.dist=function(d,Snames)
   Ylab=add.to.ylab$LBL
   names(Ylab)=add.to.ylab$index
     
-  p=d1%>%
-    ggplot(aes(x=id.x,y=id.y,colour=-prop)) +
-    geom_point(aes(size=prop))+
-    ylab('')+xlab('Financial year')+
-    theme_PA(axs.t.siz=18,axs.T.siz=20)+
-    theme(legend.position='none')+
-    scale_x_continuous(labels=Xlab,breaks=as.numeric(names(Xlab)))+
-    scale_y_continuous(labels=Ylab,breaks=as.numeric(names(Ylab)))+
-    geom_line(data=Dummy, aes(y=max(Unik.sp$id.y)*Tot / coeff),size=1.5,color='black',
-              alpha=0.8,linetype = 1)+
-    scale_colour_gradient(low = "darkred", high = "darkgoldenrod1", na.value = NA)
-  print(p)
-  
+  do.this=FALSE
+  if(do.this)
+  {
+    coeff=max(Dummy$Tot)/max(Unik.sp$id.y)
+    
+    p3=d1%>%
+      ggplot(aes(x=year,y=id.y)) +
+      geom_point(aes(size=prop),colour='orange')+
+      ylab('')+xlab('')+
+      theme_PA(axs.t.siz=13,axs.T.siz=16,Sbt.siz=14)+
+      theme(legend.position='none',
+            plot.subtitle = element_text(vjust = 1))+
+      geom_line(data=Dummy%>%filter(Fishery=='Southern'), aes(x=year,y=Tot/coeff),size=1.5,
+                color='blue',alpha=0.6,linetype = 1)+
+      geom_line(data=Dummy%>%filter(Fishery=='Northern'), aes(x=year,y=Tot/coeff),size=1.5,
+                color='red',alpha=0.6,linetype = 1)+
+      scale_x_continuous(labels=Xlab,breaks=as.numeric(names(Xlab)))+
+      scale_y_continuous(labels=Ylab,breaks=as.numeric(names(Ylab)),
+                         sec.axis = sec_axis(~.*coeff, name="Number of blocks fished"))+
+      labs(subtitle='Blocks with landings over the maximum number of blocks with landings for each species')
+    # scale_colour_gradient(low = "darkred", high = "darkgoldenrod1", na.value = NA)
+    
+  }
+   
   DD1=d1%>%
     dplyr::select(FINYEAR,prop,SNAME)%>%
     spread(FINYEAR,prop,fill=0)
   DD=as.matrix(DD1%>%dplyr::select(-SNAME))
   rownames(DD)=DD1$SNAME
-  return(DD)
+  return(list(prop.ktch_over.total.ktch=DD,
+              prop.ktch_over.fished.bocks=d2))
 }
 Store.spatial.temporal.ktch=Lista.sp.outputs[-match('additional.sp',names(Lista.sp.outputs))]
 for(l in 1:length(Store.spatial.temporal.ktch))
 {
+  wiz = 15
+  heiz = 12
   get.dis.sp=Lista.sp.outputs[[l]]
-  if(names(Lista.sp.outputs)[l]=="Other.sp") get.dis.sp=c(get.dis.sp,'hammerheads')
+  if(names(Lista.sp.outputs)[l]=="Other.sp")
+  {
+    get.dis.sp=c(get.dis.sp,'hammerheads')
+    wiz = 12
+    heiz = 14
+  }
   Store.spatial.temporal.ktch[[l]]=fn.spatio.temp.catch.dist(d=Spatio.temp.dat,
                                                              Snames=get.dis.sp)
   ggsave(paste(Rar.path,'/Spatio.temporal.catch_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
-         width = 11,height = 10,compression = "lzw")
+         width = wiz,height = heiz,compression = "lzw")
 }
 
 
@@ -5989,7 +6360,7 @@ for(l in 1:length(Store.spatial.temporal.ktch))
 #23.1   TDGDLF
 Change.mean.length=vector('list',N.sp)
 names(Change.mean.length)=names(Species.data)
-fun.change.mean.len=function(d,NM,toMatch,min.annual.obs,XLIM)
+fun.change.mean.len=function(d,NM,toMatch,min.annual.obs,XLIM,len.mat,max.len)
 {
   d.list=d[grep(paste(toMatch,collapse="|"),names(d))]
   if(sum(grepl('Table',names(d.list)))>0)d.list=d.list[-grep('Table',names(d.list))]
@@ -6012,7 +6383,7 @@ fun.change.mean.len=function(d,NM,toMatch,min.annual.obs,XLIM)
     d.list=d.list%>%
       left_join(N.min,by=c('FINYEAR','mesh'))%>%
       filter(Keep=="YES")
-    if(nrow(d.list)>0 & length(unique(d.list$FINYEAR))>=2)
+    if(nrow(d.list)>0 & length(unique(d.list$FINYEAR))>2)
     {
       p=d.list%>%
         mutate(Finyear=as.numeric(substr(FINYEAR,1,4)),
@@ -6022,7 +6393,7 @@ fun.change.mean.len=function(d,NM,toMatch,min.annual.obs,XLIM)
         geom_violin(aes(fill = Finyear, group = Finyear.d), alpha = 0.2) +
         facet_wrap(~Mesh,scales='free')+
         stat_summary(fun = "mean",geom = "point",color = "red",size=2)+
-        geom_smooth(color = "black",alpha=0.4, formula = my_formula, method = 'lm',se=TRUE)+ 
+        geom_smooth(color = rgb(1,.1,.1,alpha=0.2), formula = my_formula, method = 'lm',se=TRUE)+ 
         stat_poly_eq(aes(label = paste("atop(", stat(eq.label),  ",", 
                                          paste(stat(adj.rr.label),stat(p.value.label), sep = "*\", \"*"), ")")),
                      formula = my_formula, parse = TRUE,
@@ -6033,7 +6404,10 @@ fun.change.mean.len=function(d,NM,toMatch,min.annual.obs,XLIM)
               plot.title =element_text(size=17))+
         labs(title=NM)+
         xlim(XLIM)+
-        ylim(quantile(d.list$FL,na.rm=T,probs = 0.01),quantile(d.list$FL,na.rm=T,probs = 0.975))  
+        ylim(0,max.len)+
+        geom_hline(yintercept = max.len,colour='orange',size=1.05)+
+        geom_hline(yintercept = len.mat,colour='orange',linetype = "dashed",size=1.05)
+        #ylim(quantile(d.list$FL,na.rm=T,probs = 0.01),quantile(d.list$FL,na.rm=T,probs = 0.975))  
       return(p)
     }
   }
@@ -6044,94 +6418,90 @@ for(s in 1:N.sp)
   dummy=print(fun.change.mean.len(d=Species.data[[s]],
                                   NM=capitalize(names(Species.data)[s]),
                                   toMatch=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2"),
-                                  min.annual.obs=Min.annual.obs,
-                                  XLIM=c(1990,as.numeric(substr(Last.yr.ktch,1,4)))))
+                                  min.annual.obs=Min.annual.obs.ktch,
+                                  XLIM=c(1990,as.numeric(substr(Last.yr.ktch,1,4))),
+                                  len.mat=(List.sp[[s]]$TL.50.mat-List.sp[[s]]$b_FL.to.TL)/List.sp[[s]]$a_FL.to.TL,  #total length to fl
+                                  max.len=(List.sp[[s]]$TLmax-List.sp[[s]]$b_FL.to.TL)/List.sp[[s]]$a_FL.to.TL))
   if(!is.null(dummy)) Change.mean.length[[s]]=dummy
   rm(dummy)
 }
-for(l in 1:length(Store.spatial.temporal.ktch))
-{
-  figure=ggarrange(plotlist=fun.find.in.list(x=Change.mean.length[Lista.sp.outputs[[l]]]),
-                   ncol=1)+
-    theme(plot.margin = margin(0.1,0.5,0.1,0.1, "cm"))
-  annotate_figure(figure,
-                  left = text_grob("Fork length (cm)", rot = 90,size=20,vjust=1),
-                  bottom = text_grob("Financial year",size=20,vjust=-1))
-  
-  ggsave(paste(Rar.path,'/Changes in observed mean length_TDGDLF_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
-         width = 10,height = 10,compression = "lzw")
-}
+
 
 #23.2   Survey
-Survey.mean.size=vector('list',N.sp)
-names(Survey.mean.size)=Keep.species
-for(l in 1:N.sp)
+do.survey.size=FALSE
+if(do.survey.size)
 {
-  dummy=list()
-  if('Srvy.FixSt_size'%in%names(Species.data[[l]]))
+  Survey.mean.size=vector('list',N.sp)
+  names(Survey.mean.size)=Keep.species
+  for(l in 1:N.sp)
   {
-    d=Species.data[[l]]$Srvy.FixSt_size%>%
-      mutate(Finyear=paste(yr-1,substr(yr,3,4),sep='-'),
-             yr.f=as.numeric(substr(Finyear,1,4)))%>%
-      rename(Mean=MeAn,
-             LOW.CI=LowCI,
-             UP.CI=UppCI)%>%
-      filter(yr.f<=Last.yr.ktch.numeric)
-    if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$Survey=d
-    rm(d)
+    dummy=list()
+    if('Srvy.FixSt_size'%in%names(Species.data[[l]]))
+    {
+      d=Species.data[[l]]$Srvy.FixSt_size%>%
+        mutate(Finyear=paste(yr-1,substr(yr,3,4),sep='-'),
+               yr.f=as.numeric(substr(Finyear,1,4)))%>%
+        rename(Mean=MeAn,
+               LOW.CI=LowCI,
+               UP.CI=UppCI)%>%
+        filter(yr.f<=Last.yr.ktch.numeric)
+      if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$Survey=d
+      rm(d)
+    }
+    if(length(dummy)>0) Survey.mean.size[[l]]=dummy
   }
-  if(length(dummy)>0) Survey.mean.size[[l]]=dummy
-}
-fun.change.mean.len.survey=function(d,NM,Ymin='data',Xlim)
-{
-  if(!is.null(d))
+  fun.change.mean.len.survey=function(d,NM,Ymin='data',Xlim)
   {
-    if(Ymin=='data') YLIM.min=min(d$Survey$LOW.CI) else YLIM.min=0
-    my_formula = y ~ x
-    p=d$Survey%>%
-      mutate(Mesh='Survey')%>%
-      ggplot(aes(yr.f,Mean))+
-      geom_point(aes(color=yr.f),size=2,show.legend=F)+
-      geom_errorbar(aes(ymin=UP.CI, ymax=LOW.CI,color=yr.f), width=.5)+
-      facet_wrap(~Mesh,scales='free')+
-      geom_smooth(color = "black",alpha=0.3, formula = my_formula, method = 'lm',se=FALSE)+ 
-      stat_poly_eq(aes(label = paste("atop(", stat(eq.label),  ",", 
-                                     paste(stat(adj.rr.label),stat(p.value.label), sep = "*\", \"*"), ")")),
-                   formula = my_formula, parse = TRUE,
-                   label.y = "bottom", label.x = "right", size = 4) +
-      xlab("")+ylab("")+
-      theme_PA(axs.T.siz=22,axs.t.siz=14,strx.siz=16)+
-      theme(legend.position = "none",
-            plot.title =element_text(size=17))+
-      labs(title=NM)+
-      xlim(Xlim)+
-      ylim(YLIM.min,max(d$Survey$UP.CI))
-    return(p)
+    if(!is.null(d))
+    {
+      if(Ymin=='data') YLIM.min=min(d$Survey$LOW.CI) else YLIM.min=0
+      my_formula = y ~ x
+      p=d$Survey%>%
+        mutate(Mesh='Survey')%>%
+        ggplot(aes(yr.f,Mean))+
+        geom_point(aes(color=yr.f),size=2,show.legend=F)+
+        geom_errorbar(aes(ymin=UP.CI, ymax=LOW.CI,color=yr.f), width=.5)+
+        facet_wrap(~Mesh,scales='free')+
+        geom_smooth(color = "black",alpha=0.3, formula = my_formula, method = 'lm',se=FALSE)+ 
+        stat_poly_eq(aes(label = paste("atop(", stat(eq.label),  ",", 
+                                       paste(stat(adj.rr.label),stat(p.value.label), sep = "*\", \"*"), ")")),
+                     formula = my_formula, parse = TRUE,
+                     label.y = "bottom", label.x = "right", size = 4) +
+        xlab("")+ylab("")+
+        theme_PA(axs.T.siz=22,axs.t.siz=14,strx.siz=16)+
+        theme(legend.position = "none",
+              plot.title =element_text(size=17))+
+        labs(title=NM)+
+        xlim(Xlim)+
+        ylim(YLIM.min,max(d$Survey$UP.CI))
+      return(p)
+    }
+  } 
+  Change.mean.length_Survey=vector('list',N.sp)
+  names(Change.mean.length_Survey)=Keep.species
+  for(l in 1:N.sp) 
+  {
+    print(paste("Change in mean length ","--",names(Survey.mean.size)[l]))
+    dummy=print(fun.change.mean.len.survey(d=Survey.mean.size[[l]],
+                                           NM=capitalize(names(Survey.mean.size)[l]),
+                                           Ymin='data',
+                                           Xlim=c(2000,Last.yr.ktch.numeric+1)))
+    if(!is.null(dummy)) Change.mean.length_Survey[[l]]=dummy
   }
-} 
-Change.mean.length_Survey=vector('list',N.sp)
-names(Change.mean.length_Survey)=Keep.species
-for(l in 1:N.sp) 
-{
-  print(paste("Change in mean length ","--",names(Survey.mean.size)[l]))
-  dummy=print(fun.change.mean.len.survey(d=Survey.mean.size[[l]],
-                                         NM=capitalize(names(Survey.mean.size)[l]),
-                                         Ymin='data',
-                                         Xlim=c(2000,Last.yr.ktch.numeric+1)))
-  if(!is.null(dummy)) Change.mean.length_Survey[[l]]=dummy
+  for(l in 1:length(Store.spatial.temporal.ktch))
+  {
+    figure=ggarrange(plotlist=fun.find.in.list(x=Change.mean.length_Survey[Lista.sp.outputs[[l]]]),
+                     ncol=1)+
+      theme(plot.margin = margin(0.1,0.5,0.1,0.1, "cm"))
+    annotate_figure(figure,
+                    left = text_grob("Relative size (95% CI)", rot = 90,size=20,vjust=1),
+                    bottom = text_grob("Financial year",size=20,vjust=-1))
+    
+    ggsave(paste(Rar.path,'/Changes in observed mean length_Survey_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+           width = 10,height = 10,compression = "lzw")
+  }
 }
-for(l in 1:length(Store.spatial.temporal.ktch))
-{
-  figure=ggarrange(plotlist=fun.find.in.list(x=Change.mean.length_Survey[Lista.sp.outputs[[l]]]),
-                   ncol=1)+
-    theme(plot.margin = margin(0.1,0.5,0.1,0.1, "cm"))
-  annotate_figure(figure,
-                  left = text_grob("Relative size (95% CI)", rot = 90,size=20,vjust=1),
-                  bottom = text_grob("Financial year",size=20,vjust=-1))
-  
-  ggsave(paste(Rar.path,'/Changes in observed mean length_Survey_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
-         width = 10,height = 10,compression = "lzw")
-}
+
 
 
 #---24. Changes in reported mean weight of individuals caught in the TDGDLF  ----
@@ -6153,7 +6523,7 @@ Logbook=Logbook%>%
 N.min=Logbook%>%
   group_by(finyear,species,mshigh)%>%
   tally()%>%
-  filter(n>=Min.annual.obs)%>%
+  filter(n>=Min.annual.obs.ktch)%>%
   mutate(Keep="YES")
 
 Logbook=Logbook%>%
@@ -6166,15 +6536,15 @@ Logbook=Logbook%>%
   filter(!is.na(Mesh))
 
 Logbook.sp=sort(unique(Logbook$SNAME))
+Logbook.sp=subset(Logbook.sp,!Logbook.sp=="angel sharks")
 
 Logbook=Logbook%>%filter(Finyear<=as.numeric(substr(Last.yr.ktch,1,4))) #keep only years with catch 
 
 Change.mean.weight.catch=vector('list',length(Logbook.sp))
 names(Change.mean.weight.catch)=Logbook.sp
-
 any_column_NA <- function(x) any(is.numeric(x))
 replace_pos <- function(x) if_else(x>0,1,x)
-fn.plt.mn.ktch.wght=function(d.list,NM,XLIM,show.data=FALSE)
+fn.plt.mn.ktch.wght=function(d.list,NM,XLIM,show.data=FALSE,wei.mat,max.wei,recruit.cpue)
 {
   my_formula = y ~ x
   if(nrow(d.list)>0 & length(unique(d.list$finyear))>=2)
@@ -6198,18 +6568,20 @@ fn.plt.mn.ktch.wght=function(d.list,NM,XLIM,show.data=FALSE)
       geom_violin(aes(fill = Finyear, group = Finyear.d,color=Finyear), alpha = 0.2) + 
       facet_wrap(~Mesh,scales='free')+
       stat_summary(fun = "mean",geom = "point",color = "red",size=2)+
-      geom_smooth(color = "black",alpha=0.4, formula = my_formula, method = 'lm',se=TRUE)+ 
+      geom_smooth(color = rgb(1,.1,.1,alpha=0.2), formula = my_formula, method = 'lm',se=TRUE)+ 
       stat_poly_eq(aes(label = paste("atop(", stat(eq.label),  ",", 
                                      paste(stat(adj.rr.label),stat(p.value.label), sep = "*\", \"*"), ")")),
                    formula = my_formula, parse = TRUE,
                    label.y = "top", label.x = "right", size = 4.5) +
       xlab("")+ylab("")+
       ggtitle(NM)+xlim(XLIM)+
-      theme_PA(axs.T.siz=22,axs.t.siz=14,str.siz=16)+
+      theme_PA(axs.T.siz=22,axs.t.siz=13,str.siz=16)+
       theme(legend.position = "none",
             plot.title =element_text(size=17))+
-      ylim(0,quantile(d.list$Mean.wght,na.rm=T,probs = 0.975))
-       
+      ylim(0,max.wei)+
+      geom_hline(yintercept = max.wei,colour='orange',size=1.05)+
+      geom_hline(yintercept = wei.mat,colour='orange',linetype = "dashed",size=1.05)
+
     return(p)
   }
   
@@ -6217,24 +6589,167 @@ fn.plt.mn.ktch.wght=function(d.list,NM,XLIM,show.data=FALSE)
 for(s in 1:length(Logbook.sp)) 
 {
   print(paste("Change in mean weight of landed individual ","--",Logbook.sp[s]))
+  id=match(Logbook.sp[s],names(List.sp))
   dummy=print(fn.plt.mn.ktch.wght(d.list=Logbook%>%filter(SNAME==Logbook.sp[s]),
                                   NM=capitalize(Logbook.sp[s]),
-                                  XLIM=c(min(Logbook$Finyear)-1,1+max(Logbook$Finyear))))
+                                  XLIM=c(min(Logbook$Finyear)-1,1+max(Logbook$Finyear)),
+                                  wei.mat=with(List.sp[[id]],AwT*TL.50.mat^BwT),  
+                                  max.wei=with(List.sp[[id]],AwT*TLmax^BwT),
+                                  recruit.cpue=recruit.cpiui[[id]]))
   if(!is.null(dummy)) Change.mean.weight.catch[[s]]=dummy
   rm(dummy)
 }
 
+#Get catch rates of recruits
+fun.get.prop.zero.plus.length=function(d,NM,toMatch,min.annual.obs,size.1.yr.old)
+{
+  d.list=d[grep(paste(toMatch,collapse="|"),names(d))]
+  if(sum(grepl('Table',names(d.list)))>0)d.list=d.list[-grep('Table',names(d.list))]
+  
+  if(length(d.list)>0)
+  {
+    #by myear
+    d.list=do.call(rbind,d.list)
+    d.list=d.list%>%
+      mutate(mesh=case_when(grepl("6.5.inch",rownames(d.list))~6.5,
+                            grepl("7.inch",rownames(d.list))~7),
+             Zeroo.plus=ifelse(FL<=size.1.yr.old,'Yes','No'))
+    N.min=d.list%>%
+      group_by(FINYEAR,Zeroo.plus)%>%  
+      tally()%>%
+      spread(Zeroo.plus,n,fill=0)%>%
+      mutate(n=No+Yes)%>%
+      filter(n>=min.annual.obs)%>%
+      mutate(Prop.zero.plus=Yes/n)
+    if(nrow(N.min)>0)return(N.min%>%dplyr::select(FINYEAR,n,Prop.zero.plus))
+  }
+}
+fun.get.prop.zero.plus.wght=function(d.list,NM,min.annual.obs,whgt.1.yr.old)
+{
+  if(nrow(d.list)>0 & length(unique(d.list$finyear))>=2)
+  {
+    Kip=d.list%>%
+      filter(nfish==1)%>%    #if more than 1 reported shark, it could be one big and one small for e.g. so don't know actual individual weight     
+      mutate(Zeroo.plus=ifelse(Mean.wght<=whgt.1.yr.old,'Yes','No'))
+    
+    N.min=Kip%>%
+      group_by(finyear,Zeroo.plus)%>%  
+      tally()%>%
+      spread(Zeroo.plus,n,fill=0)
+    if(!'Yes'%in%colnames(N.min)) N.min$Yes=0
+    N.min=N.min%>%
+      mutate(n=No+Yes,
+             Prop.zero.plus=Yes/n)%>%
+      rename(FINYEAR=finyear)
+    # N.min=N.min%>%filter(n>=min.annual.obs)
+    if(nrow(N.min)>0)return(N.min%>%dplyr::select(FINYEAR,n,Prop.zero.plus))
+  }
+}
+recruit.cpiui=vector('list',N.sp)     
+names(recruit.cpiui)=Keep.species
+for(i in 1:length(recruit.cpiui))
+{
+  #Get TDGDLF cpues
+  CPUE=compact(Catch.rate.series[[i]])
+  Kip=grep('TDGDLF',names(CPUE)) 
+  CPUE=CPUE[Kip]
+  DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
+  if(length(DROP)>0)CPUE=CPUE[-DROP]
+  
+  if(length(CPUE)>0)
+  {
+    #Get proportion of 0+ individuals
+    #Observed size frequency (not used, too short a series)
+    prop.zero.length=fun.get.prop.zero.plus.length(d=Species.data[[i]],
+                                                   NM=capitalize(names(Species.data)[i]),
+                                                   toMatch=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2"),
+                                                   min.annual.obs=Min.annual.obs,
+                                                   size.1.yr.old=ceiling(with(List.sp[[i]],Lzero+(Growth.F$FL_inf-Lzero)*(1-exp(-Growth.F$k*1)))))
+    
+    if(!is.null(prop.zero.length))
+    {
+      CPUE.prop.zero.plus.length=CPUE
+      for(x in 1:length(CPUE))
+      {
+        CPUE.prop.zero.plus.length[[x]]=CPUE.prop.zero.plus.length[[x]]%>%
+          left_join(prop.zero.length,by=c('Finyear'='FINYEAR'))%>%
+          mutate(Mean.prop=Mean*Prop.zero.plus,
+                 LOW.CI.prop=LOW.CI*Prop.zero.plus,
+                 UP.CI.prop=UP.CI*Prop.zero.plus)
+      }
+    }
+    
+    #Reported weight (only applicable to daily)
+    id=match(names(List.sp)[i],Logbook.sp)
+    prop.zero.wght=fun.get.prop.zero.plus.wght(d.list=Logbook%>%filter(SNAME==Logbook.sp[id]),
+                                               NM=capitalize(Logbook.sp[id]),
+                                               min.annual.obs=Min.annual.obs,
+                                               whgt.1.yr.old=with(List.sp[[i]],AwT*(ceiling(Lzero+(Growth.F$FL_inf-Lzero)*(1-exp(-Growth.F$k*1)))*a_FL.to.TL+b_FL.to.TL)^BwT))
+    CPUE.prop.zero.plus.wght=CPUE[["TDGDLF.daily"]]
+    if(!is.null(prop.zero.wght) & !is.null(CPUE.prop.zero.plus.wght))
+    {
+      CPUE.prop.zero.plus.wght=CPUE.prop.zero.plus.wght%>%
+        left_join(prop.zero.wght,by=c('Finyear'='FINYEAR'))%>%
+        mutate(Mean.prop=Mean*Prop.zero.plus,
+               LOW.CI.prop=LOW.CI*Prop.zero.plus,
+               UP.CI.prop=UP.CI*Prop.zero.plus)
+      Full.d=CPUE.prop.zero.plus.wght%>%
+              dplyr::select(yr.f,Mean,LOW.CI,UP.CI)%>%
+              mutate(dat='All ages')
+      Rec.d=CPUE.prop.zero.plus.wght%>%
+        dplyr::select(yr.f,Mean.prop)%>%
+        mutate(LOW.CI=NA,
+               UP.CI=NA,
+               dat='0+')%>%
+        rename(Mean=Mean.prop)
+      
+      p=rbind(Full.d,Rec.d)%>%
+        mutate(Mesh='6.5 & 7 inch combined')%>%
+        ggplot(aes(yr.f,Mean,color=dat))+
+        geom_point(size=2)+
+        geom_errorbar(aes(ymin=LOW.CI, ymax=UP.CI), width=.2)+
+        ylim(0,max(CPUE.prop.zero.plus.wght$UP.CI))+
+        theme_PA(axs.T.siz=22,axs.t.siz=14,str.siz=16)+
+        ylab("")+xlab("")+ggtitle(capitalize(names(List.sp)[i]))+
+        theme(legend.title=element_blank())+
+        facet_wrap(~Mesh,scales='free')
+      
+      recruit.cpiui[[i]]=p
+    }
+  }
+}
 for(l in 1:length(Store.spatial.temporal.ktch))
 {
-  figure=ggarrange(plotlist=fun.find.in.list(x=Change.mean.weight.catch[Lista.sp.outputs[[l]]]),
-                   ncol=1)+
+  figure2=ggarrange(plotlist=fun.find.in.list(x=recruit.cpiui[Lista.sp.outputs[[l]]]),
+                    ncol=1,common.legend = TRUE)+
     theme(plot.margin = unit(c(0,0,0,0), "lines"))
-  annotate_figure(figure,
-                  left = text_grob("Mean total weight of caught individuals (kg)", rot = 90,size=20,vjust=1),
+  FIG=ggarrange(plotlist=list(figure2),ncol=1)+
+    theme(plot.margin = unit(c(0,0,0,0), "lines"))
+  annotate_figure(FIG,
+                  left = text_grob("Relative catch rate", rot = 90,size=20,vjust=1),
                   bottom = text_grob("Financial year",size=20,vjust=-0.5))
   
-  ggsave(paste(Rar.path,'/Changes in mean weight caught individual_TDGDLF_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
-         width = 10,height = 10,compression = "lzw")
+  ggsave(paste(Rar.path,'/Relative catch rate_recruits_TDGDLF_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+         width = 12.5,height = 10,compression = "lzw")
+}
+
+
+#combine mean weight and observed size
+for(l in 1:length(Store.spatial.temporal.ktch))
+{
+  figure=ggarrange(plotlist=fun.find.in.list(x=Change.mean.weight.catch[Lista.sp.outputs[[l]]]),ncol=1)+
+            theme(plot.margin = unit(c(-.5,0,0,-.5), "lines"))
+  figure2=ggarrange(plotlist=fun.find.in.list(x=Change.mean.length[Lista.sp.outputs[[l]]]),ncol=1)+
+    theme(plot.margin = margin(0.1,0.5,0.1,0.1, "cm"))
+  figure2=annotate_figure(figure2,
+                    left= text_grob('Observed fork length (cm)', rot = 90,size=20,vjust=2))
+  FIG=ggarrange(plotlist=list(figure,figure2),ncol=2)+
+    theme(plot.margin = unit(c(0,0,0,0), "lines"))
+  annotate_figure(FIG,
+                  left = text_grob("Total weight of caught individuals (kg)", rot = 90,size=20,vjust=1.25),
+                  bottom = text_grob("Financial year",size=20,vjust=-1))
+  ggsave(paste(Rar.path,'/Changes in size_TDGDLF_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+         width = 12,height = 13,compression = "lzw")
 }
 
 
@@ -6288,360 +6803,360 @@ if(do.model.based.mn.weight.ktch)
 }
 
 
-#ACA
+
 #---25. Dynamic catch and size composition with dome-shaped selectivity. Run model --------------------------------------
 #note: single-area, two-sexes, size-structured integrated model fitted to catch and size composition
 #       Selectivity is assumed to be known.
 #       Uncertainty derived from resampling variance-cov matrix  
 #       Only applicable to non-indicator species with representative size comp samples.
 #       For indicator species, use integrated model.
+#       Not used due to poor contrast in available size composition and uncertain growth pareameters
 
 fn.extract.dat=function(STRING,Files) grep(paste(STRING,collapse="|"), Files, value=TRUE)
-sourceCpp(handl_OneDrive("/Analyses/Population dynamics/Other people's code/Alex dynamic catch & size/DynamicCatchLenModfunctions.cpp"))
-
-  #25.1 TDGDLF size composition
-Size.Catch.only_TDGDLF=vector('list',N.sp)
-names(Size.Catch.only_TDGDLF)=Keep.species
-system.time({for(l in 1: N.sp)  
+if(do.Dynamic.catch.size.comp)
 {
-  # Calculate F
-  Outfile='TDGDLF' 
-  this.size.comp=paste('Size_composition',c('West.6.5','West.7','Zone1.6.5','Zone1.7','Zone2.6.5','Zone2.7'),sep="_")
-  outfile=paste(Outfile,'_histogram',sep='')
+  sourceCpp(handl_OneDrive("/Analyses/Population dynamics/Other people's code/Alex dynamic catch & size/DynamicCatchLenModfunctions.cpp"))
   
-  #get size composition  
-  iid=Species.data[[l]][fn.extract.dat(this.size.comp,names(Species.data[[l]]))]
-  if(length(iid)>0 & names(Species.data)[l]%in%Lista.sp.outputs$Other.sp)
+  #25.1 TDGDLF size composition
+  Size.Catch.only_TDGDLF=vector('list',N.sp)
+  names(Size.Catch.only_TDGDLF)=Keep.species
+  system.time({for(l in 1: N.sp)  
   {
-    #get size composition data
-    dummy=do.call(rbind,iid)
-    if(grepl("TDGDLF",outfile))
-    {
-      dummy=dummy%>%
-        mutate(dummy=sub(".*Size_composition_", "", rownames(dummy)),
-               Mesh=word(dummy,2,sep = "\\."),
-               Mesh=ifelse(Mesh=='6','6.5',Mesh),
-               Mesh=factor(Mesh,levels=c('6.5','7')),
-               Zone=word(dummy,1,sep = "\\."))
-      
-    }
-    dummy=dummy%>%filter(year<=as.numeric(substr(Last.yr.ktch,1,4)))
+    # Calculate F
+    Outfile='TDGDLF' 
+    this.size.comp=paste('Size_composition',c('West.6.5','West.7','Zone1.6.5','Zone1.7','Zone2.6.5','Zone2.7'),sep="_")
+    outfile=paste(Outfile,'_histogram',sep='')
     
-    #keep years with minimum sample size
-    N.min=dummy%>%
-      group_by(FINYEAR)%>%
-      tally()%>%
-      filter(n>=Min.annual.obs)%>%
-      mutate(Keep=FINYEAR)
-    if(nrow(N.min)>0)
+    #get size composition  
+    iid=Species.data[[l]][fn.extract.dat(this.size.comp,names(Species.data[[l]]))]
+    if(length(iid)>0 & names(Species.data)[l]%in%Lista.sp.outputs$Other.sp)
     {
-      print(paste("Dynamic catch-only size based model with dome-shape selectivity for --",names(Species.data)[l],"---",Outfile))
-      
-      dummy=dummy%>%
-        mutate(Keep=FINYEAR,
-               year.f=as.numeric(substr(FINYEAR,1,4)))%>%
-        filter(Keep%in%N.min$Keep)%>%
-        mutate(TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)     #calculate total length
-      
-      
-      #1. Plot observed size frequency by year and mesh for years with minimum sample size
+      #get size composition data
+      dummy=do.call(rbind,iid)
       if(grepl("TDGDLF",outfile))
       {
-        p=dummy%>%
-          ggplot( aes(x=TL, color=Mesh, fill=Mesh)) +
-          geom_histogram(alpha=0.6, binwidth = TL.bins.cm)
-        WHERE="top"
-      }else
-      {
-        p=dummy%>%
-          ggplot( aes(x=TL,color=year, fill=year)) +
-          geom_histogram(alpha=0.6, binwidth = TL.bins.cm)
-        WHERE="none"
+        dummy=dummy%>%
+          mutate(dummy=sub(".*Size_composition_", "", rownames(dummy)),
+                 Mesh=word(dummy,2,sep = "\\."),
+                 Mesh=ifelse(Mesh=='6','6.5',Mesh),
+                 Mesh=factor(Mesh,levels=c('6.5','7')),
+                 Zone=word(dummy,1,sep = "\\."))
+        
       }
-      p=p+
-        facet_wrap(~FINYEAR,scales='free_y')+
-        xlab("Total length (cm)")+ylab("Count")+
-        theme(legend.position=WHERE,
-              legend.title = element_blank(),
-              legend.text=element_text(size=14),
-              strip.text.x = element_text(size = 12),
-              axis.text=element_text(size=12),
-              axis.title=element_text(size=16))
-      print(p)
-      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(List.sp[[l]]$Name),"/",AssessYr,
-                   "/1_Inputs/Visualise data/Size.comp_Size_catch.only.",outfile,".tiff",sep=''),
-             width = 8,height = 8,compression = "lzw")
+      dummy=dummy%>%filter(year<=as.numeric(substr(Last.yr.ktch,1,4)))
       
-      
-      #2. Fit model and derive quantities of interest
-      
+      #keep years with minimum sample size
+      N.min=dummy%>%
+        group_by(FINYEAR)%>%
+        tally()%>%
+        filter(n>=Min.annual.obs)%>%
+        mutate(Keep=FINYEAR)
+      if(nrow(N.min)>0)
+      {
+        print(paste("Dynamic catch-only size based model with dome-shape selectivity for --",names(Species.data)[l],"---",Outfile))
+        
+        dummy=dummy%>%
+          mutate(Keep=FINYEAR,
+                 year.f=as.numeric(substr(FINYEAR,1,4)))%>%
+          filter(Keep%in%N.min$Keep)%>%
+          mutate(TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)     #calculate total length
+        
+        
+        #1. Plot observed size frequency by year and mesh for years with minimum sample size
+        if(grepl("TDGDLF",outfile))
+        {
+          p=dummy%>%
+            ggplot( aes(x=TL, color=Mesh, fill=Mesh)) +
+            geom_histogram(alpha=0.6, binwidth = TL.bins.cm)
+          WHERE="top"
+        }else
+        {
+          p=dummy%>%
+            ggplot( aes(x=TL,color=year, fill=year)) +
+            geom_histogram(alpha=0.6, binwidth = TL.bins.cm)
+          WHERE="none"
+        }
+        p=p+
+          facet_wrap(~FINYEAR,scales='free_y')+
+          xlab("Total length (cm)")+ylab("Count")+
+          theme(legend.position=WHERE,
+                legend.title = element_blank(),
+                legend.text=element_text(size=14),
+                strip.text.x = element_text(size = 12),
+                axis.text=element_text(size=12),
+                axis.title=element_text(size=16))
+        print(p)
+        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(List.sp[[l]]$Name),"/",AssessYr,
+                     "/1_Inputs/Visualise data/Size.comp_Size_catch.only.",outfile,".tiff",sep=''),
+               width = 8,height = 8,compression = "lzw")
+        
+        
+        #2. Fit model and derive quantities of interest
+        
         #Fixed input pars
-      lnSigmaR = 0.2 # specifying fairly low value here (as might be assumed for sharks)
-      Init_F = 0.001 # Currently specified parameter
-      SDGrowthRec = c(20, 20) # sd for initial size distns. for female and male recruits
-      CVLenAtAge = c(0.1, 0.1)
-      lnRecDev=0  # mean recruitment deviation across years
-
-      
+        lnSigmaR = 0.2 # specifying fairly low value here (as might be assumed for sharks)
+        Init_F = 0.001 # Currently specified parameter
+        SDGrowthRec = c(20, 20) # sd for initial size distns. for female and male recruits
+        CVLenAtAge = c(0.1, 0.1)
+        lnRecDev=0  # mean recruitment deviation across years
+        
+        
         #Life history   
-      MaxAge = ceiling(mean(List.sp[[l]]$Max.age.F))
-      Linf = c(List.sp[[l]]$Growth.F$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
-               List.sp[[l]]$Growth.M$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL) #total length in cm for females and males   
-      vbK = c(List.sp[[l]]$Growth.F$k,List.sp[[l]]$Growth.M$k)          # k for females and males
-      Lo =  c(List.sp[[l]]$Lzero*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
-              List.sp[[l]]$Lzero*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)    #total length in cm for females and males
-      MaxLen= 10*round(List.sp[[l]]$TLmax/10)
-      LenInc=TL.bins.cm
-      MatL50=List.sp[[l]]$TL.50.mat
-      MatL95=List.sp[[l]]$TL.95.mat
-      PropFemAtBirth=List.sp[[l]]$pup.sx.ratio
-      wtlen_b=c(List.sp[[l]]$BwT,List.sp[[l]]$BwT.M)   #length-weight pars for females and males
-      wtlen_a=c(List.sp[[l]]$AwT,List.sp[[l]]$AwT.M)
-      
-      
-      Ages = 1:MaxAge
-      nAges = length(Ages)
-      
-      NatMort_mean=mean(colMeans(store.species.M[[l]],na.rm=T))
-      NatMort_sd=sd(colMeans(store.species.M[[l]],na.rm=T))
-      Steepness_mean=store.species.steepness.S2[[l]]
-      Steepness_sd=store.species.steepness[[l]]$sd
-      
-      lbnd = seq(0,MaxLen - LenInc, LenInc)
-      ubnd = lbnd + LenInc
-      midpt = lbnd + (LenInc/2)
-      nLenCl = length(midpt)
-      
+        MaxAge = ceiling(mean(List.sp[[l]]$Max.age.F))
+        Linf = c(List.sp[[l]]$Growth.F$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
+                 List.sp[[l]]$Growth.M$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL) #total length in cm for females and males   
+        vbK = c(List.sp[[l]]$Growth.F$k,List.sp[[l]]$Growth.M$k)          # k for females and males
+        Lo =  c(List.sp[[l]]$Lzero*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
+                List.sp[[l]]$Lzero*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)    #total length in cm for females and males
+        MaxLen= 10*round(List.sp[[l]]$TLmax/10)
+        LenInc=TL.bins.cm
+        MatL50=List.sp[[l]]$TL.50.mat
+        MatL95=List.sp[[l]]$TL.95.mat
+        PropFemAtBirth=List.sp[[l]]$pup.sx.ratio
+        wtlen_b=c(List.sp[[l]]$BwT,List.sp[[l]]$BwT.M)   #length-weight pars for females and males
+        wtlen_a=c(List.sp[[l]]$AwT,List.sp[[l]]$AwT.M)
+        
+        
+        Ages = 1:MaxAge
+        nAges = length(Ages)
+        
+        NatMort_mean=mean(colMeans(store.species.M[[l]],na.rm=T))
+        NatMort_sd=sd(colMeans(store.species.M[[l]],na.rm=T))
+        Steepness_mean=store.species.steepness.S2[[l]]
+        Steepness_sd=store.species.steepness[[l]]$sd
+        
+        lbnd = seq(0,MaxLen - LenInc, LenInc)
+        ubnd = lbnd + LenInc
+        midpt = lbnd + (LenInc/2)
+        nLenCl = length(midpt)
+        
         #Selectivity (combined meshes)
-      SelectivityOption = 3 # 1 = gillnet selectivity (Kirkwood and Walker, 1986), 
-                            # 2 = logistic selectivity, 3 = input vector
+        SelectivityOption = 3 # 1 = gillnet selectivity (Kirkwood and Walker, 1986), 
+        # 2 = logistic selectivity, 3 = input vector
         # gillnet selectivity inputs for Kirkwood and Walker (1986) model 
-      nMeshes = NA # 2
-      MeshSize_mm = c(NA, NA) # c(115, 127)
-      theta1 = c(NA, NA) # c(20, 20)
-      theta2 = c(NA, NA) # c(200000, 200000)
+        nMeshes = NA # 2
+        MeshSize_mm = c(NA, NA) # c(115, 127)
+        theta1 = c(NA, NA) # c(20, 20)
+        theta2 = c(NA, NA) # c(200000, 200000)
         # logistic selectivity (F, M)
-      SelL50 = c(NA, NA)
-      SelL95 = c(NA, NA)
-      
-      SelAtLength=Selectivity.at.totalength[[l]]%>%               
-        mutate(TL=TL)%>%
-        filter( TL%in%midpt)%>%
-        pull(Sel.combined)
-      Selectivity <- t(data.frame(FemSelectivity=SelAtLength,
-                                  MalSelectivity=SelAtLength)) # selectivity inputted as matrix (F, M)
-      
-      
-      #Total catch
-      Katch=ktch.combined%>%
-        filter(Name==names(Size.Catch.only_TDGDLF)[l])%>%
-        ungroup()%>%
-        dplyr::select(finyear,Tonnes)
-      ObsAnnCatch=Katch$Tonnes
-      nYears=length(ObsAnnCatch)
-      
-      
-      #Size composition
-      n.size.comp=dummy%>%
-        group_by(year.f)%>%
-        tally()
-      if(nrow(n.size.comp)>3)     #select max of 3 years of size compo. Model currently set to 3 years, ask Alex to relax this
-      {
-        n.size.comp=n.size.comp[sample(1:nrow(n.size.comp),3),]%>%
-          arrange(year.f)
-      }
-      Len_SimYr=match(n.size.comp$year.f,Katch$finyear) # year index for which length sample is taken
-      n_SimYrs =length(Len_SimYr)
-      nLen_SimYrs = n_SimYrs
-      add.dummy=data.frame(bin=midpt)
-      ObsCatchFreqAtLen=vector('list',nrow(n.size.comp))
-      for(o in 1:length(ObsCatchFreqAtLen))
-      {
-        x=dummy%>%
-          filter(year.f==n.size.comp$year.f[o])%>%
-          mutate(bin=LenInc*floor(TL/LenInc)+LenInc/2)%>%
-          group_by(bin)%>%
-          tally()%>%
-          full_join(add.dummy,by='bin')%>%
-          arrange(bin)%>%
-          mutate(n=ifelse(is.na(n),0,n))%>%
-          filter(bin%in%midpt)
-        xx=x$n
-        names(xx)=x$bin
-        ObsCatchFreqAtLen[[o]]=xx
-      }
-      ObsCatchFreqAtLen=do.call(rbind,ObsCatchFreqAtLen)%>%data.frame
-      names(ObsCatchFreqAtLen)=str_remove(colnames(ObsCatchFreqAtLen), "[X]")
-      
-      ObsLenCompVec1 = rep(0,nLenCl)
-      ObsLenCompVec2 = rep(0,nLenCl)
-      ObsLenCompVec3 = rep(0,nLenCl)
-      ObsLenCompVec1 = as.vector(unlist(ObsCatchFreqAtLen[1,]))
-      if (n_SimYrs > 1) ObsLenCompVec2 = as.vector(unlist(ObsCatchFreqAtLen[2,]))
-      if (n_SimYrs > 2) ObsLenCompVec3 = as.vector(unlist(ObsCatchFreqAtLen[3,])) 
-     
-      plot(midpt,SelAtLength)
-      lines(midpt,ObsLenCompVec1/max(ObsLenCompVec1))
-      lines(midpt,ObsLenCompVec2/max(ObsLenCompVec2))
-      
-      #Get model inputs into right format
-      res=GetBiologyAndFisheryParams_cpp(Ages, nAges, nLenCl, midpt, ubnd, lbnd, 
-                                         Lo, Linf, vbK, CVLenAtAge, wtlen_a, wtlen_b, 
-                                         MatL50, MatL95, SelectivityOption, Selectivity, theta1, theta2, 
-                                         MeshSize_mm, nMeshes, SelL50, SelL95)
-      RecLenDist=res$RecLenDist
-      LTM_Fem=res$LTM_Fem
-      LTM_Mal=res$LTM_Mal
-      WtAtLen=res$WtAtLen
-      FemMatAtLen=res$FemMatAtLen
-      SelAtLength=res$SelAtLength
-      
-      # Initial values of estimated parameters
-      InitRec = List.sp[[l]]$InitRec_dynKtchSize   
-      NatMort = NatMort_mean*exp(rnorm(1, 0,NatMort_sd))
-      Steepness = min(max(Steepness_mean*exp(rnorm(1, 0,Steepness_sd)),0.2),1)
-      params = c(log(InitRec),log(NatMort),log(Steepness),lnRecDev) # Estimated 
-      names(params)=c("ln_R0", "ln_M","ln_h","lnRecDev")
-      
-      # Create function for nlmb (which can only have one input, i.e. parameter list)
-      ObjFunc <- function(params) {
-        res=ObjectiveFunc_cpp(params, nYears, nLen_SimYrs, Len_SimYr, ObsLenCompVec1, ObsLenCompVec2, ObsLenCompVec3, 
-                              ObsAnnCatch, MaxAge, nLenCl, midpt, LTM_Fem, LTM_Mal, WtAtLen, FemMatAtLen, RecLenDist, Init_F, 
-                              PropFemAtBirth, SelAtLength, NatMort_mean, NatMort_sd, Steepness_mean, Steepness_sd,
-                              lnSigmaR)
-        return(res)
-      }
-      ObjFunc(params)
-      
-      
-      # Fit model (twice)
-      InitTime = Sys.time()
-      nlmb <- nlminb(params, ObjFunc, gradient = NULL, hessian = TRUE)
-      params = nlmb$par
-      nlmb <- nlminb(params, ObjFunc, gradient = NULL, hessian = TRUE)
-      Duration = Sys.time() - InitTime
-      cat("Duration: model fit",Duration,'\n')
-      #nlmb$objective
-      if(!nlmb$convergence==0)
-      {
-        print("Model did not converge")
-        break
-      }
-      
-      
-      # Calculation estimation uncertainty
-      hess.out = optimHess(params, ObjFunc)
-      vcov.Params = solve(hess.out)
-      ses = sqrt(diag(vcov.Params))
-      nsims=500
-      sims = data.frame(mvrnorm(n = nsims, params, vcov.Params))
-      names(sims) = names(params)
-      Estimates=data.frame(Parameter=names(sims),
-                           Lower.95=apply(sims[,1:4], MARGIN=2, function(x) quantile(x, 0.025,na.rm=T)),
-                           Median=apply(sims[,1:4], MARGIN=2, function(x) quantile(x, 0.5,na.rm=T)),
-                           Upper.95=apply(sims[,1:4], MARGIN=2, function(x) quantile(x, .975,na.rm=T)))
-      
-      # Fit diagnostics
-      Dyn.ktch.length.path=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                                 capitalize(Keep.species[l]),"/",AssessYr,'/Dyn.ktch.length',sep='')
-      if(!dir.exists(Dyn.ktch.length.path))dir.create(Dyn.ktch.length.path)
-      
+        SelL50 = c(NA, NA)
+        SelL95 = c(NA, NA)
+        
+        SelAtLength=Selectivity.at.totalength[[l]]%>%               
+          mutate(TL=TL)%>%
+          filter( TL%in%midpt)%>%
+          pull(Sel.combined)
+        Selectivity <- t(data.frame(FemSelectivity=SelAtLength,
+                                    MalSelectivity=SelAtLength)) # selectivity inputted as matrix (F, M)
+        
+        
+        #Total catch
+        Katch=ktch.combined%>%
+          filter(Name==names(Size.Catch.only_TDGDLF)[l])%>%
+          ungroup()%>%
+          dplyr::select(finyear,Tonnes)
+        ObsAnnCatch=Katch$Tonnes
+        nYears=length(ObsAnnCatch)
+        
+        
+        #Size composition
+        n.size.comp=dummy%>%
+          group_by(year.f)%>%
+          tally()
+        if(nrow(n.size.comp)>3)     #select max of 3 years of size compo. Model currently set to 3 years, ask Alex to relax this
+        {
+          n.size.comp=n.size.comp[sample(1:nrow(n.size.comp),3),]%>%
+            arrange(year.f)
+        }
+        Len_SimYr=match(n.size.comp$year.f,Katch$finyear) # year index for which length sample is taken
+        n_SimYrs =length(Len_SimYr)
+        nLen_SimYrs = n_SimYrs
+        add.dummy=data.frame(bin=midpt)
+        ObsCatchFreqAtLen=vector('list',nrow(n.size.comp))
+        for(o in 1:length(ObsCatchFreqAtLen))
+        {
+          x=dummy%>%
+            filter(year.f==n.size.comp$year.f[o])%>%
+            mutate(bin=LenInc*floor(TL/LenInc)+LenInc/2)%>%
+            group_by(bin)%>%
+            tally()%>%
+            full_join(add.dummy,by='bin')%>%
+            arrange(bin)%>%
+            mutate(n=ifelse(is.na(n),0,n))%>%
+            filter(bin%in%midpt)
+          xx=x$n
+          names(xx)=x$bin
+          ObsCatchFreqAtLen[[o]]=xx
+        }
+        ObsCatchFreqAtLen=do.call(rbind,ObsCatchFreqAtLen)%>%data.frame
+        names(ObsCatchFreqAtLen)=str_remove(colnames(ObsCatchFreqAtLen), "[X]")
+        
+        ObsLenCompVec1 = rep(0,nLenCl)
+        ObsLenCompVec2 = rep(0,nLenCl)
+        ObsLenCompVec3 = rep(0,nLenCl)
+        ObsLenCompVec1 = as.vector(unlist(ObsCatchFreqAtLen[1,]))
+        if (n_SimYrs > 1) ObsLenCompVec2 = as.vector(unlist(ObsCatchFreqAtLen[2,]))
+        if (n_SimYrs > 2) ObsLenCompVec3 = as.vector(unlist(ObsCatchFreqAtLen[3,])) 
+        
+        plot(midpt,SelAtLength)
+        lines(midpt,ObsLenCompVec1/max(ObsLenCompVec1))
+        lines(midpt,ObsLenCompVec2/max(ObsLenCompVec2))
+        
+        #Get model inputs into right format
+        res=GetBiologyAndFisheryParams_cpp(Ages, nAges, nLenCl, midpt, ubnd, lbnd, 
+                                           Lo, Linf, vbK, CVLenAtAge, wtlen_a, wtlen_b, 
+                                           MatL50, MatL95, SelectivityOption, Selectivity, theta1, theta2, 
+                                           MeshSize_mm, nMeshes, SelL50, SelL95)
+        RecLenDist=res$RecLenDist
+        LTM_Fem=res$LTM_Fem
+        LTM_Mal=res$LTM_Mal
+        WtAtLen=res$WtAtLen
+        FemMatAtLen=res$FemMatAtLen
+        SelAtLength=res$SelAtLength
+        
+        # Initial values of estimated parameters
+        InitRec = List.sp[[l]]$InitRec_dynKtchSize   
+        NatMort = NatMort_mean*exp(rnorm(1, 0,NatMort_sd))
+        Steepness = min(max(Steepness_mean*exp(rnorm(1, 0,Steepness_sd)),0.2),1)
+        params = c(log(InitRec),log(NatMort),log(Steepness),lnRecDev) # Estimated 
+        names(params)=c("ln_R0", "ln_M","ln_h","lnRecDev")
+        
+        # Create function for nlmb (which can only have one input, i.e. parameter list)
+        ObjFunc <- function(params) {
+          res=ObjectiveFunc_cpp(params, nYears, nLen_SimYrs, Len_SimYr, ObsLenCompVec1, ObsLenCompVec2, ObsLenCompVec3, 
+                                ObsAnnCatch, MaxAge, nLenCl, midpt, LTM_Fem, LTM_Mal, WtAtLen, FemMatAtLen, RecLenDist, Init_F, 
+                                PropFemAtBirth, SelAtLength, NatMort_mean, NatMort_sd, Steepness_mean, Steepness_sd,
+                                lnSigmaR)
+          return(res)
+        }
+        ObjFunc(params)
+        
+        
+        # Fit model (twice)
+        InitTime = Sys.time()
+        nlmb <- nlminb(params, ObjFunc, gradient = NULL, hessian = TRUE)
+        params = nlmb$par
+        nlmb <- nlminb(params, ObjFunc, gradient = NULL, hessian = TRUE)
+        Duration = Sys.time() - InitTime
+        cat("Duration: model fit",Duration,'\n')
+        #nlmb$objective
+        if(!nlmb$convergence==0)
+        {
+          print("Model did not converge")
+          break
+        }
+        
+        
+        # Calculation estimation uncertainty
+        hess.out = optimHess(params, ObjFunc)
+        vcov.Params = solve(hess.out)
+        ses = sqrt(diag(vcov.Params))
+        nsims=500
+        sims = data.frame(mvrnorm(n = nsims, params, vcov.Params))
+        names(sims) = names(params)
+        Estimates=data.frame(Parameter=names(sims),
+                             Lower.95=apply(sims[,1:4], MARGIN=2, function(x) quantile(x, 0.025,na.rm=T)),
+                             Median=apply(sims[,1:4], MARGIN=2, function(x) quantile(x, 0.5,na.rm=T)),
+                             Upper.95=apply(sims[,1:4], MARGIN=2, function(x) quantile(x, .975,na.rm=T)))
+        
+        # Fit diagnostics
+        Dyn.ktch.length.path=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                                   capitalize(Keep.species[l]),"/",AssessYr,'/Dyn.ktch.length',sep='')
+        if(!dir.exists(Dyn.ktch.length.path))dir.create(Dyn.ktch.length.path)
+        
         # 1. Observed vs Expected 
-      res=AssessmentModel_cpp(params, nYears, ObsAnnCatch, MaxAge, nLenCl, midpt, 
-                              LTM_Fem, LTM_Mal, WtAtLen, FemMatAtLen, RecLenDist, 
-                              Init_F, PropFemAtBirth, SelAtLength, lnSigmaR)
-      
-      pdf(paste(Dyn.ktch.length.path,"/Fit_diagnostics.pdf",sep='')) 
-        # catches
-      par(mfrow=c(1+nrow(ObsCatchFreqAtLen),1))
-      plot(1:nYears,ObsAnnCatch, "b")
-      lines(1:nYears,res$Catch_Biom, col=2)
-      legend('topleft',c('observed','expected'),bty='n',col=c(1,2),lty=1)
-      
-        # length composition
-      for (i in 1:length(Len_SimYr))
-      {
-        ExpCatch = res$CatchN[Len_SimYr[i],] / sum(res$CatchN[Len_SimYr[i],])
-        plot(midpt,ObsCatchFreqAtLen[i,]/sum(ObsCatchFreqAtLen[i,]), "b",
-             main=n.size.comp$year.f[i],ylab='Frequency',xlab='Size class (cm)')
-        lines(midpt,ExpCatch, col=2)
-      }
-      
-      # 2. Distribution for estimated parameter 
-      par(mfrow=c(2,2))
-      sims$R0 = exp(sims$ln_R0)
-      sims$M = exp(sims$ln_M)
-      sims$h = exp(sims$ln_h)
-      hist(sims$R0,main=paste("input R0=",round(InitRec,3)))
-      hist(sims$M,main=paste("input M=",round(NatMort,3)))
-      hist(sims$h,main=paste("input h=",round(Steepness,3)))
-      hist(sims$lnRecDev,main=paste("input lnRecDev=",lnRecDev))
-      dev.off()
-      
-      
-      # Calculate quantities of interest   #Move all this to #25 below
-      BiomEst = data.frame(matrix(nrow=nsims,ncol=nYears))  #female breeding biomass
-      colnames(BiomEst) = 1:nYears
-      FMortEst = BiomEst       #fishing mortality
-      RelBiomEst = BiomEst     #relative female breeding biomass
-      for (i in 1:nsims)
-      {
-        res=AssessmentModel_cpp(as.vector(unlist(sims[i,1:4])),
-                                nYears, ObsAnnCatch, MaxAge, nLenCl, midpt, 
+        res=AssessmentModel_cpp(params, nYears, ObsAnnCatch, MaxAge, nLenCl, midpt, 
                                 LTM_Fem, LTM_Mal, WtAtLen, FemMatAtLen, RecLenDist, 
                                 Init_F, PropFemAtBirth, SelAtLength, lnSigmaR)
         
-        BiomEst[i,] = res$FemSpBiom
-        FMortEst[i,] = res$Ann_FMort
-        RelBiomEst[i,] = res$FemSpBiom / (res$Unfish_FemSpBiomPerRec * exp(params[1]))
+        pdf(paste(Dyn.ktch.length.path,"/Fit_diagnostics.pdf",sep='')) 
+        # catches
+        par(mfrow=c(1+nrow(ObsCatchFreqAtLen),1))
+        plot(1:nYears,ObsAnnCatch, "b")
+        lines(1:nYears,res$Catch_Biom, col=2)
+        legend('topleft',c('observed','expected'),bty='n',col=c(1,2),lty=1)
+        
+        # length composition
+        for (i in 1:length(Len_SimYr))
+        {
+          ExpCatch = res$CatchN[Len_SimYr[i],] / sum(res$CatchN[Len_SimYr[i],])
+          plot(midpt,ObsCatchFreqAtLen[i,]/sum(ObsCatchFreqAtLen[i,]), "b",
+               main=n.size.comp$year.f[i],ylab='Frequency',xlab='Size class (cm)')
+          lines(midpt,ExpCatch, col=2)
+        }
+        
+        # 2. Distribution for estimated parameter 
+        par(mfrow=c(2,2))
+        sims$R0 = exp(sims$ln_R0)
+        sims$M = exp(sims$ln_M)
+        sims$h = exp(sims$ln_h)
+        hist(sims$R0,main=paste("input R0=",round(InitRec,3)))
+        hist(sims$M,main=paste("input M=",round(NatMort,3)))
+        hist(sims$h,main=paste("input h=",round(Steepness,3)))
+        hist(sims$lnRecDev,main=paste("input lnRecDev=",lnRecDev))
+        dev.off()
+        
+        
+        # Calculate quantities of interest   #Move all this to #25 below
+        BiomEst = data.frame(matrix(nrow=nsims,ncol=nYears))  #female breeding biomass
+        colnames(BiomEst) = 1:nYears
+        FMortEst = BiomEst       #fishing mortality
+        RelBiomEst = BiomEst     #relative female breeding biomass
+        for (i in 1:nsims)
+        {
+          res=AssessmentModel_cpp(as.vector(unlist(sims[i,1:4])),
+                                  nYears, ObsAnnCatch, MaxAge, nLenCl, midpt, 
+                                  LTM_Fem, LTM_Mal, WtAtLen, FemMatAtLen, RecLenDist, 
+                                  Init_F, PropFemAtBirth, SelAtLength, lnSigmaR)
+          
+          BiomEst[i,] = res$FemSpBiom
+          FMortEst[i,] = res$Ann_FMort
+          RelBiomEst[i,] = res$FemSpBiom / (res$Unfish_FemSpBiomPerRec * exp(params[1]))
+        }
+        
+        # relative female spawning biomass
+        relBiomEst.median = apply(RelBiomEst[,], MARGIN=2, function(x) quantile(x, 0.5,na.rm=T))
+        relBiomEst.lowCL = apply(RelBiomEst[,], MARGIN=2, function(x) quantile(x, 0.025,na.rm=T))
+        relBiomEst.uppCL = apply(RelBiomEst[,], MARGIN=2, function(x) quantile(x, 0.975,na.rm=T))
+        rel.biom=data.frame(year=Katch$finyear,
+                            median=relBiomEst.median,
+                            lower.95=relBiomEst.lowCL,
+                            upper.95=relBiomEst.uppCL,
+                            Catch=Katch$Tonnes)  
+        
+        # fishing mortality
+        FMortEst.median = apply(FMortEst[,], MARGIN=2, function(x) quantile(x, 0.5,na.rm=T))
+        FMortEst.lowCL = apply(FMortEst[,], MARGIN=2, function(x) quantile(x, 0.025,na.rm=T))
+        FMortEst.uppCL = apply(FMortEst[,], MARGIN=2, function(x) quantile(x, 0.975,na.rm=T))
+        FMort=data.frame(year=Katch$finyear,
+                         median=FMortEst.median,
+                         lower.95=FMortEst.lowCL,
+                         upper.95=FMortEst.uppCL,
+                         Catch=Katch$Tonnes) 
+        
+        
+        #Store quantities
+        Size.Catch.only_TDGDLF[[l]]=list(Estimates=Estimates,
+                                         rel.biom=rel.biom,
+                                         FMort=FMort)
+        
+        rm(dummy,RecLenDist,LTM_Fem,LTM_Mal,WtAtLen,FemMatAtLen,SelAtLength,
+           params,sims,nlmb,res,BiomEst,FMortEst,RelBiomEst,
+           NatMort,NatMort_sd,Steepness,Steepness_sd,lnRecDev,
+           Lo,Linf,vbK,CVLenAtAge,SDGrowthRec,MaxLen,LenInc,MaxAge,
+           MatL50,MatL95,PropFemAtBirth,wtlen_a,wtlen_b,
+           Len_SimYr,ObsLenCompVec1,
+           Katch,lnSigmaR,ObsAnnCatch,
+           Estimates,rel.biom,FMort)
       }
-      
-      # relative female spawning biomass
-      relBiomEst.median = apply(RelBiomEst[,], MARGIN=2, function(x) quantile(x, 0.5,na.rm=T))
-      relBiomEst.lowCL = apply(RelBiomEst[,], MARGIN=2, function(x) quantile(x, 0.025,na.rm=T))
-      relBiomEst.uppCL = apply(RelBiomEst[,], MARGIN=2, function(x) quantile(x, 0.975,na.rm=T))
-      rel.biom=data.frame(year=Katch$finyear,
-                          median=relBiomEst.median,
-                          lower.95=relBiomEst.lowCL,
-                          upper.95=relBiomEst.uppCL,
-                          Catch=Katch$Tonnes)  
-      
-      # fishing mortality
-      FMortEst.median = apply(FMortEst[,], MARGIN=2, function(x) quantile(x, 0.5,na.rm=T))
-      FMortEst.lowCL = apply(FMortEst[,], MARGIN=2, function(x) quantile(x, 0.025,na.rm=T))
-      FMortEst.uppCL = apply(FMortEst[,], MARGIN=2, function(x) quantile(x, 0.975,na.rm=T))
-      FMort=data.frame(year=Katch$finyear,
-                          median=FMortEst.median,
-                          lower.95=FMortEst.lowCL,
-                          upper.95=FMortEst.uppCL,
-                          Catch=Katch$Tonnes) 
-      
-      
-      #Store quantities
-      Size.Catch.only_TDGDLF[[l]]=list(Estimates=Estimates,
-                                       rel.biom=rel.biom,
-                                       FMort=FMort)
-  
-      rm(dummy,RecLenDist,LTM_Fem,LTM_Mal,WtAtLen,FemMatAtLen,SelAtLength,
-         params,sims,nlmb,res,BiomEst,FMortEst,RelBiomEst,
-         NatMort,NatMort_sd,Steepness,Steepness_sd,lnRecDev,
-         Lo,Linf,vbK,CVLenAtAge,SDGrowthRec,MaxLen,LenInc,MaxAge,
-         MatL50,MatL95,PropFemAtBirth,wtlen_a,wtlen_b,
-         Len_SimYr,ObsLenCompVec1,
-         Katch,lnSigmaR,ObsAnnCatch,
-         Estimates,rel.biom,FMort)
     }
   }
+  })
 }
-})
-
 
 
 #---26. Dynamic catch and size composition with dome-shaped selectivity. Generate outputs --------------------------------------
-# ACA. If #---25. works, then output parameter estimates and relative biomass trajectories.
-#       Then if Alex calculates MSY, do Kobe plot
-
 #---27. Catch curve with dome-shaped selectivity --------------------------------------
 #note: superseded by Dynamic catch and size composition with dome-shaped selectivity
 if(do.Size.based.Catch.curve)
@@ -6874,7 +7389,7 @@ if(do.Size.based.Catch.curve)
 }
 
 #---28. JABBA Surplus production model. Run model -------------------------------------------------
-#note: Only fitting species with species-specific abundance time series 
+#note: Only fitting to 'other species' with species-specific representative abundance time series 
 #Assumptions: negligible exploitation at start of time series
 
   #28.1 Output total catch and abundance indices to see contrast
@@ -6929,6 +7444,37 @@ if(Do.StateSpaceSPM)
   State.Space.SPM=vector('list',n.State.Space.SPM)
   names(State.Space.SPM)=state.space.SPM
   
+  
+  #Auxiliary data - effort trends
+  #note: allocated fishery effort according to species distribution
+  Fish.power=data.frame(FINYEAR=Effort.monthly$FINYEAR)%>%
+        arrange(FINYEAR)%>%
+        mutate(Fish.pow.inc=as.numeric(substr(FINYEAR,1,4)),
+               Fish.pow.inc=1+c(seq(0,0.4,by=.02),rep(0.4,length(1996:Fish.pow.inc[length(Fish.pow.inc)]))))
+  auxiliary.effort.tdgdlf=Effort.monthly%>%
+            left_join(Fish.power,by='FINYEAR')%>% #add the effort creep assumed for cpue standardisation
+            mutate(Total=Total*Fish.pow.inc,
+                   Rel.effort=Total/max(Total),
+                   Year=as.numeric(substr(FINYEAR,1,4)))%>%
+            filter(Year%in%ktch$Year)%>%
+            dplyr::select(Year,Rel.effort)
+  auxiliary.effort.nsf=Effort.monthly.north%>%
+            rename(Total='Hook days')%>%
+            mutate(Rel.effort=Total/max(Total),
+                   Year=as.numeric(substr(FINYEAR,1,4)))%>%
+            filter(Year%in%ktch$Year)%>%
+            dplyr::select(Year,Rel.effort)
+  auxiliary.effort.nsf.0=auxiliary.effort.nsf[1:length(2009:Last.yr.ktch.numeric),]%>%    #add 0 effort post 2008-09
+                  mutate(Year=2009:Last.yr.ktch.numeric,
+                         Rel.effort=0)
+  auxiliary.effort.nsf=rbind(auxiliary.effort.nsf,auxiliary.effort.nsf.0)
+    
+  Auxiliary.eff.dist=data.frame(
+            Species=c("copper shark","gummy shark","whiskery shark","smooth hammerhead",
+                      "dusky shark","sandbar shark","tiger shark","spinner shark",
+                      "milk shark"),
+            Fishery=c(rep('TDGDLF',4),rep('TDGDLF & NSF',4),rep('NSF',1)))
+  
   for(w in 1:length(State.Space.SPM))
   {
     # JABBA (Winker et al 2018)   
@@ -6944,7 +7490,7 @@ if(Do.StateSpaceSPM)
       {
         Neim=names(dummy.store)[i]
         
-        if(!is.null(Catch.rate.series[[i]]))
+        if(!is.null(Catch.rate.series[[i]]) & Neim%in%Lista.sp.outputs$Other.sp)
         {
           this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
                         capitalize(List.sp[[i]]$Name),"/",AssessYr,"/JABBA CPUE",sep='')
@@ -6963,15 +7509,19 @@ if(Do.StateSpaceSPM)
           
           #CPUE series
           CPUE=compact(Catch.rate.series[[i]])
-          DROP=grep(paste(c('NSF','observer','West','Zone'),collapse="|"),names(CPUE))   
+          DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
           if(length(DROP)>0)CPUE=CPUE[-DROP]
+          if(Neim%in%survey_not.representative) CPUE=CPUE[-grep("Survey",names(CPUE))]
+          if(Neim%in%NSF_not.representative) CPUE=CPUE[-grep("NSF",names(CPUE))]
+          if(Neim%in%tdgdlf_not.representative) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
+          
           len.cpue=length(CPUE)
           MAX.CV=List.sp[[i]]$MAX.CV
           if(len.cpue>0)
           {
             Cpues=data.frame(Year=ktch$Year)
             Cpues.SE=Cpues
-            for(x in 1:length(CPUE))
+            for(x in 1:length(CPUE))    
             {
               dd=CPUE[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE[[x]]))]%>%
                 relocate(yr.f)
@@ -6981,62 +7531,57 @@ if(Do.StateSpaceSPM)
                 dd$Mean[iid]=NA
                 dd$CV[iid]=NA 
               }
-              if(names(CPUE)[x]=="TDGDLF.monthly" & names(List.sp)[i]=="whiskery shark")  #2 catchability periods. Disregard 80-83 as transitional years (Braccini et al 2021)
-              {
-                iix=match(List.sp[[i]]$Yr_q_change,dd$yr.f)
-                
-                #q1
-                add.yrs=sort(unique(ktch$Year))
-                dd.q1=dd[1:iix,]%>%
-                  mutate(Mean=ifelse(yr.f%in%1980:1983,NA,Mean),
-                         CV=ifelse(yr.f%in%1980:1983,NA,CV))
-                AdD=data.frame(x=add.yrs[which(!add.yrs%in%dd.q1$yr.f)],y=NA,z=NA)
-                colnames(AdD)=colnames(dd.q1)
-                dd.q1=rbind(dd.q1,AdD)%>%
-                  arrange(yr.f)%>%
-                  rename(Year=yr.f)
-                colnames(dd.q1)[2:3]=c(names(CPUE)[x],paste(names(CPUE)[x],'CV',sep='.'))
-                Cpues=left_join(Cpues,dd.q1%>%dplyr::select(Year,names(CPUE)[x]),by='Year')
-                Cpues.SE=left_join(Cpues.SE,dd.q1%>%dplyr::select(Year,paste(names(CPUE)[x],'CV',sep='.')),by='Year')
-                
-                #q2
-                dd.q2=dd[-c(1:iix),]%>%
-                  mutate(Mean=ifelse(yr.f%in%1980:1983,NA,Mean),
-                         CV=ifelse(yr.f%in%1980:1983,NA,CV))
-                
-                AdD=data.frame(x=add.yrs[which(!add.yrs%in%dd.q2$yr.f)],y=NA,z=NA)
-                colnames(AdD)=colnames(dd.q2)
-                dd.q2=rbind(dd.q2,AdD)%>%
-                  arrange(yr.f)%>%
-                  rename(Year=yr.f)
-                colnames(dd.q2)[2:3]=c(paste(names(CPUE)[x],'2',sep='.'),paste(names(CPUE)[x],'2.CV',sep='.'))
-                Cpues=left_join(Cpues,dd.q2%>%dplyr::select(Year,paste(names(CPUE)[x],'2',sep='.')),by='Year')
-                Cpues.SE=left_join(Cpues.SE,dd.q2%>%dplyr::select(Year,paste(names(CPUE)[x],'2.CV',sep='.')),by='Year')
-              }else
-              {
-                add.yrs=sort(unique(ktch$Year))
-                AdD=data.frame(x=add.yrs[which(!add.yrs%in%dd$yr.f)],y=NA,z=NA)
-                colnames(AdD)=colnames(dd)
-                dd=rbind(dd,AdD)%>%
-                  arrange(yr.f)%>%
-                  rename(Year=yr.f)
-                colnames(dd)[2:3]=c(names(CPUE)[x],paste(names(CPUE)[x],'CV',sep='.'))
-                Cpues=left_join(Cpues,dd%>%dplyr::select(Year,names(CPUE)[x]),by='Year')
-                Cpues.SE=left_join(Cpues.SE,dd%>%dplyr::select(Year,paste(names(CPUE)[x],'CV',sep='.')),by='Year')
-                
-              }
+              add.yrs=sort(unique(ktch$Year))
+              AdD=data.frame(x=add.yrs[which(!add.yrs%in%dd$yr.f)],y=NA,z=NA)
+              colnames(AdD)=colnames(dd)
+              dd=rbind(dd,AdD)%>%
+                arrange(yr.f)%>%
+                rename(Year=yr.f)
+              colnames(dd)[2:3]=c(names(CPUE)[x],paste(names(CPUE)[x],'CV',sep='.'))
+              Cpues=left_join(Cpues,dd%>%dplyr::select(Year,names(CPUE)[x]),by='Year')
+              Cpues.SE=left_join(Cpues.SE,dd%>%dplyr::select(Year,paste(names(CPUE)[x],'CV',sep='.')),by='Year')
             }
-            
+              #remove daily 2007  
+            if(drop2007.daily & 'TDGDLF.daily'%in%names(Cpues))
+            {
+              Cpues=Cpues%>%
+                mutate(TDGDLF.daily=ifelse(Year%in%2007,NA,TDGDLF.daily))
+              Cpues.SE=Cpues.SE%>%
+                mutate(TDGDLF.daily.CV=ifelse(Year%in%2007,NA,TDGDLF.daily.CV))
+            }
+              #block qs
+            if(Neim=="whiskery shark")  
+            {
+              Cpues=Cpues%>%
+                mutate(TDGDLF.monthly=ifelse(Year%in%List.sp[[i]]$Yr_q_change_transition,NA,TDGDLF.monthly),   #2 catchability periods
+                       TDGDLF.monthly2=ifelse(Year>List.sp[[i]]$Yr_q_change,TDGDLF.monthly,NA),   
+                       TDGDLF.monthly=ifelse(Year<=List.sp[[i]]$Yr_q_change,TDGDLF.monthly,NA))
+              
+              Cpues.SE=Cpues.SE%>%
+                mutate(TDGDLF.monthly.CV=ifelse(Year%in%List.sp[[i]]$Yr_q_change_transition,NA,TDGDLF.monthly.CV),
+                       TDGDLF.monthly2.CV=ifelse(Year>List.sp[[i]]$Yr_q_change,TDGDLF.monthly.CV,NA),
+                       TDGDLF.monthly.CV=ifelse(Year<=List.sp[[i]]$Yr_q_change,TDGDLF.monthly.CV,NA))
+              
+            }
+            if(Neim=='gummy shark')     
+            {
+              Cpues=Cpues%>%
+                mutate(TDGDLF.monthly2=ifelse(Year%in%2001:2006,TDGDLF.monthly,NA),   #second monthly q due to increase in cpue and catch unaccounted by cpue stand.
+                       TDGDLF.monthly=ifelse(Year%in%2001:2006,NA,TDGDLF.monthly))
+              Cpues.SE=Cpues.SE%>%
+                mutate(TDGDLF.monthly2.CV=ifelse(Year%in%2001:2006,TDGDLF.monthly.CV,NA),
+                       TDGDLF.monthly.CV=ifelse(Year%in%2001:2006,NA,TDGDLF.monthly.CV))
+            }
+
             #Scenarios
             Scens=List.sp[[i]]$Sens.test$JABBA%>%
-              mutate(Species=capitalize(Neim))
+                          mutate(Species=capitalize(Neim))
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             this.wd1=this.wd
-            
             Out.Scens=Scens
             Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=
-              Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
+            Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
             
             for(s in 1:length(Store.sens))
             {
@@ -7047,6 +7592,7 @@ if(Do.StateSpaceSPM)
               #Priors 
               bmsyk.mean=Scens$bmsyk[s]
               Proc.error=Scens$Proc.error[s]
+              Obs.Err=0.1     #very low CVs in stand cpues, hence increase obs error a bit (Winkner et al 2018)
               r.CV.multi=Scens$r.CV.multiplier[s]
               K.prior=c(Scens$K.mean[s],Scens$K.CV[s])
               
@@ -7057,18 +7603,50 @@ if(Do.StateSpaceSPM)
               Bint.mean=mean(Bint)
               Bint.CV=sd(Bint)/Bint.mean
               psi.prior=c(Bint.mean,Bint.CV)
-              #psi.prior=c(1,0.1) #Winker et al 2018 School shark
-              
-              Bfin=runif(1000,List.sp[[i]]$FINALBIO[1],List.sp[[i]]$FINALBIO[2])
-              Bfin.mean=mean(Bfin)          
-              Bfin.CV=sd(Bfin)/Bfin.mean
-              b.prior=c(Bfin.mean,Bfin.CV,max(ktch$Year),"bk")
+              b.prior=c(FALSE, 0.3, NA, "bk")  #only use b.prior for catch-only approach
               
               Rdist = "lnorm"
               Kdist="lnorm"  
-              PsiDist='lnorm'
+              PsiDist='beta'
               
-              #Put inputs together
+              #allocate relevant fishing effort 
+              if(use.auxiliary.effort)
+              {
+                applicable.fishery=Auxiliary.eff.dist%>%filter(Species==Neim)%>%pull(Fishery)
+                if(applicable.fishery=='TDGDLF')
+                {
+                  auxiliary.effort=auxiliary.effort.tdgdlf
+                }
+                if(applicable.fishery=='NSF')
+                {
+                  auxiliary.effort=auxiliary.effort.nsf
+                }
+                if(applicable.fishery=="TDGDLF & NSF")
+                {
+                  auxiliary.effort=full_join(auxiliary.effort.tdgdlf,auxiliary.effort.nsf,by='Year')%>%
+                    rowwise()%>% 
+                    mutate(Rel.effort = sum(c_across(Rel.effort.x:Rel.effort.y), na.rm = T))%>%
+                    ungroup()%>%
+                    data.frame%>%
+                    mutate(Rel.effort=Rel.effort/max(Rel.effort))%>%
+                    dplyr::select(Year,Rel.effort)
+                }
+                add.yrs=sort(unique(ktch$Year))
+                AdD=data.frame(x=add.yrs[which(!add.yrs%in%auxiliary.effort$Year)],Rel.effort=NA)
+                colnames(AdD)=colnames(auxiliary.effort)
+                auxiliary.effort=rbind(auxiliary.effort,AdD)%>%
+                  arrange(Year)
+                auxiliary.effort.se=auxiliary.effort%>% 
+                  mutate(Rel.effort=ifelse(Rel.effort==0,NA,Rel.effort))%>%
+                  rename(se=Rel.effort)%>%
+                  mutate(se=ifelse(!is.na(se),Ktch.CV,se))   #assume same effort error as for catch error
+                auxiliary.type="effort"
+              }else
+              {
+                auxiliary.effort=auxiliary.effort.se=auxiliary.type=NULL
+              }
+                
+              #Put inputs together 
               input=list(Ktch=ktch,
                          MDL="Schaefer",
                          Ktch.CV=Ktch.CV,
@@ -7083,13 +7661,16 @@ if(Do.StateSpaceSPM)
                          Bprior=b.prior,    
                          BMSYK=bmsyk.mean)  
               
-              #run model    
+              #Run model    
               THIN=5
               CHAINS=2
               BURNIN=min(0.15*Scens$Sims[s],5000)
               output=apply.JABBA(Ktch=input$Ktch,
                                  CPUE=Cpues,
                                  CPUE.SE=Cpues.SE,
+                                 auxil=auxiliary.effort,
+                                 auxil.se=auxiliary.effort.se,
+                                 auxil.type=auxiliary.type,
                                  MDL=input$MDL,
                                  Ktch.CV=input$Ktch.CV,
                                  ASS=input$ASS,
@@ -7105,6 +7686,7 @@ if(Do.StateSpaceSPM)
                                  outfile="Appendix_fit",
                                  Sims=Scens$Sims[s],
                                  Proc.error.JABBA=Proc.error,
+                                 Obs.Error=Obs.Err,
                                  thinning = THIN,
                                  nchains = CHAINS,
                                  burn.in= BURNIN)
@@ -7112,6 +7694,9 @@ if(Do.StateSpaceSPM)
               #Display model fits
               fn.fig(paste(this.wd,"Fit_stdresiduals",sep='/'), 2400, 2400)
               jbplot_stdresiduals(output)
+              dev.off()
+              fn.fig(paste(this.wd,"Fit_dresiduals",sep='/'), 2400, 2400)
+              jbplot_residuals(output)
               dev.off()
               fn.fig(paste(this.wd,"Fit_cpues",sep='/'), 2400, 2400)
               jbplot_cpuefits(output)
@@ -7122,6 +7707,9 @@ if(Do.StateSpaceSPM)
               fn.fig(paste(this.wd,"Fit_catcherror",sep='/'), 2400, 2400)
               jbplot_catcherror(output)
               dev.off()
+              fn.fig(paste(this.wd,"Summary",sep='/'), 2400, 2400)
+              jbplot_summary(output)
+              dev.off()
               
               #Get posteriors
               output$posteriors$P=output$posteriors$P[,1:nrow(ktch)]
@@ -7129,11 +7717,19 @@ if(Do.StateSpaceSPM)
               output$posteriors$SB=output$posteriors$SB[,1:nrow(ktch)]
               Store.sens[[s]]=list(input=input,output=output)
               
+              #find pattern in residuals
+              RES=as.data.frame(t(output$residuals))%>%
+                mutate(across(everything(),~ifelse(.x<0,-1,1)),
+                       across(everything(),~as.factor(.x)))
+              store.runs.test=vector('list',ncol(RES))
+              names(store.runs.test)=names(RES)
+              for(x in 1:ncol(RES)) store.runs.test[[x]]=runs.test(RES[!is.na(RES[,x]),x])
+              
+      
+              
               #Store Scenarios
               Out.Scens$Bo.mean=Bint.mean
               Out.Scens$Bo.CV=Bint.CV
-              Out.Scens$Bf.mean=Bfin.mean
-              Out.Scens$Bf.CV=Bfin.CV
               Out.Scens$r.mean=store.species.r[[i]]$mean
               Out.Scens$r.cv=store.species.r[[i]]$sd/store.species.r[[i]]$mean
               Out.Scens$Rdist=Rdist
@@ -7278,24 +7874,45 @@ if(Do.StateSpaceSPM)
               
             }
             
-            Out.Scens=Out.Scens%>%
-              dplyr::select(Species,Scenario,
-                            Rdist,r.mean,r.cv,
-                            Kdist,K.mean,K.CV,
-                            PsiDist,Bo.mean,Bo.CV,
-                            Bf.mean,Bf.CV,
-                            bmsyk.mean,Proc.error,Ktch.CV)%>%
-              mutate(K.mean=round(K.mean),
-                     r.mean=round(r.mean,3),
-                     bmsyk.mean=round(bmsyk.mean,3),
-                     r.cv=round(r.cv,3),
-                     Bo.mean=round(Bo.mean,3),
-                     Bo.CV=round(Bo.CV,3),
-                     Bf.mean=round(Bf.mean,3),
-                     Bf.CV=round(Bf.CV,3),
-                     Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
-                     Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
-                     PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
+            if(!b.prior[1]=='FALSE')
+            {
+              Out.Scens=Out.Scens%>%
+                dplyr::select(Species,Scenario,
+                              Rdist,r.mean,r.cv,
+                              Kdist,K.mean,K.CV,
+                              PsiDist,Bo.mean,Bo.CV,
+                              Bf.mean,Bf.CV,
+                              bmsyk.mean,Proc.error,Ktch.CV)%>%
+                mutate(K.mean=round(K.mean),
+                       r.mean=round(r.mean,3),
+                       bmsyk.mean=round(bmsyk.mean,3),
+                       r.cv=round(r.cv,3),
+                       Bo.mean=round(Bo.mean,3),
+                       Bo.CV=round(Bo.CV,3),
+                       Bf.mean=round(Bf.mean,3),
+                       Bf.CV=round(Bf.CV,3),
+                       Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
+                       Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
+                       PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
+            }
+            if(b.prior[1]=='FALSE')
+            {
+              Out.Scens=Out.Scens%>%
+                dplyr::select(Species,Scenario,
+                              Rdist,r.mean,r.cv,
+                              Kdist,K.mean,K.CV,
+                              PsiDist,Bo.mean,Bo.CV,
+                              bmsyk.mean,Proc.error,Ktch.CV)%>%
+                mutate(K.mean=round(K.mean),
+                       r.mean=round(r.mean,3),
+                       bmsyk.mean=round(bmsyk.mean,3),
+                       r.cv=round(r.cv,3),
+                       Bo.mean=round(Bo.mean,3),
+                       Bo.CV=round(Bo.CV,3),
+                       Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
+                       Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
+                       PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
+            }
             
             dummy.store.sens.table[[i]]=Out.Scens
             dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
@@ -7356,8 +7973,8 @@ if(Do.StateSpaceSPM)
   }
   
   
-  #29.2. Time series 
-  YLAB=''
+  #29.2. Time series  
+  YLAB=XLAB=''
   #29.2.1 Display all scenarios for each species
   
   #29.2.1.1 Relative biomass (i.e. Depletion)
@@ -7453,7 +8070,7 @@ if(Do.StateSpaceSPM)
   #29.2.3 Display Scenario 1 for combined species
   
   #Relative biomass (i.e. Depletion) 
-  #figure
+    #figure
   for(l in 1:length(Lista.sp.outputs))
   {
     if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
@@ -7464,11 +8081,13 @@ if(Do.StateSpaceSPM)
                                             InnerMargin=InMar,
                                             RefPoint=Ref.points,
                                             Kach=State.Space.SPM$JABBA$rel.biom)
+    WIDt=10
+    if(length(compact(State.Space.SPM$JABBA$sens.table))<=3) WIDt=7
     if(!is.null(a))ggsave(paste(Rar.path,'/Relative.biomass_JABBA CPUE_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
-                          width = 11,height = 11,compression = "lzw")
+                          width = WIDt,height = 10,compression = "lzw")
   }
   
-  #table
+    #table 
   for(l in 1:length(Lista.sp.outputs))
   {
     dummy.mod=vector('list',length(State.Space.SPM))
@@ -7506,7 +8125,7 @@ if(Do.StateSpaceSPM)
   
   #29.3. Kobe plots (Scenario 1)  
   
-  #29.3.1 by species
+  #29.3.1 by species 
   store.kobes=vector('list',N.sp)
   names(store.kobes)=Keep.species
   for(i in 1:N.sp)
@@ -7515,7 +8134,8 @@ if(Do.StateSpaceSPM)
     {
       print(paste("Kobe plot -----",Keep.species[i]))
       store.kobes[[i]]=fn.get.Kobe.plot_appendix(d=State.Space.SPM,
-                                                 sp=Keep.species[i])
+                                                 sp=Keep.species[i],
+                                                 do.probs=TRUE)
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                    capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE_Kobe_plot.tiff",sep=''),
              width = 9,height = 14, dpi = 300,compression = "lzw")
@@ -7525,7 +8145,7 @@ if(Do.StateSpaceSPM)
   store.kobes=compact(store.kobes)
   
   
-  #29.3.2 Display combined species
+  #29.3.2 Display combined species  #ACA
   for(l in 1:length(Lista.sp.outputs))
   {
     Nms=names(compact(State.Space.SPM$JABBA$estimates))
@@ -7542,7 +8162,8 @@ if(Do.StateSpaceSPM)
       fn.get.Kobe.plot(this.sp,
                        d=State.Space.SPM$JABBA,
                        NKOL,
-                       NRW)
+                       NRW,
+                       do.probs=TRUE)
       ggsave(paste(Rar.path,'/Kobe_plot_JABBA CPUE_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
              width = WIZ,height = 12,compression = "lzw")
       
@@ -7551,371 +8172,37 @@ if(Do.StateSpaceSPM)
   
 }
 
-#---30. Age structured Surplus production model. Run model  -------------------------------------------------
-#Haddon datalowSA package (https://rdrr.io/github/haddonm/datalowSA/f/vignettes/aspm.md)
-#Tweaked functions to allow multiple CPUEs and Qs and calculation of total biomass and Hessian for uncertainty
-#       Only applicable to non-indicator species with representative catch rates.
-#       For indicator species, use integrated model.
-if(do.Haddon.aSPM)
+#---30. Integrated Model. Run model-------------------------------------------------
+if(Do.integrated)
 {
-  TotB=function(invect, WeightA) 
+  #code from Assessment.R code
+  #note: 'Run.models.R' outputs data and parameter inputs for models,
+  #                     runs assessment models
+  #                     and displays outputs
+  #reset dummies
+  Spec=1
+  Pin.pars=1  #dummy to clear log
+  Par.phases=1
+  all.objects=objects()
+  List.objs=unique(unlist(lapply(List.sp,names)))
+  suppressWarnings(rm(list=all.objects[which(all.objects%in%List.objs)]))
+  for(l in 1:length(List.sp))
   {
-    ans <- sum(WeightA * invect)/1000
-    return(ans)
+    attach(List.sp[[l]])
+    source(handl_OneDrive("Analyses/Population dynamics/Git_Stock.assessments/Run.models.R"))
+    detach(List.sp[[l]])
   }
-  dynamics=function(pars, infish, inglb, inprops) 
-  {
-    waa <- inprops$waa
-    maa <- inprops$maa
-    sela <- inprops$sela
-    R0 <- exp(pars[1])
-    B0 <- getB0(R0, inglb, inprops)
-    if (length(pars) == 3)
-    {
-      dep <- doDepletion(pars[1], indepl = pars[3], inprops, 
-                         inglb, inc = 0.02)
-      spb <- SpB(dep$Ndepl, maa, waa)
-      Rinit <- bh(spb, inglb$steep, R0, B0)
-    }else
-    {
-      Rinit <- R0
-    }
-    nyrs <- length(infish[, "year"])
-    nages <- inglb$nages
-    maxage <- inglb$maxage
-    Nt <- matrix(0, nrow = nages, ncol = (nyrs + 1), dimnames = list(0:(nages - 
-                                                                          1), 0:nyrs))
-    columns <- c("Year", "Catch", "PredC","SpawnB",
-                 "ExploitB", "FullH","CPUE","CPUE2", 
-                 "PredCE","PredCE2", "Deplete","TotalB")
-    fishery <- matrix(NA, nrow = (nyrs + 1), ncol = length(columns), 
-                      dimnames = list(0:nyrs, columns))
-    fishery[, "Year"] <- c((infish$year[1] - 1), infish$year)
-    fishery[, "Catch"] <- c(NA, infish$catch)
-    fishery[, "CPUE"] <- c(NA, infish$cpue)
-    fishery[, "CPUE2"] <- c(NA, infish$cpue2)
-    hS <- exp(-inglb$M/2)
-    surv <- exp(-inglb$M)
-    if (length(pars) == 3)
-    {
-      Nt[, 1] <- dep$Ndepl
-    }else
-    {
-      Nt[, 1] <- Rinit
-      for (age in 1:(maxage - 1)) Nt[age + 1, 1] <- Nt[age, 
-                                                       1] * surv
-      Nt[maxage + 1, 1] <- (Nt[maxage, 1] * surv)/(1 - surv)
-    }
-    for (yr in 2:(nyrs + 1)) {
-      totb <- TotB(Nt[, (yr - 1)], waa)
-      spb <- SpB(Nt[, (yr - 1)], maa, waa)
-      exb <- ExB(Nt[, (yr - 1)] * hS, sela, waa)
-      Nt[1, yr] <- bh(spb, inglb$steep, R0, B0)
-      harvest <- min((fishery[yr, "Catch"]/exb), 0.85)
-      hrate <- sela * harvest
-      Ct <- (Nt[, (yr - 1)] * hS) * hrate
-      Nt[2:nages, yr] <- ((Nt[1:(nages - 1), (yr - 1)] * hS) - 
-                            Ct[1:(nages - 1)]) * hS
-      Nt[nages, yr] <- Nt[nages, yr] + ((Nt[nages, yr - 1] * 
-                                           hS) - Ct[nages]) * hS
-      fishery[(yr - 1), 4:5] <- c(spb, exb)
-      fishery[yr, c(3, 6)] <- c(sum(Ct * waa)/1000, hrate[nages])
-      fishery[(yr - 1), 12] <- totb
-    }
-    totb <- TotB(Nt[, yr], waa)
-    spb <- SpB(Nt[, yr], maa, waa)
-    exb <- ExB(Nt[, yr] * hS, sela, waa)
-    fishery[yr, 4:5] <- c(spb, exb)
-    fishery[yr, 12] <- totb
-    fishery[, "Deplete"] <- fishery[, "SpawnB"]/B0
-    ExpB <- fishery[1:nyrs, "ExploitB"]
-    
-    #catchability
-    #fleet 1
-    if(!exists(c('q1.yrs','q2.yrs')))
-    {
-      avq <- exp(mean(log(infish$cpue/fishery[1:nyrs, "ExploitB"]), 
-                      na.rm = TRUE))
-      fishery[2:(nyrs + 1), "PredCE"] <- ExpB * avq
-    }
-    if(exists(c('q1.yrs','q2.yrs')))
-    {
-      #id=match(q1.yrs,infish$year)
-      id=match(infish$year[1]:2005,infish$year)
-      avq1 <- exp(mean(log(infish$cpue[id]/fishery[id+1, "ExploitB"]),na.rm = TRUE))
-      fishery[id+1, "PredCE"] <- ExpB[id] * avq1
-      
-      #id=match(q2.yrs,infish$year)
-      id=match(2006:infish$year[length(infish$year)],infish$year)
-      avq2 <- exp(mean(log(infish$cpue[id]/fishery[id+1, "ExploitB"]),na.rm = TRUE))
-      fishery[id+1, "PredCE"] <- ExpB[id] * avq2
-    }
-    
-    #fleet 2
-    avq.fleet2 <- exp(mean(log(infish$cpue2/fishery[1:nyrs, "ExploitB"]), 
-                           na.rm = TRUE))
-    fishery[2:(nyrs + 1), "PredCE2"] <- ExpB * avq.fleet2
-    
-    #Add CVs for fit display
-    fishery=cbind(fishery,rbind(c(NA,NA),infish[,c('se','se2')]))
-    
-    return(as.data.frame(fishery))
-  }
-  aspmLL=function(par, infish, inglb, inprops) 
-  {
-    fishery <- dynamics(par, infish, inglb, inprops)
-    
-    #catch
-    penalty <- sum((fishery[, "Catch"] - fishery[, "PredC"])^2, 
-                   na.rm = TRUE)/1000
-    #cpue fleet 1
-    pick <- which(fishery$CPUE > 0)
-    LL <- -sum(dnorm(log(fishery[pick, "CPUE"]), 
-                     log(fishery[pick,"PredCE"]), par[2], log = TRUE))
-    #cpue fleet 2
-    LL2=0
-    pick <- which(fishery$CPUE2 > 0)
-    if(length(pick)>0) LL2 <- -sum(dnorm(log(fishery[pick, "CPUE2"]), 
-                                         log(fishery[pick,"PredCE2"]), par[2], log = TRUE))
-    
-    return((LL+LL2+penalty))
-  }
-  ObjFunc <- function(par) {
-    res=aspmLL(par,infish = infish, inglb = inglb, inprops = inprops)
-    return(res)
-  }
-  fitASPM=function(initpar, infish, inglb, inprops, callfun = aspmLL) 
-  {
-    paramscale = magnitude(initpar) 
-    bestL <- nlminb(initpar, ObjFunc, gradient = NULL,hessian = TRUE)
-    # bestL <- optim(initpar, callfun, method = "Nelder-Mead", 
-    #                infish = infish, inglb = inglb, inprops = inprops, 
-    #                control = list(maxit = 1000, parscale = paramscale))
-    paramscale = magnitude(bestL$par)
-    bestL <- optim(bestL$par, callfun, method="L-BFGS-B", 
-                   infish = infish, inglb = inglb, inprops = inprops,hessian=T, 
-                   control = list(maxit = 1000, parscale = paramscale))
-    return(bestL)
-  }
-  fn.un=function(fit,n)
-  {
-    SIGMA=solve(fit$hessian)	#getting the variance covariance matrix
-    # std=sqrt(diag(SIGMA))		#Standard deviation of parameters
-    #  R=SIGMA/(std%o%std)			#Parameter correlation, the V divided by the outer product of std
-    return(rmvnorm(n,mean=fit$par,sigma=SIGMA))
-  }
-  No.signal.cpue=c("spinner shark","tiger shark")  #no signal in cpue
-  
-  aSPM=vector('list',N.sp)
-  names(aSPM)=Keep.species
-  
-  for(l in 1:N.sp)
-  {
-    print(paste("aSPM--------- l=",l,names(aSPM)[l]))
-    if(!is.null(Catch.rate.series[[l]]) & names(Species.data)[l]%in%Lista.sp.outputs$Other.sp)
-    {
-      #1. fill in object required for aSPM
-      Store.age.comp=list()
-      AMAX=List.sp[[l]]$Max.age.F[1]
-      Lo=List.sp[[l]]$Lzero
-      Linf=List.sp[[l]]$Growth.F$FL_inf
-      k=List.sp[[l]]$Growth.F$k
-      age=0:AMAX
-      Store.age.comp$glb=list(
-        maxage=AMAX,
-        M=mean(apply(store.species.M[[l]],2,mean,na.rm=T)),  
-        Linf=Linf,
-        K=k,
-        t0=NA,                         
-        Waa=NA,
-        Wab=NA,
-        M50a=List.sp[[l]]$Age.50.mat[1],
-        deltaM=NA,
-        steep=store.species.steepness.S2[[l]],
-        R0=NA,
-        sela50=NA,
-        deltaS=NA,
-        resilience=RESILIENCE[[l]],
-        nages=length(floor(age)),
-        ages=floor(age),
-        nyrs=NA,
-        spsname=names(RESILIENCE)[l])
-      mn.len=Lo+(Linf-Lo)*(1-exp(-k*(age)))
-      Store.age.comp$props=data.frame(
-        age=floor(age),
-        laa=mn.len,
-        waa= List.sp[[l]]$AwT*mn.len^List.sp[[l]]$BwT,  #catch in tonnes; waa in kgs 
-        maa=plogis(floor(age),List.sp[[l]]$Age.50.mat[1],1),
-        sela=Selectivity.at.age[[l]]$Sel.combined[1:length(age)],
-        feca=NA) 
-      rm(AMAX,Lo,Linf,age,mn.len)
-      
-      #2. Init par values
-      logR0=jitter(12,factor=5)
-      sigCE=jitter(0.3,factor=5)
-      aSPM.init=c(logR0=logR0,sigCE=sigCE)
-      
-      
-      #3. Run aSPM    
-      if(!names(aSPM)[l]%in%No.signal.cpue)
-      {
-        #catch
-        fish=ktch.combined%>%
-          filter(Name==names(Catch.rate.series)[l])%>%
-          data.frame%>%
-          rename(year=finyear,
-                 catch=Tonnes)
-        
-        #cpue
-        CPUE=compact(Catch.rate.series[[l]])
-        DROP=grep(paste(c('NSF','observer','West','Zone'),
-                        collapse="|"),names(CPUE))   #removing Survey and NSF as method can only allow one selectivity schedule
-        if(length(DROP)>0)CPUE=CPUE[-DROP]
-        len.cpue=length(CPUE)
-        MAX.CV=List.sp[[l]]$MAX.CV
-        if(len.cpue>0)
-        {
-          if(len.cpue>1)
-          {
-            if("Survey"%in%names(CPUE))
-            {
-              a=CPUE[-match("Survey",names(CPUE))]
-              
-              CPUE2=CPUE[[match("Survey",names(CPUE))]]%>%    
-                dplyr::select(yr.f,Mean,CV)%>%
-                rename(year=yr.f,cpue2=Mean,se2=CV)
-              
-              if(drop.large.CVs)
-              {
-                iid=which(CPUE2$se2>MAX.CV)
-                CPUE2$cpue2[iid]=NA
-                CPUE2$se2[iid]=NA
-              }
-              q1.yrs=a$TDGDLF.monthly$yr.f
-              q2.yrs=a$TDGDLF.daily$yr.f
-              CPUE=do.call(rbind,a)%>%
-                mutate(yr=yr.f,
-                       MeAn=Mean)
-            }else
-            {
-              a=CPUE
-              q1.yrs=a$TDGDLF.monthly$yr.f
-              q2.yrs=a$TDGDLF.daily$yr.f
-              CPUE=do.call(rbind,a)%>%
-                mutate(yr=yr.f,
-                       MeAn=Mean)
-            }
-            if(drop.large.CVs)
-            {
-              iid=which(CPUE$CV>MAX.CV)
-              CPUE$MeAn[iid]=NA
-              CPUE$CV[iid]=NA 
-            }
-          }
-          if(len.cpue==1)
-          {
-            CPUE=CPUE[[1]]%>%
-              rename(MeAn=Mean,
-                     yr=yr.f)
-            if(drop.large.CVs)
-            {
-              iid=which(CPUE$CV>MAX.CV)
-              CPUE$MeAn[iid]=NA
-              CPUE$CV[iid]=NA
-            }
-          }
-          CPUE=CPUE%>%    
-            dplyr::select(yr,MeAn,CV)%>%
-            rename(year=yr,cpue=MeAn,se=CV)
-          
-          #combine catch and cpue
-          fish=fish%>%left_join(CPUE,by='year')
-          Store.age.comp$glb$nyrs=nrow(fish)
-          
-          if(exists(c('q1.yrs','q2.yrs')))
-          {
-            ia=fish$year[!is.na(fish$cpue)]
-            q1.yrs=q1.yrs[which(q1.yrs%in%ia)]
-            q2.yrs=q2.yrs[which(q2.yrs%in%ia)]
-          }
-          
-          if(exists('CPUE2')) fish=fish%>%left_join(CPUE2,by='year')
-          if(!exists('CPUE2')) fish=fish%>%mutate(cpue2=NA,se2=NA)
-          
-          
-          #globals needed by Haddon's functions
-          glb=Store.age.comp$glb
-          props=Store.age.comp$props
-          pars=aSPM.init
-          
-          #fit model
-          ans <- fitASPM(initpar=aSPM.init,infish=fish,inglb=Store.age.comp$glb,inprops=Store.age.comp$props)
-          
-          #get predicted quantities
-          fishery <- dynamics(ans$par,infish=fish,inglb=Store.age.comp$glb,inprops = Store.age.comp$props)
-          
-          #get uncertainty
-          Par.samp=fn.un(fit=ans,n=List.sp[[l]]$N.monte)
-          fishery.MC=vector('list',nrow(Par.samp))
-          for(f in 1:nrow(Par.samp))
-          {
-            fishery.MC[[f]]=dynamics(Par.samp[f,],infish=fish,inglb=Store.age.comp$glb,inprops = Store.age.comp$props)
-          }
-          
-          #store outputs
-          aSPM[[l]]=list(fit=ans,quantities=fishery,fish=fish,quantities.MC=fishery.MC,
-                         init.pars=aSPM.init)
-          
-          #flush console
-          rm(fish,glb,props,pars,Store.age.comp,fishery,fishery.MC)
-          if(exists(c('q1.yrs','q2.yrs'))) rm(q1.yrs,q2.yrs)
-          if(exists('CPUE')) rm(CPUE)
-          if(exists('CPUE2')) rm(CPUE2)
-          
-        }
-      }
-    }
-  }
-  
 }
 
-
-#---31. Integrated Model. Run model-------------------------------------------------
-if(do.integrated)
+#---31. Integrated Model. Generate outputs ------------------------------------------------- 
+if(Do.integrated)
 {
   
 }
-#code from Assessment.R code
-#note: 'Run.models.R' outputs data and parameter inputs for models,
-#                     runs assessment models
-#                     and displays outputs
-#reset dummies
-Spec=1
-Pin.pars=1  #dummy to clear log
-Par.phases=1
-all.objects=objects()
-List.objs=unique(unlist(lapply(List.sp,names)))
-suppressWarnings(rm(list=all.objects[which(all.objects%in%List.objs)]))
-for(l in 1:length(List.sp))
-{
-  attach(List.sp[[l]])
-  source(handl_OneDrive("Analyses/Population dynamics/Git_Stock.assessments/Run.models.R"))
-  detach(List.sp[[l]])
-}
+#---32. Weight of Evidence Assessment ------
 
-
-
-
-#---32. Integrated Model. Generate outputs ------------------------------------------------- 
-if(do.integrated)
-{
-  
-}
-#---33. Weight of Evidence Assessment ------
-LoE.Weights=c(psa=.2,sptemp=.2,efman=.2,spmod=.5,srmod=.5,aspmod=.5)
-
-#1. Calculate risk for each line of evidence
-#1.1. PSA (Drop.species only)
+#1. Calculate risk for each line of evidence  
+  #1.1. PSA (Drop.species only)
 Risk.PSA=vector('list',length(Drop.species))
 names(Risk.PSA)=Drop.species
 for(s in 1:length(Risk.PSA))
@@ -7923,28 +8210,38 @@ for(s in 1:length(Risk.PSA))
   Risk.PSA[[s]]=data.frame(Max.Risk.Score=c(0,4,0,0))
 }
 
-#1.2. catch spatio-temporal      
-Risk.spatial.temporal.ktch=vector('list',N.sp)
-names(Risk.spatial.temporal.ktch)=names(Store.cons.Like.SRM)
-for(s in 1: N.sp)
+  #1.2. catch spatio-temporal      
+Risk.spatial.temporal.ktch=vector('list',length(Store.spatial.temporal.ktch))
+names(Risk.spatial.temporal.ktch)=names(Store.spatial.temporal.ktch)
+for(s in 1: length(Risk.spatial.temporal.ktch))
 {
-  sp.dat=Store.spatial.temporal.ktch[match(names(Risk.spatial.temporal.ktch)[s],
-                                           rownames(Store.spatial.temporal.ktch)),]
-  sp.dat=mean(sp.dat[(length(sp.dat)-4):length(sp.dat)]) #moving average
-  
-  
-  if(sp.dat==0) dummy=data.frame(Max.Risk.Score=c(2,0,0,0))
-  if(sp.dat>0 & sp.dat<=.25) dummy=data.frame(Max.Risk.Score=c(0,4,0,0))
-  if(sp.dat>.25 & sp.dat<=.5) dummy=data.frame(Max.Risk.Score=c(0,0,6,0))
-  if(sp.dat>.5 & sp.dat<=.75) dummy=data.frame(Max.Risk.Score=c(0,0,12,0))
-  if(sp.dat>.75) dummy=data.frame(Max.Risk.Score=c(0,0,0,16))
+  sp.dat=Store.spatial.temporal.ktch[[s]]$prop.ktch_over.total.ktch
+  sp.dat=sp.dat[,(ncol(sp.dat)-4):ncol(sp.dat)]%>%  #average last 5 years
+          data.frame()
+  sp.dat$Mean=rowMeans(sp.dat)
+  sp.dat=sp.dat%>%
+          mutate(Species=rownames(sp.dat))%>%
+          select(Species,Mean)
+          
+  dummy=vector('list',nrow(sp.dat))
+  names(dummy)=sp.dat$Species
+  for(x in 1:length(dummy))
+  {
+    dd=sp.dat[x,]$Mean
+    if(dd==0) d=data.frame(Max.Risk.Score=c(2,0,0,0))
+    if(dd>0 & dd<=.25) d=data.frame(Max.Risk.Score=c(0,4,0,0))
+    if(dd>.25 & dd<=.5) d=data.frame(Max.Risk.Score=c(0,0,6,0))
+    if(dd>.5 & dd<=.75) d=data.frame(Max.Risk.Score=c(0,0,12,0))
+    if(dd>.75) d=data.frame(Max.Risk.Score=c(0,0,0,16))
+    dummy[[x]]=d
+  }
   Risk.spatial.temporal.ktch[[s]]=dummy
 }
 
-#1.3. overall catch-effort-management               
+#1.3. overall catch-effort-management           ACA. do by groups as in #1.2 Also add mean size Risk!      
 Risk.effort.mangmnt=vector('list',N.sp)
 names(Risk.effort.mangmnt)=names(Store.cons.Like.SRM)
-Rel.eff.n=mean(Effrt.n$Hook.hours[(nrow(Effrt.n)-4):nrow(Effrt.n)])/max(Effrt.n$Hook.hours) #moving average
+Rel.eff.n=mean(Effrt.n$Hook.hours[(nrow(Effrt.n)-4):nrow(Effrt.n)])/max(Effrt.n$Hook.hours) #average last 5 years
 Rel.eff.s=mean(Effrt.s$Total[(nrow(Effrt.s)-4):nrow(Effrt.s)])/max(Effrt.s$Total)
 REgn=Tot.ktch%>%
   group_by(SP.group,Region)%>%
@@ -7993,7 +8290,7 @@ fn.risk=function(likelihood)
 }
 Risk.SPM=Store.cons.Like.SPM
 Risk.SRM=Store.cons.Like.SRM
-if(do.Haddon.aSPM) Risk.aSPM=Store.cons.Like.aSPM
+if(Do.integrated) Risk.aSPM=Store.cons.Like.aSPM
 for(s in 1: N.sp)
 {
   #SPM
@@ -8002,8 +8299,8 @@ for(s in 1: N.sp)
   #SRM
   Risk.SRM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.SRM[[s]]))
   
-  #aSPM
-  if(do.Haddon.aSPM & !is.null(aSPM[[s]])) Risk.aSPM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.aSPM[[s]]))
+  #Integraded model
+  if(Do.integrated & !is.null(aSPM[[s]])) Risk.aSPM[[s]]=fn.risk(likelihood=unlist(Store.cons.Like.aSPM[[s]]))
   
 }
 
@@ -8068,7 +8365,7 @@ for(s in 1:length(All.sp))
              efman=Risk.effort.mangmnt[[match(All.sp[s],names(Risk.effort.mangmnt))]]$Max.Risk.Score,
              spmod=Risk.SPM[[match(All.sp[s],names(Risk.SPM))]]$Max.Risk.Score,
              srmod=Risk.SRM[[match(All.sp[s],names(Risk.SRM))]]$Max.Risk.Score)
-  if(do.Haddon.aSPM)dummy$aspmod=Risk.aSPM[[match(All.sp[s],names(Risk.aSPM))]]$Max.Risk.Score
+  if(Do.integrated)dummy$aspmod=Risk.aSPM[[match(All.sp[s],names(Risk.aSPM))]]$Max.Risk.Score
   dummy=dummy[!sapply(dummy, is.null)]
   NMs=names(dummy)
   dummy=do.call(cbind,dummy)
@@ -8141,7 +8438,7 @@ for(s in 1:length(Sp.risk.ranking))
              efman=Risk.effort.mangmnt[[match(ss,names(Risk.effort.mangmnt))]]$Max.Risk.Score,
              spmod=Risk.SPM[[match(ss,names(Risk.SPM))]]$Max.Risk.Score,
              srmod=Risk.SRM[[match(ss,names(Risk.SRM))]]$Max.Risk.Score)
-  if(do.Haddon.aSPM)dummy$aspmod=Risk.aSPM[[match(ss,names(Risk.aSPM))]]$Max.Risk.Score
+  if(Do.integrated)dummy$aspmod=Risk.aSPM[[match(ss,names(Risk.aSPM))]]$Max.Risk.Score
   dummy=dummy[!sapply(dummy, is.null)]
   NMs=names(dummy)
   dummy=do.call(cbind,dummy)
@@ -8164,9 +8461,9 @@ mtext("Risk score",1,cex=1.25,line=2)
 legend(-1,length(Sp.risk.ranking)+3.25,c('PSA','Blocks fished','Effort management'),
        bty='n',col=LoE.col[1:3],lty=1,lwd=3,horiz = T,cex=1.5,
        text.width=c(0,1,2.25))
-if(!do.Haddon.aSPM) legend(5,length(Sp.risk.ranking)+2.35,c('SPM','SRM'),bty='n',cex=1.5,
+if(!Do.integrated) legend(5,length(Sp.risk.ranking)+2.35,c('SPM','SRM'),bty='n',cex=1.5,
                          col=LoE.col[4:5],lty=1,lwd=3,horiz = T,text.width=c(0,.95))
-if(do.Haddon.aSPM) legend(5,length(Sp.risk.ranking)+2.35,c('SPM','SRM','aSPM'),bty='n',cex=1.5,
+if(Do.integrated) legend(5,length(Sp.risk.ranking)+2.35,c('SPM','SRM','aSPM'),bty='n',cex=1.5,
                           col=LoE.col[4:6],lty=1,lwd=3,horiz = T,text.width=c(0,.95,1.1))
 
 #Overall risk
@@ -8181,7 +8478,7 @@ axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
 dev.off()
 
 
-#---34. Other outputs for strategic papers.  ------------------------------------------------- 
+#---33. Outputs for strategic papers  ------------------------------------------------- 
 # Sawfish stock assessment  paper
 if(do.sawfish)
 {

@@ -120,7 +120,7 @@ Dat_total=Dat_total %>% filter(LAT<=(-26) & Estuary=="NO") %>%
              BLOCK=substring(BLOCK,1,4)) %>%
       dplyr::select(-c(ZnID,MonthlyID,ZoneID,YEAR.c,blockxFC,CONDITN,
                 Factor,RSCommonName,RSSpeciesId,LANDWT,LIVEWT,
-                FisheryZone,FisheryCode,Landing.Port,BDAYS,licence,
+                FisheryZone,FisheryCode,Landing.Port,BDAYS,
                 Factor.c,LIVEWT.orgnl,LIVEWT.c,VesselID,BlockAveID,AnnualVesselAveID,
                 BlockID,Reporter,Sch.or.DogS,LIVEWT.reap,Tot.shk.livewt,
                 Shark.other.livewt,Reporter.old,Spec.old,Sname.old,NETLEN.c))%>% 
@@ -250,7 +250,7 @@ if(do.this)
   
 }
 
-# Show overal observed discarded and retained species-------------------------------------------
+# Show overall observed discarded and retained species-------------------------------------------
 colfunc <- colorRampPalette(c("brown4","brown1","orange","yellow"))
   #Elasmos
 fun.horiz.bar=function(d,gear)
@@ -833,7 +833,7 @@ write.csv(Obs_ratio.strata_teleosts$dat,"Results/Recons.scalefish/Table1_observe
 
 
 # Get stratified total reported retained catch (Y_h)-------------------------------------------
-STRATA_total=function(d.gn,d.ll,Strata)
+STRATA_total=function(d.gn,d.ll,Strata)  
 {
   if(!"YEAR"%in%Strata) Strata=c("YEAR",Strata)
   d=rbind(d.gn%>%dplyr::select(YEAR,BLOCK,Catch),d.ll%>%dplyr::select(YEAR,BLOCK,Catch))

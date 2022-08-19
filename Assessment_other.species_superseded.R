@@ -2764,6 +2764,10 @@ if(Do.Ktch.MSY=="YES")
 
 #---Single-species age-structured aSPM (aSPM) -----------------------------------------------------------------------
 #Haddon datalowSA package (https://rdrr.io/github/haddonm/datalowSA/f/vignettes/aspm.md)
+#Tweaked functions to allow multiple CPUEs and Qs and calculation of total biomass and Hessian for uncertainty
+#       Only applicable to non-indicator species with representative catch rates.
+#       For indicator species, use integrated model.
+
 if(Do.aSPM=="YES")
 {
   #Tweaked functions to allow multiple CPUEs and Qs, and total biomass and Hessian calculation for uncertainty

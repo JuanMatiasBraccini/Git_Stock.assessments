@@ -210,11 +210,13 @@ WRL.copper.dusky.prop=0.25  #average proportion copper sharks
   #-- 2.1.4 TEPS   
 
     #2.1.4.1 TDGDLF
-#note: data obtained from Comments in TDGDLF returns
+#note: data obtained from Comments in TDGDLF returns.
+#       Other elasmos (manta ray, stingray, sawfish) not considered as only very small numbers reported and
+#       all released 'ALIVE'
 TEPS=read.csv(paste(handl_OneDrive('Data/Catch and Effort'),
               paste(Asses.year-2,substr(Asses.year-1,3,4),sep="_"),
               "TEPS_PROTECTEDSP.csv",sep='/'))
-  #Length weigths
+  #Length weights
 bwt=3.47e-06   #dusky
 awt=3.10038
 bwt.grey=5.4511   #greynurse Otway et al 2009
