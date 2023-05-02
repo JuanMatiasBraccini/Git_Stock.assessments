@@ -591,7 +591,8 @@ for(s in 1:length(n.sp))
   this.par=LH%>%filter(Name==ii) 
   if(!is.na(this.par$K))
   {
-    if(is.na(this.par$Max_Age_max)) this.par$Max_Age_max=this.par$Max_Age*1.3
+    this.par$Max_Age_max=this.par$Max_Age_max*1.5
+    if(is.na(this.par$Max_Age_max)) this.par$Max_Age_max=this.par$Max_Age*1.5
     LatAge[[s]]=with(this.par,len.at.age(Lo=LF_o*a_FL.to.TL+b_FL.to.TL,Linf=FL_inf*a_FL.to.TL+b_FL.to.TL,k=K,Age.max=Max_Age_max))
   }
   if(is.na(this.par$K) & !is.na(this.par$LF_o)) LatAge[[s]]=data.frame(Age=0,TL=this.par$LF_o)
@@ -600,7 +601,7 @@ for(s in 1:length(n.sp.family))
 {
   ii=n.sp.family[s]
   this.par=LH%>%filter(Family==ii)%>%
-    mutate(Max_Age_max=ifelse(is.na(Max_Age_max),Max_Age*1.3,Max_Age_max))%>%
+    mutate(Max_Age_max=ifelse(is.na(Max_Age_max),Max_Age*1.5,Max_Age_max))%>%
     group_by(Family)%>%
     summarise(LF_o=mean(LF_o,na.rm=T),
               FL_inf=mean(FL_inf,na.rm=T),
@@ -610,7 +611,7 @@ for(s in 1:length(n.sp.family))
               b_FL.to.TL=mean(b_FL.to.TL,na.rm=T))
   if(!is.na(this.par$K))
   {
-    LatAge.family[[s]]=with(this.par,len.at.age(Lo=LF_o*a_FL.to.TL+b_FL.to.TL,Linf=FL_inf*a_FL.to.TL+b_FL.to.TL,k=K,Age.max=Max_Age_max))
+    LatAge.family[[s]]=with(this.par,len.at.age(Lo=LF_o*a_FL.to.TL+b_FL.to.TL,Linf=FL_inf*a_FL.to.TL+b_FL.to.TL,k=K,Age.max=Max_Age_max*1.5))
   }
 }  
 
@@ -1022,7 +1023,9 @@ for(s in 1:length(n.sp.family))
 
 # EXPORT SELECTIVITY OGIVES  ------------------------------------------------------------------
 #note: set to 'equal power' so all meshes go to 1
-
+#      sandbar, dusky and whiskery shark sel pars are for FL so need to convert predicted
+#         size classes from FL to TL
+convert.to.TL=c("Whiskery shark","Dusky shark","Sandbar shark")
 
 #function for predicting selectivity
 pred.normal.fixed=function(l,k,m,sigma) exp(-((l-k*m)^2)/(2*(sigma)^2))
@@ -1037,10 +1040,18 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
   {
     PAR=Published.sel.pars_K.W%>%
            filter(Species==NM)
+    these.lengths=PlotLens
+    
     #predict and export selectivity
+    
       #Plotlen
+    if(NM%in%convert.to.TL)
+    {
+      TL_FL.par=TL_FL%>%filter(name==NM)
+      these.lengths=(these.lengths-TL_FL.par$intercept)/TL_FL.par$slope
+    }
     dat=pred.Kirkwood.Walker(theta=log(c(PAR$Theta1,PAR$Theta2)),
-                             pred.len=PlotLens,
+                             pred.len=these.lengths,
                              Mesh=Combined%>%
                                   filter(Species==NM)%>%
                                   distinct(Mesh.size)%>%
@@ -1050,7 +1061,6 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
       dplyr::select(-Size.class)
     colnames(dat)[-ncol(dat)]=round(as.numeric(colnames(dat)[-ncol(dat)])/0.393701,1)
     dat=dat[,c('TL.mm',colnames(dat)[-ncol(dat)])]
-    
     if(NM=="Sandbar shark")    #McAuley et al 2007 recommends Lognormal over K&W
     {
       m1=12.7
@@ -1062,13 +1072,25 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
       dat$'17.8'=pred.lognormal(l=dat$TL.mm,m=17.8,m1,mu,sigma)
       dat$'20.3'=pred.lognormal(l=dat$TL.mm,m=20.3,m1,mu,sigma)
     }
-    
+    if(NM%in%convert.to.TL)
+    {
+      dat=dat%>%
+        mutate(TL.mm=TL.mm*TL_FL.par$slope+TL_FL.par$intercept)%>%
+        mutate_all(~ifelse(is.nan(.), 0, .))
+    }
     write.csv(dat,paste(handl_OneDrive('Analyses/Data_outs/'),NM,'/',NM,"_gillnet.selectivity",".csv",sep=''),row.names = F)
     dat.out=dat
+    rm(dat)
     
     #Length at age
+    these.lengths=La$TL
+    if(NM%in%convert.to.TL)
+    {
+      TL_FL.par=TL_FL%>%filter(name==NM)
+      these.lengths=(these.lengths-TL_FL.par$intercept)/TL_FL.par$slope
+    }
     dat=pred.Kirkwood.Walker(theta=log(c(PAR$Theta1,PAR$Theta2)),
-                             pred.len=La$TL,
+                             pred.len=these.lengths,
                              Mesh=Combined%>%
                                   filter(Species==NM)%>%
                                   distinct(Mesh.size)%>%
@@ -1076,11 +1098,11 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
     dat=dat%>%
       mutate(TL.mm=Size.class/10)%>%
       dplyr::select(-Size.class)%>%
-      mutate(Age=La$Age)
+      mutate(Age=La$Age)  
     Id=match(c('TL.mm','Age'),colnames(dat))
     colnames(dat)[-Id]=round(as.numeric(colnames(dat)[-Id])/0.393701,1)
-    dat=dat[,c('TL.mm','Age',colnames(dat)[-ncol(dat)])]
-    
+    dat=dat%>%
+      relocate(TL.mm,Age)
     if(NM=="Sandbar shark")    #McAuley et al 2007 recommends Lognormal over K&W
     {
       m1=12.7
@@ -1092,8 +1114,13 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
       dat$'17.8'=pred.lognormal(l=dat$TL.mm,m=17.8,m1,mu,sigma)
       dat$'20.3'=pred.lognormal(l=dat$TL.mm,m=20.3,m1,mu,sigma)
     }
-    
-    
+    if(NM%in%convert.to.TL)
+    {
+      TL_FL.par=TL_FL%>%filter(name==NM)
+      dat=dat%>%
+        mutate(TL.mm=TL.mm*TL_FL.par$slope+TL_FL.par$intercept)%>%
+        mutate_all(~ifelse(is.nan(.), 0, .))
+    }
     write.csv(dat,paste(handl_OneDrive('Analyses/Data_outs/'),NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
   }
   
@@ -1147,10 +1174,16 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
       dat$'16.5'=pred.lognormal(l=dat$TL.mm,m=16.5,m1,mu,sigma)
       dat$'17.8'=pred.lognormal(l=dat$TL.mm,m=17.8,m1,mu,sigma)
     }
+    if(NM%in%convert.to.TL)
+    {
+      TL_FL.par=TL_FL%>%filter(name==NM)
+      dat=dat%>%
+        mutate(TL.mm=TL.mm*TL_FL.par$slope+TL_FL.par$intercept)
+    }
     write.csv(dat,paste(handl_OneDrive('Analyses/Data_outs/'),NM,'/',NM,"_gillnet.selectivity",".csv",sep=''),row.names = F)
     dat.out=dat
-    
-      #lenght at age
+    rm(dat)
+      #length at age
     dat=data.frame(TL.mm=La$TL,Age=La$Age)
     Pars=d$Equal.power[[id]]$gear.pars
     if(BEST$Model=="norm.loc")
@@ -1185,6 +1218,12 @@ out.sel=function(d,BEST,NM,La,Fixed.equal.power)
       dat$'15.2'=pred.lognormal(l=dat$TL.mm,m=15.2,m1,mu,sigma)
       dat$'16.5'=pred.lognormal(l=dat$TL.mm,m=16.5,m1,mu,sigma)
       dat$'17.8'=pred.lognormal(l=dat$TL.mm,m=17.8,m1,mu,sigma)
+    }
+    if(NM%in%convert.to.TL)
+    {
+      TL_FL.par=TL_FL%>%filter(name==NM)
+      dat=dat%>%
+        mutate(TL.mm=TL.mm*TL_FL.par$slope+TL_FL.par$intercept)
     }
     write.csv(dat,paste(handl_OneDrive('Analyses/Data_outs/'),NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
     

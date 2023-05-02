@@ -116,12 +116,11 @@ system.time({Charter<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQ
 #source: https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Dec%202018?OpenDocument
 WA.population=read.csv(handl_OneDrive("Data/AusBureauStatistics.csv"),stringsAsFactors=F)
 
-#Participationg rate (Ryan et al 2017)
+#Participation rate (Ryan et al 2017)
 #Part.rate.hist=30
 #Part.rate.89=26.6  
 #Part.rate.00=28.5
 #Part.rate=mean(c(Part.rate.hist,Part.rate.89,Part.rate.00))  #mean fishing participating rate
-#MISSING: update participation rates with figures from Eva for recent years. 
 #         Karina reported 26.5%
 #        Eva: "The participation rate for 18/19 was about 26%. It was below 30% in 
 #               the last several years. The average over the last 10 years (2009/10 
@@ -278,7 +277,7 @@ Charter=Charter%>%
   dplyr::select(TripDate,Calendar.Year,Month,TO.Zone,Species.Common.Name,Fish.Kept.Count,Fish.Released.Count)
 
 charter.shk.sp=unique(Charter$Species.Common.Name)
-charter.shk.sp=charter.shk.sp[grep('Shark|Whaler|Hammerhead',charter.shk.sp)]
+#charter.shk.sp=charter.shk.sp[grep('Shark|Whaler|Hammerhead',charter.shk.sp)] not needed if using SQL query
 
 Charter=Charter%>%
   filter(Species.Common.Name%in%charter.shk.sp)%>%
@@ -286,8 +285,10 @@ Charter=Charter%>%
          Bioregion=TO.Zone,
          Kept.Number=Fish.Kept.Count,
          Rel.Number=Fish.Released.Count)%>%
-  mutate(Mn=month(Month),
-         Yr=year(Calendar.Year),
+  mutate(Mn=Month,
+         Yr=Calendar.Year,
+         #Mn=month(Month),
+         #Yr=year(Calendar.Year),
          FINYEAR=ifelse(Mn<6,Yr-1,Yr),
          FINYEAR=paste(FINYEAR,substr(FINYEAR+1,3,4),sep="-"))%>%
   dplyr::select(names(Rec.fish.catch))%>%
@@ -350,6 +351,10 @@ Charter=Charter%>%
   filter(!Common.Name=="Hound Sharks")
 Charter=rbind(Charter,Hound.reap)
 
+Charter=Charter%>%
+  mutate(Kept.Number=ifelse(is.na(Kept.Number),0,Kept.Number),
+         Rel.Number=ifelse(is.na(Rel.Number),0,Rel.Number))
+
 # add Charter to Rec.fish.catch
 Rec.fish.catch=rbind(Rec.fish.catch,Charter)
 
@@ -358,11 +363,10 @@ Rec.fish.catch=rbind(Rec.fish.catch,Charter)
 Rec.fish.catch=Rec.fish.catch%>%
     mutate(Common.Name=ifelse(Common.Name=="Blacktip reef shark","Blacktip Reef Shark",
                        ifelse(Common.Name=="Whitetip reef shark","Whitetip Reef Shark",
-                       ifelse(Common.Name=='Gulper sharks, Sleeper Sharks & Dogfishes','Dogfishes',
+                       ifelse(Common.Name%in%c('Gulper sharks, Sleeper Sharks & Dogfishes','Spikey Dogfish'),'Dogfishes',
                        ifelse(Common.Name=='Blind, Nurse, Carpet & Zebra Sharks','Zebra Shark',
-                       ifelse(Common.Name%in%c('Other Rays and Skates',"Western Shovelnose Ray"),
-                              'Rays & Skates',
-                       ifelse(Common.Name=='Sawshark','Sawsharks',
+                       ifelse(Common.Name%in%c('Other Rays and Skates',"Skates"),'Rays & Skates',
+                       ifelse(Common.Name%in%c('Sawshark','SawShark','Common Sawshark'),'Sawsharks',
                        ifelse(Common.Name=='Wobbegong','Wobbegongs',
                        ifelse(Common.Name=="School Shark" & 
                                   Bioregion%in%c('North Coast'),'Gummy Sharks',
@@ -408,7 +412,9 @@ fn.rec=function(DAT,PCM.scen,Wght.scen)
 {
    AGG=DAT%>%
       left_join(AVG.WT,by="Common.Name")%>%
-      mutate(LIVEWT.c=ceiling((Kept.Number+Rel.Number*PCM.rec*PCM.scen)*AVG.wt*Wght.scen))%>%
+      mutate(AVG.wt=ifelse(is.na(AVG.wt),Mn.w.whalr,AVG.wt),
+             PCM.rec=ifelse(is.na(PCM.rec),Asmd,PCM.rec),
+             LIVEWT.c=ceiling((Kept.Number+Rel.Number*PCM.rec*PCM.scen)*AVG.wt*Wght.scen))%>%
       group_by(FINYEAR,Common.Name,Bioregion)%>%
       summarise(LIVEWT.c=sum(LIVEWT.c))%>%
       data.frame
@@ -448,7 +454,7 @@ for(s in 1:length(Rec.ktch))
   Rec.ktch[[s]]=fn.rec(DAT=dd,
                        PCM.scen=Scenarios$PCM[s],
                        Wght.scen=Scenarios$Weight[s])   
-}
+}  
 
   #2. reconstruct total catch (in kg) time series
 back.fill=function(dat)

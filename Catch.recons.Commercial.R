@@ -9,23 +9,31 @@
 #         the reported catch that is reported in CAESS (as done in 'Assessment_other.species.R')
 
 #       Post November 2006: 
-#         All sharks from non-shark fisheries are not allowed to be retained (a few excempted fisheries),
+#         All sharks from non-shark fisheries are not allowed to be retained (a few exempted fisheries),
 #         hence this discarded catch is estimated for all fisheries that reported shark catches
 #         prior to November 2006 as total landings X proportion shark X PCM  X BRD (trawl fisheries only)
 #         If catch composition is not in weight, then convert numbers to weights
 
 #         Hyndes et al 1999 (fide in Jones et al 2010) reports catch of discarded elasmobranchs in trawl fisheries
 
+
 #ANNUAL UPDATES:
 
-#1. "#Total landings time series". For fisheries listed in 'Calculate.discarding_catch' each year 
-         #  download annual reported landings from FISHCUBE using the FishCube fishery code 
-         #  from 'Lista.reap.FishCubeCode' or could use the link provided in the front 
-         #  page of Calculate.discarding.xlsx and run an update)
+#1. 'Calculate.discarding.xlsx'. Update annual reported landings from the link provided in the front 
+         #    page of the 'Calculate.discarding.xlsx' spreadsheet  
 
-#2. Annual effort for "Kimberley.GBF.annual.effort" from Al Harry
+#2. Annual effort for "Kimberley.GBF.annual.effort" 
+        # update effort from the link provided in the front 
+        #   page of the 'KGBF Annual catch and Bdays.xlsx' spreadsheet
 
-#3. Other jurisdictions (AFMA_GAB_WTB, Whaler_SA, Bronze.whaler_NSW, NT_dusky_sandbar)
+#3. 'Pilbara_sawfish' from Corey
+        #   no need to update PFT.total.catch' and 'PFT.EM.catch.comp' as those are static
+
+#4. 'Sawfish.interactions.prawn.trawl' from Inigo
+
+
+#5. Other jurisdictions (AFMA_GAB_WTB, Whaler_SA, Bronze.whaler_NSW, Bronze.whaler_NSW_beach.protection, NT_dusky_sandbar)
+#     see 'Matias\Data\Data requests_other jurisdictions' folder
 
 options(dplyr.summarise.inform = FALSE)
 options(stringsAsFactors = FALSE)
@@ -39,8 +47,8 @@ library(chron)
 
 # 1 -------------------PARAMETERS SECTION------------------------------------
 
-Asses.year=2021    #enter year of assessment
-Last.yr.ktch="2019-20"  #enter year of last complete catches
+Asses.year=2022    #enter year of assessment
+Last.yr.ktch="2021-22"  #enter year of last complete catches
 
 Shark.protection.yr=2007   #Commercial protection in non-shark fisheries came in November 2006 (Heupel & McAuley 2007 page 74)
 
@@ -112,13 +120,19 @@ fn.hndl=function(x)paste(handl_OneDrive('Data/Catch and Effort/'),x,sep='')
 FisheryCodes=read_excel(fn.hndl('FisheryCodeTable.xlsx'), sheet = "CAEStoFISHCUBE")
 
 
-## Total landings time series (to be updated each year)                          
-  #WA fisheries
+## Species codes
+Species.code=read.csv(handl_OneDrive('Data/Species.code.csv'))
+
+## Total landings time series (to be updated each assessment year)                          
+  #WA fisheries discarding sharks
+Calculate.discarding=c('PFT','C019','C066','C070','CSLP','EGBS','EGP','KP','KTR','NBP',
+                       'OANCGCWC','OP','SBP','SBS','SBSC','SCT','SWT')
 Calculate.discarding_catch=read_excel(fn.hndl('Calculate.discarding.xlsx'), sheet = "Sheet1")%>%  #catch in kg
   data.frame%>%
   rename(KG=Weight..kg..Total,
          FINYEAR=Financial.Year,
-         Group=Species.Group)
+         Group=Species.Group)%>%
+  filter(Fishery.Code%in%Calculate.discarding)
 
   #Non-WA fisheries 
     #NT
@@ -133,19 +147,19 @@ NT.retained.sharks=c('Blacktip shark','Spot-tail shark',
                      'Tawny shark','Fossil shark','Hardonse shark')
 NT.non.retained.sharks=c('Green sawfish','Narrow sawfish','Dwarf sawfish',
                          'Largetooth sawfish','Manta rays','River sharks')
-NT_dusky_sandbar=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "NT commercial") #catch in tonnes, source NT Thor Saunders & Michael Usher
+NT_dusky_sandbar=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "NT commercial") #catch in tonnes, source NT Michael Usher and Grant Johnson
 NT_dusky_sandbar.IUU=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "IUU")
 
     #SA
-Whaler_SA=read.csv(fn.hndl("SA_marine_scalefish_whaler_ktch.csv"))  #catch in tonnes; source SARDI's Angelo Tsolos, Paul Rogers
+Whaler_SA=read.csv(fn.hndl("SA_marine_scalefish_whaler_ktch.csv"))  #catch in tonnes; source SARDI's Angelo Tsolos, Jon Smart
 
     #NSW 
 Bronze.whaler_NSW=read.csv(fn.hndl("NSW_whaler_ktch.csv")) #Source: Vic Peddemors
 Bronze.whaler_NSW_beach.protection=read.csv(fn.hndl("NSW_whaler_beach.protection.csv"))
 
     #AFMA
-AFMA_GAB_WTB= read.csv(fn.hndl('AFMA_GAB.trawl_WTB.csv'))  #catch in kg; source: AFMA data request; Kehani Manson
-#WTBF_catch=read.csv(fn.hndl("WTBF_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
+AFMA_GAB_WTB= read.csv(fn.hndl('AFMA_GAB.trawl_WTB.csv'))  #catch in kg; source: brodie.macdonald@afma.gov.au; AFMA data request; Kehani Manson
+#WTBF_catch=read.csv(fn.hndl("WTBF_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murphy
 #GAB.trawl_catch=read.csv(fn.hndl("Gab.trawl_catch_Benseley.et.al.2010.csv"))  #catch in kg; source AFMA's Julie Cotsell/ Ryan Murpthy
 
 
@@ -160,10 +174,9 @@ setwd(handl_OneDrive("Analyses/Data_outs"))
 
     #south of 26 S
 Data.monthly=read.csv("Data.monthly.csv")
-#note:  this has catch of sharks from monthly returns of all fisheries 
-#       but from daily records of shark fisheries only 
+#note:  this has monthly-aggregated catch of sharks from of all fisheries south of 26
 
-Add.daily.other=FALSE #not needed, already un SQL queries 
+Add.daily.other=FALSE #not needed, already extracted from new SQL queries 
 if(Add.daily.other)
 {
   daily.other=read.csv("Data.daily.other.fisheries.csv")                
@@ -171,11 +184,11 @@ if(Add.daily.other)
 }
   
     #north of 26 S
-Data.monthly.north=read.csv("Data.monthly.NSF.csv")
+Data.monthly.north=read.csv("Data.monthly.north.csv")
 Data.monthly.north$LIVEWT.c=Data.monthly.north$LIVEWT  
+#note:  this has monthly-aggregated catch of sharks from of all fisheries north of 26
 
-
-  #-- 2.1.2 Historic shark fisheries (pre 1975)
+  #-- 2.1.2 Historical shark fisheries (pre 1975)
 
       #2.1.2.1 Whitley 1944 (citation in Simpfendorfer & Donohue 1998)
 #note: All shark catch across southern WA (south of Abrolhos islands). Weight in pounds
@@ -212,10 +225,14 @@ WRL.copper.dusky.prop=0.25  #average proportion copper sharks
     #2.1.4.1 TDGDLF
 #note: data obtained from Comments in TDGDLF returns.
 #       Other elasmos (manta ray, stingray, sawfish) not considered as only very small numbers reported and
-#       all released 'ALIVE'
-TEPS=read.csv(paste(handl_OneDrive('Data/Catch and Effort'),
-              paste(Asses.year-2,substr(Asses.year-1,3,4),sep="_"),
-              "TEPS_PROTECTEDSP.csv",sep='/'))
+#       all reported to be released 'ALIVE'
+# TEPS.to.2019_20=read.csv(paste(handl_OneDrive('Data/Catch and Effort'),paste(2019,20,sep="_"),
+#               "TEPS_PROTECTEDSP.csv",sep='/'))%>%
+#               filter(!finyear=='2020-21')
+TEPS=read.csv(handl_OneDrive("Analyses/Data_outs/TEPS.current.csv"))%>%   
+              filter(fishery%in%c('JASDGDL','OASC,OT','WCDGDL','SGL','WCGL','*'))
+
+
   #Length weights
 bwt=3.47e-06   #dusky
 awt=3.10038
@@ -284,7 +301,7 @@ Pilbara.trawl.observed.shrk= 562 + 885   # in kg; observed retained and discarde
 Pilbara.trawl_shrk.to.land=Pilbara.trawl.observed.shrk/Pilbara.trawl.observed.landing
 
     #BRD
-BRD_pilbara.trawl_prop.shark=0.61  #Wakefield et al 2017                     
+BRD_pilbara.trawl_prop.shark=mean(c(1-.8,1-0.57,0.65,0.58))  #Wakefield et al 2017                     
 BRD_pilbara.trawl_prop.ray=0.36  
 BRD_pilbara.trawl_year='2003-04'
 
@@ -594,13 +611,21 @@ Indo_sightings=data.frame(year=2000:2013,
 Indo_apprehensions.Stacey=data.frame(year=1975:1999,
                                Apprehensions=c(3,rep(0,4),2,rep(0,4),5,0,1,46,29,43,38,15,
                                                23,111,76,97,122,rep(NA,2)))
-#AFMA (sourced by Rik Buckworth)
-Indo_apprehensions=data.frame(year=c(2000:2019),
-                              Apprehensions=c(62,96,143,132,203,360,210,141,18,23,14,12,7,10,5,7,6,9,5,0))
-Indo.prop.apprehen.with.shark=data.frame(Year=2008:2019,
-                                         Total.appr=c(27,23,14,12,7,26,6,20,15,14,5,0),
-                                         With.shark=c(10,14,10,7,5,3,0,6,5,1,0,0))%>%
-                                mutate(prop=With.shark/Total.appr)
+#AFMA (brodie.macdonald@afma.gov.au; previously sourced by Rik Buckworth from peter.venslovas@afma.gov.au)
+#note: using Total (i.e. Apprehension and Forfeitures)
+Indo_apprehensions=read_excel(fn.hndl('Indonesia_apprehensions_AFMA.xlsx'), sheet = "Sheet1")%>%
+  #dplyr::select(-Apprehensions)%>%
+  #rename(Apprehensions=Total)%>%   
+  dplyr::select(c(Year,Apprehensions))%>%    
+  rename(year=Year)%>%
+  mutate(year=as.numeric(substr(year,1,4)))
+
+#Indo_apprehensions=data.frame(year=c(2000:2021),
+#                              Apprehensions=c(62,96,143,132,203,360,210,141,18,23,14,12,7,10,5,7,6,9,5,4,0,0))
+# Indo.prop.apprehen.with.shark=data.frame(Year=2008:2019,
+#                                          Total.appr=c(27,23,14,12,7,26,6,20,15,14,5,0),
+#                                          With.shark=c(10,14,10,7,5,3,0,6,5,1,0,0))%>%
+#                                 mutate(prop=With.shark/Total.appr)
 
 # ANAO 2010
 Indo_jurisdiction.prop=data.frame(Jurisdiction=c('WA',"NT","QLD"),
@@ -649,16 +674,18 @@ Indo_MOU.Vanesa=read.csv(handl_OneDrive('Data/Catch and Effort/Indonesia_Shark D
 Indo_average.shark.per.trip_MOU=2600  #kg
 Indo_trips.per.year_MOU=round(160/3)  #160 reported between 1992 and 1994
 Indo_average.trip.length=4            #days (days in AFZ before being apprehended)
-Indo_MOU.annual.trips.prop=data.frame(year=c(1975:2019),
-                                      trips.prop=rep(1,length(1975:2019)))
+Indo_MOU.annual.trips.prop=data.frame(year=c(1975:max(Indo_apprehensions$year)),
+                                      trips.prop=rep(1,length(1975:max(Indo_apprehensions$year))))
 Indo_missed.appr.rate=1.75  
 
   #-- 2.2.5 Taiwanese trawl
-#source: Althaus et al 2006 & Ramm 1994
+#source: Althaus et al 2006; Ramm 1994; Nowara & Newman 2001; Edwards 1983
+#note: Add 400 tonnes per year (1976 & 1977 only) for the taiwanese pair trawl fishery when 
+#       moving off Shark bay (this is not accounted by any other source; Colin Osle pers com)
 Taiwan.trawl.NWS=read.csv(fn.hndl('North.West.Shelf.csv')) 
+Taiwan.trawl.NWS[match(1976:1977,Taiwan.trawl.NWS$Year),'Tonnes']=Taiwan.trawl.NWS[match(1976:1977,Taiwan.trawl.NWS$Year),'Tonnes']+400
 
-
-## 2.3 Observed banjo and wegefish
+## 2.3 Observed banjo and wedgefish
 prop_banjo_wedge_north=read.csv(fn.hndl('prop_banjo_wedge_north.csv'))
 prop_banjo_wedge_south=read.csv(fn.hndl('prop_banjo_wedge_south.csv'))
 
@@ -670,12 +697,35 @@ Gummies.prop=read.csv(handl_OneDrive("Analyses/Catch and effort/Gummies.prop.csv
 
 # 3 -------------------PROCEDURE SECTION------------------------------------
 
-## Fisheries code and Fisheries name
-FisheryCodes=FisheryCodes%>%data.frame
+## Fisheries code and Fisheries name  
+FisheryCodes=FisheryCodes%>%
+                data.frame%>%
+                mutate(SASCode=case_when(SASCode=='EGPR'~'EGP',
+                                         SASCode=='PTWL'~'PFT',
+                                         SASCode=='AITF'~'AIMWT',
+                                         SASCode=='CSCR'~'CSC',
+                                         SASCode=='CL02'~'JANS',
+                                         SASCode=='KPF'~'KP',
+                                         SASCode=='MBDC'~'MBC',
+                                         SASCode=='NBPR'~'NBP',
+                                         SASCode=='ONPR'~'OP',
+                                         SASCode=='PTR'~'PT',
+                                         SASCode=='Cp50'~'SBP',
+                                         SASCode=='C073'~'SCT',
+                                         SASCode=='SWTF'~'SWT',
+                                         SASCode=='C127'~'WANCS',
+                                         SASCode%in%c('WCEL','WCEP')~'WCE',
+                                         TRUE~SASCode))%>%
+              distinct(SASCode,.keep_all = TRUE)
 Data.monthly=Data.monthly%>%left_join(FisheryCodes,by=c("FisheryCode"="SASCode"))%>%
-                    mutate(DATA.type="Data.monthly")
+                    mutate(DATA.type="Data.monthly",
+                           FishCubeCode=case_when(is.na(FishCubeCode) & FisheryCode=='JASDGDL'~'JASDGDL',
+                                                  is.na(FishCubeCode) & FisheryCode=='WCDGDL'~'WCDGDL',
+                                                  TRUE~FishCubeCode))
 Data.monthly.north=Data.monthly.north%>%left_join(FisheryCodes,by=c("FisheryCode"="SASCode"))%>%
-                    mutate(FishCubeName=ifelse(FishCubeCode=='NCS',
+                    mutate(FishCubeCode=case_when(is.na(FishCubeCode) & FisheryCode=='NCS'~'NCS',
+                                                  TRUE~FishCubeCode),
+                           FishCubeName=ifelse(FishCubeCode=='NCS',
                                                'Joint Authority Northern Shark Fishery',FishCubeName),
                            FishCubeCode=ifelse(FishCubeCode=='NCS','JANS',FishCubeCode))%>%
                     mutate(DATA.type="Data.monthly.north")
@@ -722,15 +772,55 @@ if(Add.daily.other)
 }
 
 
-## Keep only sharks and rays and set NA FishCubeCode to 'unknwn'
+## Keep only sharks and rays and set NA FishCubeCode to 'unknwn'  
 Data.monthly=Data.monthly%>%
                   filter(SPECIES<50000)%>%
-                  mutate(FishCubeCode=ifelse(is.na(FishCubeCode),"unknwn",FishCubeCode),
-                         Discarded.ktch="NO")
+                  mutate(
+                         FishCubeCode=ifelse(is.na(FishCubeCode)|FishCubeCode%in%c('','*'),"unknwn",FishCubeCode),
+                         Discarded.ktch="NO",
+                         RSCommonName=ifelse(SPECIES==17003,'Whiskery Shark',RSCommonName))
+                  
 Data.monthly.north=Data.monthly.north%>%
                   filter(SPECIES<50000)%>%
-                  mutate(FishCubeCode=ifelse(is.na(FishCubeCode),"unknwn",FishCubeCode),
+                  mutate(
+                         FishCubeCode=ifelse(is.na(FishCubeCode)|FishCubeCode=='',"unknwn",FishCubeCode),
                          Discarded.ktch="NO")
+
+
+## add missing species name
+dummy.name=Data.monthly%>%
+  mutate(RSCommonName=ifelse(SPECIES==22999,'Sharks',RSCommonName))%>%
+  distinct(RSCommonName,SPECIES)%>%
+  filter(!RSCommonName=='')%>%
+  rename(dummy.RSCommonName=RSCommonName)
+
+dummy.name.north=Data.monthly.north%>%
+  mutate(RSCommonName=ifelse(SPECIES==22999,'Sharks',RSCommonName))%>%
+  distinct(RSCommonName,SPECIES)%>%
+  filter(!RSCommonName=='')%>%
+  rename(dummy.RSCommonName=RSCommonName)
+
+dummy.species=unique(c(unique(Data.monthly$SPECIES),unique(Data.monthly.north$SPECIES)))
+dummy.species=subset(dummy.species,!dummy.species%in%dummy.name$SPECIES)  
+dummy.species=Species.code%>%
+                filter(CAAB_code%in%dummy.species)%>%
+                rename(SPECIES=CAAB_code,
+                       dummy.RSCommonName=COMMON_NAME)%>%
+                dplyr::select(SPECIES,dummy.RSCommonName)
+
+dummy.name=rbind(dummy.name,dummy.name.north,dummy.species)%>%
+  distinct(SPECIES,.keep_all = T)
+
+Data.monthly=Data.monthly%>%
+              left_join(dummy.name%>%filter(SPECIES%in%unique(Data.monthly$SPECIES)),by='SPECIES')%>%
+              mutate(RSCommonName=ifelse(RSCommonName=='',dummy.RSCommonName,RSCommonName))%>%
+              dplyr::select(-dummy.RSCommonName)
+Data.monthly.north=Data.monthly.north%>%
+            left_join(dummy.name%>%filter(SPECIES%in%unique(Data.monthly.north$SPECIES)),by='SPECIES')%>%
+            mutate(RSCommonName=ifelse(RSCommonName=='',dummy.RSCommonName,RSCommonName))%>%
+            dplyr::select(-dummy.RSCommonName)
+
+
 
 if(Do.recons.paper=="YES")
 {
@@ -791,8 +881,6 @@ if(Do.recons.paper=="YES")
                 Zebra='NO',Zebra.col='grey60',Grid.col='black',
                 Fnt.hdr= "Times New Roman",Fnt.body= "Times New Roman")
 }
-Calculate.discarding=c('PFT','C019','C066','C070','CSLP','EGBS','EGP','KP','KTR','NBP',
-                       'OANCGCWC','OP','SBP','SBS','SBSC','SCT','SWT')
 Reaportion.from.reported.ktch=c('C019','C066','C070','CSLP','EGBS','JANS','JASDGDL',
                                 'KTR','NCS','OANCGCWC','OASC','SBS','WANCS','WCDGDL')
 Reaportion.from.survey=c('PFT','EGP','KP','NBP','OP','SBP','SBSC','SCT','SWT')
@@ -826,6 +914,7 @@ Lista.reap.FishCubeCode=list(Pilbara.trawl='PFT',
 #note: this calculates the discarding of shark, then following step reapportions it to
 #       species
 All.data.yrs=sort(unique(Data.monthly$FINYEAR))
+All.data.yrs=All.data.yrs[1:match(Last.yr.ktch,All.data.yrs)]
 First.disc.yr=paste(Shark.protection.yr-1,substr(Shark.protection.yr,3,4),sep='-')
 Discarding.yrs=All.data.yrs[match(First.disc.yr,All.data.yrs):length(All.data.yrs)]
 Prop.reported.shark.ray=Calculate.discarding_catch%>%
@@ -838,9 +927,9 @@ Prop.reported.shark.ray=Calculate.discarding_catch%>%
   data.frame%>%
   mutate(Prop.shark.ray=Sharks_Rays/(Cephalopods+Crustaceans+Echinoderms+
                                        Finfish+Molluscs+Prawns_yabbies))
-for(i in 1:length(Calculate.discarding))
+for(i in 1:length(Calculate.discarding))  
 {
-  Fishry=Calculate.discarding[[i]]
+  Fishry=Calculate.discarding[i]  
   
   #select years to calculate discarding
   Dis.yrs=Discarding.yrs
@@ -859,7 +948,7 @@ for(i in 1:length(Calculate.discarding))
               arrange(FINYEAR)%>%
               data.frame
   yrs.reported.ktch=unique(c(Data.monthly%>%filter(FishCubeCode%in%Fishry)%>%distinct(FINYEAR)%>%pull(FINYEAR),
-                             Data.monthly.north%>%filter(FishCubeCode%in%Fishry)%>%distinct(FINYEAR)%>%pull(FINYEAR)))
+                             Data.monthly.north%>%filter(FishCubeCode%in%Fishry)%>%distinct(FINYEAR)%>%pull(FINYEAR))) 
   yrs.reported.ktch=yrs.reported.ktch[which(yrs.reported.ktch%in%Dis.yrs)]
   
   
@@ -904,7 +993,7 @@ for(i in 1:length(Calculate.discarding))
         
       Shark.disc=Landings%>%mutate(Shark.ktch=KG*Prop*BRD)
       
-      #remove catch if it's reported 
+      #remove calculated discards if it's reported 
       if(length(yrs.reported.ktch)>0)
       {
         Drop=Data.monthly.north%>%
@@ -940,7 +1029,7 @@ for(i in 1:length(Calculate.discarding))
                   dplyr::select(-Prop)
     }
     
-    # Add discards to Data.mmonthly or Data.monthly.north
+    # Add discards to Data.monthly or Data.monthly.north
     if(Fishry%in%c("SBP","SBS")) which.data.set="Data.monthly.north" else
     {
       if(Fishry%in%unique(Data.monthly$FishCubeCode))which.data.set="Data.monthly"
@@ -998,7 +1087,7 @@ for(i in 1:length(Calculate.discarding))
 
 
   #3.1.2 Reapportion catch of 'shark,other' for non-shark fisheries      
-#note:  for TDGDLF, main 4 species already reapportioned in 1. Manipulate data.R
+#note:  for TDGDLF, main 4 species already reapportioned in '1. Manipulate data.R'
 for(f in 1:length(Lista.reap.FishCubeCode))   
 {
   Fishry=Lista.reap.FishCubeCode[[f]]
@@ -1143,7 +1232,7 @@ for(f in 1:length(Lista.reap.FishCubeCode))
   rm(North,South)
 }                                     
 
-  #final reaportion of 'shark,other' for a few fisheries not meeting criterion
+  #final reapportion of 'shark,other' for a few fisheries not meeting criterion
 fn.reap.shkr.oder=function(d)
 {
   ThiS=d%>%filter(SPECIES==22999)%>%distinct(FishCubeCode)%>%pull(FishCubeCode)
@@ -1343,7 +1432,7 @@ if(Do.recons.paper=="YES") Data.monthly.north_high.PCM=rbind(Data.monthly.north_
 rm(KGB.tot.ktch,add.KGBM.to.Data.monthly.north)
 
 
-  #3.1.5. Combine historic in single dataframe
+  #3.1.5. Combine historical in single dataframe
 Catch_1949.total=data.frame(year=1949,LIVEWT.c=sum(Catch_1949$LIVEWT.c))     
 Catch_1949.total$LIVEWT.c=Catch_1950$LIVEWT.c     
 Historic.ktch=rbind(Catch_1941_1943,Catch_1949.total,Catch_1950,Catch_1952_1975)
@@ -1366,7 +1455,7 @@ Historic.ktch=rbind(Historic.ktch,data.frame(year=Missing.ktch$x,LIVEWT.c=Missin
 Historic.ktch=Historic.ktch[order(Historic.ktch$year),]
 Historic.ktch$LIVEWT.c=Historic.ktch$LIVEWT.c*1000   #convert back to kg
 
-  #get prop of catch for 1975-1980 to extract historic
+  #get prop of catch for 1975-1980 to extract historical
 ALL=subset(Data.monthly,SPECIES<32000 & METHOD%in%c("GN","LL") & LAT<=(-26) & Estuary=="NO"
            & FINYEAR%in%c("1975-76","1976-77","1977-78","1978-79","1979-80","1980-81"),
            select=c(FINYEAR,LIVEWT.c,SPECIES,SNAME))%>%
@@ -1381,7 +1470,7 @@ Prop.sp.yr.all=rbind(ALL,ALL.north)%>%group_by(SPECIES)%>%
   dplyr::select(SPECIES,Proportion)%>%
   data.frame
 
-#reapportion historic catch to species
+#reapportion historical catch to species
 Hist.expnd=expand.grid(year=Historic.ktch$year,SPECIES=Prop.sp.yr.all$SPECIES)
 Hist.expnd=Hist.expnd%>%
   left_join(Historic.ktch,by="year")%>%
@@ -1833,7 +1922,7 @@ Indo_total.annual.ktch_MOU=Indo_shark.comp%>%
 Indo_total.annual.ktch_MOU=Indo_total.annual.ktch_MOU%>%
           left_join(All.species.names%>%
           dplyr::select(-Scien.nm),by=c('Species'='Name'))
-Indo_total.annual.ktch_MOU=Indo_total.annual.ktch_MOU[rep(1:nrow(Indo_total.annual.ktch_MOU),nrow(Indo_MOU.annual.trips.prop)),]%>%
+Indo_total.annual.ktch_MOU=Indo_total.annual.ktch_MOU[rep(1:nrow(Indo_total.annual.ktch_MOU),nrow(Indo_MOU.annual.trips.prop)),]%>% 
           mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_total.annual.ktch_MOU)))%>%
           left_join(Indo_MOU.annual.trips.prop,by='year')%>%
           mutate(LIVEWT.c=kg.year*trips.prop,
@@ -2030,7 +2119,7 @@ This.fin.yr=paste(Yr.lim[1]:Yr.lim[2],substr((Yr.lim[1]+1):(Yr.lim[2]+1),3,4),se
 
 #4.1 Catch_WA Fisheries
 
-  #Historic
+  #Historical
 Hist.expnd$zone=NA
 fn.out(d=Hist.expnd%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Hist.expnd.csv')
 

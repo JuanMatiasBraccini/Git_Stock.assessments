@@ -930,6 +930,12 @@ PCM=rbind(PCM,PCM.remaining)%>%
   filter(!Name=='Spur Dog')%>%
   mutate(PCM=ifelse(SPECIES=="PJ",2*PCM,PCM))   # bump up PCM for Port Jackson sharks
 
+add.SM=subset(PCM,SPECIES=='WC')%>%
+  mutate(Name='Smooth stingray',
+         Scien.nm='Bathytoshia brevicaudata',
+         SPECIES='SM')
+PCM=rbind(PCM,add.SM)
+
 #Teleosts
 PCM_teleosts=DATA_obs_teleosts$GN%>%
                 filter(SPECIES.ori%in%Discarded.SP_teleosts)%>%
@@ -1227,7 +1233,7 @@ Results=Tot.discard.result
 system.time({
   #minimum data for analysis
   tt <- table(DATA_obs$GN$BLOCK)
-  d <- DATA_obs$GN[DATA_obs$GN$BLOCK %in% names(tt[tt >= Min.obs.per.block]), ]
+  d <- DATA_obs$GN[DATA_obs$GN$BLOCK %in% names(tt[tt >= Min.obs.per.block]), ]  
   
   tt <- with(d[!duplicated(d$SHEET_NO),],table(BLOCK))
   d <- d[d$BLOCK %in% names(tt[tt >= Min.shots.per.block]), ]
@@ -1463,7 +1469,7 @@ if(do.paper)
 }
 
 # Table of effort coverage 
-#note: Show porportion of effort observed by year for gillnet
+#note: Show proportion of effort observed by year for gillnet
 if(tabulate.obs.eff)
 {
   Total.effort.year=Effort_total%>%
@@ -1543,7 +1549,7 @@ fn.add.missing=function(d,VAR)
   return(d)
 }
 
-#aggregate blocks and add missing species     #0.018 sec per iteration
+#aggregate blocks and add missing species     #0.018 sec per iteration 
 system.time({ 
   Results.show=fn.add.missing(d=fn.agg.block(d=Results),VAR=names(Tot.discard.result))
   Results.show_teleosts=fn.add.missing(d=fn.agg.block(d=Results_teleosts),
