@@ -61,8 +61,6 @@ fn.exp.his=function(dat,dat1)
   return(dat2[,-match("prop",names(dat2))])
 }
 
-fn.extract.dat=function(STRING,nm.Dat) grepl(STRING, nm.Dat, perl = TRUE)
-
 fn.rename.dat=function(x,y) str_remove_all(x, paste(y, collapse = "|"))
 
 #Functions for adding missing size
@@ -659,10 +657,11 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   if(!is.null(Dat))
   {
     nm.Dat=names(Dat)
+    
     #3.1 RELATIVE ABUNDANCE    
       #3.1.1  TDGDLF  
         #monthly
-    iid=nm.Dat[fn.extract.dat(STRING="(?=.*annual.abundance.basecase)(?=.*relative)(?=.*monthly)",nm.Dat)]
+    iid=nm.Dat[fn.extract.dat.perl(STRING="(?=.*annual.abundance.basecase)(?=.*relative)(?=.*monthly)",nm.Dat)]
     if(length(iid)>0)
     {
       Ab.indx.TDGDLF= Dat[match(iid,nm.Dat)]
@@ -679,7 +678,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
       }
     }
         #daily
-    iid=nm.Dat[fn.extract.dat(STRING="(?=.*annual.abundance.basecase)(?=.*relative)(?=.*daily)",nm.Dat)]
+    iid=nm.Dat[fn.extract.dat.perl(STRING="(?=.*annual.abundance.basecase)(?=.*relative)(?=.*daily)",nm.Dat)]
     if(length(iid)>0)
     {
       Ab.indx.TDGDLF.daily=Dat[match(iid,nm.Dat)]
@@ -732,7 +731,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
       #3.2.3.TDGDLF observing programs
     #description: FL (cm); composition observed as part of different research projects on commercial gillnet vessels. 
     #           6.5 and 7 inch mesh combined (also available are data by mesh size). Souce: "Shark database"
-    iid=nm.Dat[fn.extract.dat(STRING="(?=.*inch.raw)",nm.Dat)]
+    iid=nm.Dat[fn.extract.dat.perl(STRING="(?=.*inch.raw)",nm.Dat)]
     if(length(iid)>0)
     {
       FL.TDGDFL= Dat[match(iid,nm.Dat)]
@@ -767,7 +766,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     #description: FL (cm); composition observed on NSF longline vessels. Source: "Shark database"
     if('Size_composition_NSF.LONGLINE'%in%nm.Dat) FL_NSF=Dat$Size_composition_NSF.LONGLINE
     
-      #3.2.6 Naturaliste abundance survey
+      #3.2.6 Naturaliste survey
     #description: FL (cm); annual longline survey. Source: "Shark database"
     if('Size_composition_Survey'%in%nm.Dat) FL_Survey=Dat$Size_composition_Survey
     if('Size_composition_Survey_Observations'%in%nm.Dat)
@@ -777,7 +776,17 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
                             dplyr::select(FINYEAR,zone,N.shots,N.observations,Fishery)
     }
     
-      #3.2.7 TEPS_TDGLDF
+    #3.2.7 South Australia
+    #description: FL (cm)
+    if('Size_composition_Other'%in%nm.Dat) FL_Other=Dat$Size_composition_Other
+    if('Size_composition_Other_Observations'%in%nm.Dat)
+    {
+      Other.size.numbers=Dat$Size_composition_Other_Observations%>%
+        mutate(Fishery='SA',zone='SA')%>%
+        dplyr::select(FINYEAR,zone,N.shots,N.observations,Fishery)
+    }
+    
+      #3.2.8 TEPS_TDGLDF
     if(Name=="dusky shark") Size.comp.TEPS_TDGLDF=c(3.05,4,3,3.5,3.5,3.5,3.5,3,3,3,4,3)     #raw data from Comments in TDGDLF returns
     
     
@@ -817,7 +826,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     if('Acous.Tag_Zn.rec_Acous.Tag.prop'%in%nm.Dat) Zn.rec_Acous.Tag.prop=Dat$Acous.Tag_Zn.rec_Acous.Tag.prop
     
     #Individual based model
-    iid=nm.Dat[fn.extract.dat(STRING="(?=.*Acous.Tag)(?=.*Ind_based)",nm.Dat)]
+    iid=nm.Dat[fn.extract.dat.perl(STRING="(?=.*Acous.Tag)(?=.*Ind_based)",nm.Dat)]
     if(length(iid)>0) Indiv_based_Acous.Tag= Dat[match(iid,nm.Dat)]$`_Acous.Tag_Acous.Tag.Ind_based.csv`
     
     #Reported recaptures and releases of acoustic tagging
@@ -832,7 +841,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     
     
     #3.5.  Standardised Mean size
-    iid=nm.Dat[fn.extract.dat(STRING="(?=.*annual.mean.size)",nm.Dat)]
+    iid=nm.Dat[fn.extract.dat.perl(STRING="(?=.*annual.mean.size)",nm.Dat)]
     if(length(iid)>0)
     {
       Avr.wt.yr.zn=Dat[match(iid,nm.Dat)]
@@ -849,7 +858,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     }
     
     #3.6. F from tagging
-    iid=nm.Dat[fn.extract.dat(STRING="Fishing.mortality.TDGDLF",nm.Dat)]
+    iid=nm.Dat[fn.extract.dat.perl(STRING="Fishing.mortality.TDGDLF",nm.Dat)]
     if(length(iid)>0)
     {
       F.from.tagging=Dat[[match(iid,nm.Dat)]]
@@ -953,7 +962,8 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   }
   if(exists('FL_Pilbara_trawl')) FL_Pilbara_trawl$TL=round(FL_to_TL(FL_Pilbara_trawl$FL,a.TL,b.TL))
   if(exists('FL_NSF')) FL_NSF$TL=round(FL_to_TL(FL_NSF$FL,a.TL,b.TL))
-  if(exists('FL_Survey')) FL_Survey$TL=round(FL_to_TL(FL_Survey$FL,a.TL,b.TL)) 
+  if(exists('FL_Survey')) FL_Survey$TL=round(FL_to_TL(FL_Survey$FL,a.TL,b.TL))
+  if(exists('FL_Other')) FL_Other$TL=round(FL_to_TL(FL_Other$FL,a.TL,b.TL)) 
   
     #2.2. do the aggregation
   if(exists('FL.TDGDFL'))   
@@ -964,27 +974,32 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     TL_observers=vector('list',length(FL.TDGDFL))
     names(TL_observers)=names(FL.TDGDFL)
     dummy=do.call(rbind,FL.TDGDFL)
-    MIN=min(dummy$TL/10,na.rm=T)
-    MAX=max(dummy$TL/10,na.rm=T)
-    for(n in 1:length(FL.TDGDFL))
+    if(nrow(dummy)==0) rm(FL.TDGDFL)
+    if(nrow(dummy)>0)
     {
-      if(nrow(FL.TDGDFL[[n]])>Min.obs)
+      MIN=min(dummy$TL/10,na.rm=T)
+      MAX=max(dummy$TL/10,na.rm=T)
+      for(n in 1:length(FL.TDGDFL))
       {
-        a=fn.add.missing.size3(dat=FL.TDGDFL[[n]],
-                               Min=floor(MIN)*10,
-                               Max=ceiling(MAX)*10,
-                               interval=Bin.size)
-        ag=a[,-(2:3)]%>%
+        if(nrow(FL.TDGDFL[[n]])>Min.obs)
+        {
+          a=fn.add.missing.size3(dat=FL.TDGDFL[[n]],
+                                 Min=floor(MIN)*10,
+                                 Max=ceiling(MAX)*10,
+                                 interval=Bin.size)
+          ag=a[,-(2:3)]%>%
             group_by(FINYEAR) %>% 
             summarise(across(where(is.numeric),sum))  
-        
-        ag=ag[which(rowSums(ag[,-1])>Min.obs),]
-        a=a%>%filter(FINYEAR%in%ag$FINYEAR)
-        TL_observers[[n]]=a
+          
+          ag=ag[which(rowSums(ag[,-1])>Min.obs),]
+          a=a%>%filter(FINYEAR%in%ag$FINYEAR)
+          TL_observers[[n]]=a
+        }
       }
+      TL_observers <- TL_observers[!sapply(TL_observers,is.null)]
+      TL_observers <- TL_observers[sapply(TL_observers,nrow)>0]
     }
-    TL_observers <- TL_observers[!sapply(TL_observers,is.null)]
-    TL_observers <- TL_observers[sapply(TL_observers,nrow)>0]
+
   }
   if(exists('FL_Pilbara_trawl'))
   {
@@ -1020,6 +1035,18 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
                                          Max=ceiling(max(FL_Survey$TL/10,na.rm=T))*10,
                                          interval=Bin.size)
     }else rm(FL_Survey)
+    
+  }
+  if(exists('FL_Other'))
+  {
+    FL_Other=FL_Other%>%filter(TL<=Max.TL)
+    if(nrow(FL_Other)>=Min.obs)
+    {
+      Other_observers=fn.add.missing.size3(dat=FL_Other,
+                                            Min=floor(min(FL_Other$TL/10,na.rm=T))*10,
+                                            Max=ceiling(max(FL_Other$TL/10,na.rm=T))*10,
+                                            interval=Bin.size)
+    }else rm(FL_Other)
     
   }
     
@@ -1080,6 +1107,11 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   {
     if(exists('All.size')) All.size$Survey=Survey_observers
     if(!exists('All.size')) All.size=list(Survey=Survey_observers)
+  }
+  if(exists('FL_Other'))
+  {
+    if(exists('All.size')) All.size$Other=Other_observers
+    if(!exists('All.size')) All.size=list(Other=Other_observers)
   }
   if(exists('All.size'))
   {
@@ -1317,6 +1349,22 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
       ggsave("Size.comp.Pilbara.trawl_dist.tiff",width = 10,height = 10,compression = "lzw")
     }
     
+    other.size=All.size.gathered%>%filter(grepl('Other',Fishery))%>%ungroup()
+    if(nrow(other.size)>0)
+    {
+      nKl=length(unique(other.size$year))
+      other.size%>%
+        mutate(year=factor(year,levels=sort(unique(year))))%>%
+        ggplot(aes(Size.class,Numbers,color=year))+
+        geom_line(aes(linetype=Sex),size=1.05)+
+        ylab("Frequency")+xlab("TL size class (cm)")+
+        theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=18)+
+        scale_color_manual(values=colfunc(nKl))+
+        geom_vline(xintercept=LH.par$TL.50.mat)+
+        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",size=5,vjust=1.5)
+      ggsave("Size.comp.Other_dist.tiff",width = 10,height = 10,compression = "lzw")
+    }
+    
     
     #bubble plots
       #2.1 TDGDLF size comp of reported catch
@@ -1471,6 +1519,20 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
       mtext("Total length class (cm)",2,cex=1.75,line=0.95,las=3,outer=T)
       dev.off()
     }
+    
+    #2.4 Other size comp of reported catch
+    if('Other'%in%names(All.size))
+    {
+      FinYrs=sort(as.character(unique(All.size$Other$FINYEAR)))
+      FinYrs=paste(fnx(min(FinYrs)):(fnx(max(FinYrs))),"-",
+                   substr((fnx(min(FinYrs))+1):(fnx(max(FinYrs))+1),3,4),sep="")
+      fn.fig("Size.comp.Other",2400, 2000)
+      par(mfcol=c(1,1),las=1,mai=c(0.3,0.35,.1,.1),oma=c(2.25,2.5,1,1),mgp=c(1,.65,0))
+      fn.bub(DAT=All.size$Other,COL='steelblue',Scale=7.5,TCK=-.01,FinYrs)
+      mtext("Financial Year",1,cex=1.75,line=0.75,outer=T)
+      mtext("Total length class (cm)",2,cex=1.75,line=0.95,las=3,outer=T)
+      dev.off()
+    }
   }
 
     #Table of number of observations and shots
@@ -1496,7 +1558,6 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
       Size.numbers=rbind(Size.numbers,Pilbara_trawl.size.numbers)
       Size.shots=rbind(Size.shots,Pilbara_trawl.size.shots)
     }
-    
     if(exists('Survey.size.numbers'))
     {
       Size.numbers.Survey=Survey.size.numbers%>%dplyr::select(Fishery,FINYEAR,zone,N.observations)
@@ -1505,7 +1566,14 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
       Size.numbers=rbind(Size.numbers,Size.numbers.Survey)
       Size.shots=rbind(Size.shots,Size.shots.Survey)
     }
-    
+    if(exists('Other.size.numbers'))
+    {
+      Size.numbers.Other=Other.size.numbers%>%dplyr::select(Fishery,FINYEAR,zone,N.observations)
+      Size.shots.Other=Other.size.numbers%>%dplyr::select(Fishery,FINYEAR,zone,N.shots)
+      
+      Size.numbers=rbind(Size.numbers,Size.numbers.Other)
+      Size.shots=rbind(Size.shots,Size.shots.Other)
+    }
     
     Numbers.SF=Size.numbers%>%
                     mutate(Fishery.zone=paste(Fishery,zone,sep='-'))%>%
@@ -1603,10 +1671,20 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     if(sum(c('TDGDLF','TDGDLF_7')%in%names(All.size))>0)
     {
       d.list$'Catch size comp (TDGDLF)'=list(FINYEAR=unique(do.call(rbind,All.size$TDGDLF)$FINYEAR))
-    }else
+    }
+    if(sum(c('NSF')%in%names(All.size))>0)
     {
       d.list$'Catch size comp (NSF)'=list(FINYEAR=unique(All.size$NSF$FINYEAR))
     }
+    if(sum(c('Pilbara_trawl')%in%names(All.size))>0)
+    {
+      d.list$'Catch size comp (PFT)'=list(FINYEAR=unique(All.size$Pilbara_trawl$FINYEAR))
+    }
+    if(sum(c('Other')%in%names(All.size))>0)
+    {
+      d.list$'Catch size comp (Other)'=list(FINYEAR=unique(All.size$Other$FINYEAR))
+    }
+    
   }
   if(exists('Avr.wt.yr'))d.list$'Catch mean wt (TDGDLF)'=list(Avr.wt.yr%>%distinct(Finyear))
   if(exists('F.from.tagging'))d.list$'Fishing mortality (TDGDLF)'=list(F.from.tagging%>%

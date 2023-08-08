@@ -113,18 +113,28 @@ doubleNorm24.fn <- function(x, a, b, c, d, e, f, use_e_999, use_f_999) {
   return(sel)
 }
 
-wrapper.fn=function(x,a.dn,b.dn,c.dn,d.dn,e.dn,f.dn,a.log,b.log)
+wrapper.fn=function(x,a.dn,b.dn,c.dn,d.dn,e.dn,f.dn,a.log,b.log,out.logis=TRUE)
 {
   Sel.dn=doubleNorm24.fn(x,a=a.dn,b=b.dn, c=c.dn, d=d.dn, e=e.dn, f=f.dn,use_e_999=FALSE, use_f_999=FALSE)
   Sel.log=logistic1.fn(len=x,a=a.log, b=b.log)
   
   par(xpd=T)
   plot(x,Sel.dn,ylab='Selectivity',xlab='size',type='l')
-  lines(x,Sel.log,col=2)
-  legend('topleft',c(paste('double normal (a=',a.dn,', b=',b.dn,', c=',c.dn,', d=',d.dn,', e=',e.dn,', f=',f.dn,')',sep=''),
-                     paste('logistic(a=',a.log,', b=',b.log,')',sep='')), inset=c(0,-0.1),
-         lty=1,col=1:2,bty='n')
+  if(out.logis)
+  {
+    lines(x,Sel.log,col=2)
+    legend('topleft',c(paste('double normal (a=',a.dn,', b=',b.dn,', c=',c.dn,', d=',d.dn,', e=',e.dn,', f=',f.dn,')',sep=''),
+                       paste('logistic(a=',a.log,', b=',b.log,')',sep='')), inset=c(0,-0.1),
+           lty=1,col=1:2,bty='n')
+  }
+  if(!out.logis)
+  {
+    legend('topleft',paste('double normal (a=',a.dn,', b=',b.dn,', c=',c.dn,', d=',d.dn,', e=',e.dn,', f=',f.dn,')',sep=''),
+                       inset=c(0,-0.1),
+           lty=1,col=1:2,bty='n')
+  }
   
 }
-#wrapper.fn(x=85:500,a.dn=220,b.dn=-3,c.dn=8,d.dn=8,e.dn=-999,f.dn=1,a.log=325,b.log=20)
+#wrapper.fn(x=85:300,a.dn=130,b.dn=-11,c.dn=9,d.dn=8,e.dn=-999,f.dn=-999,a.log=325,b.log=20)
 #wrapper.fn(x=90:500,a.dn=150,b.dn=-1,c.dn=7,d.dn=8,e.dn=-999,f.dn=-999,a.log=325,b.log=10)
+wrapper.fn(x=80:400,a.dn=110,b.dn=-11,c.dn=5,d.dn=10,e.dn=0.000001,f.dn=1,a.log=325,b.log=20,out.logis=FALSE)

@@ -36,7 +36,7 @@ system.time({for(l in 1: N.sp)
       mutate(Keep=FINYEAR)
     if(nrow(N.min)>0)
     {
-      print(paste("Dynamic catch-only size based model with dome-shape selectivity for --",names(Species.data)[l],"---",Outfile))
+      print(paste("Dynamic catch and size comp model with dome-shape selectivity for --",names(Species.data)[l],"---",Outfile))
       
       dummy=dummy%>%
         mutate(Keep=FINYEAR,
@@ -71,7 +71,7 @@ system.time({for(l in 1: N.sp)
       print(p)
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                    capitalize(List.sp[[l]]$Name),"/",AssessYr,
-                   "/1_Inputs/Visualise data/Size.comp_Size_catch.only.",outfile,".tiff",sep=''),
+                   "/1_Inputs/Visualise data/Size.comp_Dynamic catch and size comp.",outfile,".tiff",sep=''),
              width = 8,height = 8,compression = "lzw")
       
       
@@ -99,16 +99,12 @@ system.time({for(l in 1: N.sp)
       PropFemAtBirth=List.sp[[l]]$pup.sx.ratio
       wtlen_b=c(List.sp[[l]]$BwT,List.sp[[l]]$BwT.M)   #length-weight pars for females and males
       wtlen_a=c(List.sp[[l]]$AwT,List.sp[[l]]$AwT.M)
-      
-      
       Ages = 1:MaxAge
       nAges = length(Ages)
-      
-      NatMort_mean=mean(colMeans(store.species.M[[l]],na.rm=T))
-      NatMort_sd=sd(colMeans(store.species.M[[l]],na.rm=T))
-      Steepness_mean=store.species.steepness.S2[[l]]
-      Steepness_sd=store.species.steepness[[l]]$sd
-      
+      NatMort_mean=List.sp[[l]]$Sens.test$SS3$Mmean[1]
+      NatMort_sd=sd(colMeans(store.species.M_M.mean[[l]],na.rm=T))
+      Steepness_mean=List.sp[[l]]$Sens.test$SS3$Steepness[1]
+      Steepness_sd=List.sp[[l]]$Sens.test$SS3$Steepness.sd[1]
       lbnd = seq(0,MaxLen - LenInc, LenInc)
       ubnd = lbnd + LenInc
       midpt = lbnd + (LenInc/2)
@@ -132,7 +128,7 @@ system.time({for(l in 1: N.sp)
         pull(Sel.combined)
       Selectivity <- t(data.frame(FemSelectivity=SelAtLength,
                                   MalSelectivity=SelAtLength)) # selectivity inputted as matrix (F, M)
-      
+      #SS.sel=doubleNorm24.fn(lbnd,a=80,b=-13, c=12.752700, d=8, e=-999, f=-999,use_e_999=FALSE, use_f_999=FALSE)
       
       #Total catch
       Katch=ktch.combined%>%
@@ -206,7 +202,8 @@ system.time({for(l in 1: N.sp)
       names(params)=c("ln_R0", "ln_M","ln_h","lnRecDev")
       
       # Create function for nlmb (which can only have one input, i.e. parameter list)
-      ObjFunc <- function(params) {
+      ObjFunc <- function(params)
+      {
         res=ObjectiveFunc_cpp(params, nYears, nLen_SimYrs, Len_SimYr, ObsLenCompVec1, ObsLenCompVec2, ObsLenCompVec3, 
                               ObsAnnCatch, MaxAge, nLenCl, midpt, LTM_Fem, LTM_Mal, WtAtLen, FemMatAtLen, RecLenDist, Init_F, 
                               PropFemAtBirth, SelAtLength, NatMort_mean, NatMort_sd, Steepness_mean, Steepness_sd,
@@ -214,7 +211,6 @@ system.time({for(l in 1: N.sp)
         return(res)
       }
       ObjFunc(params)
-      
       
       # Fit model (twice)
       InitTime = Sys.time()

@@ -1,3 +1,16 @@
+fn.get.stuff.from.list=function(lista,stuff) lapply(lista, function(x) x[[stuff]]) 
+fn.get.and.name=function(LISTA,x)
+{
+  dd=fn.get.stuff.from.list(LISTA,x)
+  names(dd)=names(LISTA)
+  return(dd)
+}
+fn.extract.dat.perl=function(STRING,nm.Dat) grepl(STRING, nm.Dat, perl = TRUE)
+objects.exist <- function(...)
+{
+  ls <- list(...)
+  sapply(ls, exists)
+}
 # Import Total Catch------------------------------------------------------
 fn.import.catch.data=function(KTCH.UNITS)
 {
@@ -68,7 +81,24 @@ fn.import.catch.data=function(KTCH.UNITS)
   Rec.ktch=Rec.ktch%>%mutate(Region=ifelse(zone%in%c('Gascoyne','North Coast'),'North','South'),
                              year=as.numeric(substr(FINYEAR,1,4)),
                              Common.Name=tolower(Common.Name))
-  
+  #add dummy 0 catch for these species to get catch series starting in 1941
+  if(!c("weasel shark")%in%unique(Rec.ktch$Common.Name))
+  {
+    Addis=Rec.ktch%>%
+              filter(Common.Name=='zebra shark')%>%
+              mutate(LIVEWT.c=0,
+                     Common.Name="weasel shark")
+    
+    Rec.ktch=rbind(Rec.ktch,Addis)
+  }
+  if(!c("snaggletooth")%in%unique(Rec.ktch$Common.Name))
+  {
+    Addis=Rec.ktch%>%
+      filter(Common.Name=='zebra shark')%>%
+      mutate(LIVEWT.c=0,
+             Common.Name="snaggletooth")
+    Rec.ktch=rbind(Rec.ktch,Addis)
+  }
   
   #Combine data sets
   # TDGDLF and NSF
@@ -90,15 +120,15 @@ fn.import.catch.data=function(KTCH.UNITS)
                           zone=="West Coast"~'West',
                           zone=="South Coast"~'Zone1'),
            Common.Name=ifelse(Common.Name=="dogfishes","spurdogs",
-                              ifelse(Common.Name=="greynurse shark","grey nurse shark",
-                                     ifelse(Common.Name=="thresher shark","thresher sharks",
-                                            ifelse(Common.Name=="bronze whaler","copper shark",
-                                                   ifelse(Common.Name=="dusky whaler","dusky shark",
-                                                          ifelse(Common.Name=="gummy sharks","gummy shark",
-                                                                 ifelse(Common.Name=="tawny shark","tawny nurse shark",
-                                                                        ifelse(Common.Name=="sawfishes","sawfish (general)",
-                                                                               ifelse(Common.Name=="australian blacktip shark","australian blacktip",
-                                                                                      Common.Name))))))))))%>%
+                       ifelse(Common.Name=="greynurse shark","grey nurse shark",
+                       ifelse(Common.Name=="thresher shark","thresher sharks",
+                       ifelse(Common.Name=="bronze whaler","copper shark",
+                       ifelse(Common.Name=="dusky whaler","dusky shark",
+                       ifelse(Common.Name=="gummy sharks","gummy shark",
+                       ifelse(Common.Name=="tawny shark","tawny nurse shark",
+                       ifelse(Common.Name=="sawfishes","sawfish (general)",
+                       ifelse(Common.Name=="australian blacktip shark","australian blacktip",
+                       Common.Name))))))))))%>%
     left_join(All.species.names,by=c('Common.Name'='SNAME'))%>%
     mutate(SNAME=Common.Name,
            Name=Common.Name,
@@ -309,11 +339,11 @@ fn.import.catch.data=function(KTCH.UNITS)
   #Add GAB
   a=GAB.trawl_catch%>%
     mutate(SPECIES=ifelse(SPECIES==5000,5002,
-                          ifelse(SPECIES==23000,23900,
-                                 ifelse(SPECIES==12901,12000,
-                                        ifelse(SPECIES==24000,24900,
-                                               ifelse(SPECIES==19000,19004,
-                                                      SPECIES))))))%>%
+                   ifelse(SPECIES==23000,23900,
+                   ifelse(SPECIES==12901,12000,
+                   ifelse(SPECIES==24000,24900,
+                   ifelse(SPECIES==19000,19004,
+                   SPECIES))))))%>%
     left_join(All.species.names,by='SPECIES')%>%
     mutate(BLOCKX=NA,
            Region="South",
@@ -657,6 +687,10 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
     if(!aa$Species%in%species.meeting.criteria) #reset availability and encounterability if not meeting criteria
     {
       k=KIP%>%filter(Name==aa$Species)
+      if(nrow(k)==0)  #create dummy if species is not at all in KIP (i.e. does not meet criteria for any gear)
+      {
+        k=KIP[1,]%>%mutate(Name=aa$Species,Gear='Dummy')
+      }
       aa=aa%>%
         mutate(Net.avail=ifelse(!'net'%in%k$Gear,1,Net.avail),
                Net.encoun=ifelse(!'net'%in%k$Gear,1,Net.encoun),
@@ -667,10 +701,14 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
                Trap.avail=ifelse(!'trap'%in%k$Gear,1,Trap.avail),
                Trap.encoun=ifelse(!'trap'%in%k$Gear,1,Trap.encoun))
     }
-    
+    if(aa$Species=="longfin mako shark")  #as Productivity = 3, only option for dropping from Assessment due to no catch 
+    {                                      # is to set all Susceptibility pars to 1
+      aa[,-match(c('Species','Max.age','Age.mat','Fecun','Max.size','Size.mat','Rep.strat','Troph.Lvl'),names(aa))]=1
+    }     
+    #MSC pre accreditation geometric mean formula
     PSA$Productivity[p]=mean(unlist(aa[,c('Max.age','Age.mat','Fecun',
                                           'Max.size','Size.mat','Rep.strat','Troph.Lvl')]))
-    S1=1+((aa$Net.avail*aa$Net.encoun*aa$Net.sel*aa$Net.PCM)-1)/40
+    S1=1+((aa$Net.avail*aa$Net.encoun*aa$Net.sel*aa$Net.PCM)-1)/40   
     S2=1+((aa$Line.avail*aa$Line.encoun*aa$Line.sel*aa$Line.PCM)-1)/40
     S3=1+((aa$Trawl.avail*aa$Trawl.encoun*aa$Trawl.sel*aa$Trawl.PCM)-1)/40
     S4=1+((aa$Trap.avail*aa$Trap.encoun*aa$Trap.sel*aa$Trap.PCM)-1)/40
@@ -683,9 +721,9 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
     rename(Vulnerability.score=Vulnerability)%>%
     mutate(Species=Hmisc::capitalize(as.character(Species)),
            Vulnerability=Hmisc::capitalize(
-             ifelse(Vulnerability.score<=Low.risk,'Low',
-                    ifelse(Vulnerability.score>Low.risk & Vulnerability.score<=medium.risk,'Medium',
-                           'High'))),
+              ifelse(Vulnerability.score<=Low.risk,'Low',
+              ifelse(Vulnerability.score>Low.risk & Vulnerability.score<=medium.risk,'Medium',
+              'High'))),
            Vulnerability=factor(Vulnerability,levels=c('Low','Medium','High')))%>%
     arrange(Vulnerability.score)%>%
     mutate(Fnt.size=case_when(Vulnerability=='Low'~size.low,
@@ -745,7 +783,7 @@ fn.ktch.cpue=function(ktch,cpue)
   {
     fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                  capitalize(unique(ktch$Name)),"/",AssessYr,
-                 "/1_Inputs/Visualise data/Total catch vs cpues.tiff",sep=''),2400,2000) 
+                 "/1_Inputs/Visualise data/Total catch vs cpues",sep=''),2400,2000) 
     par(las=1,oma=c(1,1,1,2))
     plot(ktch$finyear,ktch$Tonnes,type='o',pch=19,main=capitalize(unique(ktch$Name)),
          ylab='Total catch (tonnes)',xlab='Financial year')
@@ -777,6 +815,1567 @@ fn.ktch.cpue=function(ktch,cpue)
 }
 
 # Functions for applying CMSY, DB-SRA, OCOM, JABBA ------------------------------------------------------
+dbsra_tweeked=function(year = NULL, catch = NULL, catchCV = NULL, 
+                       catargs = list(dist = "none",low = 0, up = Inf, unit = "MT"), agemat = NULL, maxn = 25, 
+                       k = list(low = 0, up = NULL, tol = 0.01, permax = 1000), 
+                       b1k = list(dist = "unif", low = 0, up = 1, mean = 0, sd = 0),
+                       btk = list(dist = "unif", low = 0, up = 1, mean = 0, sd = 0, refyr = NULL),
+                       fmsym = list(dist = "unif", low = 0, up = 1, mean = 0, sd = 0),
+                       bmsyk = list(dist = "unif", low = 0, up = 1, mean = 0, sd = 0), 
+                       M = list(dist = "unif", low = 0, up = 1, mean = 0, sd = 0),
+                       nsims = 10000, catchout = 0, grout = 1, 
+                       graphs = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
+                       grargs = list(lwd = 1, cex = 1, nclasses = 20, mains = " ", cex.main = 1, cex.axis = 1, cex.lab = 1),
+                       pstats = list(ol = 1, mlty = 1, mlwd = 1.5, llty = 3, llwd = 1,ulty = 3, ulwd = 1),
+                       grtif = list(zoom = 4, width = 11,height = 13, pointsize = 10),
+                       Export=FALSE) 
+{
+  if (is.null(catch)) 
+    stop("No catch data")
+  if (length(year) != length(catch)) 
+    stop("Length of year and catch differ")
+  if (btk$refyr > c(max(year) + 1)) 
+    stop("refyr is beyond the max year allowed (i.e.,max(year)+1)")
+  catdef = list(dist = "none", low = 0, up = Inf, unit = "MT")
+  if (any(is.na(catch))) 
+    stop("There are missing values in catch")
+  if (any(is.na(year))) 
+    stop("There are missing values in year")
+  if (any(names(catargs) == "dist")) {
+    if (catdef$dist != catargs$dist) 
+      catdef$dist <- catargs$dist
+  }
+  if (any(names(catargs) == "low")) {
+    if (any(catdef$low != catargs$low)) 
+      catdef$low <- catargs$low
+  }
+  if (any(names(catargs) == "up")) {
+    if (any(catdef$up != catargs$up)) 
+      catdef$up <- catargs$up
+  }
+  if (any(names(catargs) == "unit")) {
+    if (catdef$unit != catargs$unit) 
+      catdef$unit <- catargs$unit
+  }
+  kdef = list(low = 0, up = max(catch), tol = 1, permax = 1000)
+  if (any(names(k) == "low")) {
+    if (kdef$low != k$low) 
+      kdef$low <- k$low
+  }
+  if (any(names(k) == "up")) {
+    if (kdef$up != k$up) 
+      kdef$up <- k$up
+  }
+  if (any(names(k) == "tol")) {
+    if (kdef$tol != k$tol) 
+      kdef$tol <- k$tol
+  }
+  if (any(names(k) == "permax")) {
+    if (kdef$permax != k$permax) 
+      kdef$permax <- k$permax
+  }
+  fmsymdef = list(dist = "unif", low = 0, up = 1, mean = 0, 
+                  sd = 0)
+  if (any(names(fmsym) == "dist")) {
+    if (fmsymdef$dist != fmsym$dist) 
+      fmsymdef$dist <- fmsym$dist
+  }
+  if (any(names(fmsym) == "low")) {
+    if (fmsymdef$low != fmsym$low) 
+      fmsymdef$low <- fmsym$low
+  }
+  if (any(names(fmsym) == "up")) {
+    if (fmsymdef$up != fmsym$up) 
+      fmsymdef$up <- fmsym$up
+  }
+  if (any(names(fmsym) == "mean")) {
+    if (fmsymdef$mean != fmsym$mean) 
+      fmsymdef$mean <- fmsym$mean
+  }
+  if (any(names(fmsym) == "sd")) {
+    if (fmsymdef$sd != fmsym$sd) 
+      fmsymdef$sd <- fmsym$sd
+  }
+  b1kdef = list(dist = "unif", low = 0, up = 1, mean = 0, 
+                sd = 0)
+  if (any(names(b1k) == "dist")) {
+    if (b1kdef$dist != b1k$dist) 
+      b1kdef$dist <- b1k$dist
+  }
+  if (any(names(b1k) == "low")) {
+    if (b1kdef$low != b1k$low) 
+      b1kdef$low <- b1k$low
+  }
+  if (any(names(b1k) == "up")) {
+    if (b1kdef$up != b1k$up) 
+      b1kdef$up <- b1k$up
+  }
+  if (any(names(b1k) == "mean")) {
+    if (b1kdef$mean != b1k$mean) 
+      b1kdef$mean <- b1k$mean
+  }
+  if (any(names(b1k) == "sd")) {
+    if (b1kdef$sd != b1k$sd) 
+      b1kdef$sd <- b1k$sd
+  }
+  if (any(names(b1k) == "refyr")) {
+    if (b1kdef$refyr != b1k$refyr) 
+      b1kdef$refyr <- b1k$refyr
+  }
+  btkdef = list(dist = "unif", low = 0, up = 1, mean = 0, 
+                sd = 0, refyr = max(year))
+  if (any(names(btk) == "dist")) {
+    if (btkdef$dist != btk$dist) 
+      btkdef$dist <- btk$dist
+  }
+  if (any(names(btk) == "low")) {
+    if (btkdef$low != btk$low) 
+      btkdef$low <- btk$low
+  }
+  if (any(names(btk) == "up")) {
+    if (btkdef$up != btk$up) 
+      btkdef$up <- btk$up
+  }
+  if (any(names(btk) == "mean")) {
+    if (btkdef$mean != btk$mean) 
+      btkdef$mean <- btk$mean
+  }
+  if (any(names(btk) == "sd")) {
+    if (btkdef$sd != btk$sd) 
+      btkdef$sd <- btk$sd
+  }
+  if (any(names(btk) == "refyr")) {
+    if (btkdef$refyr != btk$refyr) 
+      btkdef$refyr <- btk$refyr
+  }
+  bmsykdef = list(dist = "unif", low = 0.5, up = 0.5, mean = 0, 
+                  sd = 0)
+  if (any(names(bmsyk) == "dist")) {
+    if (bmsykdef$dist != bmsyk$dist) 
+      bmsykdef$dist <- bmsyk$dist
+  }
+  if (any(names(bmsyk) == "low")) {
+    if (bmsykdef$low != bmsyk$low) 
+      bmsykdef$low <- bmsyk$low
+  }
+  if (any(names(bmsyk) == "up")) {
+    if (bmsykdef$up != bmsyk$up) 
+      bmsykdef$up <- bmsyk$up
+  }
+  if (any(names(bmsyk) == "mean")) {
+    if (bmsykdef$mean != bmsyk$mean) 
+      bmsykdef$mean <- bmsyk$mean
+  }
+  if (any(names(bmsyk) == "sd")) {
+    if (bmsykdef$sd != bmsyk$sd) 
+      bmsykdef$sd <- bmsyk$sd
+  }
+  Mdef = list(dist = "unif", low = 0.2, up = 0.2, mean = 0, 
+              sd = 0)
+  if (any(names(M) == "dist")) {
+    if (Mdef$dist != M$dist) 
+      Mdef$dist <- M$dist
+  }
+  if (any(names(M) == "low")) {
+    if (Mdef$low != M$low) 
+      Mdef$low <- M$low
+  }
+  if (any(names(M) == "up")) {
+    if (Mdef$up != M$up) 
+      Mdef$up <- M$up
+  }
+  if (any(names(M) == "mean")) {
+    if (Mdef$mean != M$mean) 
+      Mdef$mean <- M$mean
+  }
+  if (any(names(M) == "sd")) {
+    if (Mdef$sd != M$sd) 
+      Mdef$sd <- M$sd
+  }
+  grdef = list(lwd = 1, cex.axis = 1, cex.lab = 1, cex = 1, 
+               nclasses = 20, mains = " ", cex.main = 1)
+  if (any(names(grargs) == "cex.axis")) {
+    if (any(grdef$cex.axis != grargs$cex.axis)) 
+      grdef$cex.axis <- grargs$cex.axis
+  }
+  if (any(names(grargs) == "cex.lab")) {
+    if (any(grdef$cex.lab != grargs$cex.lab)) 
+      grdef$cex.lab <- grargs$cex.lab
+  }
+  if (any(names(grargs) == "cex")) {
+    if (any(grdef$cex != grargs$cex)) 
+      grdef$cex <- grargs$cex
+  }
+  if (any(names(grargs) == "nclasses")) {
+    if (any(grdef$nclasses != grargs$nclasses)) 
+      grdef$nclasses <- grargs$nclasses
+  }
+  if (any(names(grargs) == "mains")) {
+    if (any(grdef$mains != grargs$mains)) 
+      grdef$mains <- grargs$mains
+  }
+  if (any(names(grargs) == "cex.main")) {
+    if (any(grdef$cex.main != grargs$cex.main)) 
+      grdef$cex.main <- grargs$cex.main
+  }
+  if (any(names(grargs) == "lwd")) {
+    if (any(grdef$lwd != grargs$lwd)) 
+      grdef$lwd <- grargs$lwd
+  }
+  pstdef = list(ol = 1, mlty = 1, mlwd = 1.5, llty = 3, llwd = 1, 
+                ulty = 3, ulwd = 1)
+  if (any(names(pstats) == "ol")) {
+    if (pstdef$ol != pstats$ol) 
+      pstdef$ol <- pstats$ol
+  }
+  if (any(names(pstats) == "mlty")) {
+    if (pstdef$mlty != pstats$mlty) 
+      pstdef$mlty <- pstats$mlty
+  }
+  if (any(names(pstats) == "mlwd")) {
+    if (pstdef$mlwd != pstats$mlwd) 
+      pstdef$mlwd <- pstats$mlwd
+  }
+  if (any(names(pstats) == "llty")) {
+    if (pstdef$llty != pstats$llty) 
+      pstdef$llty <- pstats$llty
+  }
+  if (any(names(pstats) == "llwd")) {
+    if (pstdef$llwd != pstats$llwd) 
+      pstdef$llwd <- pstats$llwd
+  }
+  if (any(names(pstats) == "ulty")) {
+    if (pstdef$ulty != pstats$ulty) 
+      pstdef$ulty <- pstats$ulty
+  }
+  if (any(names(pstats) == "ulwd")) {
+    if (pstdef$ulwd != pstats$ulwd) 
+      pstdef$ulwd <- pstats$ulwd
+  }
+  tifdef = list(zoom = 4, width = 11, height = 13, pointsize = 10)
+  if (any(names(grtif) == "zoom")) {
+    if (tifdef$zoom != grtif$zoom) 
+      tifdef$zoom <- grtif$zoom
+  }
+  if (any(names(grtif) == "width")) {
+    if (tifdef$width != grtif$width) 
+      tifdef$width <- grtif$width
+  }
+  if (any(names(grtif) == "height")) {
+    if (tifdef$height != grtif$height) 
+      tifdef$height <- grtif$height
+  }
+  if (any(names(grtif) == "pointsize")) {
+    if (tifdef$pointsize != grtif$pointsize) 
+      tifdef$pointsize <- grtif$pointsize
+  }
+  if (b1kdef$low < 0 | b1kdef$low > 1) 
+    stop("b1k low can only range from 0 to 1")
+  if (b1kdef$up < 0 | b1kdef$up > 1) 
+    stop("b1k up can only range from 0 to 1")
+  if (btkdef$low < 0 | btkdef$low > 1) 
+    stop("btk low can only range from 0 to 1")
+  if (btkdef$up < 0 | btkdef$up > 1) 
+    stop("btk up can only range from 0 to 1")
+  if (any(is.na(catch))) 
+    stop("Missing catch values are not allowed.")
+  if (catdef$dist != "none") {
+    if (catdef$dist %in% c("norm", "lnorm") & any(!is.numeric(catchCV))) 
+      stop("catchCV is required for resampling")
+    catdata <- as.data.frame(cbind(year, catch, catchCV))
+  }
+  if (catdef$dist == "none") {
+    catdata <- as.data.frame(cbind(year, catch))
+  }
+  word.tif = function(filename = "Word_Figure_%03d.tif", zoom = tifdef$zoom, 
+                      width = tifdef$width, height = tifdef$height, pointsize = tifdef$pointsize, 
+                      ...) {
+    if (!grepl("[.]ti[f]+$", filename, ignore.case = TRUE)) 
+      filename = paste0(filename, ".tif")
+    tiff(filename = filename, compression = "lzw", res = 96 * 
+           zoom, width = width, height = height, units = "cm", 
+         pointsize = pointsize, ...)
+  }
+  getrandom <- function(n, spec, a = -Inf, b = Inf, mean = NULL, 
+                        sd = NULL) {
+    if (!spec %in% c("unif", "beta", "lnorm", "norm", "gamma")) 
+      stop("Unknown distribution name.")
+    if (spec %in% c("beta", "lnorm", "norm", "gamma")) {
+      if (is.null(mean) | is.null(sd)) 
+        stop("mean and sd must be specified.")
+      if (is.na(mean) | is.na(sd)) 
+        stop("mean and sd must be specified.")
+    }
+    if (spec == "beta") {
+      if (is.null(a) | is.null(b) | a == -Inf | b == Inf) 
+        stop("lower and upper limits are required for the beta distribution.")
+      if (is.na(a) | is.na(b)) 
+        stop("lower and upper limits are required for the beta distribution.")
+    }
+    if (spec == "unif") {
+      if (is.na(a) | is.na(b) | is.null(a) | is.null(b)) 
+        stop("unif requires specified lower and upper values")
+      if (a == -Inf | b == Inf) 
+        stop("unif requires specified lower and upper values")
+    }
+    qtrunc <- function(p, spec, a = -Inf, b = Inf, ...) {
+      ttt <- p
+      G <- get(paste("p", spec, sep = ""), mode = "function")
+      Gin <- get(paste("q", spec, sep = ""), mode = "function")
+      ttt <- Gin(G(a, ...) + p * (G(b, ...) - G(a, ...)), 
+                 ...)
+      return(ttt)
+    }
+    rtrunc <- function(n, spec, a = -Inf, b = Inf, ...) {
+      x <- u <- runif(n, min = 0, max = 1)
+      x <- qtrunc(u, spec, a = a, b = b, ...)
+      return(x)
+    }
+    if (spec == "beta") {
+      return(rtrunc(n, "beta", a = a, b = b, shape1 = mean * 
+                      (((mean * (1 - mean))/sd^2) - 1), shape2 = (1 - 
+                                                                    mean) * (((mean * (1 - mean))/sd^2) - 1)))
+    }
+    if (spec == "unif") 
+      return(rtrunc(n, "unif", min = a, max = b))
+    if (spec == "norm") 
+      return(rtrunc(n, "norm", a = a, b = b, mean = mean, 
+                    sd = sd))
+    if (spec == "lnorm") 
+      return(rtrunc(n, "lnorm", a = a, b = b, meanlog = mean, 
+                    sdlog = sd))
+    if (spec == "gamma") 
+      return(rtrunc(n, "gamma", a = a, b = b, shape = (mean/sd)^2, 
+                    scale = sd^2/mean))
+  }
+  if (catdef$dist == "unif") {
+    if (length(catdef$low) != length(catdata[, 2]) | length(catdef$up) != 
+        length(catdata[, 2])) 
+      stop("The length of catargs$low and/or catargs$up should be the same length as catch")
+  }
+  timelen <- length(year)
+  refyr <- which(btk$refyr == c(year, year[length(year)] + 
+                                  1))
+
+  fmsymX <- fmsymdef$mean
+  b1kX <- b1kdef$mean
+  btkX <- btkdef$mean
+  bmsykX <- bmsykdef$mean
+  MM <- Mdef$mean
+  timeseries_B=timeseries_BK=timeseries_BBmsy=timeseries_FFmsy=vector('list',nsims)
+  f <- function(d) {
+    (bmsykX - (d^(1/(1 - d))))^2
+  }
+  findk <- function(K) {
+    B <- NULL
+    P <- NULL
+    Fmsy <- fmsymX * MM
+    Umsy <- (Fmsy/(Fmsy + MM)) * (1 - exp(-Fmsy - MM))
+    MSY <- K * bmsykX * Umsy
+    B[1] <- b1kX * K
+    for (t in 1:timelen) {
+      if (t <= agemat) 
+        P[t] <- 0
+      if (t > agemat) {
+        if (bmsykX >= 0.5) 
+          P[t] <- g * MSY * (B[t - agemat]/K) - g * 
+            MSY * (B[t - agemat]/K)^n
+        if (bmsykX > 0.3 & bmsykX < 0.5) {
+          bjoin <- (0.75 * bmsykX - 0.075) * K
+          if (B[t - agemat] < bjoin) {
+            PJ <- g * MSY * (bjoin/K) - g * MSY * 
+              (bjoin/K)^n
+            cc <- (1 - n) * MSY * g * (bjoin^(n - 
+                                                2)) * K^-n
+            P[t] <- B[t - agemat] * (PJ/bjoin + cc * 
+                                       (B[t - agemat] - bjoin))
+          }
+          if (B[t - agemat] >= bjoin) 
+            P[t] <- g * MSY * (B[t - agemat]/K) - 
+              g * MSY * (B[t - agemat]/K)^n
+        }
+        if (bmsykX <= 0.3) {
+          bjoin <- (0.5 * bmsykX) * K
+          if (B[t - agemat] < bjoin) {
+            PJ <- g * MSY * (bjoin/K) - g * MSY * 
+              (bjoin/K)^n
+            cc <- (1 - n) * MSY * g * (bjoin^(n - 
+                                                2)) * K^-n
+            P[t] <- B[t - agemat] * (PJ/bjoin + cc * 
+                                       (B[t - agemat] - bjoin))
+          }
+          if (B[t - agemat] >= bjoin) 
+            P[t] <- g * MSY * (B[t - agemat]/K) - 
+              g * MSY * (B[t - agemat]/K)^n
+        }
+      }
+      if (P[t] < 0) 
+        P[t] <- 0
+      B[t + 1] <- max(0, B[t] + P[t] - dcatch[t])
+    }
+    (btkX - (B[refyr]/K))^2
+  }
+  pb <- txtProgressBar(max = nsims, style = 3)
+  progress <- function(n) setTxtProgressBar(pb, n)
+  opts <- list(progress = progress)
+  dummy=foreach(nn= 1:nsims,.options.snow = opts) %dopar%
+  {
+      if (fmsymdef$dist != "none") 
+        fmsymX <- getrandom(1, fmsymdef$dist, a = fmsymdef$low, 
+                            b = fmsymdef$up, mean = fmsymdef$mean, sd = fmsymdef$sd)
+      if (btkdef$dist != "none") 
+        btkX <- getrandom(1, btkdef$dist, a = btkdef$low, 
+                          b = btkdef$up, mean = btkdef$mean, sd = btkdef$sd)
+      if (b1kdef$dist != "none") 
+        b1kX <- getrandom(1, b1kdef$dist, a = b1kdef$low, 
+                          b = b1kdef$up, mean = b1kdef$mean, sd = b1kdef$sd)
+      if (bmsykdef$dist != "none") 
+        bmsykX <- getrandom(1, bmsykdef$dist, a = bmsykdef$low, 
+                            b = bmsykdef$up, mean = bmsykdef$mean, sd = bmsykdef$sd)
+      if (Mdef$dist != "none") 
+        MM <- getrandom(1, Mdef$dist, a = Mdef$low, b = Mdef$up, 
+                        mean = Mdef$mean, sd = Mdef$sd)
+      dcatch <- NULL
+      if (catdef$dist == "none") {
+        dcatch <- catdata[, 2]
+        catchout <- 0
+      }
+      if (catdef$dist != "none") {
+        for (cc in 1:c(length(catdata[, 2]))) {
+          if (catdef$dist == "unif") 
+            dcatch[cc] <- getrandom(1, catdef$dist, a = catdef$low[cc], 
+                                    b = catdef$up[cc])
+          if (catdef$dist == "norm") 
+            dcatch[cc] <- getrandom(1, catdef$dist, a = catdef$low, 
+                                    b = catdef$up, mean = catdata[cc, 2], sd = catdata[cc, 
+                                                                                       2] * catdata[cc, 3])
+          if (catdef$dist == "lnorm") 
+            dcatch[cc] <- getrandom(1, catdef$dist, a = log(catdef$low), 
+                                    b = log(catdef$up), mean = log(catdata[cc, 
+                                                                           2]), sd = sqrt(log(catdata[cc, 3]^2 + 
+                                                                                                1)))
+        }
+        dcatch <- ifelse(dcatch < 0 | is.infinite(dcatch), 
+                         0, dcatch)
+      }
+      
+      n <- optimize(f, c(0, 1000), tol = 1e-06)[[1]]
+      g <- (n^(n/(n - 1)))/(n - 1)
+      
+      out <- optimize(findk, c(kdef$low, kdef$up), tol = kdef$tol)
+      bigK <- out$minimum
+      B <- NULL
+      P <- NULL
+      Fmsy <- fmsymX * MM
+      Umsy <- (Fmsy/(Fmsy + MM)) * (1 - exp(-Fmsy - MM))
+      MSY <- bigK * bmsykX * Umsy
+      B[1] <- bigK * b1kX
+      for (t in 1:timelen) {
+        if (t <= agemat) 
+          P[t] <- 0
+        if (t > agemat) {
+          if (bmsykX >= 0.5) 
+            P[t] <- g * MSY * (B[t - agemat]/bigK) - g * 
+              MSY * (B[t - agemat]/bigK)^n
+          if (bmsykX > 0.3 & bmsykX < 0.5) {
+            bjoin <- (0.75 * bmsykX - 0.075) * bigK
+            if (B[t - agemat] < bjoin) {
+              PJ <- g * MSY * (bjoin/bigK) - g * MSY * 
+                (bjoin/bigK)^n
+              cc <- (1 - n) * MSY * g * (bjoin^(n - 2)) * 
+                bigK^-n
+              P[t] <- B[t - agemat] * (PJ/bjoin + cc * 
+                                         (B[t - agemat] - bjoin))
+            }
+            if (B[t - agemat] >= bjoin) 
+              P[t] <- g * MSY * (B[t - agemat]/bigK) - 
+                g * MSY * (B[t - agemat]/bigK)^n
+          }
+          if (bmsykX <= 0.3) {
+            bjoin <- (0.5 * bmsykX) * bigK
+            if (B[t - agemat] < bjoin) {
+              PJ <- g * MSY * (bjoin/bigK) - g * MSY * 
+                (bjoin/bigK)^n
+              cc <- (1 - n) * MSY * g * (bjoin^(n - 2)) * 
+                bigK^-n
+              P[t] <- B[t - agemat] * (PJ/bjoin + cc * 
+                                         (B[t - agemat] - bjoin))
+            }
+            if (B[t - agemat] >= bjoin) 
+              P[t] <- g * MSY * (B[t - agemat]/bigK) - 
+                g * MSY * (B[t - agemat]/bigK)^n
+          }
+        }
+        if (P[t] < 0) 
+          P[t] <- 0
+        B[t + 1] <- max(0, B[t] + P[t] - dcatch[t])
+      }
+      bll <- 0
+      if (min(B) > 0 && max(B) <= bigK && (out$objective <= 
+                                           kdef$tol^2) && (abs((max(B) - bigK)/bigK) * 100) <= 
+          kdef$permax && n <= maxn) 
+        bll <- 1
+      if(Export)
+      {
+        if (nn == 1) {
+          write.table(t(c(bll, B)), file = "Biotraj-dbsra.csv", 
+                      sep = ",", row.names = FALSE, col.names = FALSE, 
+                      append = FALSE)
+          if (catchout == 1) 
+            write.table(t(c(bll, dcatch)), file = "Catchtraj-dbsra.csv", 
+                        sep = ",", row.names = FALSE, col.names = FALSE, 
+                        append = FALSE)
+        }
+        if (nn > 1) {
+          write.table(t(c(bll, B)), file = "Biotraj-dbsra.csv", 
+                      sep = ",", row.names = FALSE, col.names = FALSE, 
+                      append = TRUE)
+          if (catchout == 1) 
+            write.table(t(c(bll, dcatch)), file = "Catchtraj-dbsra.csv", 
+                        sep = ",", row.names = FALSE, col.names = FALSE, 
+                        append = TRUE)
+        }
+      }
+
+      storep=rep(NA,16)
+      names(storep) <- c("ll", "FmsyM", "BtK", "BmsyK", "M", 
+                         "K", "Fmsy", "Umsy", "MSY", "Bmsy", "OFLT1", "Brefyr", 
+                         "BT1", "n", "g", "B1K")
+      storep[1] <- bll
+      storep[2] <- fmsymX
+      storep[3] <- btkX
+      storep[4] <- bmsykX
+      storep[5] <- MM
+      storep[6] <- bigK
+      storep[7] <- Fmsy
+      storep[8] <- Umsy
+      storep[9] <- MSY
+      storep[10] <- bigK * bmsykX
+      storep[11] <- Umsy * B[timelen + 1]
+      storep[12] <- B[refyr]
+      storep[13] <- B[timelen + 1]
+      storep[14] <- n
+      storep[15] <- g
+      storep[16] <- b1kX
+
+      timeseries_B=B
+      timeseries_BK=B/bigK
+      timeseries_BBmsy=B/(bigK * bmsykX)
+      FF=-log(1-(catdata$catch/B[-1]))
+      timeseries_FFmsy=FF/Fmsy
+      return(list(storep=storep,B=B,timeseries_BK=timeseries_BK,
+                  timeseries_BBmsy=timeseries_BBmsy,FF=FF,timeseries_FFmsy=timeseries_FFmsy))
+    }   #end nn loop
+  close(pb)
+  storep=data.frame(do.call(rbind,fn.get.stuff.from.list(dummy,'storep')))
+  timeseries_B=data.frame(do.call(rbind,fn.get.stuff.from.list(dummy,'B')))
+  timeseries_BK=data.frame(do.call(rbind,fn.get.stuff.from.list(dummy,'timeseries_BK')))
+  timeseries_BBmsy=data.frame(do.call(rbind,fn.get.stuff.from.list(dummy,'timeseries_BBmsy')))
+  timeseries_FF=data.frame(do.call(rbind,fn.get.stuff.from.list(dummy,'FF')))
+  timeseries_FFmsy=data.frame(do.call(rbind,fn.get.stuff.from.list(dummy,'timeseries_FFmsy')))
+  
+  iiid=which(storep$ll==1)
+  timeseries_B=timeseries_B[iiid,]
+  timeseries_BK=timeseries_BK[iiid,]
+  timeseries_BBmsy=timeseries_BBmsy[iiid,]
+  timeseries_FFmsy=timeseries_FFmsy[iiid,]
+  timeseries_FF=timeseries_FF[iiid,]
+  
+  datar <- storep[storep[, 1] == 1, ]
+  if (length(datar[, 1]) > 0) {
+    mMSY <- round(mean(datar$MSY), 3)
+    MSY95 <- round(quantile(datar$MSY, probs = c(0.025, 
+                                                 0.5, 0.975)), 4)
+    mk <- round(mean(datar$K), 3)
+    k95 <- round(quantile(datar$K, probs = c(0.025, 0.5, 
+                                             0.975)), 4)
+    mBMSY <- round(mean(datar$Bmsy), 3)
+    BMSY95 <- round(quantile(datar$Bmsy, probs = c(0.025, 
+                                                   0.5, 0.975)), 4)
+    mFMSY <- round(mean(datar$Fmsy), 3)
+    FMSY95 <- round(quantile(datar$Fmsy, probs = c(0.025, 
+                                                   0.5, 0.975)), 4)
+    mUMSY <- round(mean(datar$Umsy), 3)
+    UMSY95 <- round(quantile(datar$Umsy, probs = c(0.025, 
+                                                   0.5, 0.975)), 4)
+    mOFL <- round(mean(datar$OFLT1), 3)
+    OFL95 <- round(quantile(datar$OFLT1, probs = c(0.025, 
+                                                   0.5, 0.975)), 4)
+    mM <- round(mean(datar$M), 3)
+    M95 <- round(quantile(datar$M, probs = c(0.025, 0.5, 
+                                             0.975)), 4)
+    mbtk <- round(mean(datar$BtK), 3)
+    btk95 <- round(quantile(datar$BtK, probs = c(0.025, 
+                                                 0.5, 0.975)), 4)
+    mb1k <- round(mean(datar$B1K), 3)
+    b1k95 <- round(quantile(datar$B1K, probs = c(0.025, 
+                                                 0.5, 0.975)), 4)
+    mFmsyM <- round(mean(datar$FmsyM), 3)
+    FmsyM95 <- round(quantile(datar$FmsyM, probs = c(0.025, 
+                                                     0.5, 0.975)), 4)
+    mBmsyK <- round(mean(datar$BmsyK), 3)
+    BmsyK95 <- round(quantile(datar$BmsyK, probs = c(0.025, 
+                                                     0.5, 0.975)), 4)
+    mBrefyr <- round(mean(datar$Brefyr), 3)
+    Brefyr95 <- round(quantile(datar$Brefyr, probs = c(0.025, 
+                                                       0.5, 0.975)), 4)
+    if (grout > 0) {
+      grunits <- data.frame(gr = c(1:15), cexa = 0, cexl = 0, 
+                            cexx = 0, nclass = 0, mains = " ", cexmain = 0, 
+                            lwd = 0, stringsAsFactors = FALSE)
+      grunits$lwd <- ifelse(grunits$gr %in% c(1, 13), 
+                            grdef$lwd, 0)
+      grunits[, 2] <- grdef$cex.axis
+      grunits[, 3] <- grdef$cex.lab
+      grunits[, 4] <- grdef$cex
+      grunits$nclass <- ifelse(grunits$gr %in% c(2, 3, 
+                                                 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15), grdef$nclasses, 
+                               grunits$nclass)
+      grunits$cexmain <- grdef$cex.main
+      grunits[graphs, 6] <- grdef$mains
+      if (any(graphs == 1)) {
+        plot(catch ~ year, type = "l", xlab = "Year", 
+             ylab = paste("Catch (", catdef$unit, ")", 
+                          sep = ""), ylim = c(0, round(max(catch, 
+                                                           mMSY, MSY95[3]), 1)), cex = grunits[1, 4], 
+             cex.lab = grunits[1, 3], cex.axis = grunits[1, 
+                                                         2], main = grunits[1, 6], cex.main = grunits[1, 
+                                                                                                      7], lwd = grunits[1, 8])
+        if (pstdef$ol == 1) {
+          abline(h = MSY95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(h = MSY95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+          abline(h = MSY95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("catch")
+          plot(catch ~ year, type = "l", xlab = "Year", 
+               ylab = paste("Catch (", catdef$unit, ")", 
+                            sep = ""), ylim = c(0, round(max(catch, 
+                                                             mMSY, MSY95[3]), 1)), cex = grunits[1, 
+                                                                                                 4], cex.lab = grunits[1, 3], cex.axis = grunits[1, 
+                                                                                                                                                 2], main = grunits[1, 6], cex.main = grunits[1, 
+                                                                                                                                                                                              7], lwd = grunits[1, 8])
+          if (pstdef$ol == 1) {
+            abline(h = MSY95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(h = MSY95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(h = MSY95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 2)) {
+        hist(datar$K, freq = FALSE, xlim = c(0, max(datar$K) * 
+                                               1.4), xlab = paste("K (", catdef$unit, ")", 
+                                                                  sep = ""), nclass = grunits[3, 5], cex.lab = grunits[3, 
+                                                                                                                       3], cex.axis = grunits[3, 2], main = grunits[3, 
+                                                                                                                                                                    6], cex.main = grunits[3, 7])
+        if (pstdef$ol == 1) {
+          abline(v = k95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(v = k95[1], lwd = pstdef$lwd, lty = pstdef$llty)
+          abline(v = k95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("Kden")
+          hist(datar$K, freq = FALSE, xlim = c(0, max(datar$K) * 
+                                                 1.4), xlab = paste("K (", catdef$unit, ")", 
+                                                                    sep = ""), nclass = grunits[3, 5], cex.lab = grunits[3, 
+                                                                                                                         3], cex.axis = grunits[3, 2], main = grunits[3, 
+                                                                                                                                                                      6], cex.main = grunits[3, 7])
+          if (pstdef$ol == 1) {
+            abline(v = k95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+            abline(v = k95[1], lwd = pstdef$lwd, lty = pstdef$llty)
+            abline(v = k95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 3)) {
+        hist(datar$Bmsy, freq = FALSE, xlim = c(0, max(datar$Bmsy) * 
+                                                  1.4), xlab = paste("Bmsy (", catdef$unit, 
+                                                                     ")", sep = ""), nclass = grunits[4, 5], cex.lab = grunits[4, 
+                                                                                                                               3], cex.axis = grunits[4, 2], main = grunits[4, 
+                                                                                                                                                                            6], cex.main = grunits[4, 7])
+        if (pstdef$ol == 1) {
+          abline(v = BMSY95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(v = BMSY95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+          abline(v = BMSY95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("Bmsyden")
+          hist(datar$Bmsy, freq = FALSE, xlim = c(0, 
+                                                  max(datar$Bmsy) * 1.4), xlab = paste("Bmsy (", 
+                                                                                       catdef$unit, ")", sep = ""), nclass = grunits[4, 
+                                                                                                                                     5], cex.lab = grunits[4, 3], cex.axis = grunits[4, 
+                                                                                                                                                                                     2], main = grunits[4, 6], cex.main = grunits[4, 
+                                                                                                                                                                                                                                  7])
+          if (pstdef$ol == 1) {
+            abline(v = BMSY95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = BMSY95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = BMSY95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 4)) {
+        hist(datar$MSY, freq = FALSE, xlim = c(min(datar$MSY) * 
+                                                 0.8, max(datar$MSY) * 1.2), xlab = paste("MSY (", 
+                                                                                          catdef$unit, ")", sep = ""), nclass = grunits[5, 
+                                                                                                                                        5], cex.lab = grunits[5, 3], cex.axis = grunits[5, 
+                                                                                                                                                                                        2], main = grunits[5, 6], cex.main = grunits[5, 
+                                                                                                                                                                                                                                     7])
+        if (pstdef$ol == 1) {
+          abline(v = MSY95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(v = MSY95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+          abline(v = MSY95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("MSYden")
+          hist(datar$MSY, freq = FALSE, xlim = c(min(datar$MSY) * 
+                                                   0.8, max(datar$MSY) * 1.2), xlab = paste("MSY (", 
+                                                                                            catdef$unit, ")", sep = ""), nclass = grunits[5, 
+                                                                                                                                          5], cex.lab = grunits[5, 3], cex.axis = grunits[5, 
+                                                                                                                                                                                          2], main = grunits[5, 6], cex.main = grunits[5, 
+                                                                                                                                                                                                                                       7])
+          if (pstdef$ol == 1) {
+            abline(v = MSY95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = MSY95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = MSY95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 5)) {
+        hist(datar$Fmsy, freq = FALSE, xlim = c(0, max(datar$Fmsy) * 
+                                                  1.3), xlab = "Fmsy", nclass = grunits[6, 5], 
+             cex.lab = grunits[6, 3], cex.axis = grunits[6, 
+                                                         2], main = grunits[6, 6], cex.main = grunits[6, 
+                                                                                                      7])
+        if (pstdef$ol == 1) {
+          abline(v = FMSY95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(v = FMSY95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+          abline(v = FMSY95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("Fmsyden")
+          hist(datar$Fmsy, freq = FALSE, xlim = c(0, 
+                                                  max(datar$Fmsy) * 1.2), xlab = "Fmsy", nclass = grunits[6, 
+                                                                                                          5], cex.lab = grunits[6, 3], cex.axis = grunits[6, 
+                                                                                                                                                          2], main = grunits[6, 6], cex.main = grunits[6, 
+                                                                                                                                                                                                       7])
+          if (pstdef$ol == 1) {
+            abline(v = FMSY95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = FMSY95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = FMSY95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 6)) {
+        hist(datar$Umsy, freq = FALSE, xlim = c(0, max(datar$Umsy) * 
+                                                  1.2), xlab = "Umsy", nclass = grunits[7, 5], 
+             cex.lab = grunits[7, 3], cex.axis = grunits[7, 
+                                                         2], main = grunits[7, 6], cex.main = grunits[7, 
+                                                                                                      7])
+        if (pstdef$ol == 1) {
+          abline(v = UMSY95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(v = UMSY95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+          abline(v = UMSY95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("Umsyden")
+          hist(datar$Umsy, freq = FALSE, xlim = c(0, 
+                                                  max(datar$Umsy) * 1.2), xlab = "Umsy", nclass = grunits[7, 
+                                                                                                          5], cex.lab = grunits[7, 3], cex.axis = grunits[7, 
+                                                                                                                                                          2], main = grunits[7, 6], cex.main = grunits[7, 
+                                                                                                                                                                                                       7])
+          if (pstdef$ol == 1) {
+            abline(v = UMSY95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = UMSY95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = UMSY95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 7)) {
+        hist(datar$OFL, freq = FALSE, xlim = c(min(datar$OFL) * 
+                                                 0.8, max(datar$OFL) * 1.3), xlab = paste("OFL (", 
+                                                                                          catdef$unit, ")", sep = ""), nclass = grunits[8, 
+                                                                                                                                        5], cex.lab = grunits[8, 3], cex.axis = grunits[8, 
+                                                                                                                                                                                        2], main = grunits[8, 6], cex.main = grunits[8, 
+                                                                                                                                                                                                                                     7])
+        if (pstdef$ol == 1) {
+          abline(v = OFL95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(v = OFL95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+          abline(v = OFL95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("OFLden")
+          hist(datar$OFL, freq = FALSE, xlim = c(min(datar$OFL) * 
+                                                   0.8, max(datar$OFL) * 1.3), xlab = paste("OFL (", 
+                                                                                            catdef$unit, ")", sep = ""), nclass = grunits[8, 
+                                                                                                                                          5], cex.lab = grunits[8, 3], cex.axis = grunits[8, 
+                                                                                                                                                                                          2], main = grunits[8, 6], cex.main = grunits[8, 
+                                                                                                                                                                                                                                       7])
+          if (pstdef$ol == 1) {
+            abline(v = OFL95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = OFL95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = OFL95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 8)) {
+        hist(datar$M, freq = FALSE, xlim = c(0, max(datar$M) * 
+                                               1.2), xlab = "M", nclass = grunits[9, 5], 
+             cex.lab = grunits[9, 3], cex.axis = grunits[9, 
+                                                         2], main = grunits[9, 6], cex.main = grunits[9, 
+                                                                                                      7])
+        if (pstdef$ol == 1) {
+          abline(v = M95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(v = M95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+          abline(v = M95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("Mden")
+          hist(datar$M, freq = FALSE, xlim = c(0, max(datar$M) * 
+                                                 1.2), xlab = "M", nclass = grunits[9, 5], 
+               cex.lab = grunits[9, 3], cex.axis = grunits[9, 
+                                                           2], main = grunits[9, 6], cex.main = grunits[9, 
+                                                                                                        7])
+          if (pstdef$ol == 1) {
+            abline(v = M95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+            abline(v = M95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+            abline(v = M95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 9)) {
+        hist(datar$BtK, freq = FALSE, xlim = c(0, max(datar$BtK) * 
+                                                 1.3), xlab = "Bt/K", nclass = grunits[10, 
+                                                                                       5], cex.lab = grunits[10, 3], cex.axis = grunits[10, 
+                                                                                                                                        2], main = grunits[10, 6], cex.main = grunits[10, 
+                                                                                                                                                                                      7])
+        if (pstdef$ol == 1) {
+          abline(v = btk95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(v = btk95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+          abline(v = btk95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("BtKden")
+          hist(datar$BtK, freq = FALSE, xlim = c(0, 
+                                                 max(datar$BtK) * 1.3), xlab = "Bt/K", nclass = grunits[10, 
+                                                                                                        5], cex.lab = grunits[10, 3], cex.axis = grunits[10, 
+                                                                                                                                                         2], main = grunits[10, 6], cex.main = grunits[10, 
+                                                                                                                                                                                                       7])
+          if (pstdef$ol == 1) {
+            abline(v = btk95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = btk95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = btk95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 15)) {
+        hist(datar$B1K, freq = FALSE, xlim = c(0, max(datar$B1K) * 
+                                                 1.3), xlab = "B1/K", nclass = grunits[15, 
+                                                                                       5], cex.lab = grunits[15, 3], cex.axis = grunits[15, 
+                                                                                                                                        2], main = grunits[15, 6], cex.main = grunits[15, 
+                                                                                                                                                                                      7])
+        if (pstdef$ol == 1) {
+          abline(v = b1k95[2], lwd = pstdef$mlwd, lty = pstdef$mlty)
+          abline(v = b1k95[1], lwd = pstdef$llwd, lty = pstdef$llty)
+          abline(v = b1k95[3], lwd = pstdef$ulwd, lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("B1Kden")
+          hist(datar$B1K, freq = FALSE, xlim = c(0, 
+                                                 max(datar$B1K) * 1.3), xlab = "B1/K", nclass = grunits[15, 
+                                                                                                        5], cex.lab = grunits[15, 3], cex.axis = grunits[15, 
+                                                                                                                                                         2], main = grunits[15, 6], cex.main = grunits[15, 
+                                                                                                                                                                                                       7])
+          if (pstdef$ol == 1) {
+            abline(v = b1k95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = b1k95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = b1k95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 10)) {
+        hist(datar$FmsyM, freq = FALSE, xlim = c(0, 
+                                                 max(datar$FmsyM) * 1.3), xlab = "Fmsy/M", 
+             nclass = grunits[11, 5], cex.lab = grunits[11, 
+                                                        3], cex.axis = grunits[11, 2], main = grunits[11, 
+                                                                                                      6], cex.main = grunits[11, 7])
+        if (pstdef$ol == 1) {
+          abline(v = FmsyM95[2], lwd = pstdef$mlwd, 
+                 lty = pstdef$mlty)
+          abline(v = FmsyM95[1], lwd = pstdef$llwd, 
+                 lty = pstdef$llty)
+          abline(v = FmsyM95[3], lwd = pstdef$ulwd, 
+                 lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("FmsyMden")
+          hist(datar$FmsyM, freq = FALSE, xlim = c(0, 
+                                                   max(datar$FmsyM) * 1.3), xlab = "Fmsy/M", 
+               nclass = grunits[11, 5], cex.lab = grunits[11, 
+                                                          3], cex.axis = grunits[11, 2], main = grunits[11, 
+                                                                                                        6], cex.main = grunits[11, 7])
+          if (pstdef$ol == 1) {
+            abline(v = FmsyM95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = FmsyM95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = FmsyM95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 11)) {
+        hist(datar$BmsyK, freq = FALSE, xlim = c(0, 
+                                                 max(datar$BmsyK) * 1.3), xlab = "Bmsy/K", 
+             nclass = grunits[11, 5], cex.lab = grunits[11, 
+                                                        3], cex.axis = grunits[11, 2], main = grunits[11, 
+                                                                                                      6], cex.main = grunits[11, 7])
+        if (pstdef$ol == 1) {
+          abline(v = BmsyK95[2], lwd = pstdef$mlwd, 
+                 lty = pstdef$mlty)
+          abline(v = BmsyK95[1], lwd = pstdef$llwd, 
+                 lty = pstdef$llty)
+          abline(v = BmsyK95[3], lwd = pstdef$ulwd, 
+                 lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("BmsyKden")
+          hist(datar$BmsyK, freq = FALSE, xlim = c(0, 
+                                                   max(datar$BmsyK) * 1.3), xlab = "Bmsy/K", 
+               nclass = grunits[11, 5], cex.lab = grunits[11, 
+                                                          3], cex.axis = grunits[11, 2], main = grunits[11, 
+                                                                                                        6], cex.main = grunits[11, 7])
+          if (pstdef$ol == 1) {
+            abline(v = BmsyK95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = BmsyK95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = BmsyK95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 12)) {
+        hist(datar$Brefyr, freq = FALSE, xlim = c(min(datar$Brefyr) * 
+                                                    0.7, max(datar$Brefyr) * 1.3), xlab = "Brefyr", 
+             nclass = grunits[11, 5], cex.lab = grunits[11, 
+                                                        3], cex.axis = grunits[11, 2], main = grunits[11, 
+                                                                                                      6], cex.main = grunits[11, 7])
+        if (pstdef$ol == 1) {
+          abline(v = Brefyr95[2], lwd = pstdef$mlwd, 
+                 lty = pstdef$mlty)
+          abline(v = Brefyr95[1], lwd = pstdef$llwd, 
+                 lty = pstdef$llty)
+          abline(v = Brefyr95[3], lwd = pstdef$ulwd, 
+                 lty = pstdef$ulty)
+        }
+        if (grout == 2) {
+          word.tif("Brefyrden")
+          hist(datar$Brefyr, freq = FALSE, xlim = c(min(datar$Brefyr) * 
+                                                      0.7, max(datar$Brefyr) * 1.3), xlab = "Brefyr", 
+               nclass = grunits[11, 5], cex.lab = grunits[11, 
+                                                          3], cex.axis = grunits[11, 2], main = grunits[11, 
+                                                                                                        6], cex.main = grunits[11, 7])
+          if (pstdef$ol == 1) {
+            abline(v = Brefyr95[2], lwd = pstdef$mlwd, 
+                   lty = pstdef$mlty)
+            abline(v = Brefyr95[1], lwd = pstdef$llwd, 
+                   lty = pstdef$llty)
+            abline(v = Brefyr95[3], lwd = pstdef$ulwd, 
+                   lty = pstdef$ulty)
+          }
+          dev.off()
+        }
+      }
+      if (any(graphs == 13) & Export) {
+        bigB <- read.csv("Biotraj-dbsra.csv", header = FALSE)
+        ar <- bigB[, 1]
+        bigB <- t(bigB[, -1])
+        cols <- ifelse(ar == 0, "gray85", "black")
+        types <- ifelse(ar == 0, 3, 1)
+        par(mfrow = c(1, 2))
+        matplot(y = bigB[, c(which(ar == 1))], x = c(year, 
+                                                     year[length(year)] + 1), type = "l", lty = types[c(which(ar == 
+                                                                                                                1))], xlab = "Year", ylab = paste("Biomass (", 
+                                                                                                                                                  catdef$unit, ")", sep = ""), ylim = c(0, max(bigB)), 
+                cex = grunits[13, 4], cex.lab = grunits[13, 
+                                                        3], col = cols[c(which(ar == 1))], main = "Accepted", 
+                cex.axis = grunits[13, 2], cex.main = grunits[13, 
+                                                              7], lwd = grunits[13, 8])
+        lines(y = apply(bigB[, c(which(ar == 1))], 1, 
+                        median), x = c(year, year[length(year)] + 
+                                         1), lwd = 2, lty = pstdef$mlty, col = "red")
+        lines(y = apply(bigB[, c(which(ar == 1))], 1, 
+                        function(x) {
+                          quantile(x, probs = 0.025)
+                        }), x = c(year, year[length(year)] + 1), lwd = 2, 
+              lty = pstdef$llty, col = "red")
+        lines(y = apply(bigB[, c(which(ar == 1))], 1, 
+                        function(x) {
+                          quantile(x, probs = 0.975)
+                        }), x = c(year, year[length(year)] + 1), lwd = 2, 
+              lty = pstdef$ulty, col = "red")
+        if (length(c(which(ar == 0))) > 2) {
+          matplot(y = bigB[, c(which(ar == 0))], x = c(year, 
+                                                       year[length(year)] + 1), type = "l", lty = types[c(which(ar == 
+                                                                                                                  0))], xlab = "Year", ylab = paste("Biomass (", 
+                                                                                                                                                    catdef$unit, ")", sep = ""), ylim = c(0, 
+                                                                                                                                                                                          max(bigB)), cex = grunits[13, 4], cex.lab = grunits[13, 
+                                                                                                                                                                                                                                              3], col = cols[c(which(ar == 0))], main = "Rejected", 
+                  cex.axis = grunits[13, 2], cex.main = grunits[13, 
+                                                                7], lwd = grunits[13, 8])
+          lines(y = apply(bigB[, c(which(ar == 0))], 
+                          1, median), x = c(year, year[length(year)] + 
+                                              1), lwd = 2, lty = pstdef$mlty, col = "red")
+          lines(y = apply(bigB[, c(which(ar == 0))], 
+                          1, function(x) {
+                            quantile(x, probs = 0.025)
+                          }), x = c(year, year[length(year)] + 1), 
+                lwd = 2, lty = pstdef$llty, col = "red")
+          lines(y = apply(bigB[, c(which(ar == 0))], 
+                          1, function(x) {
+                            quantile(x, probs = 0.975)
+                          }), x = c(year, year[length(year)] + 1), 
+                lwd = 2, lty = pstdef$ulty, col = "red")
+        }
+        if (length(c(which(ar == 0))) <= 2) {
+          warning("<3 runs were rejected!")
+        }
+        if (grout == 2) {
+          word.tif("Biomasstraj")
+          par(mfrow = c(1, 2))
+          matplot(y = bigB[, c(which(ar == 1))], x = c(year, 
+                                                       year[length(year)] + 1), type = "l", lty = types[c(which(ar == 
+                                                                                                                  1))], xlab = "Year", ylab = paste("Biomass (", 
+                                                                                                                                                    catdef$unit, ")", sep = ""), ylim = c(0, 
+                                                                                                                                                                                          max(bigB)), cex = grunits[13, 4], cex.lab = grunits[13, 
+                                                                                                                                                                                                                                              3], col = cols[c(which(ar == 1))], main = "Accepted", 
+                  cex.axis = grunits[13, 2], cex.main = grunits[13, 
+                                                                7], lwd = grunits[13, 8])
+          lines(y = apply(bigB[, c(which(ar == 1))], 
+                          1, median), x = c(year, year[length(year)] + 
+                                              1), lwd = 2, lty = pstdef$mlty, col = "red")
+          lines(y = apply(bigB[, c(which(ar == 1))], 
+                          1, function(x) {
+                            quantile(x, probs = 0.025)
+                          }), x = c(year, year[length(year)] + 1), 
+                lwd = 2, lty = pstdef$llty, col = "red")
+          lines(y = apply(bigB[, c(which(ar == 1))], 
+                          1, function(x) {
+                            quantile(x, probs = 0.975)
+                          }), x = c(year, year[length(year)] + 1), 
+                lwd = 2, lty = pstdef$ulty, col = "red")
+          if (length(c(which(ar == 0))) > 2) {
+            matplot(y = bigB[, c(which(ar == 0))], x = c(year, 
+                                                         year[length(year)] + 1), type = "l", lty = types[c(which(ar == 
+                                                                                                                    0))], xlab = "Year", ylab = paste("Biomass (", 
+                                                                                                                                                      catdef$unit, ")", sep = ""), ylim = c(0, 
+                                                                                                                                                                                            max(bigB)), cex = grunits[13, 4], cex.lab = grunits[13, 
+                                                                                                                                                                                                                                                3], col = cols[c(which(ar == 0))], main = "Rejected", 
+                    cex.axis = grunits[13, 2], cex.main = grunits[13, 
+                                                                  7], lwd = grunits[13, 8])
+            lines(y = apply(bigB[, c(which(ar == 0))], 
+                            1, median), x = c(year, year[length(year)] + 
+                                                1), lwd = 2, lty = pstdef$mlty, col = "red")
+            lines(y = apply(bigB[, c(which(ar == 0))], 
+                            1, function(x) {
+                              quantile(x, probs = 0.025)
+                            }), x = c(year, year[length(year)] + 1), 
+                  lwd = 2, lty = pstdef$llty, col = "red")
+            lines(y = apply(bigB[, c(which(ar == 0))], 
+                            1, function(x) {
+                              quantile(x, probs = 0.975)
+                            }), x = c(year, year[length(year)] + 1), 
+                  lwd = 2, lty = pstdef$ulty, col = "red")
+          }
+          dev.off()
+        }
+        rm(bigB)
+        par(mfrow = c(1, 1))
+      }
+      if (any(graphs == 14)) {
+        breaks <- hist(storep[, "BmsyK"], plot = FALSE, 
+                       nclass = grunits[14, 5])$breaks
+        good <- table((cut(storep[storep[, 1] == 1, 
+                                  "BmsyK"], breaks)))
+        dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                             1)] + breaks[2:c(length(breaks))])/2
+        bad <- table((cut(storep[storep[, 1] == 0, "BmsyK"], 
+                          breaks)))
+        dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                            1)] + breaks[2:c(length(breaks))])/2
+        newd <- cbind(good, bad)
+        xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                        plot = FALSE)
+        barplot(t(newd), xlab = "Bmsy/K", ylab = "Frequency", 
+                col = c("black", "NA"), cex.main = 0.7, main = paste("Accepted=Black", 
+                                                                     "  ", "Rejected=White"))
+        axis(1, at = xpos, labels = FALSE)
+        breaks <- hist(storep[, "M"], plot = FALSE, 
+                       nclass = grunits[14, 5])$breaks
+        good <- table((cut(storep[storep[, 1] == 1, 
+                                  "M"], breaks)))
+        dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                             1)] + breaks[2:c(length(breaks))])/2
+        bad <- table((cut(storep[storep[, 1] == 0, "M"], 
+                          breaks)))
+        dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                            1)] + breaks[2:c(length(breaks))])/2
+        newd <- cbind(good, bad)
+        xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                        plot = FALSE)
+        barplot(t(newd), xlab = "M", ylab = "Frequency", 
+                col = c("black", "NA"), cex.main = 0.7, main = paste("Accepted=Black", 
+                                                                     "  ", "Rejected=White"))
+        axis(1, at = xpos, labels = FALSE)
+        breaks <- hist(storep[, "BtK"], plot = FALSE, 
+                       nclass = grunits[14, 5])$breaks
+        good <- table((cut(storep[storep[, 1] == 1, 
+                                  "BtK"], breaks)))
+        dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                             1)] + breaks[2:c(length(breaks))])/2
+        bad <- table((cut(storep[storep[, 1] == 0, "BtK"], 
+                          breaks)))
+        dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                            1)] + breaks[2:c(length(breaks))])/2
+        newd <- cbind(good, bad)
+        xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                        plot = FALSE)
+        barplot(t(newd), xlab = "Bt/K", ylab = "Frequency", 
+                col = c("black", "NA"), cex.main = 0.7, main = paste("Accepted=Black", 
+                                                                     "  ", "Rejected=White"))
+        axis(1, at = xpos, labels = FALSE)
+        breaks <- hist(storep[, "FmsyM"], plot = FALSE, 
+                       nclass = grunits[14, 5])$breaks
+        good <- table((cut(storep[storep[, 1] == 1, 
+                                  "FmsyM"], breaks)))
+        dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                             1)] + breaks[2:c(length(breaks))])/2
+        bad <- table((cut(storep[storep[, 1] == 0, "FmsyM"], 
+                          breaks)))
+        dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                            1)] + breaks[2:c(length(breaks))])/2
+        newd <- cbind(good, bad)
+        xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                        plot = FALSE)
+        barplot(t(newd), xlab = "Fmsy/M", ylab = "Frequency", 
+                col = c("black", "NA"), cex.main = 0.7, main = paste("Accepted=Black", 
+                                                                     "  ", "Rejected=White"))
+        axis(1, at = xpos, labels = FALSE)
+        breaks <- hist(storep[, "K"], plot = FALSE, 
+                       nclass = grunits[14, 5])$breaks
+        good <- table((cut(storep[storep[, 1] == 1, 
+                                  "K"], breaks)))
+        dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                             1)] + breaks[2:c(length(breaks))])/2
+        bad <- table((cut(storep[storep[, 1] == 0, "K"], 
+                          breaks)))
+        dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                            1)] + breaks[2:c(length(breaks))])/2
+        newd <- cbind(good, bad)
+        xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                        plot = FALSE)
+        barplot(t(newd), xlab = "K", ylab = "Frequency", 
+                col = c("black", "NA"), cex.main = 0.7, main = paste("Accepted=Black", 
+                                                                     "  ", "Rejected=White"))
+        axis(1, at = xpos, labels = FALSE)
+        breaks <- hist(storep[, "MSY"], plot = FALSE, 
+                       nclass = grunits[14, 5])$breaks
+        good <- table((cut(storep[storep[, 1] == 1, 
+                                  "MSY"], breaks)))
+        dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                             1)] + breaks[2:c(length(breaks))])/2
+        bad <- table((cut(storep[storep[, 1] == 0, "MSY"], 
+                          breaks)))
+        dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                            1)] + breaks[2:c(length(breaks))])/2
+        newd <- cbind(good, bad)
+        xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                        plot = FALSE)
+        barplot(t(newd), xlab = "MSY", ylab = "Frequency", 
+                col = c("black", "NA"), cex.main = 0.7, main = paste("Accepted=Black", 
+                                                                     "  ", "Rejected=White"))
+        axis(1, at = xpos, labels = FALSE)
+        breaks <- hist(storep[, "Bmsy"], plot = FALSE, 
+                       nclass = grunits[14, 5])$breaks
+        good <- table((cut(storep[storep[, 1] == 1, 
+                                  "Bmsy"], breaks)))
+        dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                             1)] + breaks[2:c(length(breaks))])/2
+        bad <- table((cut(storep[storep[, 1] == 0, "Bmsy"], 
+                          breaks)))
+        dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                            1)] + breaks[2:c(length(breaks))])/2
+        newd <- cbind(good, bad)
+        xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                        plot = FALSE)
+        barplot(t(newd), xlab = "Bmsy", ylab = "Frequency", 
+                col = c("black", "NA"), cex.main = 0.7, main = paste("Accepted=Black", 
+                                                                     "  ", "Rejected=White"))
+        axis(1, at = xpos, labels = FALSE)
+        breaks <- hist(storep[, "Umsy"], plot = FALSE, 
+                       nclass = grunits[14, 5])$breaks
+        good <- table((cut(storep[storep[, 1] == 1, 
+                                  "Umsy"], breaks)))
+        dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                             1)] + breaks[2:c(length(breaks))])/2
+        bad <- table((cut(storep[storep[, 1] == 0, "Umsy"], 
+                          breaks)))
+        dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                            1)] + breaks[2:c(length(breaks))])/2
+        newd <- cbind(good, bad)
+        xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                        plot = FALSE)
+        barplot(t(newd), xlab = "Umsy", ylab = "Frequency", 
+                col = c("black", "NA"), cex.main = 0.7, main = paste("Accepted=Black", 
+                                                                     "  ", "Rejected=White"))
+        axis(1, at = xpos, labels = FALSE)
+        if (grout == 2) {
+          word.tif("BmsykAR")
+          breaks <- hist(storep[, "BmsyK"], plot = FALSE, 
+                         nclass = grunits[14, 5])$breaks
+          good <- table((cut(storep[storep[, 1] == 1, 
+                                    "BmsyK"], breaks)))
+          dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                               1)] + breaks[2:c(length(breaks))])/2
+          bad <- table((cut(storep[storep[, 1] == 0, 
+                                   "BmsyK"], breaks)))
+          dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                              1)] + breaks[2:c(length(breaks))])/2
+          newd <- cbind(good, bad)
+          xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                          plot = FALSE)
+          barplot(t(newd), xlab = "Bmsy/K", ylab = "Frequency", 
+                  col = c("black", "NA"), cex.main = 0.7, 
+                  main = paste("Accepted=Black", "  ", "Rejected=White"))
+          axis(1, at = xpos, labels = FALSE)
+          dev.off()
+          word.tif("MAR")
+          breaks <- hist(storep[, "M"], plot = FALSE, 
+                         nclass = grunits[14, 5])$breaks
+          good <- table((cut(storep[storep[, 1] == 1, 
+                                    "M"], breaks)))
+          dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                               1)] + breaks[2:c(length(breaks))])/2
+          bad <- table((cut(storep[storep[, 1] == 0, 
+                                   "M"], breaks)))
+          dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                              1)] + breaks[2:c(length(breaks))])/2
+          newd <- cbind(good, bad)
+          xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                          plot = FALSE)
+          barplot(t(newd), xlab = "M", ylab = "Frequency", 
+                  col = c("black", "NA"), cex.main = 0.7, 
+                  main = paste("Accepted=Black", "  ", "Rejected=White"))
+          axis(1, at = xpos, labels = FALSE)
+          dev.off()
+          word.tif("BtKAR")
+          breaks <- hist(storep[, "BtK"], plot = FALSE, 
+                         nclass = grunits[14, 5])$breaks
+          good <- table((cut(storep[storep[, 1] == 1, 
+                                    "BtK"], breaks)))
+          dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                               1)] + breaks[2:c(length(breaks))])/2
+          bad <- table((cut(storep[storep[, 1] == 0, 
+                                   "BtK"], breaks)))
+          dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                              1)] + breaks[2:c(length(breaks))])/2
+          newd <- cbind(good, bad)
+          xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                          plot = FALSE)
+          barplot(t(newd), xlab = "Bt/K", ylab = "Frequency", 
+                  col = c("black", "NA"), cex.main = 0.7, 
+                  main = paste("Accepted=Black", "  ", "Rejected=White"))
+          axis(1, at = xpos, labels = FALSE)
+          dev.off()
+          word.tif("B1KAR")
+          breaks <- hist(storep[, "B1K"], plot = FALSE, 
+                         nclass = grunits[14, 5])$breaks
+          good <- table((cut(storep[storep[, 1] == 1, 
+                                    "B1K"], breaks)))
+          dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                               1)] + breaks[2:c(length(breaks))])/2
+          bad <- table((cut(storep[storep[, 1] == 0, 
+                                   "B1K"], breaks)))
+          dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                              1)] + breaks[2:c(length(breaks))])/2
+          newd <- cbind(good, bad)
+          xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                          plot = FALSE)
+          barplot(t(newd), xlab = "B1/K", ylab = "Frequency", 
+                  col = c("black", "NA"), cex.main = 0.7, 
+                  main = paste("Accepted=Black", "  ", "Rejected=White"))
+          axis(1, at = xpos, labels = FALSE)
+          dev.off()
+          word.tif("FmsyMAR")
+          breaks <- hist(storep[, "FmsyM"], plot = FALSE, 
+                         nclass = grunits[14, 5])$breaks
+          good <- table((cut(storep[storep[, 1] == 1, 
+                                    "FmsyM"], breaks)))
+          dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                               1)] + breaks[2:c(length(breaks))])/2
+          bad <- table((cut(storep[storep[, 1] == 0, 
+                                   "FmsyM"], breaks)))
+          dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                              1)] + breaks[2:c(length(breaks))])/2
+          newd <- cbind(good, bad)
+          xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                          plot = FALSE)
+          barplot(t(newd), xlab = "Fmsy/M", ylab = "Frequency", 
+                  col = c("black", "NA"), cex.main = 0.7, 
+                  main = paste("Accepted=Black", "  ", "Rejected=White"))
+          axis(1, at = xpos, labels = FALSE)
+          dev.off()
+          word.tif("KAR")
+          breaks <- hist(storep[, "K"], plot = FALSE, 
+                         nclass = grunits[14, 5])$breaks
+          good <- table((cut(storep[storep[, 1] == 1, 
+                                    "K"], breaks)))
+          dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                               1)] + breaks[2:c(length(breaks))])/2
+          bad <- table((cut(storep[storep[, 1] == 0, 
+                                   "K"], breaks)))
+          dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                              1)] + breaks[2:c(length(breaks))])/2
+          newd <- cbind(good, bad)
+          xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                          plot = FALSE)
+          barplot(t(newd), xlab = "K", ylab = "Frequency", 
+                  col = c("black", "NA"), cex.main = 0.7, 
+                  main = paste("Accepted=Black", "  ", "Rejected=White"))
+          axis(1, at = xpos, labels = FALSE)
+          dev.off()
+          word.tif("MSYAR")
+          breaks <- hist(storep[, "MSY"], plot = FALSE, 
+                         nclass = grunits[14, 5])$breaks
+          good <- table((cut(storep[storep[, 1] == 1, 
+                                    "MSY"], breaks)))
+          dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                               1)] + breaks[2:c(length(breaks))])/2
+          bad <- table((cut(storep[storep[, 1] == 0, 
+                                   "MSY"], breaks)))
+          dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                              1)] + breaks[2:c(length(breaks))])/2
+          newd <- cbind(good, bad)
+          xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                          plot = FALSE)
+          barplot(t(newd), xlab = "MSY", ylab = "Frequency", 
+                  col = c("black", "NA"), cex.main = 0.7, 
+                  main = paste("Accepted=Black", "  ", "Rejected=White"))
+          axis(1, at = xpos, labels = FALSE)
+          dev.off()
+          word.tif("BmsyAR")
+          breaks <- hist(storep[, "Bmsy"], plot = FALSE, 
+                         nclass = grunits[14, 5])$breaks
+          good <- table((cut(storep[storep[, 1] == 1, 
+                                    "Bmsy"], breaks)))
+          dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                               1)] + breaks[2:c(length(breaks))])/2
+          bad <- table((cut(storep[storep[, 1] == 0, 
+                                   "Bmsy"], breaks)))
+          dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                              1)] + breaks[2:c(length(breaks))])/2
+          newd <- cbind(good, bad)
+          xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                          plot = FALSE)
+          barplot(t(newd), xlab = "Bmsy", ylab = "Frequency", 
+                  col = c("black", "NA"), cex.main = 0.7, 
+                  main = paste("Accepted=Black", "  ", "Rejected=White"))
+          axis(1, at = xpos, labels = FALSE)
+          dev.off()
+          word.tif("UmsyAR")
+          breaks <- hist(storep[, "Umsy"], plot = FALSE, 
+                         nclass = grunits[14, 5])$breaks
+          good <- table((cut(storep[storep[, 1] == 1, 
+                                    "Umsy"], breaks)))
+          dimnames(good)[[1]] <- (breaks[1:c(length(breaks) - 
+                                               1)] + breaks[2:c(length(breaks))])/2
+          bad <- table((cut(storep[storep[, 1] == 0, 
+                                   "Umsy"], breaks)))
+          dimnames(bad)[[1]] <- (breaks[1:c(length(breaks) - 
+                                              1)] + breaks[2:c(length(breaks))])/2
+          newd <- cbind(good, bad)
+          xpos <- barplot(t(newd), ylim = c(0, max(newd)), 
+                          plot = FALSE)
+          barplot(t(newd), xlab = "Umsy", ylab = "Frequency", 
+                  col = c("black", "NA"), cex.main = 0.7, 
+                  main = paste("Accepted=Black", "  ", "Rejected=White"))
+          axis(1, at = xpos, labels = FALSE)
+          dev.off()
+        }
+      }
+    }
+    outs <- data.frame(Distr = NA, Min = NA, Max = NA, Mean = NA, 
+                       sd = NA)
+    outs[1, ] <- cbind(fmsymdef$dist, fmsymdef$low, fmsymdef$up, 
+                       fmsymdef$mean, fmsymdef$sd)
+    outs[2, ] <- cbind(btkdef$dist, btkdef$low, btkdef$up, 
+                       btkdef$mean, btkdef$sd)
+    outs[3, ] <- cbind(bmsykdef$dist, bmsykdef$low, bmsykdef$up, 
+                       bmsykdef$mean, bmsykdef$sd)
+    outs[4, ] <- cbind(Mdef$dist, Mdef$low, Mdef$up, Mdef$mean, 
+                       Mdef$sd)
+    outs[5, ] <- cbind(NA, btkdef$refyr, NA, NA, NA)
+    outs[6, ] <- cbind(b1kdef$dist, b1kdef$low, b1kdef$up, 
+                       b1kdef$mean, b1kdef$sd)
+    colnames(outs) <- c("Distr", "Lower", "Upper", "Mean ", 
+                        "SD")
+    rownames(outs) <- c("Fmsy/M", "Br/K", "Bmsy/K", "M", 
+                        "refyr", "B1/K")
+    outs1 <- data.frame(Mean = NA, Median = NA, per2_5 = NA, 
+                        per97_5 = NA, min = NA, max = NA)
+    outs1[1, ] <- cbind(mFmsyM, FmsyM95[[2]], FmsyM95[[1]], 
+                        FmsyM95[[3]], min(datar$FmsyM), max(datar$FmsyM))
+    outs1[2, ] <- cbind(mbtk, btk95[[2]], btk95[[1]], btk95[[3]], 
+                        min(datar$BtK), max(datar$BtK))
+    outs1[3, ] <- cbind(mBmsyK, BmsyK95[[2]], BmsyK95[[1]], 
+                        BmsyK95[[3]], min(datar$BmsyK), max(datar$BmsyK))
+    outs1[4, ] <- cbind(mM, M95[[2]], M95[[1]], M95[[3]], 
+                        min(datar$M), max(datar$M))
+    outs1[5, ] <- cbind(mb1k, b1k95[[2]], b1k95[[1]], b1k95[[3]], 
+                        min(datar$B1K), max(datar$B1K))
+    colnames(outs1) <- c("Mean (ll=1)", "Median (ll=1)", 
+                         "2.5% (ll=1)", "97.5% (ll=1)", "min (ll=1)", "max (ll=1)")
+    rownames(outs1) <- c("Fmsy/M", "Bt/K", "Bmsy/K", "M", 
+                         "B1/K")
+    outs2 <- data.frame(Mean = NA, Median = NA, per2_5 = NA, 
+                        per97_5 = NA, min = NA, max = NA)
+    outs2[1, ] <- cbind(mMSY, MSY95[[2]], MSY95[[1]], MSY95[[3]], 
+                        min(datar$MSY), max(datar$MSY))
+    outs2[2, ] <- cbind(mBMSY, BMSY95[[2]], BMSY95[[1]], 
+                        BMSY95[[3]], min(datar$Bmsy), max(datar$Bmsy))
+    outs2[3, ] <- cbind(mFMSY, FMSY95[[2]], FMSY95[[1]], 
+                        FMSY95[[3]], min(datar$Fmsy), max(datar$Fmsy))
+    outs2[4, ] <- cbind(mUMSY, UMSY95[[2]], UMSY95[[1]], 
+                        UMSY95[[3]], min(datar$Umsy), max(datar$Umsy))
+    outs2[5, ] <- cbind(mOFL, OFL95[[2]], OFL95[[1]], OFL95[[3]], 
+                        min(datar$OFL), max(datar$OFL))
+    outs2[6, ] <- cbind(mBrefyr, Brefyr95[[2]], Brefyr95[[1]], 
+                        Brefyr95[[3]], min(datar$Brefyr), max(datar$Brefyr))
+    outs2[7, ] <- cbind(mk, k95[[2]], k95[[1]], k95[[3]], 
+                        min(datar$K), max(datar$K))
+    colnames(outs2) <- c("Mean (ll=1)", "Median (ll=1)", 
+                         "2.5% (ll=1)", "97.5% (ll=1)", "min (ll=1)", "max (ll=1)")
+    rownames(outs2) <- c("MSY", "Bmsy", "Fmsy", "Umsy", 
+                         "OFL", "Brefyr", "K")
+    ans <- list(outs, outs1, outs2, storep, agemat, c(max(year) + 1), "dbsra",
+                timeseries_B,timeseries_BK,timeseries_BBmsy,timeseries_FF,timeseries_FFmsy)
+    names(ans) <- c("Initial", "Parameters", "Estimates","Values", "agemat", "end1yr", "type",
+                    "Biom.traj","Depletion.traj","B.Bmsy","F.series","F.Fmsy")
+  }  
+  if (length(datar[, 1]) == 0) {
+    outs <- data.frame(Distr = NA, Min = NA, Max = NA, Mean = NA, 
+                       sd = NA)
+    outs[1, ] <- cbind(fmsymdef$dist, fmsymdef$low, fmsymdef$up, 
+                       fmsymdef$mean, fmsymdef$sd)
+    outs[2, ] <- cbind(btkdef$dist, btkdef$low, btkdef$up, 
+                       btkdef$mean, btkdef$sd)
+    outs[3, ] <- cbind(bmsykdef$dist, bmsykdef$low, bmsykdef$up, 
+                       bmsykdef$mean, bmsykdef$sd)
+    outs[4, ] <- cbind(Mdef$dist, Mdef$low, Mdef$up, Mdef$mean, 
+                       Mdef$sd)
+    outs[5, ] <- cbind(NA, btkdef$refyr, NA, NA, NA)
+    outs[6, ] <- cbind(b1kdef$dist, b1kdef$low, b1kdef$up, 
+                       b1kdef$mean, b1kdef$sd)
+    colnames(outs) <- c("Distr", "Lower", "Upper", "Mean ", 
+                        "SD")
+    rownames(outs) <- c("Fmsy/M", "Bt/K", "Bmsy/K", "M", 
+                        "refyr", "B1/K")
+    outs1 <- data.frame(Mean = NA, Median = NA, per2_5 = NA, 
+                        per97_5 = NA, min = NA, max = NA)
+    colnames(outs1) <- c("Mean (ll=1)", "Median (ll=1)", 
+                         "2.5% (ll=1)", "97.5% (ll=1)")
+    outs2 <- data.frame(Mean = NA, Median = NA, per2_5 = NA, 
+                        per97_5 = NA, min = NA, max = NA)
+    colnames(outs2) <- c("Mean (ll=1)", "Median (ll=1)", 
+                         "2.5% (ll=1)", "97.5% (ll=1)", "min (ll=1)", "max (ll=1)")
+    ans <- list(outs, outs1, outs2, storep, agemat, c(max(year) + 
+                                                        1), "dbsra")
+    names(ans) <- c("Initial", "Parameters", "Estimates", 
+                    "Values", "agemat", "end1yr", "type")
+    warning("None of the runs had a likelihood equal to 1")
+  }
+  return(ans)
+}
+apply.DBSRA_tweeked=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,bmsyk,M,graph,
+                             nsims=Niters,grout,WD,outfile)
+{
+  setwd(WD)  #dbsra automatically exports the biomass trajectories
+  #store inputs
+  input=list(year=year,
+             catch=catch,
+             catchCV=catchCV,
+             catargs=catargs,
+             agemat=agemat,
+             k=k,
+             b1k=b1k,
+             btk=btk,
+             fmsym=fmsym,
+             bmsyk=bmsyk,
+             M=M,
+             graph=graph,
+             nsims=nsims,
+             grout=grout)
+  
+  #run model
+  #pdf(paste(outfile,".pdf",sep=''))
+  output <- dbsra_tweeked(year=year,
+                          catch=catch,
+                          catchCV=catchCV,
+                          catargs=catargs,
+                          agemat=agemat,
+                          k=k,
+                          b1k=b1k,
+                          btk=btk,
+                          fmsym=fmsym,
+                          bmsyk=bmsyk,
+                          M=M,
+                          graphs=graph,
+                          nsims=nsims,
+                          grout=grout)
+  
+  
+  #extract years
+  output$Years=year
+  
+  
+  return(list(input=input,output=output))
+}
 apply.DBSRA=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,bmsyk,M,graph,
                      nsims=Niters,grout,WD,outfile)
 {
@@ -810,11 +2409,10 @@ apply.DBSRA=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,bmsyk,M,g
                   fmsym=fmsym,
                   bmsyk=bmsyk,
                   M=M,
-                  graph=graph,
+                  graphs=graph,
                   nsims=nsims,
                   grout=grout)
   #dev.off()
-  
   
   #extract biomass trajectories
   Biom.traj=read.csv(paste(WD,"Biotraj-dbsra.csv",sep='/'),header=FALSE)
@@ -822,17 +2420,14 @@ apply.DBSRA=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,bmsyk,M,g
   output$Biom.traj=Biom.traj%>%
     filter(V1==1)%>%  #select only possible runs
     dplyr::select(-V1)
-  
   output$Depletion.traj=Biom.traj%>%
     mutate_at(vars(- V1), ~ . / output$Values$K)%>%
     filter(V1==1)%>%  #select only possible runs
     dplyr::select(-V1)
-  
   output$B.Bmsy=Biom.traj%>%
     mutate_at(vars(- V1), ~ . / output$Values$Bmsy)%>%
     filter(V1==1)%>%  #select only possible runs
-    dplyr::select(-V1)  
-  
+    dplyr::select(-V1)
   
   #extract F trajectories
   U.series=Biom.traj[,-ncol(Biom.traj)]
@@ -857,6 +2452,7 @@ apply.DBSRA=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,bmsyk,M,g
   
   return(list(input=input,output=output))
 }
+
 Res.fn=function(r,Def)
 {
   if(Def=="Martell")
@@ -1007,7 +2603,7 @@ apply.OCOM=function(year,catch,M,outfile)
 }
 apply.JABBA=function(Ktch,CPUE,CPUE.SE,auxil=NULL,auxil.se=NULL,auxil.type=NULL,
                      MDL,Ktch.CV,ASS,Rdist,Rprior,Kdist,Kprior,
-                     PsiDist,Psiprior,Bprior,BMSYK,output.dir,outfile,Sims,
+                     PsiDist,Psiprior,Bprior,BMSYK,Shape.CV,output.dir,outfile,Sims,
                      Proc.error.JABBA,Obs.Error=NULL,
                      thinning = 5,nchains = 2,burn.in=5000,ktch.error="random")
 {
@@ -1015,7 +2611,7 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,auxil=NULL,auxil.se=NULL,auxil.type=NULL,
   if(is.null(CPUE))
   {
     jbinput = build_jabba(catch=Ktch,
-                          model.type = MDL,
+                          model.type = "Schaefer",
                           catch.cv=Ktch.CV,
                           catch.error=ktch.error,
                           assessment=ASS,
@@ -1028,6 +2624,7 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,auxil=NULL,auxil.se=NULL,auxil.type=NULL,
                           psi.prior=Psiprior,
                           b.prior=Bprior,
                           BmsyK = BMSYK,
+                          shape.CV=Shape.CV,
                           sigma.est = FALSE,
                           sigma.proc=Proc.error.JABBA)
   }else
@@ -1051,6 +2648,7 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,auxil=NULL,auxil.se=NULL,auxil.type=NULL,
                           psi.prior=Psiprior,
                           b.prior= Bprior,
                           BmsyK = BMSYK,
+                          shape.CV=Shape.CV,
                           sigma.est = FALSE,
                           sigma.proc=Proc.error.JABBA,  # Fixed Process error (set sigma.est to TRUE if estimating) 
                           fixed.obsE=Obs.Error) 
@@ -1107,641 +2705,9 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,auxil=NULL,auxil.se=NULL,auxil.type=NULL,
   ggsave(paste(outfile,'.tiff',sep=''),width = 14,height = 8, dpi = 300, compression = "lzw")  
   
   
-  return(output)
+  return(list(fit=output,jbinput=jbinput))
 }
 F.from.U=function(U) -log(1-U) 
-
-# Functions for SS3  ------------------------------------------------------
-# Create SS input files
-fn.get.in.betwee=function(x,PATRN="_") str_before_nth(str_after_nth(x, PATRN, 1), PATRN, 2)
-fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.yr,
-                      fleets=NULL,fleetinfo=NULL,abundance=NULL,size.comp=NULL,meanbodywt=NULL,
-                      F.tagging=NULL,cond.age.len=NULL,MeanSize.at.Age.obs=NULL,Lamdas=NULL)
-{
-  # 1.Copy templates
-  copy_SS_inputs(dir.old = Templates, dir.new = new.path,overwrite = TRUE)
-  
-  
-  # 2.Read in templates 
-  start <- r4ss::SS_readstarter(file = file.path(new.path, "starter.ss"), verbose = FALSE)
-  dat <- r4ss::SS_readdat(file = file.path(new.path, start$datfile), verbose = FALSE)
-  ctl <- r4ss::SS_readctl(file = file.path(new.path, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
-  fore <- r4ss::SS_readforecast(file = file.path(new.path, "forecast.ss"),  verbose = FALSE)
-  
-  
-  # 3.Update template with species-specific information
-  
-  #3.1. dat file
-  dat$Comments[3]=paste('#C file write time:',Sys.time())
-  dat$spawn_month=1.0  #integer is month (1-12), decimal is fraction of days in month (e.g. 15 March is 3.5)
-  
-  #general age info
-  dat$Nages=max(life.history$Max.age.F)
-  ageError=as.data.frame(matrix(nrow=2,ncol=dat$Nages+1))
-  ageError[1,]=-1.00
-  ageError[2,]=0.001
-  names(ageError)=seq(0,dat$Nages)
-  dat$ageerror=ageError
-  
-  #population size classes
-  dat$binwidth=TL.bins.cm
-  dat$minimum_size=10*floor(with(life.history,Lzero*a_FL.to.TL+b_FL.to.TL)/10)
-  dat$maximum_size=30*ceiling(with(life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/30)
-  
-  
-  styr=min(Catch$finyear)
-  endyr=max(Catch$finyear)
-  dat$styr=styr
-  dat$endyr=endyr
-  
-  if(Scenario$Model=='SS')
-  {
-    #fleets & catch
-    dis.flits=fleetinfo$fleetname
-    get.fleet.ktch=vector('list',length(fleets))
-    for(f in 1:length(get.fleet.ktch))
-    {
-      xx=Catch[,c('finyear',fleets[f])]
-      names(xx)[2]='catch'
-      xx=xx%>%
-           rename(year=finyear)%>%
-           mutate(seas=1,
-                  fleet=fleets[f],
-                  catch_se=0.01)
-      if(f==1)
-      {
-        dummy=rbind(xx[1,]%>%mutate(year=-999,catch=0),xx)
-      }else
-      {
-        dummy=xx
-      }
-      get.fleet.ktch[[f]]=dummy
-      rm(dummy)
-    }
-    get.fleet.ktch=do.call(rbind,get.fleet.ktch)%>%
-                      relocate(year,seas,fleet,catch,catch_se)%>%
-                      data.frame
-    dat$catch=get.fleet.ktch
-    dat$Nfleets=nrow(fleetinfo)
-    dat$fleetinfo=fleetinfo  
-
-    #cpue
-    if(!is.null(abundance))   
-    {
-      ddumy=dat$CPUEinfo%>%
-          rownames_to_column('fleetname')%>%
-          mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-                           ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-                           fleetname)))%>%
-          filter(fleetname%in%dis.flits)%>%
-          mutate(Fleet=row_number())
-      rownames(ddumy)=ddumy$fleetname
-      dat$CPUEinfo=ddumy%>%dplyr::select(-fleetname)
-      dat$CPUE=abundance%>%mutate(Mean=ifelse(Mean<1e-4,1e-4,Mean))
-    } 
-    
-    #Fishing mortality from tagging  
-    if(!is.null(F.tagging))
-    {
-      #notes: to use an F series need to add an additional fleet, cpue series, q and mirror selectivity
-      #add fleet
-      F.fleet=paste('F.series_',dis.flits[unique(F.tagging$fleet)],sep='')
-      dat$Nfleets=dat$Nfleets+length(F.fleet)
-      F.fleet.number=dat$Nfleets
-      F.catch=dat$catch[1:nrow(F.tagging),]%>%
-                mutate(year=F.tagging$year,
-                       catch=0,
-                       fleet=F.fleet.number,
-                       catch_se=0.2)
-      dat$catch=rbind(dat$catch%>%filter(!year==-9999),F.catch)
-      F.fleetinfo=dat$fleetinfo[1:length(F.fleet.number),]%>%
-                    mutate(type=1,
-                           fleetname=F.fleet)
-      dat$fleetinfo=rbind(dat$fleetinfo,F.fleetinfo)  
-      
-      #add F series as a cpue series
-      Finfo=dat$CPUEinfo[1:length(unique(F.tagging$fleet)),]%>%
-                mutate(Fleet=F.fleet.number,
-                       Units=2,
-                       Errtype=-1)
-      rownames(Finfo)=F.fleet
-      dat$CPUEinfo=rbind(dat$CPUEinfo,Finfo)
-      
-      Fcpue=F.tagging%>%
-              rename(Year=year,
-                     seas=month,
-                     index=fleet)%>%
-              mutate(index=dat$Nfleets)
-      rownames(Fcpue)=paste('F.series',1:nrow(Fcpue),sep='')
-      dat$CPUE=rbind(dat$CPUE,Fcpue)
-    }
-
-    #meanbodywt
-    if(is.null(meanbodywt))
-    {
-      dat$use_meanbodywt=0
-      dat$DF_for_meanbodywt=''
-      dat=within(dat, rm(meanbodywt)) 
-    }
-    if(!is.null(meanbodywt))
-    {
-      dat$use_meanbodywt=1
-      dat$DF_for_meanbodywt=nrow(meanbodywt)-1
-      dat$meanbodywt=meanbodywt
-    }
-    
-    #size composition
-    if(is.null(size.comp))
-    {
-      dat$use_lencomp=0
-      dat=within(dat, rm(len_info,N_lbins,lbin_vector,lencomp)) 
-    }
-    if(!is.null(size.comp))   
-    {
-      ddumy=dat$len_info%>%
-        rownames_to_column('fleetname')%>%
-        mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-                                ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-                                       fleetname)))%>%
-        filter(fleetname%in%dis.flits)
-      rownames(ddumy)=ddumy$fleetname
-      dat$len_info=ddumy%>%dplyr::select(-fleetname)
-      lbin_vector=sort(as.numeric(gsub('f', '', names(size.comp)[grep("f",names(size.comp))])))
-      dat$lbin_vector=lbin_vector
-      dat$N_lbins=length(dat$lbin_vector)
-      dat$lencomp=size.comp%>%arrange(Sex,Fleet,year)
-    }
-    if(!is.null(F.tagging))
-    {
-      addfbit=dat$len_info[length(unique(F.tagging$fleet)),]
-      rownames(addfbit)=rownames(Finfo)
-      dat$len_info=rbind(dat$len_info,addfbit)
-    }
-    
-    #conditional age at length  
-    ddumy=dat$age_info%>%
-            rownames_to_column('fleetname')%>%
-            mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-                                    ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-                                           fleetname)))%>%
-            filter(fleetname%in%dis.flits)
-    rownames(ddumy)=ddumy$fleetname
-    dat$age_info=ddumy%>%dplyr::select(-fleetname)
-    
-    if(!is.null(F.tagging))
-    {
-      addfbit=dat$age_info[length(unique(F.tagging$fleet)),]
-      rownames(addfbit)=rownames(Finfo)
-      dat$age_info=rbind(dat$age_info,addfbit)
-    }
-    if(is.null(cond.age.len))
-    {
-      dat$agebin_vector=seq(0,dat$Nages-1)
-    }
-    if(!is.null(cond.age.len))  
-    {
-      dat$agecomp=cond.age.len
-      agebin_vector=sort(as.numeric(gsub('f', '', names(cond.age.len)[grep("f",names(cond.age.len))])))
-      dat$agebin_vector=agebin_vector
-    }
-    
-    
-    #MeanSize at Age obs   
-    if(!is.null(MeanSize.at.Age.obs))
-    {
-      dat$use_MeanSize_at_Age_obs=1
-      dat$MeanSize_at_Age_obs=MeanSize.at.Age.obs
-      agebin_vector=suppressWarnings(sort(as.numeric(gsub('f', '', names(MeanSize.at.Age.obs)[grep("f",names(MeanSize.at.Age.obs))]))))
-      dat$agebin_vector=agebin_vector
-    }
-    
-    dat$N_agebins=length(dat$agebin_vector)
-    
-  }
-  if(Scenario$Model=='SSS')
-  {
-    #catch
-    dat$catch=data.frame(year=c(-999,Catch$finyear),
-                         seas=1,
-                         fleet=1,
-                         catch=c(0,Catch$Tonnes),
-                         catch_se=0.01)
-    #dummy cpue
-    dat$CPUE=dat$CPUE%>%
-      mutate(year=c(styr,endyr),
-             obs=c(Scenario$Initial.dpl,Scenario$Final.dpl))  #specify depletion. See page 50 SS manual
-    if(!depletion.yr==endyr) dat$CPUE$year[2]=depletion.yr
-  }
-
-  
-  #3.2. ctl file   
-  
-  ctl$Comments[2]=dat$Comments[3]
-  
-  #maturity & fecundity pars
-  ctl$First_Mature_Age=0   # Set to 0 and leave Mat ogive take control
-  #ctl$First_Mature_Age=life.history$First_Mature_Age 
-  fec.option=4   #options: (1)eggs=Wt*(a+b*Wt); (2)eggs=a*L^b; (3)eggs=a*Wt^b; (4)eggs=a+b*L; (5)eggs=a+b*W
-  if(life.history$Fecu_type_SS=="2_exponential")  fec.option=2
-  ctl$fecundity_option=fec.option
-  fec.alpha=life.history$Fecu_a    #intercept
-  fec.beta=life.history$Fecu_b     #slope
-  if(is.na(fec.alpha)| is.na(fec.beta))
-  {
-    fec.alpha=mean(life.history$Fecundity)  #set fec-@-age to mean fec if no relationship available
-    fec.beta=0    
-  }
-    #divide fecundity by cycle (Spiny dogfish assessment page 46)
-  fec.alpha=fec.alpha/mean(life.history$Breed.cycle)  
-  fec.beta=fec.beta/mean(life.history$Breed.cycle)
-  
-  #growth pars
-  ctl$Growth_Age_for_L1=0
-    #females
-  ctl$MG_parms["NatM_p_1_Fem_GP_1", c("INIT","PRIOR")]=rep(Scenario$Mmean,2)
-  ctl$MG_parms["L_at_Amin_Fem_GP_1", c("INIT","PRIOR")]=rep(with(life.history,Lzero*a_FL.to.TL+b_FL.to.TL),2)  #size for specified _Age(post-settlement)_for_L1
-  ctl$MG_parms["L_at_Amin_Fem_GP_1", "HI"]=max(c(ctl$MG_parms["L_at_Amin_Fem_GP_1", "HI"],ctl$MG_parms["L_at_Amin_Fem_GP_1", "INIT"]*1.5))
-  ctl$MG_parms["L_at_Amax_Fem_GP_1", c("INIT","PRIOR")]=rep(with(life.history,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL),2) #life.history$TLmax  #set at Linf as _Growth_Age_for_L2 was set at 999
-  ctl$MG_parms["L_at_Amax_Fem_GP_1", "HI"]=max(c(ctl$MG_parms["L_at_Amax_Fem_GP_1", "HI"],ctl$MG_parms["L_at_Amax_Fem_GP_1", "INIT"]*1.5))
-  ctl$MG_parms["Wtlen_1_Fem_GP_1", c("INIT","PRIOR")]=rep(life.history$AwT,2)
-  ctl$MG_parms["Wtlen_2_Fem_GP_1", c("INIT","PRIOR")]=rep(life.history$BwT,2)
-  ctl$MG_parms["VonBert_K_Fem_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.F$k,2)
-  ctl$MG_parms["VonBert_K_Fem_GP_1", "HI"]=max(c(ctl$MG_parms["VonBert_K_Fem_GP_1", "HI"],life.history$Growth.F$k*1.3))
-  ctl$MG_parms["CV_young_Fem_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_young,2)
-  ctl$MG_parms["CV_old_Fem_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_old,2)
-  ctl$MG_parms["Mat50%_Fem_GP_1", c("INIT","PRIOR")]=rep(life.history$TL.mat.inf.slope[2],2) #life.history$TL.50.mat
-  ctl$MG_parms["Mat_slope_Fem_GP_1", c("INIT","PRIOR")]=rep(life.history$TL.mat.inf.slope[1],2)
-  ctl$MG_parms["Eggs_alpha_Fem_GP_1", c("LO","INIT","HI","PRIOR")]=c(0,fec.alpha,100,fec.alpha)   
-  ctl$MG_parms["Eggs_beta_Fem_GP_1", c("INIT","PRIOR")]=rep(fec.beta,2)
-  ctl$MG_parms["FracFemale_GP_1", c("INIT","PRIOR")]=rep(life.history$pup.sx.ratio,2)
-  
-    #males
-  ctl$MG_parms["NatM_p_1_Mal_GP_1", c("INIT","PRIOR")]=rep(Scenario$Mmean,2)
-  ctl$MG_parms["L_at_Amin_Mal_GP_1", c("INIT","PRIOR")]=rep(with(life.history,Lzero*a_FL.to.TL+b_FL.to.TL),2)
-  ctl$MG_parms["L_at_Amin_Mal_GP_1", "HI"]=ctl$MG_parms["L_at_Amin_Fem_GP_1", "HI"]
-  ctl$MG_parms["L_at_Amax_Mal_GP_1", c("INIT","PRIOR")]=rep(with(life.history,Growth.M$FL_inf*a_FL.to.TL+b_FL.to.TL),2)
-  ctl$MG_parms["L_at_Amax_Mal_GP_1", "HI"]=max(c(ctl$MG_parms["L_at_Amax_Mal_GP_1", "HI"],ctl$MG_parms["L_at_Amax_Mal_GP_1", "INIT"]*1.5))
-  ctl$MG_parms["Wtlen_1_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$AwT.M,2)
-  ctl$MG_parms["Wtlen_2_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$BwT.M,2)
-  ctl$MG_parms["VonBert_K_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.M$k,2)
-  ctl$MG_parms["VonBert_K_Mal_GP_1", "HI"]=max(c(ctl$MG_parms["VonBert_K_Mal_GP_1", "HI"],life.history$Growth.M$k*1.3))
-  ctl$MG_parms["CV_young_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_young,2)
-  ctl$MG_parms["CV_old_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_old,2)
-  
-  #recruitment pars
-  ctl$SR_function=3 # 2=Ricker; 3=std_B-H; 4=SCAA;5=Hockey; 6=B-H_flattop; 7=survival_3Parm;8=Shepard_3Parm
-  ctl$SR_parms["SR_LN(R0)", c('LO','INIT','HI')]=with(Scenario,c(Ln_R0_min,Ln_R0_init,Ln_R0_max))
-  ctl$SR_parms["SR_BH_steep", "INIT"]=Scenario$Steepness
-  ctl$SR_parms["SR_sigmaR", c('LO','HI','INIT')]=c(.01,1,.2) #Spiny dogfish SS assessment
-  
-  if(Scenario$Model=='SSS') ctl$do_recdev=0  #do_recdev:  0=none; 1=devvector; 2=simple deviations
-  if(Scenario$Model=='SS')
-  {
-    ctl$do_recdev=2
-    ctl$recdev_phase=-3
-    ctl$recdev_early_start=0
-    ctl$max_bias_adj=0.8
-    ctl$min_rec_dev=-2
-    ctl$max_rec_dev=abs(ctl$min_rec_dev)
-    ctl$MainRdevYrFirst=styr
-    ctl$MainRdevYrLast=endyr
-    ctl$last_early_yr_nobias_adj=styr
-    ctl$first_yr_fullbias_adj=min(abundance$Year)+5
-    ctl$last_yr_fullbias_adj=endyr-2
-    ctl$first_recent_yr_nobias_adj=endyr
-  }
-  
-  #fishing mortality pars
-  if(Scenario$use_F_ballpark)
-  {
-    ctl$F_ballpark=Scenario$F_ballpark
-    ctl$F_ballpark_year=styr
-  }
-  
-  #Q pars  
-  if(Scenario$Model=='SS')
-  {
-    iis=sort(unique(dat$CPUE$index))  
-    if(!'Northern.shark'%in%fleetinfo$fleetname)
-    {
-      ctl$Q_options$fleet=ctl$Q_options$fleet-1
-    }
-    ctl$Q_options=ctl$Q_options%>%filter(fleet%in%iis) 
-    addis=iis[which(!iis%in%ctl$Q_options$fleet)]
-    if(length(addis)>0)
-    {
-      addis=dat$CPUEinfo[addis,]
-      addis=addis[!rownames(addis)=='Other',]
-     
-      ctl.q_opt.add=ctl$Q_options[1:nrow(addis),]%>%
-                      mutate(fleet=addis$Fleet)
-      rownames(ctl.q_opt.add)=rownames(addis)
-      ctl$Q_options=rbind(ctl$Q_options,ctl.q_opt.add)%>%
-                      arrange(fleet)
-      
-      ctl.q_par.add=ctl$Q_parms[1:nrow(addis),]
-      rownames(ctl.q_par.add)=paste('LnQ_base_',rownames(addis),'(',addis$Fleet,')',sep='')
-      ctl$Q_parms=rbind(ctl$Q_parms,ctl.q_par.add)
-    }
-    Nms=rownames(ctl$Q_parms)
-    Nms=gsub(r"{\s*\([^\)]+\)}","",gsub("^.*?base_","",Nms))
-    rownames(ctl$Q_parms)=Nms
-    ctl$Q_parms=ctl$Q_parms[rownames(ctl$Q_parms)%in%rownames(ctl$Q_options),]
-    these.qs=life.history$Q.inits%>%arrange(Fleet.n)%>%pull(Fleet)
-    these.qs=subset(these.qs,these.qs%in%rownames(ctl$Q_options))
-    ctl$Q_parms=ctl$Q_parms[match(these.qs,row.names(ctl$Q_parms)),]
-    ctl$Q_parms=ctl$Q_parms[which(rownames(ctl$Q_parms)%in%rownames(ctl$Q_options)),]
-     
-    Q.inits=left_join(data.frame(Fleet=rownames(ctl$Q_parms),Order=1:nrow(ctl$Q_parms)),
-                      life.history$Q.inits,by='Fleet')%>%
-              arrange(Fleet.n)
-      
-    ctl$Q_parms[,"INIT"]=Q.inits%>%pull(Q)
-    ctl$Q_parms[,"PHASE"]=2
-    
-    #Add extra SD to Q
-    #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
-    #      If only 1 index available, then do not estimate, just increase CV before fitting model
-    n.indices=nrow(ctl$Q_options)
-    if(n.indices>1)
-    {
-      ctl$Q_options$extra_se=1
-      Row.order=rownames(ctl$Q_parms)
-      names(Row.order)=seq(1,by=2,length.out=length(Row.order))
-      
-      
-      Q_parms_estraSD=ctl$Q_parms%>%
-        mutate(LO=0,
-               HI=1,
-               INIT=0.3,
-               PRIOR=0.3,
-               PHASE=3)
-      
-      rownames(Q_parms_estraSD)=paste(rownames(Q_parms_estraSD),"_Q_extraSD",sep='')
-      Row.order_Q_parms=rownames(Q_parms_estraSD)
-      names(Row.order_Q_parms)=seq(2,by=2,length.out=length(Row.order_Q_parms))
-      
-      ctl$Q_parms=rbind(ctl$Q_parms,Q_parms_estraSD)
-      Row.order=c(Row.order,Row.order_Q_parms)
-      Row.order=Row.order[order(as.numeric(names(Row.order)))]
-      ctl$Q_parms=ctl$Q_parms[match(Row.order,rownames(ctl$Q_parms)),]
-    }
-
-  }
-  
-  #selectivity pars  
-  if(Scenario$Model=='SS')
-  {
-    #1. size_selex   
-    ddumy=ctl$size_selex_types%>%
-      rownames_to_column('fleetname')%>%
-      mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-                              ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-                                     fleetname)))%>%
-      filter(fleetname%in%dis.flits)%>%
-      mutate(Fleet=row_number())
-    rownames(ddumy)=ddumy$fleetname
-    if(!'Northern.shark'%in%rownames(ddumy))
-    {
-      ddumy=ddumy%>%
-              mutate(Pattern=ifelse(fleetname=='Other',24,Pattern),
-                     Special=ifelse(fleetname=='Other',0,ifelse(fleetname=='Southern.shark_2',2,Special)))
-    }
-    ctl$size_selex_types=ddumy%>%dplyr::select(-fleetname,-Fleet)
-
-    Sel.ptrn=ctl$size_selex_types$Pattern
-    names(Sel.ptrn)=paste('Fishery',1:length(Sel.ptrn),sep='')
-    
-    row_nm_size_selex_parms=gsub("\\s*\\([^\\)]+\\)","",str_after_nth(rownames(ctl$size_selex_parms), "_", 3)) 
-    row_nm_size_selex_parms=ifelse(row_nm_size_selex_parms=='Southern.shark_monthly','Southern.shark_1',
-                                   ifelse(row_nm_size_selex_parms=='Southern.shark_daily','Southern.shark_2',
-                                          row_nm_size_selex_parms))
-    
-    chosen.sel.patrns=ctl$size_selex_parms[which(row_nm_size_selex_parms%in%dis.flits),]
-    if(!'Northern.shark'%in%dis.flits)
-    {
-      chosen.sel.patrns=ctl$size_selex_parms[which(row_nm_size_selex_parms%in%c('Northern.shark',dis.flits)),]
-      rownames(chosen.sel.patrns)[grep('Northern.shark',rownames(chosen.sel.patrns))]=
-        str_replace(rownames(chosen.sel.patrns)[grep('Northern.shark',rownames(chosen.sel.patrns))], "Northern.shark", "Other")
-      
-      row_nm_size_selex_parms[row_nm_size_selex_parms=="Northern.shark"]="Other"
-    }
-    ctl$size_selex_parms=chosen.sel.patrns  
-    added.bit=str_before_nth(rownames(ctl$size_selex_parms), "_", 3)
-    row_nm_size_selex_parms=subset(row_nm_size_selex_parms,row_nm_size_selex_parms%in%dis.flits)
-
-    #turn off irrelevant sel pars
-    dummy.sel.pat=ctl$size_selex_types$Pattern
-    names(dummy.sel.pat)=rownames(ctl$size_selex_types)
-    names(dummy.sel.pat)=ifelse(names(dummy.sel.pat)=='Southern.shark_1','Southern.shark_monthly',
-                         ifelse(names(dummy.sel.pat)=='Southern.shark_2','Southern.shark_daily',
-                         names(dummy.sel.pat)))
-    for(y in 1:length(dummy.sel.pat)) 
-    {
-      if(dummy.sel.pat[y]==24)ctl$size_selex_parms[grep('P_5',row.names(ctl$size_selex_parms)),"PHASE"]=-2
-    }
-    
-    rownames(ctl$size_selex_parms)=paste(added.bit,row_nm_size_selex_parms,sep="_")
-    
-    #turn on Southern.shark_2 if size compo data  
-    if(!is.null(size.comp))
-    {
-      Tab.size.comp.dat=with(dat$lencomp%>%filter(Sex==1),table(Fleet))
-      names(Tab.size.comp.dat)=fleetinfo$fleetname[as.numeric(names(Tab.size.comp.dat))]
-      nn.Southern.shark_2=subset(Tab.size.comp.dat,names(Tab.size.comp.dat)=="Southern.shark_2")
-      if(length(nn.Southern.shark_2)>0)
-      {
-        if(nn.Southern.shark_2>1)
-        {
-          ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_2",]=ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_1",]
-          
-          add.Southern.shark_2.pars=ctl$size_selex_parms[grepl('Southern.shark_1',rownames(ctl$size_selex_parms)),]
-          rownames(add.Southern.shark_2.pars)=str_replace(rownames(add.Southern.shark_2.pars), "k_1", "k_2")
-          ctl$size_selex_parms=rbind(ctl$size_selex_parms[!grepl('Survey',rownames(ctl$size_selex_parms)),],
-                                     add.Southern.shark_2.pars,
-                                     ctl$size_selex_parms[grepl('Survey',rownames(ctl$size_selex_parms)),])
-        } 
-      }
-    }
-    
-    #allocated species specific values to sel pars
-    Mirrored.sels=rownames(ctl$size_selex_types%>%filter(Pattern==15))
-    life.history$SS_selectivity=life.history$SS_selectivity%>%
-                                  filter(Fleet%in%dis.flits)
-    if(length(Mirrored.sels)>0) life.history$SS_selectivity=life.history$SS_selectivity%>%filter(!Fleet%in%Mirrored.sels)
-    id.fleets=fn.get.in.betwee(x=rownames(ctl$size_selex_parms))
-    pis=unique(id.fleets)
-    for(px in 1:length(pis))
-    {
-      iid=which(id.fleets==pis[px])
-      this.par=life.history$SS_selectivity[,match(pis[px],colnames(life.history$SS_selectivity))]
-      ctl$size_selex_parms[iid,"INIT"]=this.par  
-      
-      multiplr=rep(0.1,length(this.par))
-      multiplr=ifelse(this.par<0,2,multiplr)
-      low.bound=multiplr*ctl$size_selex_parms[iid,"INIT"]
-      if(pis[px]=="P_1")
-      {
-        low.bound=sapply(low.bound, function(x) max(dat$minimum_size*1.25,x))
-      }
-      ctl$size_selex_parms[iid,"LO"]=low.bound
-        
-      multiplr=rep(2,length(this.par))
-      multiplr=ifelse(this.par<0,-2,multiplr)
-      up.bound=multiplr*ctl$size_selex_parms[iid,"INIT"]
-      if(pis[px]=="P_1")
-      {
-        up.bound=sapply(up.bound, function(x) min(dat$maximum_size*.975,x))
-      }
-      
-      ctl$size_selex_parms[iid,"HI"]=up.bound
-    }
-    
-    #set phases for estimable selectivities
-    if(is.null(size.comp))ctl$size_selex_parms[,"PHASE"]=-2
-    if(!is.null(size.comp))
-    {
-      flit.size.comp.obs=sort(unique(dat$lencomp$Fleet))
-      flit.no.size.comp.obs=fleetinfo%>%filter(!fleetname%in%rownames(dat$len_info)[flit.size.comp.obs])%>%pull(fleetname)
-      if(length(Mirrored.sels)>0) flit.no.size.comp.obs=subset(flit.no.size.comp.obs,!flit.no.size.comp.obs%in%Mirrored.sels)
-      if(length(flit.no.size.comp.obs)>0)
-      {
-        for(px in 1:length(flit.no.size.comp.obs))
-        {
-          iid=grep(flit.no.size.comp.obs[px],rownames(ctl$size_selex_parms))
-          ctl$size_selex_parms[iid,]$PHASE=-2
-        }
-      }
-    }
-
-    
-    #2. age_selex
-    ddumy=ctl$age_selex_types%>%
-      rownames_to_column('fleetname')%>%
-      mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-                       ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-                       fleetname)))%>%
-      filter(fleetname%in%dis.flits)%>%
-      mutate(Fleet=row_number())
-    rownames(ddumy)=ddumy$fleetname
-    ctl$age_selex_types=ddumy%>%dplyr::select(-fleetname,-Fleet)
-    
-    
-    #3. Fishing mortality from tagging  
-    if(!is.null(F.tagging))
-    {
-      F.size.sel.pat=ctl$size_selex_types[match('Southern.shark_2',rownames(ctl$size_selex_types)),]%>%
-                        mutate(Pattern=15,Special=3)
-      rownames(F.size.sel.pat)=F.fleet
-      ctl$size_selex_types=rbind(ctl$size_selex_types,F.size.sel.pat)
-      
-      F.age.sel.pat=ctl$age_selex_types[match('Southern.shark_2',rownames(ctl$age_selex_types)),]
-      rownames(F.age.sel.pat)=F.fleet
-      ctl$age_selex_types=rbind(ctl$age_selex_types,F.age.sel.pat)
-    }  
-  }
-  if(Scenario$Model=='SSS')  #SSS assumes selectivity = maturity
-  {
-   #  ctl$size_selex_types['Fishery','Pattern']=1
-     ctl$size_selex_types['Depl','Pattern']=0 
-     ctl$age_selex_types['Depl','Pattern']=10
-     
-     ctl$size_selex_parms['SizeSel_P_1_Fishery(1)',c('INIT','PRIOR')]=life.history$Logistic.selectivity[1]
-     ctl$size_selex_parms['SizeSel_P_2_Fishery(1)',c('INIT','PRIOR')]=life.history$Logistic.selectivity[2]
-   }
-  
-  #set prior to init value 
-  ctl$SR_parms[,"PRIOR"]=ctl$SR_parms[,"INIT"]
-  ctl$MG_parms[,"PRIOR"]=ctl$MG_parms[,"INIT"]
-  ctl$Q_parms[,"PRIOR"]=ctl$Q_parms[,"INIT"]
-  ctl$size_selex_parms[,"PRIOR"]=ctl$size_selex_parms[,"INIT"]
-  
-  # Likelihood components (lambdas)
-  # Like_comp codes:  1=surv; 2=disc; 3=mnwt; 4=length; 5=age; 6=SizeFreq; 7=sizeage; 8=catch; 9=init_equ_catch; 
-  # 10=recrdev; 11=parm_prior; 12=parm_dev; 13=CrashPen; 14=Morphcomp; 15=Tag-comp; 16=Tag-negbin; 17=F_ballpark; 18=initEQregime
-  if(Scenario$Model=='SS')
-  {
-    Avail.dat=dat.code=dis.dat=fliit=NULL
-    if(!is.null(abundance))
-    {
-      nn=unique(dat$CPUE$index)
-      fliit=nn
-      Avail.dat=rep("CPUE",length(nn))
-      dat.code=rep(1,length(nn))
-      dis.dat=paste('CPUE_',rownames(ctl$Q_options%>%filter(fleet%in%nn)),sep='')
-    }
-    if(!is.null(meanbodywt))
-    {
-      nn=unique(dat$meanbodywt$fleet)
-      fliit=c(fliit,nn)
-      Avail.dat=c(Avail.dat,rep("meanbodywt",length(nn)))
-      dat.code=c(dat.code,rep(3,length(nn)))
-      dis.dat=c(dis.dat,paste('meanbodywt_',fleetinfo$fleetname[nn],sep='')  )
-    }
-    if(!is.null(size.comp))
-    {
-      nn=unique(dat$lencomp$Fleet)
-      fliit=c(fliit,nn)
-      Avail.dat=c(Avail.dat,rep("size.comp",length(nn)))
-      dat.code=c(dat.code,rep(4,length(nn)))
-      dis.dat=c(dis.dat,paste('size.comp_',fleetinfo$fleetname[nn],sep='')  )
-    }
-    if(!is.null(MeanSize.at.Age.obs))
-    {
-      nn=unique(MeanSize.at.Age.obs$Fleet)
-      fliit=c(fliit,nn)
-      Avail.dat=c(Avail.dat,rep("meanSize.at.Age",length(nn)))
-      dat.code=c(dat.code,rep(7,length(nn)))
-      dis.dat=c(dis.dat,paste('meanSize.at.Age_',fleetinfo$fleetname[nn],sep=''))
-    }
-    Like_comp=ctl$lambdas[1:length(Avail.dat),]%>%
-      mutate(like_comp=dat.code,
-             fleet=fliit,
-             phase=1,
-             value=1,
-             sizefreq_method=1)
-    rownames(Like_comp)=dis.dat
-    if(!is.null(Lamdas))  
-    {
-      Like_comp=Like_comp%>%
-                left_join(Lamdas%>%
-                            rename(new.value=value),
-                          by=c('like_comp','fleet'))%>%
-                mutate(value=ifelse(!is.na(new.value),new.value,value))%>%
-                dplyr::select(-new.value)
-    }
-    ctl$lambdas=Like_comp
-    ctl$N_lambdas=nrow(ctl$lambdas)
-  }
-
-  
-  #3.3. starter file
-  start$datfile='data.dat'
-  start$ctlfile='control.ctl'
-  
-  #3.4. forecast file
-  fore$Fcast_selex=0
-  #fore$    #consider updating reference points, years, etc   
-  
-  
-  # 4.Export updated templates
-  r4ss::SS_writestarter(start, dir = new.path, overwrite = TRUE,verbose = FALSE)
-  r4ss::SS_writedat(dat, outfile = file.path(new.path, start$datfile), overwrite = TRUE, verbose = FALSE)
-  r4ss::SS_writectl(ctl, outfile = file.path(new.path, start$ctlfile), overwrite = TRUE, verbose = FALSE)
-  r4ss::SS_writeforecast(fore, dir = new.path, file = "forecast.ss", overwrite = TRUE, verbose = FALSE)
-}
-
-#Run SS
-fn.run.SS=function(where.inputs,where.exe,args=FALSE)
-{
-  wd_orig=getwd()
-  setwd(where.inputs)
-  if(!isFALSE(args)) system(paste(shQuote(where.exe),args))else
-  {
-    system(paste(shQuote(where.exe)))
-  }
-  setwd(wd_orig)
-}
 
 # Catch-only ensemble  ------------------------------------------------------
 SPM=function(K,r,Init.dep,HRscen)
@@ -1894,7 +2860,7 @@ add.probs=function(DAT,id.yr,B.threshold,plot.ranges=FALSE) #Reference points pr
 {
   DAT=DAT[,id.yr]
   B.target=Tar.prop.bmsny*B.threshold
-  B.limit=Lim.prop.bmsy*B.threshold
+  B.limit=max(Minimum.acceptable.blim,Lim.prop.bmsy*B.threshold)
   f=ecdf(DAT)
   P.below.target=f(B.target)
   P.below.threshold=f(B.threshold)
@@ -1948,8 +2914,8 @@ add.probs=function(DAT,id.yr,B.threshold,plot.ranges=FALSE) #Reference points pr
     
   }
   
-  return(list(probs=data.frame(Range=c('<lim','lim–thr',
-                                       'thr–tar','>tar'),
+  return(list(probs=data.frame(Range=c('<lim','lim.thr',
+                                       'thr.tar','>tar'),
                                Probability=round(c(P.below.limit,P.between.lim.thre,
                                                    P.between.thre.tar,P.above.target),3)),
               Reference.points=data.frame(Rf.pt=c('Target','Threshold','Limit'),
@@ -1958,7 +2924,7 @@ add.probs=function(DAT,id.yr,B.threshold,plot.ranges=FALSE) #Reference points pr
 fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
 {
   if('output'%in%names(d))dd=d$output
-  
+
   if(mods=='DBSRA')
   {
     Years=dd$Years
@@ -2069,8 +3035,11 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
     
   }
   
-  if(mods=='SSS')
+  if(mods%in%c('SSS','SS3'))
   {
+    if(mods=='SSS') biom.type='total'
+    if(mods=='SS3') biom.type='spawning'
+    
     Years=with(d[[1]],startyr:endyr)  
     
     dum=do.call(rbind,fn.get.stuff.from.list(d,"derived_quants"))
@@ -2090,25 +3059,61 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
     
     if(Type=='Depletion') 
     {
-      SSB=dum[grep(paste(paste("SSB",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value')]
-      SSB=SSB%>%
-        mutate(year=readr::parse_number(Label),
-               Simulation=readr::parse_number(paste(rownames(SSB),'0',sep='')),
-               Simulation=as.numeric(substr(Simulation,5,10)))%>%
-        dplyr::select(-Label)%>%
-        left_join(SSB_Virgin,by='Simulation')%>%
-        mutate(Depletion=Value/Value.virgin)
-      
-      d1=SSB%>%
-        group_by(year)%>%
-        summarise(mu=median(Depletion,na.rm=T),
-                  lci=quantile(Depletion,probs=0.025,na.rm=T),
-                  uci=quantile(Depletion,probs=0.975,na.rm=T))
-      
-      Probs=add.probs(DAT=SSB%>%dplyr::select(Simulation,year,Depletion)%>%spread(year,Depletion)%>%dplyr::select(-Simulation),
-                      id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
-                      B.threshold=median(SSB_MSY$Depletion))
-      Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      if(biom.type=='spawning')
+      {
+        SSB=dum[grep(paste(paste("SSB",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value')]
+        SSB=SSB%>%
+          mutate(year=readr::parse_number(Label),
+                 Simulation=readr::parse_number(paste(rownames(SSB),'0',sep='')),
+                 Simulation=as.numeric(substr(Simulation,5,10)))%>%
+          dplyr::select(-Label)%>%
+          left_join(SSB_Virgin,by='Simulation')%>%
+          mutate(Depletion=Value/Value.virgin)%>%
+          filter(year%in%Years)
+        d1=SSB%>%
+          group_by(year)%>%
+          summarise(mu=median(Depletion,na.rm=T),
+                    lci=quantile(Depletion,probs=0.025,na.rm=T),
+                    uci=quantile(Depletion,probs=0.975,na.rm=T))
+        Probs=add.probs(DAT=SSB%>%
+                          dplyr::select(Simulation,year,Depletion)%>%
+                          spread(year,Depletion)%>%
+                          dplyr::select(-Simulation),
+                        id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
+                        B.threshold=median(SSB_MSY$Depletion))
+        Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+        
+      }
+      if(biom.type=='total')
+      {
+        TotB=do.call(rbind,fn.get.stuff.from.list(d,"timeseries"))
+        Virgin.B=TotB%>%
+          filter(Era=='VIRG')%>%
+          dplyr::select(Bio_all)%>%
+          mutate(Simulation=row_number())%>%
+          rename(Virgin.B=Bio_all)
+        nnsim=length(unique(TotB$Yr))
+        TotB=TotB%>%
+          dplyr::select(Yr,Bio_all)%>%
+          rename(year=Yr)%>%
+          mutate(Simulation=rep(Virgin.B$Simulation,each=nnsim))%>%
+          left_join(Virgin.B,by='Simulation')%>%
+          mutate(Depletion=Bio_all/Virgin.B)%>%
+          filter(year%in%Years)
+        d1=TotB%>%
+          group_by(year)%>%
+          summarise(mu=median(Depletion,na.rm=T),
+                    lci=quantile(Depletion,probs=0.025,na.rm=T),
+                    uci=quantile(Depletion,probs=0.975,na.rm=T))
+        Probs=add.probs(DAT=TotB%>%
+                          dplyr::select(Simulation,year,Depletion)%>%
+                          spread(year,Depletion)%>%
+                          dplyr::select(-Simulation),
+                        id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
+                        B.threshold=median(SSB_MSY$Depletion))
+        Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+        
+      }
     }
     
     if(Type=='F.series')
@@ -2189,6 +3194,122 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
   }
   
 }
+
+add.probs.integrated.asympt.error=function(DAT,B.threshold) #Reference points probability based on asymptotic error 
+{
+  B.target=Tar.prop.bmsny*B.threshold
+  B.limit=max(Minimum.acceptable.blim,Lim.prop.bmsy*B.threshold)
+  f=ecdf(DAT)
+  P.below.target=f(B.target)
+  P.below.threshold=f(B.threshold)
+  P.below.limit=f(B.limit)
+  P.above.target=1-P.below.target
+  P.above.threshold=1-P.below.threshold
+  P.above.limit=1-P.below.limit
+  P.between.thre.tar=P.below.target-P.below.threshold
+  P.between.lim.thre=P.below.threshold-P.below.limit
+  return(list(probs=data.frame(Range=c('<lim','lim.thr',
+                                       'thr.tar','>tar'),
+                               Probability=round(c(P.below.limit,P.between.lim.thre,
+                                                   P.between.thre.tar,P.above.target),3)),
+              Reference.points=data.frame(Rf.pt=c('Target','Threshold','Limit'),
+                                          Value=c(B.target,B.threshold,B.limit))))
+}
+fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen)
+{
+  if(mods=='SS3')
+  {
+    Years=with(d,startyr:endyr)  
+    
+    dum=d[["derived_quants"]]
+    
+    if(Type=='Depletion') 
+    { 
+      d1=dum[grep(paste(paste("Bratio",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value','StdDev')]%>%
+        mutate(year=readr::parse_number(Label))%>%
+        filter(year%in%Years)%>%
+        rename(mu=Value)%>%
+        mutate(lci=mu-1.96*StdDev,
+               uci=mu+1.96*StdDev)%>%
+        relocate(year,mu,lci,uci)%>%
+        `rownames<-`( NULL )%>%
+        rename(lower.95=lci,
+               upper.95=uci)
+      
+      Probs=add.probs.integrated.asympt.error(DAT=d1[nrow(d1),]%>%dplyr::select(mu,StdDev),
+                                              B.threshold=dum[grep('B_MSY/SSB_unfished',dum$Label),'Value'])     
+      Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      
+      d1=d1%>%dplyr::select(-c(Label,StdDev))
+    }
+    
+    if(Type=='F.series')
+    {
+      EF=dum[grep(paste(paste("F",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value','StdDev')]
+      d1=EF%>%
+          mutate(year=readr::parse_number(Label))%>%
+          filter(year%in%Years)%>%
+          rename(mu=Value)%>%
+          mutate(lci=mu-1.96*StdDev,
+                 uci=mu+1.96*StdDev)%>%
+          relocate(year,mu,lci,uci)%>%
+        `rownames<-`( NULL )%>%
+        dplyr::select(-c(Label,StdDev))%>%
+        rename(lower.95=lci,
+               upper.95=uci)
+      
+    }
+    
+    if(Type=='B.Bmsy') 
+    {
+      SSB=dum[grep(paste(paste("SSB",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value')]
+      SSB_MSY=dum[dum$Label=="SSB_MSY",c('Label','Value')]
+      d1=SSB%>%
+        mutate(year=readr::parse_number(Label),
+               mu=Value/SSB_MSY$Value)%>%
+        relocate(year,mu)%>%
+        `rownames<-`( NULL )%>%
+        dplyr::select(-c(Label,Value))
+      
+    }
+    
+    if(Type=='F.Fmsy')
+    {
+      EF=dum[grep(paste(paste("F",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value')]
+      annF_MSY=dum[dum$Label=="annF_MSY",c('Label','Value')]
+      d1=EF%>%
+        mutate(year=readr::parse_number(Label),
+               mu=Value/annF_MSY$Value)%>%
+        relocate(year,mu)%>%
+        `rownames<-`( NULL )%>%
+        dplyr::select(-c(Label,Value))
+    }
+    
+    Dat=d1%>%
+      mutate(Model=mods) 
+    
+    if(add.50)
+    {
+      Dat=Dat%>%
+        mutate(upper.50=NA,
+               lower.50=NA)
+    }
+  }
+  
+  Dat=Dat%>%
+          mutate(Scenario=scen)%>%
+          rename(median=mu)
+  
+  if(Type=='Depletion')
+  {
+    return(list(Dat=Dat,Probs=Probs))
+  }else
+  {
+    return(list(Dat=Dat))
+  }
+  
+}
+
 fn.display.priors=function(d,sp,XLAB,XLIM)
 {
   dummy=lapply(d[sp],function(x) rnorm(1e4,x$mean,x$sd))
@@ -2208,22 +3329,26 @@ fn.display.priors=function(d,sp,XLAB,XLIM)
   
   return(p)
 }
-make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,Hline,addKtch)
+make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,YLAB='',HLine)
 {
   p=da%>%
     ggplot(aes(year, median))+
+    geom_ribbon(aes(ymin = lower.95, ymax = upper.95), alpha = 0.2,fill='grey60') +
     geom_line(size=1.1)  +
-    geom_ribbon(aes(ymin = lower.95, ymax = upper.95), alpha = 0.3,fill='grey60') +
     facet_wrap(~Scenario,ncol=nfacets)+
     theme_PA(axs.T.siz=AXST,axs.t.siz=AXSt,strx.siz=STRs)+
     theme(plot.title =element_text(hjust = 0.5))+
-    ylab("")+xlab(XLAB)+   #ylab(YLAB)
-    ylim(0,max(da$upper.95))+
+    ylab(YLAB)+xlab(XLAB)+   
+    #ylim(0,max(da$upper.95))+
     theme(panel.spacing=unit(InrMarg,"lines"),
           plot.margin = unit(c(.5, -.2, 0, 0), "cm"))
   if(any(!is.na(da$upper.50))) p=p+geom_ribbon(aes(ymin = lower.50, ymax = upper.50), alpha = 0.1)
-  if(!is.null(Hline)) p=p+geom_hline(yintercept=Hline, size=1.05,alpha=0.35,
-                                     color=rep(c('forestgreen','orange','red'),length(unique(da$Scenario))))
+  if(!is.null(HLine))
+  {
+    p=p+geom_hline(data=da,aes(yintercept=unique(Target)),color='forestgreen', size=1.05)
+    p=p+geom_hline(data=da,aes(yintercept=unique(Threshold)),color='orange', size=1.05)
+    p=p+geom_hline(data=da,aes(yintercept=unique(Limit)),color='red', size=1.05)
+  }
   if(addKtch)
   {
     coeff=max(da$Catch)
@@ -2232,23 +3357,47 @@ make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,Hline,addKtch)
       geom_line(data=da, aes(x=year, y=Ktch.scaled),size=1.1,color='dodgerblue4',alpha=0.5,linetype ='dashed')+
       scale_y_continuous(sec.axis = sec_axis(~.*coeff, name=""))
   }
+  p=p+geom_line(size=1.1)
+  return(p)
 }
-fn.ribbon=function(Dat,YLAB,XLAB,Titl,Hline,addKtch,nfacets=1,AXST=14,AXSt=12,STRs=14,InrMarg=.25,dropTitl=FALSE)
+fn.ribbon=function(Dat,YLAB,XLAB,Titl,HLIne,addKtch,nfacets=1,AXST=14,AXSt=12,STRs=14,InrMarg=.25,dropTitl=FALSE)
 {
   data2 <- split(Dat, Dat$Scenario)
-  p_lst <- lapply(data2, make_plot,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,Hline,addKtch)
+  for(ii in 1:length(data2))
+  {
+    if(is.list(HLIne))
+    {
+      gg=HLIne[[tolower(names(data2)[ii])]]
+      data2[[ii]]=data2[[ii]]%>%
+        mutate(Target=gg%>%filter(Rf.pt=='Target')%>%pull(Value),
+               Threshold=gg%>%filter(Rf.pt=='Threshold')%>%pull(Value),
+               Limit=gg%>%filter(Rf.pt=='Limit')%>%pull(Value))
+    }else
+    {
+      data2[[ii]]=data2[[ii]]%>%
+        mutate(Target=HLIne[1],
+               Threshold=HLIne[2],
+               Limit=HLIne[3])
+    }
+    
+  }
+  p_lst <- lapply(data2, make_plot,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,HLine=HLIne)
+  for(ii in 1:length(p_lst))
+  {
+    p_lst[[ii]]=p_lst[[ii]]+theme(plot.margin = unit(c(0, 0, 0, 0), "pt"))
+  }
   figure <- ggarrange(plotlist=p_lst,ncol=nfacets,nrow=ceiling(length(p_lst)/nfacets),
                       common.legend = FALSE)
   if(!dropTitl) figure <- annotate_figure(figure,top=text_grob(Titl, size=20))
   
   return(figure) 
 }
-fn.plot.ktch.only.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
+fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
 {
   mods=names(d)
   store.plots=vector('list',length(mods))
   names(store.plots)=mods
-  store.probs=store.plots
+  store.probs=str.ref.point=store.plots
   id=match(sp,Keep.species)
   for(m in 1:length(mods))
   {
@@ -2259,13 +3408,13 @@ fn.plot.ktch.only.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALS
       if(Type=='F.series') Var=d[[m]]$f.series[[id]]
       if(Type=='B.Bmsy')   Var=d[[m]]$B.Bmsy[[id]]
       if(Type=='F.Fmsy')   Var=d[[m]]$F.Fmsy[[id]]
-      
       if(Type=='Depletion')
       {
         addKtch=TRUE
         Var=d[[m]]$rel.biom[[id]]
         str.prob=compact(d[[m]]$probs.rel.biom[[id]])   
-        Hline=str.prob[[1]]$Reference.points$Value
+        str.ref.point[[m]]=str.prob[[1]]$Reference.points
+        Hline=str.ref.point[[m]]$Value
         store.probs[[m]]=do.call(rbind,sapply(str.prob,'[',1))%>%  
           mutate(Model=names(store.probs)[m])
       }
@@ -2273,7 +3422,7 @@ fn.plot.ktch.only.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALS
                                  YLAB='',
                                  XLAB="",
                                  Titl=names(d)[m],
-                                 Hline=Hline,
+                                 HLIne=Hline,
                                  addKtch=addKtch)
       
     }
@@ -2300,11 +3449,11 @@ fn.plot.ktch.only.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALS
     print(figure)      
     store.probs=do.call(rbind,store.probs)
     rownames(store.probs)=NULL
-    return(list(store.probs=store.probs,Ref.points=str.prob[[1]]$Reference.points))
+    return(list(store.probs=store.probs,Ref.points=str.ref.point))
     
   }
 }
-fn.plot.ktch.only.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin)
+fn.plot.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin)
 {
   mods=names(d)
   if(length(this.sp)>8)
@@ -2330,10 +3479,10 @@ fn.plot.ktch.only.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,I
                        YLAB='',
                        XLAB="",
                        Titl=mods[m],
-                       Hline=Hline,
+                       HLIne=Hline,
                        addKtch=addKtch,
                        nfacets=round(length(this.sp)/5),
-                       AXST=15,AXSt=13,STRs=12,
+                       AXST=15,AXSt=12,STRs=12,
                        InrMarg=InnerMargin,
                        dropTitl=TRUE)
       
@@ -2348,8 +3497,8 @@ fn.plot.ktch.only.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,I
                                                color ='dodgerblue4',vjust=-.2))
       }
       print(figure)
-      ggsave(paste(Rar.path,'/Relative.biomass_catch.only_',NM,'_',mods[m],'_Appendix','.tiff',sep=''),
-             width = 11,height = 11,compression = "lzw")
+      ggsave(paste(Rar.path,'/Relative.biomass_catch.only_',NM,'_',mods[m],'_Appendix_S1','.tiff',sep=''),
+             width = 13,height = 11,compression = "lzw")
     }
     
   }else
@@ -2376,7 +3525,7 @@ fn.plot.ktch.only.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,I
                                YLAB='',
                                XLAB="",
                                Titl=mods[m],
-                               Hline=Hline,
+                               HLIne=Hline,
                                addKtch=addKtch,
                                nfacets=1,
                                AXST=16,AXSt=14,STRs=16,
@@ -2395,12 +3544,12 @@ fn.plot.ktch.only.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,I
                                              color ='dodgerblue4',vjust=-.2))
     }
     print(figure)
-    ggsave(paste(Rar.path,'/Relative.biomass_catch.only_',NM,'_Appendix','.tiff',sep=''),
+    ggsave(paste(Rar.path,'/Relative.biomass_catch.only_',NM,'_Appendix_S1','.tiff',sep=''),
            width = 15,height = 10,compression = "lzw")
     
   }
 }
-fn.plot.ktch.only.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Kach)
+fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Kach)
 {
   id=match(this.sp,names(d$rel.biom))
   RefPoint=compact(RefPoint[id])
@@ -2432,7 +3581,9 @@ fn.plot.ktch.only.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,R
     
     Dat=do.call(rbind,Var)
     if('Catch'%in%names(Dat))Dat=Dat%>%dplyr::select(-Catch)
-    
+    if('Scenario'%in%names(Dat))Dat=Dat%>%filter(Scenario=='S1')
+    STRs=16
+    if(length(Var)>8) STRs=13
     figure=fn.ribbon(Dat=Dat%>%
                        rownames_to_column()%>%
                        mutate(Scenario=capitalize(word(rowname,1,sep = "\\.")))%>%
@@ -2440,10 +3591,10 @@ fn.plot.ktch.only.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,R
                      YLAB='',
                      XLAB="",
                      Titl='',
-                     Hline=RefPoint[[1]]$Value,
+                     HLIne=RefPoint,   
                      addKtch=addKtch,
                      nfacets=Nfast,
-                     AXST=15,AXSt=13,STRs=15,
+                     AXST=15,AXSt=12,STRs=STRs,
                      InrMarg=InnerMargin,
                      dropTitl=TRUE)
     
@@ -2457,6 +3608,40 @@ fn.plot.ktch.only.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,R
                              right=text_grob('Total catch (tonnes)',size=26,rot = 90,
                                              color ='dodgerblue4',vjust=0))
     }
+    return(figure)
+  }
+}
+fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,Kach)
+{
+  id=match(this.sp,names(d$rel.biom))
+  RefPoint=compact(RefPoint[id])
+  Kach=compact(Kach[id])
+  if(length(Kach)>0)
+  {
+    ach=do.call(rbind,Kach)%>%
+      rownames_to_column()%>%
+      mutate(Species=capitalize(sub("\\..*", "", rowname)))
+    Hline=do.call(rbind,RefPoint)%>%
+      rownames_to_column()%>%
+      mutate(Species=capitalize(sub("\\..*", "", rowname)))%>%
+      dplyr::select(-rowname)%>%
+      spread(Rf.pt,Value)
+    ach=ach%>%left_join(Hline,by='Species')
+    figure=ach%>%
+      ggplot(aes(year,median,color=Scenario))+
+      facet_wrap(~Species)+
+      geom_ribbon(aes(ymin = lower.95, ymax = upper.95,fill=Scenario), alpha = 0.1)+
+      geom_line(size=2)+
+      ylim(0,max(ach$upper.95))+
+      theme_PA()+
+      ylab('')+xlab('')+
+      geom_hline(aes(yintercept=Limit), size=1.05,alpha=0.35,color='red')+
+      geom_hline(aes(yintercept=Threshold), size=1.05,alpha=0.35,color='orange')+
+      geom_hline(aes(yintercept=Target), size=1.05,alpha=0.35,color='forestgreen')
+    figure=annotate_figure(figure,
+                           bottom = text_grob('Financial year',size=26,vjust =-0.15),
+                           left = text_grob("Relative biomass",size=26,rot = 90,vjust=0.8)) +
+      theme(plot.margin = unit(c(.1,.1,0,0), "cm"))
     return(figure)
   }
 }
@@ -2482,8 +3667,8 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
     kernelF <- gplots::ci2d(Probs$x, Probs$y, nbins = 151, factor = 1.5, 
                             ci.levels = c(0.5, 0.8, 0.75, 0.9, 0.95), show = "none")
     KernelD=rbind(kernelF$contours$"0.95"%>%mutate(CI='1',col='grey30'),
-                  kernelF$contours$"0.8"%>%mutate(CI='2',col='grey50'),
-                  kernelF$contours$"0.5"%>%mutate(CI='3',col='grey75'))
+                  kernelF$contours$"0.8"%>%mutate(CI='2',col='grey60'),
+                  kernelF$contours$"0.5"%>%mutate(CI='3',col='grey85'))
     kernels=KernelD%>%distinct(CI,col)%>%pull(col)
     names(kernels)=KernelD%>%distinct(CI,col)%>%pull(CI)
     
@@ -2497,22 +3682,16 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
       y=rep(-10,4))
     pr.ds=Pr.d%>%pull(col)
     names(pr.ds)=paste(round(Pr.d%>%pull(Prob),1),'%',sep='')
-    
-    
-    
     kobe <-kobe +
-      geom_polygon(data=KernelD,aes(x, y,fill=CI),size=1.25,alpha=0.5)+
+      geom_polygon(data=KernelD%>%dplyr::filter(y<=Mx.F & x<=Mx.B),aes(x, y,fill=CI),size=1.25,alpha=0.5)+
       scale_fill_manual(labels=c("95%","80%","50%"),values = kernels)+
       geom_point(data=Pr.d,aes(x, y,color=col),alpha = 1,size=5)+
       scale_color_manual(labels=names(pr.ds),values = pr.ds)+
       labs(CI="CI", col="Prob.")
-    
-    
-    
   }
   kobe <-kobe +
-    geom_path(linetype = 2, size = 0.5,color='steelblue')+
-    geom_point(size=2,color='steelblue')+
+    geom_path(linetype = 2, size = 0.5,color='deepskyblue4')+
+    geom_point(size=2,color='deepskyblue4')+
     geom_point(aes(x=dta[1,'x'],y=dta[1,'y']),size=4,shape=22,fill='white',alpha=.3)+
     geom_point(aes(x=dta[nrow(dta),'x'],y=dta[nrow(dta),'y']),size=4,shape=25,fill='white',alpha=.3)+      
     geom_text_repel(data=dta[1,],aes(x=x,y=y,label=yr),size=YrSize,color=txt.col)+
@@ -2534,91 +3713,120 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
 {
   id=match(sp,Keep.species)
   
-  #DBSRA
-  if('DBSRA'%in%names(d))
+  plotlist=vector('list',length(d))
+  names(plotlist)=names(d)
+  for(pp in 1:length(d))
   {
-    dummy=d$DBSRA$B.Bmsy[[id]]%>%filter(Scenario==Scen)
-    yrs=dummy%>%pull(year)
-    Bmsy=dummy$median
-    Fmsy=d$DBSRA$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
-    p.DBSRA=kobePlot(f.traj=Fmsy[1:length(yrs)],
-                     b.traj=Bmsy[1:length(yrs)],
-                     Years=yrs,
-                     Titl="DBSRA")
-    rm(yrs,Fmsy,Bmsy,dummy)
-  }
-  
-  #CMSY
-  if('CMSY'%in%names(d))
-  {
-    if(CMSY.method=="Froese")
+    #DBSRA
+    if('DBSRA'%in%names(d)[[pp]])
     {
-      yrs=d$CMSY[[id]][[Scen]]$output$ref_ts$year
-      Bmsy=d$CMSY[[id]][[Scen]]$output$ref_ts$bbmsy
-      Fmsy=d$CMSY[[id]][[Scen]]$output$ref_ts$ffmsy
-      
-    }
-    if(CMSY.method=="Haddon")
-    {
-      dummy=d$CMSY$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+      dummy=d$DBSRA$B.Bmsy[[id]]%>%filter(Scenario==Scen)
       yrs=dummy%>%pull(year)
       Bmsy=dummy$median
-      Fmsy=d$CMSY$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      Fmsy=d$DBSRA$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
+                       b.traj=Bmsy[1:length(yrs)],
+                       Years=yrs,
+                       Titl="DBSRA")
+      rm(yrs,Fmsy,Bmsy,dummy)
     }
-    p.CMSY=kobePlot(f.traj=Fmsy,
-                    b.traj=Bmsy,
-                    Years=yrs,
-                    Titl="CMSY")
-    rm(yrs,Fmsy,Bmsy,dummy)
-  }
-  
-  #JABBA
-  dummy=d$JABBA$B.Bmsy[[id]]%>%filter(Scenario==Scen)
-  yrs=dummy%>%pull(year)
-  Bmsy=dummy$median
-  Fmsy=d$JABBA$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
-  if(!do.probs)
-  {
-    p.JABBA=kobePlot(f.traj=Fmsy,
-                     b.traj=Bmsy,
-                     Years=yrs,
-                     Titl="JABBA")
-  }
-  if(do.probs)
-  {
-    p.JABBA=kobePlot(f.traj=Fmsy,
-                     b.traj=Bmsy,
-                     Years=yrs,
-                     Titl="JABBA",
-                     Probs=data.frame(x=d$JABBA$Kobe.probs[[id]]$stock,
-                                      y=d$JABBA$Kobe.probs[[id]]$harvest))
-  }
-  
-  #SSS
-  if('SSS'%in%names(d))
-  {
-    dummy=d$SSS$B.Bmsy[[id]]%>%filter(Scenario==Scen)
-    yrs=dummy%>%pull(year)
-    Bmsy=dummy$median
-    Fmsy=d$SSS$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
-    p.SSS=kobePlot(f.traj=Fmsy[1:length(yrs)],
+    
+    #CMSY
+    if('CMSY'%in%names(d)[[pp]])
+    {
+      if(CMSY.method=="Froese")
+      {
+        yrs=d$CMSY[[id]][[Scen]]$output$ref_ts$year
+        Bmsy=d$CMSY[[id]][[Scen]]$output$ref_ts$bbmsy
+        Fmsy=d$CMSY[[id]][[Scen]]$output$ref_ts$ffmsy
+        
+      }
+      if(CMSY.method=="Haddon")
+      {
+        dummy=d$CMSY$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+        yrs=dummy%>%pull(year)
+        Bmsy=dummy$median
+        Fmsy=d$CMSY$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      }
+      p.plot=kobePlot(f.traj=Fmsy,
+                      b.traj=Bmsy,
+                      Years=yrs,
+                      Titl="CMSY")
+      rm(yrs,Fmsy,Bmsy,dummy)
+    }
+    
+    #JABBA
+    if('JABBA'%in%names(d)[[pp]])
+    {
+      dummy=d$JABBA$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+      yrs=dummy%>%pull(year)
+      Bmsy=dummy$median
+      Fmsy=d$JABBA$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      if(!do.probs)
+      {
+        p.plot=kobePlot(f.traj=Fmsy,
+                         b.traj=Bmsy,
+                         Years=yrs,
+                         Titl="JABBA")
+      }
+      if(do.probs)
+      {
+        p.plot=kobePlot(f.traj=Fmsy,
+                         b.traj=Bmsy,
+                         Years=yrs,
+                         Titl="JABBA",
+                         Probs=data.frame(x=d$JABBA$Kobe.probs[[id]]$stock,
+                                          y=d$JABBA$Kobe.probs[[id]]$harvest))
+      }
+    }
+    
+    #SSS
+    if('SSS'%in%names(d)[[pp]])
+    {
+      dummy=d$SSS$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+      yrs=dummy%>%pull(year)
+      Bmsy=dummy$median
+      Fmsy=d$SSS$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
                      b.traj=Bmsy[1:length(yrs)],
                      Years=yrs,
                      Titl="SSS")
-    rm(yrs,Fmsy,Bmsy,dummy)
+      rm(yrs,Fmsy,Bmsy,dummy)
+    }
+    
+    #SS
+    if('SS'%in%names(d)[[pp]])
+    {
+      dummy=d$SS$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+      yrs=dummy%>%pull(year)
+      Bmsy=dummy$median
+      Fmsy=d$SS$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
+                    b.traj=Bmsy[1:length(yrs)],
+                    Years=yrs,
+                    Titl="SS")
+      rm(yrs,Fmsy,Bmsy,dummy)
+    }
+    
+    plotlist[[pp]]=p.plot+rremove("axis.title")
   }
-  
-  #Combine plots
-  if('DBSRA'%in%names(d) & 'CMSY'%in%names(d)& 'SSS'%in%names(d))
-  {
-    plotlist=list(DBSRA=p.DBSRA+rremove("axis.title"),
-                  CMSY=p.CMSY+rremove("axis.title"),
-                  JABBA=p.JABBA+rremove("axis.title"),
-                  SSS=p.SSS+rremove("axis.title"))
-  }else
-  {
-    plotlist=list(JABBA=p.JABBA+rremove("axis.title"))
-  }
+  #Combine plots 
+  # if('DBSRA'%in%names(d) & 'CMSY'%in%names(d)& 'SSS'%in%names(d))
+  # {
+  #   dis.pis=c('p.DBSRA','p.CMSY','p.JABBA','p.SSS')
+  #   dis.pis=dis.pis[objects.exist('p.DBSRA','p.CMSY','p.JABBA','p.SSS')]
+  #   plotlist=vector('list',length(dis.pis))
+  #   names(plotlist)=dis.pis
+  #   for(pp in 1:length(dis.pis)) plotlist[[pp]]=dis.pis[pp] 
+  #   plotlist=list(DBSRA=p.DBSRA+rremove("axis.title"),
+  #                 CMSY=p.CMSY+rremove("axis.title"),
+  #                 JABBA=p.JABBA+rremove("axis.title"),
+  #                 SSS=p.SSS+rremove("axis.title"))
+  # }else
+  # {
+  #   if('JABBA'%in%names(d)) plotlist=list(JABBA=p.JABBA+rremove("axis.title"))
+  #   if('SS'%in%names(d))  plotlist=list(SS=p.SS+rremove("axis.title"))
+  # }
   if(length(plotlist)<4)
   {
     nKl=1
@@ -2629,7 +3837,7 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
     nKl=2
     nRw=length(plotlist)/2
   }
-    
+  
   figure <- ggarrange(plotlist=plotlist,
                       ncol=nKl,nrow=nRw,common.legend = FALSE)
   if(add.sp.nm) figure=figure+theme(plot.margin = margin(1,0,0,0, "cm"))
@@ -2652,20 +3860,30 @@ fn.get.Kobe.plot=function(this.sp,d,NKOL,NRW,do.probs=FALSE)
   plotlist=vector('list',length(Bmsy))
   for(x in 1:length(Bmsy))
   {
+    dis.fmsy=Fmsy[[x]]
+    dis.bmsy=Bmsy[[x]] 
+    
+    if('Scenario'%in%names(dis.fmsy))
+    {
+      dis.fmsy=dis.fmsy%>%filter(Scenario=='S1')
+      dis.bmsy=dis.bmsy%>%filter(Scenario=='S1')
+    }
+    
     if(!do.probs)
     {
-      dd=kobePlot(f.traj=Fmsy[[x]]$median,
-                  b.traj=Bmsy[[x]]$median,
-                  Years=Bmsy[[x]]$year,
+      
+      dd=kobePlot(f.traj=dis.fmsy$median,
+                  b.traj=dis.bmsy$median,
+                  Years=dis.bmsy$year,
                   Titl=capitalize(names(Bmsy)[x]),
                   YrSize=6)+rremove("axis.title")
     }
     
     if(do.probs)
     {
-      dd=kobePlot(f.traj=Fmsy[[x]]$median,
-                  b.traj=Bmsy[[x]]$median,
-                  Years=Bmsy[[x]]$year,
+      dd=kobePlot(f.traj=dis.fmsy$median,
+                  b.traj=dis.bmsy$median,
+                  Years=dis.bmsy$year,
                   Titl=capitalize(names(Bmsy)[x]),
                   YrSize=6,
                   Probs=data.frame(x=d$Kobe.probs[[id[x]]]$stock,
@@ -2689,6 +3907,7 @@ fn.get.cons.like=function(lista,Mod.Avrg.weight=NULL)
   for(l in 1:length(lista))
   {
     d=lista[[l]]$probs.rel.biom
+    d=compact(d)
     out1=vector('list',length(d))
     names(out1)=names(d)
     for(x in 1:length(d))
@@ -2702,12 +3921,12 @@ fn.get.cons.like=function(lista,Mod.Avrg.weight=NULL)
     out[[l]]=out1
   }
   
-  #get weighted likelihood
-  out2=vector('list',N.sp)
-  names(out2)=names(List.sp)
+  #get weighted likelihood   
+  out2=vector('list',length(out[[1]]))
+  names(out2)=names(out[[1]])
   if(!is.null(Mod.Avrg.weight))
   {
-    for(i in 1:N.sp)  
+    for(i in 1:length(out[[1]]))  
     {
       dis.r.range=do.call(rbind,r.groups)%>%   
         data.frame%>%
@@ -2716,8 +3935,11 @@ fn.get.cons.like=function(lista,Mod.Avrg.weight=NULL)
       Wei=Mod.Avrg.weight%>%
         filter(r.group==row.names(dis.r.range))%>%
         dplyr::select(-r.group)
-      Wei.SSS=Wei%>%filter(Model=='DBSRA')%>%mutate(Model='SSS')
-      if('SSS'%in%names(Catch_only)) Wei=rbind(Wei,Wei.SSS)
+      if('SSS'%in%names(Catch_only) & !'SSS'%in%Wei$Model)
+      {
+        Wei.SSS=Wei%>%filter(Model=='DBSRA')%>%mutate(Model='SSS')
+        Wei=rbind(Wei,Wei.SSS)
+      }
       dd=map(out, ~.x[[i]])
       dd=do.call(rbind,dd)%>%
         left_join(Wei,by=c('Model'))%>%
@@ -2725,19 +3947,30 @@ fn.get.cons.like=function(lista,Mod.Avrg.weight=NULL)
         summarise(Probability=weighted.mean(Probability,Weight))%>%
         ungroup()%>%
         mutate(Probability=Probability/sum(Probability))%>%
-        mutate(Range=factor(Range,levels=c('>tar','thr–tar','lim–thr','<lim')))%>%
+        mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
         arrange(Range)
       out2[[i]]=dd
     }
   }
   if(is.null(Mod.Avrg.weight))
   {
-    for(i in 1:N.sp)  
+    this.sp=vector('list',length(out))
+    for(x in 1:length(out)) this.sp[[x]]=names(out[[x]])
+    this.sp=unlist(this.sp)
+      
+    for(i in 1:length(out[[1]]))  
     {
-      dd=map(out, ~.x[[i]])
-      dd=do.call(rbind,dd)
-      if(!is.null(dd))out2[[i]]=dd
+      ii=match(names(out2)[i],this.sp)
+      if(!is.na(ii))
+      {
+        out2[[i]]=do.call(rbind,map(out, ~.x[[ii]]))%>%
+                    mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+                    arrange(Range)%>%
+          dplyr::select(Range,Probability)
+      }
+        
     }
+    out2=compact(out2)
   }
   return(out2)
 }
@@ -2746,8 +3979,8 @@ fn.risk=function(likelihood)
 {
   likelihood=likelihood%>%
     mutate(consequence=case_when(Range=='>tar'~'C1',
-                                 Range=='thr–tar'~'C2',
-                                 Range=='lim–thr'~'C3',
+                                 Range=='thr.tar'~'C2',
+                                 Range=='lim.thr'~'C3',
                                  Range=='<lim'~'C4'))
   TAB=Risk.tab
   for(n in 1:nrow(likelihood))
