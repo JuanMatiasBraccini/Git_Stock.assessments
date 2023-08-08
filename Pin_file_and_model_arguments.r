@@ -15,6 +15,8 @@ if(Do.bespoked)
   MOv.par.phz=c("log_p11","log_p22","log_p21","log_p33")
 }
 
+#Recruitment inputs
+SS3.Rrecruitment.inputs=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Rrecruitment.inputs.csv'))
 
 #Final depletion
 #note: modify depletion levels for species with negligible catches in recent years (based on generation time and r)
@@ -43,21 +45,17 @@ for(i in 1:N.sp)
     
     if(ktch$Depletion[nrow(ktch)]>=0.8) updated.FINALBIO1=0.6
     if(ktch$Depletion[nrow(ktch)]>=0.6 & ktch$Depletion[nrow(ktch)]<0.8) updated.FINALBIO1=0.4
-    #if(ktch$Depletion[nrow(ktch)]>=0.6 & ktch$Depletion[nrow(ktch)]<0.8) updated.FINALBIO1=0.5
-    #if(ktch$Depletion[nrow(ktch)]>=0.4 & ktch$Depletion[nrow(ktch)]<0.6) updated.FINALBIO1=0.3 
-    #if(ktch$Depletion[nrow(ktch)]<0.4)  updated.FINALBIO1=Depletion.levels%>%filter(Species==Keep.species[i])%>%pull(FINALBIO1)
     if(ktch$Depletion[nrow(ktch)]<0.6)  updated.FINALBIO1=Depletion.levels%>%filter(Species==Keep.species[i])%>%pull(FINALBIO1)
-    if(Depletion.levels$Species=="green sawfish" & updated.FINALBIO1==0.6) updated.FINALBIO1=0.4
-    if(Depletion.levels$Species=="scalloped hammerhead" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.3
-    Depletion.levels=Depletion.levels%>%
+    if(Depletion.levels$Species[i]=="narrow sawfish" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.3
+    if(Depletion.levels$Species[i]=="scalloped hammerhead" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.2
+    if(Depletion.levels$Species[i]%in%c("green sawfish","snaggletooth","weasel shark","tiger shark","zebra shark") & updated.FINALBIO1==0.6) updated.FINALBIO1=0.3
+    Depletion.levels[i,]=Depletion.levels[i,]%>%
       mutate(FINALBIO1=ifelse(Species==Keep.species[i],updated.FINALBIO1,
                               FINALBIO1))
   }
 }
 
-
 #Create pin files
-SS3.Rrecruitment.inputs=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Rrecruitment.inputs.csv'))
 for(l in 1:N.sp)    
 {
   NeiM=names(List.sp)[l]
@@ -84,7 +82,6 @@ for(l in 1:N.sp)
   ramp.yrs=SS3.Rrecruitment.inputs%>%filter(Species==NeiM)
   Min.logR0=ramp.yrs$Ln_R0_min
   Upper.bound.LnR0=ramp.yrs$Ln_R0_max
-  
   if(is.na(Upper.bound.LnR0))
   {
     if(NeiM%in%names(Indicator.species)) Upper.bound.LnR0=Upper.bound.LnR0*1.3
@@ -96,7 +93,6 @@ for(l in 1:N.sp)
     if(NeiM%in%c("grey nurse shark","lemon shark","snaggletooth")) Upper.bound.LnR0=5
   }
 
-  
   
     #M
   #age-invariant
@@ -158,7 +154,12 @@ for(l in 1:N.sp)
   bmsyK=0.5   #Schaefer
   if(NeiM=="lemon shark") bmsyK=0.45    #to improve convergence of DBSRA
   BmsyK.Cortes=BmsyK.species%>%filter(Species==names(List.sp)[l])%>%pull(BmsyK)
-  
+  if(NeiM%in%c("angel sharks","lemon shark")) BmsyK.Cortes=0.4   #update value to increase COM acceptance rate, not affecting biomass trajectories
+  if(NeiM=="grey nurse shark") BmsyK.Cortes=0.49
+  if(NeiM=="milk shark") BmsyK.Cortes=0.375
+  if(NeiM=="pigeye shark") BmsyK.Cortes=0.45
+  if(NeiM=="sawsharks") BmsyK.Cortes=0.475
+  if(NeiM=="sandbar shark") BmsyK.Cortes=0.49
   
   #2.1 DBSRA scenarios
   AgeMat=List.sp[[l]]$Age.50.mat[1]
@@ -187,12 +188,6 @@ for(l in 1:N.sp)
   r.mean_lower=round(r.mean*.9,3)
   r.mean_upper=round(r.mean*1.2,3)
   
-  r.prob.min=0.1   #quantile probs for defining r range
-  r.prob.max=0.9
-  if(NeiM%in%c('shortfin mako','spurdogs'))  #increase upper bound to allow CMSY convergence
-  {
-    r.prob.max=0.99
-  }
   ensims.csmy=ensims.CSMY
   if(NeiM%in%c("great hammerhead","narrow sawfish","zebra shark"))  #increase sims due to low acceptance rate
   {
@@ -201,8 +196,6 @@ for(l in 1:N.sp)
   if(NeiM=="snaggletooth") ensims.csmy=4e4
   #some species-specific input values for CMSY Process error scenario to allow convergence
   Kup.spcfik=Kup
-  if(NeiM%in%c("dusky shark")) Kup.spcfik=30000
-  if(NeiM%in%c("tiger shark")) Kup.spcfik=20000
   Klow.spcfik=Klow
   Proc.error.cmsy=Proc.Error.1
    if(NeiM%in%c("gummy shark","narrow sawfish")) Proc.error.cmsy=1e-3  #higher values do not converge
@@ -214,7 +207,8 @@ for(l in 1:N.sp)
   r.CV.multiplier=1
   Ktch.CV=0.1   #Winker et al 2019 set it at 0.2 for uncertain reconstructed school shark catches
   
-  #2.4 Combine all input pars and assumptions in list 
+  #2.4 Scenarios 
+  #combine all input pars and assumptions in list 
   if(Simplified.scenarios)
   {
     List.sp[[l]]$Sens.test=list(
