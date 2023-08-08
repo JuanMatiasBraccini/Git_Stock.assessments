@@ -84,11 +84,11 @@ for(w in 1:length(Catch_only))
           b1k.up=List.sp[[i]]$STARTBIO[2]
           
           Depletion.year=max(ktch$finyear)
-          if(names(dummy.store)[i]=="milk shark")
-          {
-            Depletion.year=1991  #set to end of catch period to allow convergence
-            Btklow=0.2
-          }
+          # if(names(dummy.store)[i]=="milk shark")
+          # {
+          #   Depletion.year=1991  #set to end of catch period to allow convergence
+          #   Btklow=0.2
+          # }
           
           #Run model
           Store.sens[[s]]=apply.DBSRA_tweeked(year=ktch$finyear,
@@ -179,7 +179,7 @@ for(w in 1:length(Catch_only))
           #Display Priors vs Posteriors for base case scenario (S1)
           if(Scens$Scenario[s]=='S1')
           {
-            par.list=c('m','fmsym','b1k','btk','bmsyk')
+            par.list=c('m','fmsym','b1k','btk','bmsyk','k')
             dummy.prior=Store.sens[[s]]$input
             names(dummy.prior)=tolower(names(dummy.prior))
             dummy.post=Store.sens[[s]]$output$Values%>%filter(ll==1) #accepted runs
@@ -187,17 +187,19 @@ for(w in 1:length(Catch_only))
             out=vector('list',length(par.list))
             for(p in 1:length(par.list))
             {
+              prior.dis=dummy.prior[[par.list[p]]] 
+              if(par.list[p]=='k')
+              {
+                prior.dis$dist="unif" 
+              }
               out[[p]]=rbind(data.frame(Distribuion="Prior",
-                                        Value=fn.prior(d=dummy.prior[[par.list[p]]])),
+                                        Value=fn.prior(d=prior.dis)),   
                              data.frame(Distribuion="Posterior",
                                         Value=dummy.post[[par.list[p]]]))%>%
                 mutate(Parameter=par.list[p])
             }
             rm(dummy.prior,dummy.post)
             fn.show.density(d=do.call(rbind,out),NCOL=2)
-            ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                         capitalize(names(dummy.store)[i]),"/",AssessYr,"/",'DBSRA',"/Prior.and.posterior.tiff",sep=''),
-                   width = 12,height = 14, dpi = 300, compression = "lzw")
           }
           
           #Store quantities for ensemble model
@@ -268,8 +270,7 @@ for(w in 1:length(Catch_only))
   
   #2. CMSY    
   #summary of method: http://toolbox.frdc.com.au/wp-content/uploads/sites/19/2021/04/CMSY.html
-  #note: Milk shark need 1e5 simulations to sample enough accepted r-k combos
-  #      no need of parallelisation
+  #note: no need of parallelisation
   if(names(Catch_only)[w]=="CMSY")     #takes 0.008 secs per iteration-species-scenario
   {
     dummy.store=vector('list',N.sp)     
@@ -337,17 +338,10 @@ for(w in 1:length(Catch_only))
             Bf.hi=List.sp[[i]]$FINALBIO[2]
             
             #need to modify bound a bit to allow enough combos (i.e. convergence)
-            if(names(dummy.store)[i]%in%c("milk shark","great hammerhead")) r.range[1]=0.1
-            if(names(dummy.store)[i]=="zebra shark") r.range=c(0.07,Scens$r[s]) 
-            if(names(dummy.store)[i]=="green sawfish") r.range[1]=0.09
-            if(names(dummy.store)[i]=="lemon shark") r.range[1]=r.range[1]*.8
-            if(names(dummy.store)[i]%in%c("narrow sawfish","snaggletooth","weasel shark")) r.range=c(0.2,Scens$r[s])  
-            if(names(dummy.store)[i]=="weasel shark")
-            {
-              r.range[1]=0.2
-              k.range[1]=k.range[1]*.7
-            }
-            if(names(dummy.store)[i]=="pigeye shark") r.range[2]=0.15
+            if(names(dummy.store)[i]%in%c("milk shark","narrow sawfish","snaggletooth","zebra shark")) r.range[1]=0.1
+            if(names(dummy.store)[i]%in%c("pigeye shark","smooth hammerhead")) k.range[2]=k.range[1]*3
+            if(names(dummy.store)[i]%in%c("pigeye shark","sandbar shark")) r.range[2]=r.range[2]*1.2
+            if(names(dummy.store)[i]%in%c("zebra shark")) r.range[2]=min(r.range[2],Scens$r[s]*1.1)
             
             r.range[1]=max(r.range[1],Min.r.value)  #minimum level of recruitment
             r.range[2]=min(r.range[2],Max.r.value)  #maximum level biological possible
@@ -505,11 +499,11 @@ for(w in 1:length(Catch_only))
         
         #output scenarios
         Out.Scens=Out.Scens%>%
-          dplyr::select(Species,Scenario,r,r.sd,Klow,Kup,Bo.low,Bo.hi,Bf.low,Bf.hi,Proc.error)%>%
+          dplyr::select(Species,Scenario,r.low,r.up,Klow,Kup,Bo.low,Bo.hi,Bf.low,Bf.hi,Proc.error)%>%
           mutate(Klow=round(Klow),
                  Kup=round(Kup),
-                 r=round(r,3),
-                 r.sd=round(r.sd,3))
+                 r.low=round(r.low,3),
+                 r.up=round(r.up,3))
         
         dummy.store.sens.table[[i]]=Out.Scens
         dummy.store.accept.rate[[i]]=do.call(rbind,Out.accept.rate)

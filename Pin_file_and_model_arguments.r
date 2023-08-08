@@ -184,23 +184,12 @@ for(l in 1:N.sp)
   r.mean2=round(r.mean2,3)
   r.mean.sd=store.species.r_M.min[[l]]$sd
   r.mean.sd2=store.species.r_M.mean[[l]]$sd
-  
   r.mean_lower=round(r.mean*.9,3)
   r.mean_upper=round(r.mean*1.2,3)
-  
   ensims.csmy=ensims.CSMY
-  if(NeiM%in%c("great hammerhead","narrow sawfish","zebra shark"))  #increase sims due to low acceptance rate
-  {
-    ensims.csmy=ensims.CSMY*1.5
-  }
-  if(NeiM=="snaggletooth") ensims.csmy=4e4
-  #some species-specific input values for CMSY Process error scenario to allow convergence
   Kup.spcfik=Kup
   Klow.spcfik=Klow
   Proc.error.cmsy=Proc.Error.1
-   if(NeiM%in%c("gummy shark","narrow sawfish")) Proc.error.cmsy=1e-3  #higher values do not converge
-   if(NeiM%in%c("tiger shark")) Proc.error.cmsy=5e-3
-   if(NeiM%in%c("milk shark")) Proc.error.cmsy=Proc.Error   #not converging otherwise
 
 
   #2.3 JABBA - catch only scenarios

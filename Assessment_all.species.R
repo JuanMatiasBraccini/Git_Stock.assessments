@@ -259,7 +259,8 @@ Proc.Error=1e-3   #Catch-only default process error. Catch only per se yields hi
 Proc.Error.1=1e-2
 SSS_criteria.delta.fin.dep=0.01
 K_min=2000 #Min value of max K range in tonnes (based on overall catch ranges and K estimates)
-
+r.prob.max=0.9999   #quantile probs for defining r range for CMSY
+r.prob.min=1-r.prob.max
 #Ensemble.weight='weighted'  #define if doing weighted or unweighted model average
 Ensemble.weight='equal'
 
