@@ -1185,7 +1185,26 @@ send.email(TO=Send.email.to,
 
 
 #---Generate outputs -------------------------------------------------
-#24.1 Table of parameter estimates by species and SPM method
+
+###
+#24.1 Table of scenarios
+for(l in 1: length(Lista.sp.outputs))  
+{
+  for(w in 1:length(State.Space.SPM))
+  {
+    dummy=State.Space.SPM[[w]]$sens.table
+    dummy=dummy[match(Lista.sp.outputs[[l]],names(dummy))]
+    
+    write.csv(do.call(rbind,dummy)%>%relocate(Species),
+              paste(Rar.path,paste('Table 6. ',names(State.Space.SPM)[w],' CPUE_scenarios_',
+                                   names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
+              row.names = F)
+  }
+}
+
+###
+
+#24.2 Table of parameter estimates by species and SPM method
 for(l in 1: length(Lista.sp.outputs))
 {
   for(w in 1:length(State.Space.SPM))
@@ -1199,7 +1218,7 @@ for(l in 1: length(Lista.sp.outputs))
         rownames_to_column(var = "Species")%>%
         mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
         relocate(Species)
-      write.csv(dummy,paste(Rar.path,paste('Table 6. ',names(State.Space.SPM)[w],'CPUE_estimates_',
+      write.csv(dummy,paste(Rar.path,paste('Table 7. ',names(State.Space.SPM)[w],' CPUE_estimates_',
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
     }
@@ -1208,11 +1227,11 @@ for(l in 1: length(Lista.sp.outputs))
 }
 
 
-#24.2. Time series  
+#24.3. Time series  
 YLAB=XLAB=''
 
-#24.2.1 Display all scenarios for each species
-  #24.2.1.1 Relative biomass (i.e. Depletion)
+#24.3.1 Display all scenarios for each species
+  #24.3.1.1 Relative biomass (i.e. Depletion)
 Ref.points=vector('list',N.sp)
 names(Ref.points)=Keep.species
 for(i in 1:N.sp)
@@ -1241,8 +1260,7 @@ for(i in 1:N.sp)
     Ref.points[[i]]=a$Ref.points$JABBA
   }
 }
-
-  #24.2.1.2 Fishing mortality
+  #24.3.1.2 Fishing mortality
 if(do.F.series)
 {
   for(i in 1:N.sp)
@@ -1260,8 +1278,7 @@ if(do.F.series)
     }
   }
 }
-
-  #24.2.1.3 B over Bmsy
+  #24.3.1.3 B over Bmsy
 if(do.B.over.Bmsy.series)
 {
   for(i in 1:N.sp)
@@ -1279,8 +1296,7 @@ if(do.B.over.Bmsy.series)
     }
   }
 }
-
-  #24.2.1.4 F over Fmsy
+  #24.3.1.4 F over Fmsy
 if(do.F.over.Fmsy.series)
 {
   for(i in 1:N.sp)
@@ -1299,7 +1315,7 @@ if(do.F.over.Fmsy.series)
   }
 }
 
-#24.2.2 Display Scenario 1 for combined species
+  #24.3.2 Display Scenario 1 for combined species
 
 #Relative biomass (i.e. Depletion) 
   #figure
@@ -1346,14 +1362,14 @@ for(l in 1:length(Lista.sp.outputs))
                 mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                 spread(Species,Probability)%>%
                 arrange(Range),
-              paste(Rar.path,'/Table 7. JABBA CPUE_Current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+              paste(Rar.path,'/Table 8. JABBA CPUE_Current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
               row.names=F)
     rm(dummy.mod)
     
   }
 }
 
-#24.2.3 Display sensitivity tests for combined species
+  #24.3.3 Display sensitivity tests for combined species
 for(l in 1:length(Lista.sp.outputs))
 {
   if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
@@ -1368,9 +1384,8 @@ for(l in 1:length(Lista.sp.outputs))
                         width = WIDt,height = 10,compression = "lzw")
 }
 
-#24.3. Kobe plots (Scenario 1)  
-
-  #24.3.1 by species 
+#24.4. Kobe plots (Scenario 1)  
+  #24.4.1 by species 
 store.kobes=vector('list',N.sp)
 names(store.kobes)=Keep.species
 for(i in 1:N.sp)
@@ -1388,8 +1403,7 @@ for(i in 1:N.sp)
   
 }
 store.kobes=compact(store.kobes)
-
-  #24.3.2 Display combined species  
+  #24.4.2 Display combined species  
 for(l in 1:length(Lista.sp.outputs))
 {
   Nms=names(compact(State.Space.SPM$JABBA$estimates))
@@ -1415,8 +1429,7 @@ for(l in 1:length(Lista.sp.outputs))
   }
 }
 
-
-#24.4 store Consequence and likelihood for WoE
+#24.5 store Consequence and likelihood for WoE
 Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 
 
 
