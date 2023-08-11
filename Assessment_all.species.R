@@ -226,6 +226,7 @@ Min.r.value=.025
 #16. Stock recruitment
 Max.h.shark=.8   #mean of h for blue shark (ICCAT 2023 assessment; Cortes 2016, Kai & Fujinami 2018).
 Min.h.shark=.25  #He et al 2006
+Max.SR_sigmaR.shark=0.4   #maximum recruitment variability 
 #Min.logR0=0.1 #1e-3 now this is in SS3.Recruitment.inputs.csv
 #Max.logR0=10  
 do.random.h=TRUE  #take a random sample of h and M for SS or use empirical distributions
@@ -277,7 +278,7 @@ Rdist = "lnorm"
 Kdist="lnorm"  
 PsiDist='beta'
 Whiskery.q.periods=2  # split monthly cpue into this number of periods (Simpfendorfer 2000, Braccini et al 2021)
-Gummy.q.periods=2     # split monthly cpue into this number of periods due to increase in cpue with catches in 2001:2005
+Gummy.q.periods=1     
 Obs.Err.JABBA=0.01   #JABBA uses SE2" = CPUE.se^2 + fixed.obsE^2 
 increase.CV.JABBA=TRUE   #for consistency with SS3 and because not using fixed.obsE
 do.MCMC.diagnostics=do.hindcasting=FALSE
@@ -296,7 +297,7 @@ Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
 Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation
-nMCsims=200
+nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
 #MCMCsims=1e5; Thin=10; burning=1:(5*length(seq(1,MCMCsims,by=Thin))/100)   #5%  burning
 #Arg=paste(' -mcmc',MCMCsims,' -mcsave', 100)  #MCMC
   
@@ -2606,7 +2607,7 @@ clear.log('recruit.cpiui')
 #---24. JABBA Surplus production model -------------------------------------------------
 #note: Only fitting to 'indicator and 'other species' with representative abundance time series 
 #Assumptions: negligible exploitation at start of time series
-if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes ~1 hour (9 species with 5 scenarios)
+if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes <1 hour (9 species with 5 scenarios), takes <2 hours is doing fit diagnostics
 clear.log('Store.sens')
 clear.log('output')
 clear.log('F.Fmsy')

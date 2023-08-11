@@ -3673,15 +3673,15 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
     names(kernels)=KernelD%>%distinct(CI,col)%>%pull(CI)
     
     Pr.d=data.frame(
-      Prob=c(sum(ifelse(Probs$x > 1 & Probs$y < 1, 1, 0))/length(Probs$x)*100,
-             sum(ifelse(Probs$x < 1 & Probs$y < 1, 1, 0))/length(Probs$x)*100,
-             sum(ifelse(Probs$x > 1 & Probs$y > 1, 1, 0))/length(Probs$x)*100,
-             sum(ifelse(Probs$x < 1 & Probs$y > 1, 1, 0))/length(Probs$x) * 100),
-      col=c("green","yellow","orange","red"),
-      x=rep(-10,4),  #dummy
-      y=rep(-10,4))
+                Prob=c(sum(ifelse(Probs$x >= 1 & Probs$y <= 1, 1, 0))/length(Probs$x)*100,
+                       sum(ifelse(Probs$x < 1 & Probs$y <= 1, 1, 0))/length(Probs$x)*100,
+                       sum(ifelse(Probs$x >= 1 & Probs$y > 1, 1, 0))/length(Probs$x)*100,
+                       sum(ifelse(Probs$x < 1 & Probs$y > 1, 1, 0))/length(Probs$x) * 100),
+                col=c("green","yellow","orange","red"),
+                x=rep(-10,4),  #dummy
+                y=rep(-10,4))
     pr.ds=Pr.d%>%pull(col)
-    names(pr.ds)=paste(round(Pr.d%>%pull(Prob),1),'%',sep='')
+    names(pr.ds)=paste(round(Pr.d%>%pull(Prob),2),'%',sep='')
     kobe <-kobe +
       geom_polygon(data=KernelD%>%dplyr::filter(y<=Mx.F & x<=Mx.B),aes(x, y,fill=CI),size=1.25,alpha=0.5)+
       scale_fill_manual(labels=c("95%","80%","50%"),values = kernels)+
@@ -3709,7 +3709,7 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
           legend.box.margin=margin(-10,0,-10,-10))
   return(kobe)
 }
-fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE)
+fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE,txt.size=6)
 {
   id=match(sp,Keep.species)
   
@@ -3727,7 +3727,8 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
       p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
                        b.traj=Bmsy[1:length(yrs)],
                        Years=yrs,
-                       Titl="DBSRA")
+                       Titl="DBSRA",
+                       YrSize=txt.size)
       rm(yrs,Fmsy,Bmsy,dummy)
     }
     
@@ -3751,7 +3752,8 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
       p.plot=kobePlot(f.traj=Fmsy,
                       b.traj=Bmsy,
                       Years=yrs,
-                      Titl="CMSY")
+                      Titl="CMSY",
+                      YrSize=txt.size)
       rm(yrs,Fmsy,Bmsy,dummy)
     }
     
@@ -3767,7 +3769,8 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
         p.plot=kobePlot(f.traj=Fmsy,
                          b.traj=Bmsy,
                          Years=yrs,
-                         Titl="JABBA")
+                         Titl="JABBA",
+                        YrSize=txt.size)
       }
       if(do.probs)
       {
@@ -3776,7 +3779,8 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
                          Years=yrs,
                          Titl="JABBA",
                          Probs=data.frame(x=d$JABBA$Kobe.probs[[id]]$stock,
-                                          y=d$JABBA$Kobe.probs[[id]]$harvest))
+                                          y=d$JABBA$Kobe.probs[[id]]$harvest),
+                        YrSize=txt.size)
       }
     }
     
@@ -3790,7 +3794,8 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
       p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
                      b.traj=Bmsy[1:length(yrs)],
                      Years=yrs,
-                     Titl="SSS")
+                     Titl="SSS",
+                     YrSize=txt.size)
       rm(yrs,Fmsy,Bmsy,dummy)
     }
     
@@ -3804,7 +3809,8 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
       p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
                     b.traj=Bmsy[1:length(yrs)],
                     Years=yrs,
-                    Titl="SS")
+                    Titl="SS",
+                    YrSize=txt.size)
       rm(yrs,Fmsy,Bmsy,dummy)
     }
     

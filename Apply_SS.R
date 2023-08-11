@@ -265,8 +265,17 @@ for(w in 1:n.SS)
                                             dplyr::select(year,CV,fleet)%>%
                                             spread(fleet,CV),
                                     mininum.mean.CV=default.Mean.weight.CV)
+            if(mean(meanbodywt.SS.format$CV,na.rm=T)<default.Mean.weight.CV)
+            {
+              newcv=NewCVs$CV.Adjusted%>%
+                filter(year%in%meanbodywt.SS.format$year)
+              meanbodywt.SS.format=meanbodywt.SS.format%>%mutate(CV=newcv[,2])
+            }
+            #CV variance adjustment if small CVs
             if(mean(meanbodywt.SS.format$CV,na.rm=T)>=default.Mean.weight.CV) NewCVs$CV.var.adj=0
-            Var.ad.factr_meanbodywt=data.frame(Factor=3,Fleet=names(NewCVs$CV.var.adj),Value=NewCVs$CV.var.adj)
+            Var.ad.factr_meanbodywt=data.frame(Factor=3,
+                                               Fleet=unique(meanbodywt.SS.format$fleet),
+                                               Value=NewCVs$CV.var.adj)
           }
           
           
@@ -301,6 +310,17 @@ for(w in 1:n.SS)
                                     mininum.mean.CV=default.CV) 
             for(j in 1:length(CPUE))
             {
+              #CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
+              if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
+              {
+                newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
+                  filter(yr.f%in%CPUE[[j]]$yr.f)
+                CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
+              }
+            }
+            #CV variance adjustment if small CVs
+            for(j in 1:length(CPUE))
+            {
               if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)  NewCVs$CV.var.adj[j]=0
             }
             Var.ad.factr_cpue=data.frame(Factor=1,Fleet=names(NewCVs$CV.var.adj),Value=NewCVs$CV.var.adj)%>%
@@ -314,6 +334,8 @@ for(w in 1:n.SS)
             
             Var.ad.factr=Var.ad.factr_cpue           
             if(exists("Var.ad.factr_meanbodywt")) Var.ad.factr=rbind(Var.ad.factr,Var.ad.factr_meanbodywt)
+            clear.log("Var.ad.factr_meanbodywt")  
+            clear.log("Var.ad.factr_cpue")
           }
           
           
@@ -545,7 +567,8 @@ for(w in 1:n.SS)
                            cond.age.len=Cond.age.len.SS.format,
                            MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
                            Lamdas=Lamdas.SS.lambdas,
-                           Var.adjust.factor=Var.ad.factr) 
+                           Var.adjust.factor=Var.ad.factr)
+              clear.log("Var.ad.factr")
               
               #b. Run SS3
               if(Calculate.ramp.years)
@@ -554,14 +577,21 @@ for(w in 1:n.SS)
                           where.exe=handl_OneDrive('SS3/ss_win.exe'),
                           args='')
                 Report=SS_output(this.wd1)
-                ramp_years=SS_fitbiasramp(Report)
+                tiff(file=paste(this.wd,'Ramp_years.tiff',sep='/'),
+                     width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+                ramp_years=SS_fitbiasramp(Report) 
+                dev.off()
                 out=ramp_years$df
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
                 write.csv(out,paste(this.wd,'Ramp_years.csv',sep='/'),row.names = F)
               }
-              fn.run.SS(where.inputs=this.wd1,
-                        where.exe=handl_OneDrive('SS3/ss_win.exe'),
-                        args=Arg)  
+              if(!Calculate.ramp.years)
+              {
+                fn.run.SS(where.inputs=this.wd1,
+                          where.exe=handl_OneDrive('SS3/ss_win.exe'),
+                          args=Arg) 
+              }
+ 
               
               #c. Bring in outputs
               Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F,checkcor=F)
@@ -982,8 +1012,17 @@ for(w in 1:n.SS)
                                       dplyr::select(year,CV,fleet)%>%
                                       spread(fleet,CV),
                                     mininum.mean.CV=default.Mean.weight.CV)
+            if(mean(meanbodywt.SS.format$CV,na.rm=T)<default.Mean.weight.CV)
+            {
+              newcv=NewCVs$CV.Adjusted%>%
+                filter(year%in%meanbodywt.SS.format$year)
+              meanbodywt.SS.format=meanbodywt.SS.format%>%mutate(CV=newcv[,2])
+            }
+            #CV variance adjustment if small CVs
             if(mean(meanbodywt.SS.format$CV,na.rm=T)>=default.Mean.weight.CV) NewCVs$CV.var.adj=0
-            Var.ad.factr_meanbodywt=data.frame(Factor=3,Fleet=names(NewCVs$CV.var.adj),Value=NewCVs$CV.var.adj)
+            Var.ad.factr_meanbodywt=data.frame(Factor=3,
+                                               Fleet=unique(meanbodywt.SS.format$fleet),
+                                               Value=NewCVs$CV.var.adj)
           }
           
           
@@ -1017,6 +1056,17 @@ for(w in 1:n.SS)
                                     mininum.mean.CV=default.CV) 
             for(j in 1:length(CPUE))
             {
+              #CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
+              if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
+              {
+                newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
+                  filter(yr.f%in%CPUE[[j]]$yr.f)
+                CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
+              }
+            }
+            #CV variance adjustment if small CVs
+            for(j in 1:length(CPUE))
+            {
               if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)  NewCVs$CV.var.adj[j]=0
             }
             Var.ad.factr_cpue=data.frame(Factor=1,Fleet=names(NewCVs$CV.var.adj),Value=NewCVs$CV.var.adj)%>%
@@ -1030,7 +1080,8 @@ for(w in 1:n.SS)
             
             Var.ad.factr=Var.ad.factr_cpue           
             if(exists("Var.ad.factr_meanbodywt")) Var.ad.factr=rbind(Var.ad.factr,Var.ad.factr_meanbodywt)
-
+            clear.log("Var.ad.factr_meanbodywt")  
+            clear.log("Var.ad.factr_cpue")
           }
           
           
@@ -1262,6 +1313,7 @@ for(w in 1:n.SS)
                            MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
                            Lamdas=Lamdas.SS.lambdas,
                            Var.adjust.factor=Var.ad.factr)
+              clear.log("Var.ad.factr")
               
               #b. Run SS3
               if(Calculate.ramp.years)
@@ -1270,14 +1322,21 @@ for(w in 1:n.SS)
                           where.exe=handl_OneDrive('SS3/ss_win.exe'),
                           args='')
                 Report=SS_output(this.wd1)
-                ramp_years=SS_fitbiasramp(Report)
+                tiff(file=paste(this.wd,'Ramp_years.tiff',sep='/'),
+                     width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+                ramp_years=SS_fitbiasramp(Report) 
+                dev.off()
                 out=ramp_years$df
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
                 write.csv(out,paste(this.wd,'Ramp_years.csv',sep='/'),row.names = F)
               }
-              fn.run.SS(where.inputs=this.wd1,
-                        where.exe=handl_OneDrive('SS3/ss_win.exe'),
-                        args=Arg)  
+              if(!Calculate.ramp.years)
+              {
+                fn.run.SS(where.inputs=this.wd1,
+                          where.exe=handl_OneDrive('SS3/ss_win.exe'),
+                          args=Arg) 
+              }
+ 
               
               #c. Bring in outputs
               Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F,checkcor=F)

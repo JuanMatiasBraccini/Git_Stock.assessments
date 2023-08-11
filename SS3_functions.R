@@ -402,7 +402,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       ctl$Q_options=ctl$Q_options[which(rownames(ctl$Q_options)%in%dat$fleetinfo$fleetname),]
       ctl$Q_parms=ctl$Q_parms[grep(paste(rownames(ctl$Q_options),collapse='|'),rownames(ctl$Q_parms)),]
-      iis=sort(unique(dat$CPUE$index))  
+       
       if(!'Northern.shark'%in%fleetinfo$fleetname)
       {
         ctl$Q_options$fleet=ctl$Q_options$fleet-1
@@ -449,8 +449,21 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
           ctl$Q_parms=rbind(ctl$Q_parms,add.F.series.dummy)
         }
       }
-      ctl$Q_options=ctl$Q_options%>%filter(fleet%in%iis) 
-      rownames(ctl$Q_options)=dat$fleetinfo$fleetname[iis]
+      
+      iis=sort(unique(dat$CPUE$index)) 
+      Qdummi=left_join(ctl$Q_options%>%
+                         tibble::rownames_to_column(),
+                       fleetinfo%>%mutate(fleet1=row_number()),
+                       by=c("rowname"="fleetname"))%>%
+        mutate(fleet=fleet1)%>%
+        tibble::column_to_rownames('rowname')%>%
+        dplyr::select(names(ctl$Q_options))%>%
+        filter(fleet%in%iis)
+      if(nrow(Qdummi)>0)
+      {
+        ctl$Q_options=Qdummi
+       # rownames(ctl$Q_options)=dat$fleetinfo$fleetname[iis]
+      }
       addis=iis[which(!iis%in%ctl$Q_options$fleet)]
       if(length(addis)>0)
       {
@@ -467,6 +480,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         rownames(ctl.q_par.add)=paste('LnQ_base_',rownames(addis),'(',addis$Fleet,')',sep='')
         ctl$Q_parms=rbind(ctl$Q_parms,ctl.q_par.add)
       }
+
       Nms=rownames(ctl$Q_parms)
       Nms=gsub(r"{\s*\([^\)]+\)}","",gsub("^.*?base_","",Nms))
       rownames(ctl$Q_parms)=Nms
@@ -478,35 +492,33 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       
       Q.inits=left_join(data.frame(Fleet=rownames(ctl$Q_parms),Order=1:nrow(ctl$Q_parms)),
                         life.history$Q.inits,by='Fleet')%>%
-        arrange(Fleet.n)
+                arrange(Fleet.n)
       
       ctl$Q_parms[,"INIT"]=Q.inits%>%pull(Q)
       ctl$Q_parms[,"PHASE"]=2
       
-      #Add extra SD to Q if CV too small
+      #Add extra SD to Q if CV too small  
       n.indices=nrow(ctl$Q_options)
-      if(n.indices>1)
+      Indx.small.CV=dat$CPUE%>%group_by(index)%>%summarise(Mean.CV=mean(CV))  
+      if(life.history$Name%in%c("spinner shark","tiger shark")) Indx.small.CV$Mean.CV=default.CV*.9 #need extra_Q for both indices to fit spinner cpue
+      if(!Scenario$extra.SD.Q=='always' & n.indices>1) Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<default.CV)%>%pull(index)
+      if(Scenario$extra.SD.Q=='always') Indx.small.CV=Indx.small.CV$index
+      if(length(Indx.small.CV)>0)
       {
-        Indx.small.CV=dat$CPUE%>%group_by(index)%>%summarise(Mean.CV=mean(CV))  
-        if(life.history$Name%in%c("spinner shark","tiger shark")) Indx.small.CV$Mean.CV=default.CV*.9 #need extra_Q for both indices to fit spinner cpue
-        Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<default.CV)%>%pull(index)
-        if(length(Indx.small.CV)>0 &is.null(Var.adjust.factor))
-        {
-          ID.fleets.extraSD=match(Indx.small.CV,ctl$Q_options$fleet)
-          ctl$Q_options$extra_se[ID.fleets.extraSD]=1
-          rownames(ctl$Q_parms)=paste('fleet_',match(rownames(ctl$Q_parms),dat$fleetinfo$fleetname),sep='')
-          Q_parms_estraSD=ctl$Q_parms[ID.fleets.extraSD,]%>%
-            mutate(LO=0,
-                   HI=1,
-                   INIT=0.3,
-                   PRIOR=0.3,
-                   PHASE=3)
-          rownames(Q_parms_estraSD)=paste(rownames(Q_parms_estraSD),"_Q_extraSD",sep='')
-          ctl$Q_parms=rbind(ctl$Q_parms,Q_parms_estraSD)
-          ctl$Q_parms=ctl$Q_parms[order(rownames(ctl$Q_parms)),]
-          
-        }
+        ID.fleets.extraSD=match(Indx.small.CV,ctl$Q_options$fleet)
+        ctl$Q_options$extra_se[ID.fleets.extraSD]=1
+        rownames(ctl$Q_parms)=paste('fleet_',match(rownames(ctl$Q_parms),dat$fleetinfo$fleetname),sep='')
+        Q_parms_estraSD=ctl$Q_parms[ID.fleets.extraSD,]%>%
+          mutate(LO=0,
+                 HI=1,
+                 INIT=0.3,
+                 PRIOR=0.3,
+                 PHASE=3)
+        rownames(Q_parms_estraSD)=paste(rownames(Q_parms_estraSD),"_Q_extraSD",sep='')
+        ctl$Q_parms=rbind(ctl$Q_parms,Q_parms_estraSD)
+        ctl$Q_parms=ctl$Q_parms[order(rownames(ctl$Q_parms)),]
       }
+      
       
       #Block patterns
       if(!life.history$Nblock_Patterns==0 & ctl$time_vary_auto_generation[3]==0)

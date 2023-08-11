@@ -300,7 +300,12 @@ for(l in 1:N.sp)
                                          Scenario=paste('S',row_number(),sep=''))
   List.sp[[l]]$Sens.test$JABBA$Proc.error[4]=Proc.Error.cpue2
   List.sp[[l]]$Sens.test$JABBA$Daily.cpues=c(rep(drop.daily.cpue,length(tested.r)-1),NA)
-    
+  if(NeiM%in%c("gummy shark","whiskery shark")) List.sp[[l]]$Sens.test$JABBA$K.mean=6000  #improve K mean as very wide range used for catch only
+  if(NeiM=="tiger shark") List.sp[[l]]$Sens.test$JABBA$K.mean=9000
+  if(NeiM=="smooth hammerhead") List.sp[[l]]$Sens.test$JABBA$K.mean=1500
+
+  
+  
   # 3... Dynamic catch and size model
   InRec=NULL
   if(NeiM=="smooth hammerhead") InRec= 15000
@@ -334,12 +339,13 @@ for(l in 1:N.sp)
                                 mutate(Ln_R0_init=ramp.yrs$LnRo)
   }
     #M at age
-  if(NeiM%in%names(Indicator.species))
-  {
-    List.sp[[l]]$Sens.test$SS$M.at.age=rep('Mmean.mean.at.age',nrow(List.sp[[l]]$Sens.test$SS))
-  }
+    List.sp[[l]]$Sens.test$SS$M.at.age=rep('Mmean.mean.at.age',nrow(List.sp[[l]]$Sens.test$SS)) #use Mean M for consistency with h
+
     #Cpues
   List.sp[[l]]$Sens.test$SS$Daily.cpues=c(rep(drop.daily.cpue,length(tested.h)-1),NA)
+  
+    #Always calculate extra SD for Q or only when CV is small
+  List.sp[[l]]$Sens.test$SS$extra.SD.Q='always'
   
     #4.1.2 Growth
   List.sp[[l]]$Growth.CV_young=0.1  #constant CV 8.5%-10% Tremblay-Boyer et al 2019
@@ -444,7 +450,7 @@ for(l in 1:N.sp)
   if(!is.na(ramp.yrs$Steepness_Phase)) List.sp[[l]]$Steepness_Phase=ramp.yrs$Steepness_Phase 
   
   List.sp[[l]]$SR_sigmaR=0.2    #Default (Spiny dogfish SS assessment)
-  if(!is.na(ramp.yrs$SR_sigmaR)) List.sp[[l]]$SR_sigmaR=ramp.yrs$SR_sigmaR #from Report$sigma_R_info$alternative_sigma_R
+  if(!is.na(ramp.yrs$SR_sigmaR)) List.sp[[l]]$SR_sigmaR=min(ramp.yrs$SR_sigmaR,Max.SR_sigmaR.shark) #from Report$sigma_R_info$alternative_sigma_R
   List.sp[[l]]$last_early_yr_nobias_adj_in_MPD=ramp.yrs$last_early_yr_nobias_adj_in_MPD
   List.sp[[l]]$first_yr_fullbias_adj_in_MPD=ramp.yrs$first_yr_fullbias_adj_in_MPD
   List.sp[[l]]$last_yr_fullbias_adj_in_MPD=ramp.yrs$last_yr_fullbias_adj_in_MPD
@@ -483,7 +489,7 @@ for(l in 1:N.sp)
     if(Gummy.q.periods==2)
     {
       List.sp[[l]]$blocks_per_pattern=2
-      List.sp[[l]]$block_pattern_begin_end=list(c(1975,2000),c(2001,2005)) #targeting, not targeting periods
+      List.sp[[l]]$block_pattern_begin_end=list(c(1975,2000),c(2001,2005)) #targeting, not targeting periods?
       List.sp[[l]]$Yr_second_q=2001:2005    #second monthly q due to increase in cpue and catch unaccounted by cpue stand.
     }
     

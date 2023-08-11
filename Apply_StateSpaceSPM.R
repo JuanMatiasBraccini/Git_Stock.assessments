@@ -89,7 +89,7 @@ for(w in 1:length(State.Space.SPM))
           if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
            
           #reset very low CVs       
-          #note:very low CVs in stand cpues, hence increase obs error a bit 
+          #note:very low CVs in stand cpues, hence use Francis CVs 
           if(increase.CV.JABBA)
           {
             dumi.cpue=CPUE
@@ -195,7 +195,7 @@ for(w in 1:length(State.Space.SPM))
                          TDGDLF.monthly.CV=ifelse(Year<min(List.sp[[i]]$Yr_q_change_transition),TDGDLF.monthly.CV,NA))
               }
             }
-            if(Neim=='gummy shark')     
+            if(Neim=='gummy shark' & Gummy.q.periods>1)     
             {
               Cpues=Cpues%>%
                 mutate(TDGDLF.monthly2=ifelse(Year%in%List.sp[[i]]$Yr_second_q,TDGDLF.monthly,NA),   #second monthly q due to increase in cpue and catch unaccounted by cpue stand.
@@ -211,7 +211,8 @@ for(w in 1:length(State.Space.SPM))
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             this.wd1=this.wd
-            Out.Scens=Scens
+            Out.Scens=Scens%>%
+              mutate(Bo.mean=NA,Bo.CV=NA,r.mean=NA,r.cv=NA,Rdist=NA,Kdist=NA,PsiDist=NA,bmsyk.mean=NA)
             Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=
               Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
             
@@ -247,7 +248,7 @@ for(w in 1:length(State.Space.SPM))
               Bint.mean=mean(Bint)
               Bint.CV=sd(Bint)/Bint.mean
               psi.prior=c(Bint.mean,Bint.CV)
-              b.prior=c(FALSE, 0.3, NA, "bk")  #only use b.prior for catch-only approach
+              b.prior=FALSE  #N.A., only use b.prior for catch-only approach options: FALSE, 0.3, NA, "bk"
               
               #allocate relevant fishing effort 
               if(use.auxiliary.effort)
@@ -307,31 +308,31 @@ for(w in 1:length(State.Space.SPM))
               CHAINS=2
               BURNIN=min(0.15*Scens$Sims[s],5000)
               JABBA.run=apply.JABBA(Ktch=input$Ktch,
-                                 CPUE=Cpues1,
-                                 CPUE.SE=Cpues1.SE,
-                                 auxil=auxiliary.effort,
-                                 auxil.se=auxiliary.effort.se,
-                                 auxil.type=auxiliary.type,
-                                 MDL=input$MDL,
-                                 Ktch.CV=input$Ktch.CV,
-                                 ASS=input$ASS,
-                                 Rdist = input$Rdist,
-                                 Rprior = input$Rprior,
-                                 Kdist=input$Kdist,
-                                 Kprior=input$Kprior,
-                                 PsiDist=input$PsiDist,
-                                 Psiprior=input$Psiprior,
-                                 Bprior=input$Bprior,
-                                 BMSYK=input$BMSYK,
-                                 Shape.CV=input$shape.CV,
-                                 output.dir=this.wd,
-                                 outfile="fit_Appendix",
-                                 Sims=Scens$Sims[s],
-                                 Proc.error.JABBA=Proc.error,
-                                 Obs.Error=Obs.Err.JABBA,
-                                 thinning = THIN,
-                                 nchains = CHAINS,
-                                 burn.in= BURNIN)
+                                     CPUE=Cpues1,
+                                     CPUE.SE=Cpues1.SE,
+                                     auxil=auxiliary.effort,
+                                     auxil.se=auxiliary.effort.se,
+                                     auxil.type=auxiliary.type,
+                                     MDL=input$MDL,
+                                     Ktch.CV=input$Ktch.CV,
+                                     ASS=input$ASS,
+                                     Rdist = input$Rdist,
+                                     Rprior = input$Rprior,
+                                     Kdist=input$Kdist,
+                                     Kprior=input$Kprior,
+                                     PsiDist=input$PsiDist,
+                                     Psiprior=input$Psiprior,
+                                     Bprior=input$Bprior,
+                                     BMSYK=input$BMSYK,
+                                     Shape.CV=input$shape.CV,
+                                     output.dir=this.wd,
+                                     outfile="fit_Appendix",
+                                     Sims=Scens$Sims[s],
+                                     Proc.error.JABBA=Proc.error,
+                                     Obs.Error=Obs.Err.JABBA,
+                                     thinning = THIN,
+                                     nchains = CHAINS,
+                                     burn.in= BURNIN)
               output=JABBA.run$fit
                 
               #Display model fits
@@ -372,14 +373,14 @@ for(w in 1:length(State.Space.SPM))
               for(x in 1:ncol(RES)) store.runs.test[[x]]=runs.test(RES[!is.na(RES[,x]),x])
               
               #Store Scenarios
-              Out.Scens$Bo.mean=Bint.mean
-              Out.Scens$Bo.CV=Bint.CV
-              Out.Scens$r.mean=Mn
-              Out.Scens$r.cv=Scens$r.sd[s]/Mn
-              Out.Scens$Rdist=Rdist
-              Out.Scens$Kdist=Kdist
-              Out.Scens$PsiDist=PsiDist
-              Out.Scens$bmsyk.mean=Out.Scens$bmsyk
+              Out.Scens$Bo.mean[s]=Bint.mean
+              Out.Scens$Bo.CV[s]=Bint.CV
+              Out.Scens$r.mean[s]=Mn
+              Out.Scens$r.cv[s]=Scens$r.sd[s]/Mn
+              Out.Scens$Rdist[s]=Rdist
+              Out.Scens$Kdist[s]=Kdist
+              Out.Scens$PsiDist[s]=PsiDist
+              Out.Scens$bmsyk.mean[s]=bmsyk.mean
               
               #Store estimates  
               d1=Store.sens[[s]]$output$estimates
@@ -568,46 +569,23 @@ for(w in 1:length(State.Space.SPM))
               
             }# end s loop
             
-            if(!b.prior[1]=='FALSE')
-            {
-              Out.Scens=Out.Scens%>%
-                dplyr::select(Species,Scenario,
-                              Rdist,r.mean,r.cv,
-                              Kdist,K.mean,K.CV,
-                              PsiDist,Bo.mean,Bo.CV,
-                              Bf.mean,Bf.CV,
-                              bmsyk.mean,Proc.error,Ktch.CV)%>%
-                mutate(K.mean=round(K.mean),
-                       r.mean=round(r.mean,3),
-                       bmsyk.mean=round(bmsyk.mean,3),
-                       r.cv=round(r.cv,3),
-                       Bo.mean=round(Bo.mean,3),
-                       Bo.CV=round(Bo.CV,3),
-                       Bf.mean=round(Bf.mean,3),
-                       Bf.CV=round(Bf.CV,3),
-                       Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
-                       Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
-                       PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
-            }
-            if(b.prior[1]=='FALSE')
-            {
-              Out.Scens=Out.Scens%>%
-                dplyr::select(Species,Scenario,
-                              Rdist,r.mean,r.cv,
-                              Kdist,K.mean,K.CV,
-                              PsiDist,Bo.mean,Bo.CV,
-                              bmsyk.mean,Proc.error,Ktch.CV)%>%
-                mutate(K.mean=round(K.mean),
-                       r.mean=round(r.mean,3),
-                       bmsyk.mean=round(bmsyk.mean,3),
-                       r.cv=round(r.cv,3),
-                       Bo.mean=round(Bo.mean,3),
-                       Bo.CV=round(Bo.CV,3),
-                       Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
-                       Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
-                       PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
-            }
-            
+            Out.Scens=Out.Scens%>%
+              dplyr::select(Species,Scenario,
+                            Rdist,r.mean,r.cv,
+                            Kdist,K.mean,K.CV,
+                            PsiDist,Bo.mean,Bo.CV,
+                            bmsyk.mean,Proc.error,Ktch.CV,
+                            Daily.cpues)%>%
+              mutate(K.mean=round(K.mean),
+                     r.mean=round(r.mean,3),
+                     bmsyk.mean=round(bmsyk.mean,3),
+                     r.cv=round(r.cv,2),
+                     Bo.mean=round(Bo.mean,2),
+                     Bo.CV=round(Bo.CV,2),
+                     Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
+                     Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
+                     PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
+
             return(list(dummy.store.sens.table=Out.Scens,
                         dummy.store.rel.biom=do.call(rbind,Out.rel.biom),
                         dummy.store.probs.rel.biom=Out.probs.rel.biom,
@@ -780,7 +758,7 @@ for(w in 1:length(State.Space.SPM))
                          TDGDLF.monthly.CV=ifelse(Year<min(List.sp[[i]]$Yr_q_change_transition),TDGDLF.monthly.CV,NA))
               }
             }
-            if(Neim=='gummy shark')     
+            if(Neim=='gummy shark' & Gummy.q.periods>1)     
             {
               Cpues=Cpues%>%
                 mutate(TDGDLF.monthly2=ifelse(Year%in%List.sp[[i]]$Yr_second_q,TDGDLF.monthly,NA),   #second monthly q due to increase in cpue and catch unaccounted by cpue stand.
@@ -796,7 +774,8 @@ for(w in 1:length(State.Space.SPM))
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             this.wd1=this.wd
-            Out.Scens=Scens
+            Out.Scens=Scens%>%
+              mutate(Bo.mean=NA,Bo.CV=NA,r.mean=NA,r.cv=NA,Rdist=NA,Kdist=NA,PsiDist=NA,bmsyk.mean=NA)
             Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=
               Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
             
@@ -832,7 +811,7 @@ for(w in 1:length(State.Space.SPM))
               Bint.mean=mean(Bint)
               Bint.CV=sd(Bint)/Bint.mean
               psi.prior=c(Bint.mean,Bint.CV)
-              b.prior=c(FALSE, 0.3, NA, "bk")  #only use b.prior for catch-only approach
+              b.prior=FALSE  #N.A. only use b.prior for catch-only approach optons: c(FALSE, 0.3, NA, "bk")
               
               #allocate relevant fishing effort 
               if(use.auxiliary.effort)
@@ -956,14 +935,14 @@ for(w in 1:length(State.Space.SPM))
               
               
               #Store Scenarios
-              Out.Scens$Bo.mean=Bint.mean
-              Out.Scens$Bo.CV=Bint.CV
-              Out.Scens$r.mean=Mn
-              Out.Scens$r.cv=Scens$r.sd[s]/Mn
-              Out.Scens$Rdist=Rdist
-              Out.Scens$Kdist=Kdist
-              Out.Scens$PsiDist=PsiDist
-              Out.Scens$bmsyk.mean=Out.Scens$bmsyk
+              Out.Scens$Bo.mean[s]=Bint.mean
+              Out.Scens$Bo.CV[s]=Bint.CV
+              Out.Scens$r.mean[s]=Mn
+              Out.Scens$r.cv[s]=Scens$r.sd[s]/Mn
+              Out.Scens$Rdist[s]=Rdist
+              Out.Scens$Kdist[s]=Kdist
+              Out.Scens$PsiDist[s]=PsiDist
+              Out.Scens$bmsyk.mean[s]=bmsyk.mean
               
               #Store estimates  
               d1=Store.sens[[s]]$output$estimates
@@ -1103,46 +1082,23 @@ for(w in 1:length(State.Space.SPM))
               
             }
             
-            if(!b.prior[1]=='FALSE')
-            {
-              Out.Scens=Out.Scens%>%
-                dplyr::select(Species,Scenario,
-                              Rdist,r.mean,r.cv,
-                              Kdist,K.mean,K.CV,
-                              PsiDist,Bo.mean,Bo.CV,
-                              Bf.mean,Bf.CV,
-                              bmsyk.mean,Proc.error,Ktch.CV)%>%
-                mutate(K.mean=round(K.mean),
-                       r.mean=round(r.mean,3),
-                       bmsyk.mean=round(bmsyk.mean,3),
-                       r.cv=round(r.cv,3),
-                       Bo.mean=round(Bo.mean,3),
-                       Bo.CV=round(Bo.CV,3),
-                       Bf.mean=round(Bf.mean,3),
-                       Bf.CV=round(Bf.CV,3),
-                       Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
-                       Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
-                       PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
-            }
-            if(b.prior[1]=='FALSE')
-            {
-              Out.Scens=Out.Scens%>%
-                dplyr::select(Species,Scenario,
-                              Rdist,r.mean,r.cv,
-                              Kdist,K.mean,K.CV,
-                              PsiDist,Bo.mean,Bo.CV,
-                              bmsyk.mean,Proc.error,Ktch.CV)%>%
-                mutate(K.mean=round(K.mean),
-                       r.mean=round(r.mean,3),
-                       bmsyk.mean=round(bmsyk.mean,3),
-                       r.cv=round(r.cv,3),
-                       Bo.mean=round(Bo.mean,3),
-                       Bo.CV=round(Bo.CV,3),
-                       Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
-                       Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
-                       PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
-            }
-            
+            Out.Scens=Out.Scens%>%
+              dplyr::select(Species,Scenario,
+                            Rdist,r.mean,r.cv,
+                            Kdist,K.mean,K.CV,
+                            PsiDist,Bo.mean,Bo.CV,
+                            bmsyk.mean,Proc.error,Ktch.CV,
+                            Daily.cpues)%>%
+              mutate(K.mean=round(K.mean),
+                     r.mean=round(r.mean,3),
+                     bmsyk.mean=round(bmsyk.mean,3),
+                     r.cv=round(r.cv,2),
+                     Bo.mean=round(Bo.mean,2),
+                     Bo.CV=round(Bo.CV,2),
+                     Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
+                     Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
+                     PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
+
             dummy.store.sens.table[[i]]=Out.Scens
             dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
             dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
@@ -1186,7 +1142,6 @@ send.email(TO=Send.email.to,
 
 #---Generate outputs -------------------------------------------------
 
-###
 #24.1 Table of scenarios
 for(l in 1: length(Lista.sp.outputs))  
 {
@@ -1202,7 +1157,6 @@ for(l in 1: length(Lista.sp.outputs))
   }
 }
 
-###
 
 #24.2 Table of parameter estimates by species and SPM method
 for(l in 1: length(Lista.sp.outputs))
