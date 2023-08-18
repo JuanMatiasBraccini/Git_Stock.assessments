@@ -11,6 +11,32 @@ objects.exist <- function(...)
   ls <- list(...)
   sapply(ls, exists)
 }
+fn.ktch.sex.ratio.zone=function(size.data)
+{
+  if(any(grepl('Observations',names(size.data)))) size.data=size.data[-grep('Observations',names(size.data))]
+  if(sum(grepl('Table',names(size.data)))>0) size.data=size.data[-grep('Table',names(size.data))]
+  size.data=do.call(rbind,size.data)%>%
+    rownames_to_column(var = 'Zone')%>%
+    mutate(N=1,
+           Zone=gsub("\\..*","",str_remove(Zone,'Size_composition_')))%>%
+    filter(!is.na(SEX))%>%
+    group_by(Zone,year,SEX)%>%
+    summarise(n=sum(N))%>%
+    ungroup()%>%
+    spread(SEX,n,fill=0)%>%
+    mutate(Total=F+M,
+           Prop.female=F/Total)%>%
+    filter(Total>Min.obs)
+  if(nrow(size.data)>0)
+  {
+    print(size.data%>%
+            ggplot(aes(year,Prop.female,color=log(Total)))+
+            geom_point()+
+            facet_wrap(~Zone,ncol=1))+
+      theme_PA()
+    return(size.data%>%group_by(Zone)%>%summarise(Prop.female=mean(Prop.female)))
+  }
+}
 # Import Total Catch------------------------------------------------------
 fn.import.catch.data=function(KTCH.UNITS)
 {

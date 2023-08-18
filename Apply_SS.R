@@ -97,6 +97,18 @@ for(w in 1:n.SS)
                 group_by(year,fishry,sex,size.class)%>%
                 summarise(n=n())%>%
                 ungroup()
+              
+              #add extra bins for smooth fit to size comps
+              Maximum_size=10*ceiling(1.01*with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
+              Mx.size=max(d.list[[s]]$size.class)
+              extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
+              if(length(extra.bins))
+              {
+                add.dumi.size=d.list[[s]][1:length(extra.bins),]%>%
+                  mutate(size.class=extra.bins,
+                         n=0)
+                d.list[[s]]=rbind(d.list[[s]],add.dumi.size)
+              }
             }
             d.list <- d.list[!is.na(d.list)]
             d.list=do.call(rbind,d.list)%>%
@@ -187,14 +199,25 @@ for(w in 1:n.SS)
                 mutate(Sex=ifelse(Sex=='F',1,
                                   ifelse(Sex=='M',2,
                                          0)))
-              
+              d.list=d.list%>%
+                mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
+                       Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
+                dplyr::select(-dumi.n)
+              size.flits=Flits.and.survey
+              if(!"Survey"%in% names(Catch.rate.series[[i]]) & "Survey"%in%unique(d.list$Fleet))
+              {
+                ddummis=size.flits[1,]%>%mutate(Fleet.number=1+size.flits$Fleet.number[nrow(size.flits)],
+                                                Fleet.name="Survey")
+                rownames(ddummis)="Survey"
+                size.flits=rbind(size.flits,ddummis)
+              }
               d.list=d.list%>%
                 mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
                                              Fleet=="Other"~'Other',
                                              Fleet=="TDGDLF" & year<2006~'Southern.shark_1',
                                              Fleet=="TDGDLF" & year>=2006~'Southern.shark_2',
                                              Fleet=="Survey"~'Survey'))%>%
-                left_join(Flits.and.survey,by=c('dummy.fleet'='Fleet.name'))%>%
+                left_join(size.flits,by=c('dummy.fleet'='Fleet.name'))%>%
                 mutate(Fleet=Fleet.number)%>%
                 dplyr::select(-c(dummy.fleet,Fleet.number))%>%
                 arrange(Sex,Fleet,year)
@@ -281,6 +304,7 @@ for(w in 1:n.SS)
           
           #4. Abundance series
           Abundance.SS.format=NULL
+          Var.ad.factr=NULL
           CPUE=compact(Catch.rate.series[[i]])
           if(!is.null(CPUE))
           {
@@ -338,6 +362,14 @@ for(w in 1:n.SS)
             clear.log("Var.ad.factr_cpue")
           }
           
+          #Add size comp effective sample size bias adjustment    
+          #note: a Value of 0 means no effect
+          if(!is.null(Var.ad.factr))
+          {
+            tuned.siz.comp=Life.history$tuned_size_comp
+            if(!is.null(tuned.siz.comp))Var.ad.factr=rbind(Var.ad.factr,tuned.siz.comp)
+          }
+          
           
           #5. F from tagging studies on TDGDLF (1994-95 and 2001-03)
           F.SS.format=NULL  
@@ -359,10 +391,7 @@ for(w in 1:n.SS)
           
           
           #6. Conditional age at length
-          #note: this is not used as age-length sandbar and dusky is for GN and LL and for all 4 species
-          #      observations were collected over multiple year
           Cond.age.len.SS.format=NULL
-          do.Cond.age.len.SS.format=FALSE
           if(do.Cond.age.len.SS.format)
           {
             if(any(grepl('age_length',names(Species.data[[i]]))))
@@ -408,9 +437,7 @@ for(w in 1:n.SS)
           
           
           #7. MeanSize at Age obs
-          # Not implemented. Wrong SS3 format. May be applicable to gummy and whiskery (only for these species length-@-age data collected from gillnet fishery)
           MeanSize.at.Age.obs.SS.format=NULL
-          Mean.Size.at.age.species=NULL #  Mean.Size.at.age.species=c("gummy shark","whiskery shark" )
           if(any(grepl('age_length',names(Species.data[[i]]))) & names(Species.data)[i]%in%Mean.Size.at.age.species)
           {
             Lvls=c(paste('nf',sort(unique(Species.data[[i]]$age_length%>%filter(Sex=='Female')%>%pull(Age))),sep=''),
@@ -573,6 +600,7 @@ for(w in 1:n.SS)
               #b. Run SS3
               if(Calculate.ramp.years)
               {
+                #tune ramp years
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=handl_OneDrive('SS3/ss_win.exe'),
                           args='')
@@ -584,6 +612,16 @@ for(w in 1:n.SS)
                 out=ramp_years$df
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
                 write.csv(out,paste(this.wd,'Ramp_years.csv',sep='/'),row.names = F)
+                
+                #tune composition data
+                tune_info <- tune_comps(option = "Francis",
+                                        niters_tuning = 1,
+                                        dir = this.wd1,
+                                        exe=handl_OneDrive('SS3/ss_win.exe'),
+                                        allow_up_tuning = TRUE,
+                                        verbose = FALSE)
+                write.csv(tune_info$weights[[1]]%>%mutate(Method='Francis'),paste(this.wd,'Tuned_size_comp.csv',sep='/'),row.names = F)
+                
               }
               if(!Calculate.ramp.years)
               {
@@ -844,6 +882,18 @@ for(w in 1:n.SS)
                 group_by(year,fishry,sex,size.class)%>%
                 summarise(n=n())%>%
                 ungroup()
+              
+              #add extra bins for smooth fit to size comps
+              Maximum_size=10*ceiling(1.01*with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
+              Mx.size=max(d.list[[s]]$size.class)
+              extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
+              if(length(extra.bins))
+              {
+                add.dumi.size=d.list[[s]][1:length(extra.bins),]%>%
+                  mutate(size.class=extra.bins,
+                         n=0)
+                d.list[[s]]=rbind(d.list[[s]],add.dumi.size)
+              }
             }
             d.list <- d.list[!is.na(d.list)]
             d.list=do.call(rbind,d.list)%>%
@@ -936,12 +986,24 @@ for(w in 1:n.SS)
                                          0)))
               
               d.list=d.list%>%
+                mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
+                       Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
+                dplyr::select(-dumi.n)
+              size.flits=Flits.and.survey
+              if(!"Survey"%in% names(Catch.rate.series[[i]]) & "Survey"%in%unique(d.list$Fleet))
+              {
+                ddummis=size.flits[1,]%>%mutate(Fleet.number=1+size.flits$Fleet.number[nrow(size.flits)],
+                                                Fleet.name="Survey")
+                rownames(ddummis)="Survey"
+                size.flits=rbind(size.flits,ddummis)
+              }
+              d.list=d.list%>%
                 mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
                                              Fleet=="Other"~'Other',
                                              Fleet=="TDGDLF" & year<2006~'Southern.shark_1',
                                              Fleet=="TDGDLF" & year>=2006~'Southern.shark_2',
                                              Fleet=="Survey"~'Survey'))%>%
-                left_join(Flits.and.survey,by=c('dummy.fleet'='Fleet.name'))%>%
+                left_join(size.flits,by=c('dummy.fleet'='Fleet.name'))%>%
                 mutate(Fleet=Fleet.number)%>%
                 dplyr::select(-c(dummy.fleet,Fleet.number))%>%
                 arrange(Sex,Fleet,year)
@@ -1028,6 +1090,7 @@ for(w in 1:n.SS)
           
           #4. Abundance series
           Abundance.SS.format=NULL
+          Var.ad.factr=NULL
           CPUE=compact(Catch.rate.series[[i]])
           if(!is.null(CPUE))
           {
@@ -1084,6 +1147,14 @@ for(w in 1:n.SS)
             clear.log("Var.ad.factr_cpue")
           }
           
+          #Add size comp effective sample size bias adjustment    
+          #note: a Value of 0 means no effect
+          if(!is.null(Var.ad.factr))
+          {
+            tuned.siz.comp=Life.history$tuned_size_comp
+            if(!is.null(tuned.siz.comp))Var.ad.factr=rbind(Var.ad.factr,tuned.siz.comp)
+          }
+          
           
           #5. F from tagging studies on TDGDLF (1994-95 and 2001-03)
           F.SS.format=NULL  
@@ -1105,10 +1176,7 @@ for(w in 1:n.SS)
           
           
           #6. Conditional age at length
-          #note: this is not used as age-length sandbar and dusky is for GN and LL and for all 4 species
-          #      observations were collected over multiple year
           Cond.age.len.SS.format=NULL
-          do.Cond.age.len.SS.format=FALSE
           if(do.Cond.age.len.SS.format)
           {
             if(any(grepl('age_length',names(Species.data[[i]]))))
@@ -1154,9 +1222,7 @@ for(w in 1:n.SS)
           
           
           #7. MeanSize at Age obs
-          # Not implemented. Wrong SS3 format. May be applicable to gummy and whiskery (only for these species length-@-age data collected from gillnet fishery)
-          MeanSize.at.Age.obs.SS.format=NULL
-          Mean.Size.at.age.species=NULL #  Mean.Size.at.age.species=c("gummy shark","whiskery shark" )
+           MeanSize.at.Age.obs.SS.format=NULL
           if(any(grepl('age_length',names(Species.data[[i]]))) & names(Species.data)[i]%in%Mean.Size.at.age.species)
           {
             Lvls=c(paste('nf',sort(unique(Species.data[[i]]$age_length%>%filter(Sex=='Female')%>%pull(Age))),sep=''),
@@ -1318,6 +1384,7 @@ for(w in 1:n.SS)
               #b. Run SS3
               if(Calculate.ramp.years)
               {
+                #tune ramp years
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=handl_OneDrive('SS3/ss_win.exe'),
                           args='')
@@ -1329,6 +1396,16 @@ for(w in 1:n.SS)
                 out=ramp_years$df
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
                 write.csv(out,paste(this.wd,'Ramp_years.csv',sep='/'),row.names = F)
+                
+                #tune composition data
+                tune_info <- tune_comps(option = "Francis",
+                                        niters_tuning = 1,
+                                        dir = this.wd1,
+                                        exe=handl_OneDrive('SS3/ss_win.exe'),
+                                        allow_up_tuning = TRUE,
+                                        verbose = FALSE)
+                write.csv(tune_info$weights[[1]]%>%mutate(Method='Francis'),paste(this.wd,'Tuned_size_comp.csv',sep='/'),row.names = F)
+                
               }
               if(!Calculate.ramp.years)
               {

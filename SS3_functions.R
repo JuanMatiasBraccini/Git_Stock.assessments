@@ -1,5 +1,354 @@
 #remotes::install_github("JABBAmodel/ss3diags")
 library(ss3diags)  
+# Create SS-DL tool input files ------------------------------------------------------
+fn.create.SS_DL_tool_inputs=function(Life.history,CACH,this.wd,Neim,InputData,KtchRates)
+{
+  # iid=match(c("Size_composition_Observations","Size_composition_Pilbara_Trawl"),names(InputData))
+  # iid=iid[!is.na(iid)]
+  # if(length(iid)>0)InputData=InputData[-iid]
+  if(!is.null(KtchRates) | any(grepl('Size_composition',names(InputData))))
+  {
+    
+    #1. Catch
+    ktch=CACH%>%
+      filter(Name==Neim)%>%
+      mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
+                           ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                    'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                                  'Other')))%>%
+      group_by(SPECIES,Name,finyear,Fishry)%>%
+      summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
+      mutate(Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
+                              Fishry=="Southern.shark" & finyear>=2006~'Southern.shark_2',
+                              TRUE~Fishry),
+             Year=finyear)%>%
+      ungroup()
+     
+    
+    #2. Fleets
+    Flits.name=sort(unique(ktch$Fishry))  
+    Flits=1:length(Flits.name)
+    names(Flits)=Flits.name
+    Flits.and.survey=data.frame(Fleet.number=c(Flits,1+length(Flits)),
+                                Fleet.name=c(names(Flits),"Survey"))
+    if(!"Survey"%in% names(KtchRates)) Flits.and.survey=Flits.and.survey%>%filter(!Fleet.name=="Survey")
+    if("Survey"%in% names(KtchRates))
+    {
+      Flits=c(Flits,length(Flits)+1)
+      names(Flits)[length(Flits)]="Survey"
+    }
+    
+    
+    #3. Size composition   
+    #note: commercial catch and survey. Nsamp set at number of shots
+    Size.compo.SS.format=NULL
+    if(any(grepl('Size_composition',names(InputData))))
+    {
+      d.list.n.shots=InputData[grep(paste(c("Size_composition_Survey_Observations","Size_composition_Observations",
+                                            "Size_composition_Other_Observations"),collapse="|"),
+                                    names(InputData))]
+      d.list=InputData[grep(paste(c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
+                                    "Size_composition_NSF.LONGLINE","Size_composition_Survey",
+                                    "Size_composition_Other"),collapse="|"),
+                            names(InputData))]
+      if(length(d.list)>0)
+      {
+        if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
+        if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
+        
+        for(s in 1:length(d.list))
+        {
+          d.list[[s]]=d.list[[s]]%>%
+            filter(FL>=Life.history$Lzero)%>%
+            mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
+                                 ifelse(grepl("Survey",names(d.list)[s]),'Survey',
+                                        ifelse(grepl("Other",names(d.list)[s]),'Other',
+                                               'TDGDLF'))),
+                   year=as.numeric(substr(FINYEAR,1,4)),
+                   TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
+                   size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+            filter(TL<=with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))%>%
+            dplyr::rename(sex=SEX)%>%
+            filter(!is.na(sex))%>%
+            group_by(year,fishry,sex,size.class)%>%
+            summarise(n=n())%>%
+            ungroup()
+        }
+        d.list <- d.list[!is.na(d.list)]
+        d.list=do.call(rbind,d.list)%>%
+          group_by(year,fishry,sex,size.class)%>%
+          summarise(n=sum(n))%>%
+          ungroup()
+        
+        MAXX=max(d.list$size.class)
+        Tab.si.kl=table(d.list$size.class)
+        if(sum(Tab.si.kl[(length(Tab.si.kl)-1):length(Tab.si.kl)])/sum(Tab.si.kl)>.05) MAXX=MAXX*1.2
+        MAXX=min(MAXX,30*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/30))
+        size.classes=seq(min(d.list$size.class),MAXX,by=TL.bins.cm)
+        missing.size.classes=size.classes[which(!size.classes%in%unique(d.list$size.class))]
+        if(fill.in.zeros & length(missing.size.classes)>0)
+        {
+          d.list=rbind(d.list,d.list[1:length(missing.size.classes),]%>%
+                         mutate(size.class=missing.size.classes,
+                                n=0))
+        }
+        
+        Table.n=d.list%>%group_by(year,fishry,sex)%>%
+          summarise(N=sum(n))%>%
+          mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.annual.obs.ktch,10))%>%
+          filter(N>=Min.accepted.N)%>%
+          mutate(dummy=paste(year,fishry,sex))
+        
+        if(nrow(Table.n)>0)
+        {
+          vars.head=c('year','Seas','Fleet','Sex','Part','Nsamp')
+          if(Life.history$compress.tail)
+          {
+            compressed=d.list%>%
+              spread(size.class,n,fill=0)
+            KolSam=colSums(compressed%>%dplyr::select(-c(year,fishry,sex)))
+            
+            compressed=d.list%>%
+              dplyr::select(size.class,n)%>%
+              group_by(size.class)%>%
+              summarise(n=sum(n))%>%
+              ungroup()%>%
+              mutate(Plus.group=size.class[which.min(abs(0.99-cumsum(n)/sum(n)))],
+                     Plus.group=ifelse(size.class<Plus.group,size.class,Plus.group))
+            
+            d.list=d.list%>%
+              left_join(compressed%>%dplyr::select(-n),
+                        by='size.class')%>%
+              group_by(year,fishry,sex,Plus.group)%>%
+              summarise(n=sum(n))%>%
+              rename(size.class=Plus.group)%>%
+              ungroup()
+          }
+          
+          d.list=d.list%>%
+            spread(size.class,n,fill=0)%>%
+            mutate(month=1)
+          
+          for(pai in 1:length(d.list.n.shots))
+          {
+            dd=d.list.n.shots[[pai]]
+            iii=length(grep('Survey',names(d.list.n.shots)[pai]))
+            if(iii>0)dd$Method='LL'
+            if(!'zone'%in%names(dd)) dd$zone=NA
+            dd=dd%>%
+              mutate(fishry=ifelse(Method=='GN','TDGDLF',
+                                   ifelse(Method=='LL' & zone!='SA','NSF',
+                                          ifelse(zone=='SA','Other',
+                                                 NA))),
+                     year=as.numeric(substr(FINYEAR,1,4)))%>%
+              group_by(year,fishry)%>%
+              summarise(Nsamp=sum(N.shots))
+            if(iii>0) dd$fishry='Survey'
+            d.list.n.shots[[pai]]=dd
+            rm(dd)
+          }
+          d.list.n.shots=do.call(rbind,d.list.n.shots)
+          
+          d.list=left_join(d.list,d.list.n.shots,by=c('year','fishry'))%>%
+            mutate(Part=0)%>%
+            dplyr::rename(Fleet=fishry,
+                          Sex=sex,
+                          Seas=month)%>%
+            relocate(all_of(vars.head))
+          
+          d.list=d.list%>%
+            mutate(dummy2=paste(year,Fleet,Sex))%>%
+            filter(dummy2%in%unique(Table.n$dummy))%>%
+            dplyr::select(-dummy2)%>%
+            mutate(Sex=ifelse(Sex=='F',1,
+                              ifelse(Sex=='M',2,
+                                     0)))
+          d.list=d.list%>%
+                  mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
+                         Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
+                  dplyr::select(-dumi.n)
+          size.flits=Flits.and.survey
+          if(!"Survey"%in% names(KtchRates) & "Survey"%in%unique(d.list$Fleet))
+          {
+            ddummis=size.flits[1,]%>%mutate(Fleet.number=1+size.flits$Fleet.number[nrow(size.flits)],
+                                            Fleet.name="Survey")
+            rownames(ddummis)="Survey"
+            size.flits=rbind(size.flits,ddummis)
+          }
+          
+          d.list=d.list%>%
+            mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
+                                         Fleet=="Other"~'Other',
+                                         Fleet=="TDGDLF" & year<2006~'Southern.shark_1',
+                                         Fleet=="TDGDLF" & year>=2006~'Southern.shark_2',
+                                         Fleet=="Survey"~'Survey'))%>%
+            left_join(size.flits,by=c('dummy.fleet'='Fleet.name'))%>%
+            mutate(Fleet=Fleet.number)%>%
+            dplyr::select(-c(dummy.fleet,Fleet.number))%>%
+            arrange(Sex,Fleet,year)
+          dummy.Size.compo.SS.format=d.list
+          if(nrow(dummy.Size.compo.SS.format)>0) Size.compo.SS.format=dummy.Size.compo.SS.format
+          
+          Size.compo.SS.format=Size.compo.SS.format%>%
+            rename(Year=year,
+                   Month=Seas,
+                   Nsamps=Nsamp)%>%
+            dplyr::select(-Part)
+          iidd=colSums(Size.compo.SS.format)
+          iidd=iidd[which(iidd==0)]
+          iidd=match(names(iidd),names(Size.compo.SS.format))
+          if(length(iidd)>0) Size.compo.SS.format=Size.compo.SS.format[,-iidd]
+          Size.compo.SS.format=Size.compo.SS.format%>%filter(!is.na(Fleet))
+        }
+      }
+      
+
+    }
+    
+    #4. Abundance series
+    Abundance.SS.format=NULL
+    CPUE=compact(KtchRates)
+    if(!is.null(CPUE))
+    {
+      DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
+      if(length(DROP)>0)CPUE=CPUE[-DROP]
+      if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
+      if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
+      if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
+      
+      #reset very low CVs
+      #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
+      #      If only 1 index available, then do not estimate, just increase CV before fitting model
+      dumi.cpue=CPUE
+      for(j in 1:length(CPUE))
+      {
+        dumi.cpue[[j]]=dumi.cpue[[j]]%>%
+          mutate(Fleet=names(dumi.cpue)[j])%>%
+          dplyr::select(yr.f,Mean,Fleet,CV)
+      }
+      NewCVs=Francis.function(cipiuis=do.call(rbind,dumi.cpue)%>%
+                                dplyr::select(yr.f,Mean,Fleet)%>%
+                                spread(Fleet,Mean),
+                              cvs=do.call(rbind,dumi.cpue)%>%
+                                dplyr::select(yr.f,CV,Fleet)%>%
+                                spread(Fleet,CV),
+                              mininum.mean.CV=default.CV) 
+      for(j in 1:length(CPUE))
+      {
+        #CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
+        if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
+        {
+          newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
+            filter(yr.f%in%CPUE[[j]]$yr.f)
+          CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
+        }
+      }
+      #CV variance adjustment if small CVs
+      for(j in 1:length(CPUE))
+      {
+        if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)  NewCVs$CV.var.adj[j]=0
+      }
+      Var.ad.factr_cpue=data.frame(Factor=1,Fleet=names(NewCVs$CV.var.adj),Value=NewCVs$CV.var.adj)%>%
+        mutate(Fleet=case_when(Fleet=="NSF"~"Northern.shark",
+                               Fleet=="TDGDLF.monthly"~"Southern.shark_1",
+                               Fleet=="TDGDLF.daily"~"Southern.shark_2",
+                               TRUE~Fleet))%>%
+        left_join(Flits.and.survey,by=c('Fleet'='Fleet.name'))%>%
+        mutate(Fleet=Fleet.number)%>%
+        dplyr::select(-Fleet.number)
+      
+      Var.ad.factr=Var.ad.factr_cpue           
+      if(exists("Var.ad.factr_meanbodywt")) Var.ad.factr=rbind(Var.ad.factr,Var.ad.factr_meanbodywt)
+      clear.log("Var.ad.factr_meanbodywt")  
+      clear.log("Var.ad.factr_cpue")
+      
+      MAX.CV=Life.history$MAX.CV
+      len.cpue=length(CPUE)
+      for(x in 1:len.cpue)    
+      {
+        nm=names(CPUE)[x]
+        if(nm=="NSF") nm="Northern.shark"
+        if(nm=="TDGDLF.monthly") nm="Southern.shark_1"
+        if(nm=="TDGDLF.daily") nm="Southern.shark_2"
+        
+        dd=CPUE[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE[[x]]))]%>%
+          relocate(yr.f)
+        if(drop.large.CVs)
+        {
+          iid=which(dd$CV>MAX.CV)
+          dd$Mean[iid]=NA
+          dd$CV[iid]=NA 
+        }
+        dd=dd%>%
+          dplyr::rename(Year=yr.f)%>%
+          mutate(seas=1,
+                 index.dummy=nm)%>%
+          left_join(Flits.and.survey,by=c('index.dummy'='Fleet.name'))%>%
+          mutate(index=Fleet.number)%>%
+          dplyr::select(-c(index.dummy,Fleet.number))
+        CPUE[[x]]=dd%>%filter(!is.na(Mean))
+      }
+      if(!is.null(CPUE))
+      {
+        Abundance.SS.format=do.call(rbind,CPUE)%>%
+          relocate(Year,seas,index,Mean,CV)%>%
+          arrange(index,Year)
+      }
+      rid.of=c(2007,2008)
+      drop.dis=Abundance.SS.format%>%
+        mutate(this=grepl('TDGDLF.daily',rownames(Abundance.SS.format)) & Year%in%rid.of)
+      ithis=which(drop.dis$this)
+      if(length(ithis)>0)Abundance.SS.format=Abundance.SS.format[-ithis,]
+      
+      Abundance.SS.format=Abundance.SS.format%>%
+        rename(Month=seas,
+               Fleet=index,
+               Index=Mean)
+      Abundance.SS.format=Abundance.SS.format%>%
+        left_join(Flits.and.survey%>%dplyr::rename(Fleet=Fleet.number),by="Fleet")%>%
+        dplyr::rename(Label=Fleet.name)
+      
+    }
+    
+    #5. Life history
+    out.LH=with(Life.history,
+         {
+           data.frame(Parameter=c('M','Linf','k','to','CV',
+                                         'L50%','L95%','W.L_a','W.L_b','Fec_a','Fec_b',
+                                         'M','Linf','k','to','CV','W.L_a','W.L_b','h'),
+                             Sex=c(rep('F',11),rep('M',7),''),
+                             Mean=c(Sens.test$SS3$Mmean[1],Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,Growth.F$k,Growth.F$to,0.1,
+                                    TL.50.mat,TL.95.mat,AwT,BwT,mean(Life.history$Fecundity),0,
+                                    Sens.test$SS3$Mmean[1],Growth.M$FL_inf*a_FL.to.TL+b_FL.to.TL,Growth.M$k,Growth.F$to,0.1,
+                                    AwT.M,BwT.M,Sens.test$SS3$Steepness[1]),
+                             SD=c(round(Sens.test$SS3$Msd[1],3),rep(0,4),rep('',6),
+                                  round(Sens.test$SS3$Msd[1],3),rep(0,4),rep('',2),Sens.test$SS3$Steepness.sd[1]),
+                             Prior.type=c('Lognormal',rep('',10),'Lognormal',rep('Normal',3),rep('',4)),
+                             Phase=c(2,rep(3,3),-1,rep('',6),
+                                     2,rep(3,3),-1,rep('',3)))
+         })
+
+    #export stuff
+    if(!is.null(Abundance.SS.format) | !is.null(Size.compo.SS.format))
+    {
+      if(!dir.exists(this.wd))dir.create(this.wd)
+      
+      #export catch
+      write.csv(ktch%>%
+                  dplyr::select(Year,Fishry,Tonnes)%>%
+                  spread(Fishry,Tonnes,fill=0),paste(this.wd,'Catches.csv',sep='/'),row.names = F)
+      
+      #export lengths
+      if(!is.null(Size.compo.SS.format)) write.csv(Size.compo.SS.format,paste(this.wd,'Lengths.csv',sep='/'),row.names = F)
+      
+      #export abundance
+      if(!is.null(Abundance.SS.format)) write.csv(Abundance.SS.format,paste(this.wd,'Index.csv',sep='/'),row.names = F)
+        
+      #export life history
+      write.csv(out.LH,paste(this.wd,'Life history.csv',sep='/'),row.names = F)
+    }
+   }
+}
 # Create SS input files ------------------------------------------------------
 fn.get.in.betwee=function(x,PATRN="_") str_before_nth(str_after_nth(x, PATRN, 1), PATRN, 2)
 fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.yr,
@@ -163,7 +512,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       dat$N_lbins=length(dat$lbin_vector)
       dat$lencomp=size.comp%>%arrange(Sex,Fleet,year)
     }
-    if(!is.null(F.tagging))
+    if(!is.null(F.tagging) & !is.null(size.comp))
     {
       addfbit=dat$len_info[length(unique(F.tagging$fleet)),]
       rownames(addfbit)=rownames(Finfo)
@@ -356,6 +705,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     RecDev_Phase=life.history$RecDev_Phase
     ctl$recdev_phase=RecDev_Phase
     if(is.null(abundance)) ctl$recdev_phase=1
+    if(is.null(abundance) & nrow(size.comp)<3)  #don't calculate rec devs is only a few years of size comp and no abundance
+    {
+      ctl$do_recdev=0
+      ctl$recdev_phase=-1
+    }
     ctl$recdev_early_start=0
     ctl$max_bias_adj=0.8
     ctl$min_rec_dev=-2
@@ -501,22 +855,26 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       n.indices=nrow(ctl$Q_options)
       Indx.small.CV=dat$CPUE%>%group_by(index)%>%summarise(Mean.CV=mean(CV))  
       if(life.history$Name%in%c("spinner shark","tiger shark")) Indx.small.CV$Mean.CV=default.CV*.9 #need extra_Q for both indices to fit spinner cpue
-      if(!Scenario$extra.SD.Q=='always' & n.indices>1) Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<default.CV)%>%pull(index)
-      if(Scenario$extra.SD.Q=='always') Indx.small.CV=Indx.small.CV$index
+      Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<default.CV)%>%pull(index)
+      #if(!Scenario$extra.SD.Q=='always' & n.indices>1) Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<default.CV)%>%pull(index)
       if(length(Indx.small.CV)>0)
       {
-        ID.fleets.extraSD=match(Indx.small.CV,ctl$Q_options$fleet)
-        ctl$Q_options$extra_se[ID.fleets.extraSD]=1
-        rownames(ctl$Q_parms)=paste('fleet_',match(rownames(ctl$Q_parms),dat$fleetinfo$fleetname),sep='')
-        Q_parms_estraSD=ctl$Q_parms[ID.fleets.extraSD,]%>%
-          mutate(LO=0,
-                 HI=1,
-                 INIT=0.3,
-                 PRIOR=0.3,
-                 PHASE=3)
-        rownames(Q_parms_estraSD)=paste(rownames(Q_parms_estraSD),"_Q_extraSD",sep='')
-        ctl$Q_parms=rbind(ctl$Q_parms,Q_parms_estraSD)
-        ctl$Q_parms=ctl$Q_parms[order(rownames(ctl$Q_parms)),]
+        if(Scenario$extra.SD.Q=='always')
+        {
+          Indx.small.CV=Indx.small.CV$index
+          ID.fleets.extraSD=match(Indx.small.CV,ctl$Q_options$fleet)
+          ctl$Q_options$extra_se[ID.fleets.extraSD]=1
+          rownames(ctl$Q_parms)=paste('fleet_',match(rownames(ctl$Q_parms),dat$fleetinfo$fleetname),sep='')
+          Q_parms_estraSD=ctl$Q_parms[ID.fleets.extraSD,]%>%
+            mutate(LO=0,
+                   HI=1,
+                   INIT=0.3,
+                   PRIOR=0.3,
+                   PHASE=3)
+          rownames(Q_parms_estraSD)=paste(rownames(Q_parms_estraSD),"_Q_extraSD",sep='')
+          ctl$Q_parms=rbind(ctl$Q_parms,Q_parms_estraSD)
+          ctl$Q_parms=ctl$Q_parms[order(rownames(ctl$Q_parms)),]
+        }
       }
       
       
@@ -526,6 +884,12 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         iiq_block=match(paste('fleet_',ctl$Q_options$fleet[match('Southern.shark_1',rownames(ctl$Q_options))],sep=''),rownames(ctl$Q_parms))
         if(is.na(iiq_block)) iiq_block=match('Southern.shark_1',rownames(ctl$Q_parms))
         if(!is.na(iiq_block)) ctl$Q_parms[iiq_block,c('Block','Block_Fxn')]=c(life.history$Q_param_Block,life.history$Q_param_Blk_Fxn)
+      }
+      
+      #Analytical solution
+      if(SS3.q.an.sol)
+      {
+        ctl$Q_options$float=1
       }
     }
     if(is.null(abundance))
@@ -1043,7 +1407,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   #1. Goodness-of-fit diagnostic
   #1.1. residuals with smoothing function showing trends
   tiff(file.path(dirname.diagnostics,"jabbaresidual.tiff"),
-       width = 1000, height = 2000,units = "px", res = 300, compression = "lzw")
+       width = 1500, height = 2000,units = "px", res = 300, compression = "lzw")
   sspar(mfrow=c(2,1),labs=T,plot.cex=0.9)
   ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "cpue",add=TRUE)
   ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "len",add=TRUE)

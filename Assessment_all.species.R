@@ -225,10 +225,8 @@ Min.r.value=.025
 
 #16. Stock recruitment
 Max.h.shark=.8   #mean of h for blue shark (ICCAT 2023 assessment; Cortes 2016, Kai & Fujinami 2018).
-Min.h.shark=.25  #He et al 2006
-Max.SR_sigmaR.shark=0.4   #maximum recruitment variability 
-#Min.logR0=0.1 #1e-3 now this is in SS3.Recruitment.inputs.csv
-#Max.logR0=10  
+Min.h.shark=.3  #He et al 2006, Jason Cope pers comm
+Max.SR_sigmaR.shark=0.3   #maximum recruitment variability (blue shark ICCAT 2023 0.29 for North, 0.5 for South, 0.3 bigskate; 0.2 dogfish; 0.18 sandbar)
 do.random.h=TRUE  #take a random sample of h and M for SS or use empirical distributions
 
 #17. Reference points
@@ -292,10 +290,18 @@ k.cv=2                #Carrying capacity CV (Winker et al 2018 School shark)
 Integrated.age.based='SS'
 SS3.run='test'  # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, etc)
 Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
+do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
+                                  # this is not used as age-length sandbar and dusky is for GN and LL and 
+                                  # for all 4 species observations were collected over multiple years
+Mean.Size.at.age.species=NULL   #  Mean.Size.at.age.species=c("gummy shark","whiskery shark" )
+                                # Not implemented. Wrong SS3 format. May be applicable to gummy and 
+                                # whiskery (only for these species length-@-age data collected from gillnet fishery)
+
 Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
   #SS model run arguments
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
+SS3.q.an.sol=TRUE   #calculate q analytically to save up pars
 Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation
 nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
 #MCMCsims=1e5; Thin=10; burning=1:(5*length(seq(1,MCMCsims,by=Thin))/100)   #5%  burning
@@ -2324,6 +2330,71 @@ if(First.run=="YES")
     }
   }
 }
+
+# Get sex ratio by zone
+if(First.run=="YES")
+{
+  Dis.size.data=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
+                  "Size_composition_NSF.LONGLINE","Size_composition_Survey",
+                  "Size_composition_Other")
+  Sex.ratio.zone=vector('list',N.sp)
+  names(Sex.ratio.zone)=Keep.species
+  for(i in 1:N.sp)
+  {
+    print(paste("Sex ratio by zone from size comp for -----",Keep.species[i]))
+    id=grep(paste(Dis.size.data,collapse="|"),names(Species.data[[i]]))
+    if(length(id)>0)
+    {
+      Name=Keep.species[i]
+      HandL=handl_OneDrive("Analyses/Population dynamics/1.")
+      DiR=paste(HandL,capitalize(Name),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
+      Sex.ratio.zone[[i]]=fn.ktch.sex.ratio.zone(size.data=Species.data[[i]][id])
+      ggsave(paste(DiR,'Sex ratio by zone from size composition.tiff',sep='/'), width = 6,height = 6, dpi = 300, compression = "lzw")
+      
+    }
+  }
+}
+
+#Display conditional age at length
+if(First.run=="YES")
+{
+  for(i in 1:N.sp)
+  {
+    print(paste('Show conditional age at length for ------',Keep.species[i]))
+    if(any(grepl('age_length',names(Species.data[[i]]))))
+    {
+      a=List.sp[[i]]$a_FL.to.TL
+      b=List.sp[[i]]$b_FL.to.TL
+      dd=Species.data[[i]]$age_length%>%
+        mutate(TL=FL*a+b,
+               LbinLo=TL.bins.cm*floor(TL/TL.bins.cm),
+               LbinHi=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+        group_by(year,Sex,LbinLo)%>%
+        mutate(Nsamps=n())%>%
+        ungroup()%>%
+        mutate(month=7,
+               Sex=ifelse(Sex=='Male',2,ifelse(Sex=='Female',1,0)),
+               part=0,
+               ageErr=-1,   #- assumes no ageing error
+               Fleet=Flits[match('Southern.shark_1',names(Flits))])%>%
+        group_by(year,Sex,LbinLo,Age)%>%
+        mutate(N=n())%>%
+        ungroup()%>%
+        distinct(year,Sex,Age,LbinLo,.keep_all = T)
+      dd%>%
+        ggplot(aes(Age,TL,color=year))+
+        geom_point()+
+        facet_wrap(~Sex,ncol=1)+
+        ylim(0,max(Cond.age.len.SS.format$TL))
+      
+      HandL=handl_OneDrive("Analyses/Population dynamics/1.")
+      DiR=paste(HandL,capitalize(Keep.species[i]),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
+      ggsave(paste(DiR,'Conditional age at length.tiff',sep='/'), width = 6,height = 6, dpi = 300, compression = "lzw")
+      
+    }
+  }
+}
+
 #---17. Display catches by fishery & display life history ----
 Tot.ktch=KtCh %>%      
   mutate(
@@ -2631,6 +2702,19 @@ clear.log('out')
 clear.log('fn.ktch.cpue')     
 clear.log('Post')
 clear.log('dummy.store.Kobe.probs')
+
+# Create SS-DL tool input files
+for(i in 1:N.sp)
+{
+  fn.create.SS_DL_tool_inputs(Life.history=List.sp[[i]],
+                              CACH=KtCh,
+                              this.wd=paste(handl_OneDrive("Workshops/2023_Jason Cope_SS_DL_tool/Myinputfiles/"),
+                                            capitalize(Keep.species[i]),sep=''),
+                              Neim=Keep.species[i],
+                              InputData=Species.data[[i]],
+                              KtchRates=Catch.rate.series[[i]])
+  print(paste('Export SS-DL tool inputs for ------', Keep.species[i]))
+}
 
 #---26. Integrated Bespoke (Size-based) Model-------------------------------------------------
 if(Do.bespoked) fn.source1("Integrated_size_based.R")

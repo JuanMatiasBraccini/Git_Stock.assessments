@@ -17,6 +17,7 @@ if(Do.bespoked)
 
 #Recruitment inputs
 SS3.Rrecruitment.inputs=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Rrecruitment.inputs.csv'))
+SS3.tune_size_comp_effective_sample=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample.csv'))
 
 #Final depletion
 #note: modify depletion levels for species with negligible catches in recent years (based on generation time and r)
@@ -71,12 +72,22 @@ for(l in 1:N.sp)
   
   
     #steepness
-  h.M_mean2=round(store.species.steepness.S2[[l]],3)
+  h.M_mean2=round(max(Min.h.shark,store.species.steepness.S2[[l]]),3)
   h.M_mean=round(store.species.steepness_M.mean[[l]]$mean,3)
   if(NeiM%in%h_too.long.converge) h.M_mean=h.M_mean2
-  h.M.mean_low=round(max(0.25,h.M_mean*.9),3)
-  h.M_mean=round(max(0.25,h.M_mean),3)
+  h.M.mean_low=round(max(Min.h.shark,h.M_mean*.9),3)
+  h.M_mean=round(max(Min.h.shark,h.M_mean),3)
   
+    #Effective sample size (Francis method as default)
+  List.sp[[l]]$tuned_size_comp=NULL
+  tuned_size_comp=SS3.tune_size_comp_effective_sample%>%
+                            filter(Species==NeiM)%>%
+                            dplyr::select(-Species)%>%
+                            gather(Fleet,Value,-Data_type)%>%
+                            filter(!is.na(Value))%>%
+                            mutate(Fleet=as.numeric(str_extract(Fleet, "[[:digit:]]+")))%>%
+                            rename(Factor=Data_type)
+  if(nrow(tuned_size_comp)>0) List.sp[[l]]$tuned_size_comp=tuned_size_comp
   
     #recruitment
   ramp.yrs=SS3.Rrecruitment.inputs%>%filter(Species==NeiM)
