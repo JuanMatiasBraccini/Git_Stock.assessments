@@ -30,6 +30,17 @@ for(w in 1:length(Catch_only))
           ktch=rbind(ktch,ktch[length(misn.yr),]%>%mutate(finyear=misn.yr,Tonnes=0))%>%arrange(finyear)
         }
         
+        #future catches
+        if(catches.futures=="constant.last.n.yrs")
+        {
+          NN=nrow(ktch)
+          add.ct.future=ktch[1:years.futures,]%>%
+                          mutate(finyear=ktch$finyear[NN]+(1:years.futures),
+                                 Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+          ktch=rbind(ktch,add.ct.future)
+        }
+        
+        #working directory
         this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
                       capitalize(List.sp[[i]]$Name),"/",AssessYr,"/DBSRA",sep='')
         if(!dir.exists(this.wd))dir.create(this.wd)
@@ -176,7 +187,7 @@ for(w in 1:length(Catch_only))
           Out.F.Fmsy[[s]]=dummy$Dat
           rm(dummy)
           
-          #Display Priors vs Posteriors for base case scenario (S1)
+          #Display Priors vs Posteriors for base case scenario (S1) 
           if(Scens$Scenario[s]=='S1')
           {
             par.list=c('m','fmsym','b1k','btk','bmsyk','k')
@@ -202,17 +213,21 @@ for(w in 1:length(Catch_only))
             fn.show.density(d=do.call(rbind,out),NCOL=2)
           }
           
-          #Store quantities for ensemble model
+          #Store quantities for ensemble model  
           Years=Store.sens[[s]]$output$Years
           Out.ensemble[[s]]=list(Depletion=Store.sens[[s]]$output$Depletion.traj[1:length(Years)],
                                  B.Bmsy=Store.sens[[s]]$output$B.Bmsy[1:length(Years)],
-                                 F.Fmsy=Store.sens[[s]]$output$F.Fmsy[1:length(Years)])
+                                 F.Fmsy=Store.sens[[s]]$output$F.Fmsy[1:length(Years)],
+                                 MSY=data.frame(Par='MSY',
+                                                Value=Store.sens[[s]]$output$Values$MSY[which(Store.sens[[s]]$output$Values$ll==1)],
+                                                Scenario=Scens$Scenario[s]))
         }
         stopCluster(cl)
         #output quantities for ensemble
         Out.ens=list(Depletion=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'Depletion')),
-                          B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
-                          F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')))
+                     B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
+                     F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')),
+                     MSY=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'MSY')))
         if(nrow(Scens)>1)
         {
           for(f in 1:length(Out.ens))   
@@ -295,6 +310,17 @@ for(w in 1:length(Catch_only))
         {
           ktch=rbind(ktch,ktch[length(misn.yr),]%>%mutate(finyear=misn.yr,Tonnes=0))%>%arrange(finyear)
         }
+        
+        #future catches
+        if(catches.futures=="constant.last.n.yrs")
+        {
+          NN=nrow(ktch)
+          add.ct.future=ktch[1:years.futures,]%>%
+            mutate(finyear=ktch$finyear[NN]+(1:years.futures),
+                   Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+          ktch=rbind(ktch,add.ct.future)
+        }
+        
         year=ktch$finyear
         catch=ktch$Tonnes
         
@@ -439,10 +465,12 @@ for(w in 1:length(Catch_only))
           F.Fmsy=Store.sens[[s]]$output$F.Fmsy[,1:length(Years)]%>%
             data.frame
           colnames(F.Fmsy)=Years
-          Out.ensemble[[s]]=list(Depletion=Store.sens[[s]]$output$Depletion.traj[1:length(Years)],
+          Out.ensemble[[s]]=list(Depletion=Store.sens[[s]]$output$Depletion.traj[1:length(Years)], 
                                  B.Bmsy=Store.sens[[s]]$output$B.Bmsy[1:length(Years)],
-                                 F.Fmsy=F.Fmsy)
-          
+                                 F.Fmsy=F.Fmsy,
+                                 MSY=data.frame(Par='MSY',
+                                                Value=Store.sens[[s]]$output$Statistics$traject[,'r']*Store.sens[[s]]$output$Statistics$traject[,'K']/4,
+                                                Scenario=Scens$Scenario[s]))
           
           
           #Display Priors vs Posteriors for base case scenario (S1)
@@ -485,8 +513,9 @@ for(w in 1:length(Catch_only))
         }
         #output quantities for ensemble
         Out.ens=list(Depletion=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'Depletion')),
-                          B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
-                          F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')))
+                     B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
+                     F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')),
+                     MSY=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'MSY')))
         if(nrow(Scens)>1)
         {
           for(f in 1:length(Out.ens))   
@@ -592,6 +621,16 @@ for(w in 1:length(Catch_only))
           ktch=rbind(ktch,ktch[length(misn.yr),]%>%mutate(Year=misn.yr,Total=0))%>%arrange(Year)
         }
         if(names(dummy.store)[i]=='milk shark') ktch$Total[1:10]=1 #convergence issues with first 10 years for milk shark, but catch is 0 anyways
+        
+        #future catches
+        if(catches.futures=="constant.last.n.yrs")
+        {
+          NN=nrow(ktch)
+          add.ct.future=ktch[1:years.futures,]%>%
+            mutate(Year=ktch$Year[NN]+(1:years.futures),
+                   Total=rep(mean(ktch$Total[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+          ktch=rbind(ktch,add.ct.future)
+        }
         
         #Scenarios
         Scens=List.sp[[i]]$Sens.test$JABBA_catch.only%>%
@@ -858,14 +897,18 @@ for(w in 1:length(Catch_only))
             #Store quantities for ensemble model
             Out.ensemble[[s]]=list(Depletion=Store.sens[[s]]$output$posteriors$P,
                                    B.Bmsy=Store.sens[[s]]$output$posteriors$BtoBmsy,
-                                   F.Fmsy=Store.sens[[s]]$output$posteriors$HtoHmsy)
+                                   F.Fmsy=Store.sens[[s]]$output$posteriors$HtoHmsy,
+                                   MSY=data.frame(Par='MSY',
+                                                  Value=Store.sens[[s]]$output$posteriors$MSY,
+                                                  Scenario=Scens$Scenario[s]))  
           }
           
         }
         #output quantities for ensemble
         Out.ens=list(Depletion=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'Depletion')),
-                          B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
-                          F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')))
+                     B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
+                     F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')),
+                     MSY=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'MSY')))
         if(nrow(Scens)>1)
         {
           for(f in 1:length(Out.ens))   
@@ -962,6 +1005,15 @@ for(w in 1:length(Catch_only))
             ktch=rbind(ktch,ktch[length(misn.yr),]%>%mutate(finyear=misn.yr,Tonnes=0))%>%arrange(finyear)
           }
           
+          #future catches
+          if(catches.futures=="constant.last.n.yrs")
+          {
+            NN=nrow(ktch)
+            add.ct.future=ktch[1:years.futures,]%>%
+              mutate(finyear=ktch$finyear[NN]+(1:years.futures),
+                     Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+            ktch=rbind(ktch,add.ct.future)
+          }
           
           #random LH samples
           LH.sim=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),
@@ -1108,7 +1160,6 @@ for(w in 1:length(Catch_only))
                 
                 n=n+1
               }
-              
             }
             
             #Store estimates
@@ -1133,7 +1184,9 @@ for(w in 1:length(Catch_only))
               add.MSY=do.call(rbind,fn.get.stuff.from.list(Report,"derived_quants"))%>%
                 filter(grepl('Dead_Catch_MSY',Label))%>%
                 rename(Par=Label)%>%
-                mutate(Scenario=Scens$Scenario[s])%>%
+                mutate(Scenario=Scens$Scenario[s])
+              MSY.ensemble=add.MSY%>%dplyr::select(Par,Value,Scenario)%>%mutate(Par='MSY')
+              add.MSY=add.MSY%>%
                 group_by(Par,Scenario)%>%
                 summarise(Median=median(Value),
                           Lower.95=quantile(Value,probs=0.025),
@@ -1281,10 +1334,11 @@ for(w in 1:length(Catch_only))
                 dplyr::select(Simulation,year,F_Fmys)%>%
                 spread(year,F_Fmys)%>%
                 dplyr::select(-Simulation)
-              Out.ensemble[[s]]=list(Depletion=Depletion,
+              Out.ensemble[[s]]=list(Depletion=Depletion,  
                                      B.Bmsy=B.Bmsy,
-                                     F.Fmsy=F.Fmsy) 
-              rm(Depletion,B.Bmsy,F.Fmsy,dum)
+                                     F.Fmsy=F.Fmsy,
+                                     MSY=MSY.ensemble) 
+              rm(Depletion,B.Bmsy,F.Fmsy,dum,MSY.ensemble)
               
               
               #Flag warnings
@@ -1324,8 +1378,9 @@ for(w in 1:length(Catch_only))
           } # end s loop
           #output quantities for ensemble
           Out.ens=list(Depletion=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'Depletion')),
-                            B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
-                            F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')))
+                       B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
+                       F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')),
+                       MSY=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'MSY')))
           if(nrow(Scens)>1)
           {
             for(f in 1:length(Out.ens))   
@@ -1449,6 +1504,16 @@ for(w in 1:length(Catch_only))
           {
             ktch=rbind(ktch,ktch[length(misn.yr),]%>%mutate(finyear=misn.yr,Tonnes=0))%>%arrange(finyear)
           }
+          #future catches
+          if(catches.futures=="constant.last.n.yrs")
+          {
+            NN=nrow(ktch)
+            add.ct.future=ktch[1:years.futures,]%>%
+              mutate(finyear=ktch$finyear[NN]+(1:years.futures),
+                     Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+            ktch=rbind(ktch,add.ct.future)
+          }
+          
           
           #random LH samples
           LH.sim=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),
@@ -1581,7 +1646,19 @@ for(w in 1:length(Catch_only))
               #     Keep=ifelse(Delta.conv.criteria>0.001 | Delta.fin.dep>Criteria.delta.fin.dep |
               #          Delta.upper.LnRo<0.5 | Delta.lower.LnRo>0.5,'No','Yes'))
               trials=trials+1
-              if(Converged$Keep=='Yes') n=n+1
+              if(Converged$Keep=='Yes')
+              {
+                Add.bmsy=Report[[n]]$derived_quants%>%filter(Label%in%c('SSB_Virgin','SSB_MSY'))
+                Add.bmsy.val=Add.bmsy[Add.bmsy$Label=='SSB_MSY','Value']/Add.bmsy[Add.bmsy$Label=='SSB_Virgin','Value']
+                Add.bmsy=Report[[n]]$estimated_non_dev_parameters[1,]
+                rownames(Add.bmsy)='bmsy/k'
+                Add.bmsy[,]=NA
+                Add.bmsy=Add.bmsy%>%
+                  mutate(Value=Add.bmsy.val)
+                Report[[n]]$estimated_non_dev_parameters=rbind(Report[[n]]$estimated_non_dev_parameters,Add.bmsy)
+                
+                n=n+1
+              }
             }
             
             #Store estimates
@@ -1643,6 +1720,9 @@ for(w in 1:length(Catch_only))
               add.MSY=do.call(rbind,fn.get.stuff.from.list(Report,"derived_quants"))%>%
                 filter(grepl('Dead_Catch_MSY',Label))%>%
                 rename(Par=Label)%>%
+                mutate(Scenario=Scens$Scenario[s])
+              MSY.ensemble=add.MSY%>%dplyr::select(Par,Value,Scenario)%>%mutate(Par='MSY')
+              add.MSY=add.MSY%>%
                 group_by(Par)%>%
                 summarise(Median=median(Value),
                           Lower.95=quantile(Value,probs=0.025),
@@ -1776,8 +1856,9 @@ for(w in 1:length(Catch_only))
                 dplyr::select(-Simulation)
               Out.ensemble[[s]]=list(Depletion=Depletion,
                                      B.Bmsy=B.Bmsy,
-                                     F.Fmsy=F.Fmsy) 
-              rm(Depletion,B.Bmsy,F.Fmsy,dum)
+                                     F.Fmsy=F.Fmsy,
+                                     MSY=MSY.ensemble) 
+              rm(Depletion,B.Bmsy,F.Fmsy,dum,MSY.ensemble)
               
               
               #Flag warnings
@@ -1832,8 +1913,9 @@ for(w in 1:length(Catch_only))
           
           #output quantities for ensemble
           Out.ens=list(Depletion=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'Depletion')),
-                            B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
-                            F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')))
+                       B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'B.Bmsy')),
+                       F.Fmsy=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'F.Fmsy')),
+                       MSY=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'MSY')))
           if(nrow(Scens)>1)
           {
             for(f in 1:length(Out.ens))   
@@ -2594,12 +2676,11 @@ for(l in 1: length(Lista.sp.outputs))
 }
 
 
-#18.5. Time series   
+#18.5. Time series & catch vs MSY by species  
 #note: JABBA only outputs 95% CI so only report 95% for all COMs
 
-  #18.5.1 Display all scenarios for each species   
+  #18.5.1 Relative biomass (i.e. Depletion)  
 YLAB=XLAB=''
-    #18.5.1.1 Relative biomass (i.e. Depletion)  
 Ref.points=vector('list',N.sp)
 names(Ref.points)=Keep.species
 for(i in 1:N.sp)
@@ -2630,7 +2711,7 @@ for(i in 1:N.sp)
   }
 }
 
-    #18.5.1.2 Fishing mortality
+  #18.5.2 Fishing mortality
 if(do.F.series)
 {
   for(i in 1:N.sp)
@@ -2650,7 +2731,7 @@ if(do.F.series)
   }
 }
 
-    #18.5.1.3 B over Bmsy
+  #18.5.3 B over Bmsy
 if(do.B.over.Bmsy.series)
 {
   for(i in 1:N.sp)
@@ -2669,7 +2750,7 @@ if(do.B.over.Bmsy.series)
   }
 }
 
-    #18.5.1.4 F over Fmsy
+  #18.5.4 F over Fmsy
 if(do.F.over.Fmsy.series)
 {
   for(i in 1:N.sp)
@@ -2688,13 +2769,31 @@ if(do.F.over.Fmsy.series)
   }
 }
 
+  #18.5.5 Catch vs MSY
+Store.catch.MSY=vector('list',N.sp)
+for(i in 1:N.sp)
+{
+  if(Keep.species[i]%in%Catch.only.species)
+  {
+    print(paste("Catch-only --- Catch vs MSY -----",Keep.species[i]))  
+    Store.catch.MSY[[i]]=fn.plot.catch.vs.MSY(d=Catch_only,
+                                               sp=Keep.species[i],
+                                               YLAB='Catch (tonnes)')
+    
+    #export graph
+    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                 capitalize(Keep.species[i]),"/",AssessYr,"/Catch_only_catch_vs_MSY.tiff",sep=''),
+           width = 6,height = 10,compression = "lzw")
+    
+  }
+}
 
 #18.6. Get ensemble. Sample each accepted COM proportionally to weights  
 #note: first sample equally within each model type (done in'#output quantities for ensemble')
 #      second sample models proportionally to weights (done here)
 Mod.AV_depletion=vector('list',length(List.sp))
 names(Mod.AV_depletion)=names(List.sp)
-Mod.AV_B.Bmsy=Mod.AV_F.Fmsy=Ref.points.Mod.AV=Mod.AV_depletion
+Mod.AV_B.Bmsy=Mod.AV_F.Fmsy=Mod.AV_MSY=Mod.AV_Probs=Ref.points.Mod.AV=Mod.AV_depletion
 for(i in 1:N.sp)  
 {
   if(Keep.species[i]%in%Catch.only.species)
@@ -2712,38 +2811,56 @@ for(i in 1:N.sp)
       Wei.SSS=Wei%>%filter(Model=='DBSRA')%>%mutate(Model='SSS')
       if('SSS'%in%names(Catch_only)) Wei=rbind(Wei,Wei.SSS)
     }
-    Wei=Wei%>%filter(Model%in%names(Catch_only))
-    Mod.AV_depletion[[i]]=mod.average(dd=map(Catch_only, ~.x$ensemble[[i]]$Depletion),
-                                      Weights=Wei)
-    Mod.AV_B.Bmsy[[i]]=mod.average(dd=map(Catch_only, ~.x$ensemble[[i]]$B.Bmsy),
-                                   Weights=Wei)
-    Mod.AV_F.Fmsy[[i]]=mod.average(dd=map(Catch_only, ~.x$ensemble[[i]]$F.Fmsy),   
-                                   Weights=Wei)
+    Wei=Wei%>%filter(Model%in%names(Catch_only)) 
+    
+    #Reference points  ACA
     Avg.Ref.point=Ref.points[[i]]
     for(av in 1:length(Avg.Ref.point)) Avg.Ref.point[[av]]$Model=names(Avg.Ref.point)[av]
     Avg.Ref.point=do.call(rbind,Avg.Ref.point)%>%
       left_join(Wei,by='Model')%>%
       group_by(Rf.pt)%>%
-      summarise(Value=weighted.mean(Value,Weight))%>%
+      summarise(Value=weighted.mean(Value,Weight,na.rm=T))%>%
       mutate(Rf.pt=factor(Rf.pt,levels=c('Target','Threshold','Limit')))%>%
       arrange(Rf.pt)
     Ref.points.Mod.AV[[i]]=Avg.Ref.point
+    
+    #depletion
+    dumi=mod.average(dd=map(Catch_only, ~.x$ensemble[[i]]$Depletion),
+                     Weights=Wei,
+                     Ref.pnt=Avg.Ref.point)
+    Mod.AV_depletion[[i]]=dumi$Trajectories
+    dumi$Probs$Species=capitalize(Keep.species[i])
+    dumi$Probs.future$Species=capitalize(Keep.species[i])
+    Mod.AV_Probs[[i]]=dumi[c("Probs" ,"Probs.future")] 
+    #B.Bmsy
+    dumi=mod.average(dd=map(Catch_only, ~.x$ensemble[[i]]$B.Bmsy),
+                     Weights=Wei)
+    Mod.AV_B.Bmsy[[i]]=dumi$Trajectories
+    #F.Fmsy
+    dumi=mod.average(dd=map(Catch_only, ~.x$ensemble[[i]]$F.Fmsy),   
+                     Weights=Wei)
+    Mod.AV_F.Fmsy[[i]]=dumi$Trajectories
+    
+    Mod.AV_MSY[[i]]=mod.average.scalar(dd=map(Catch_only, ~.x$ensemble[[i]]$MSY),   
+                                       Weights=Wei)  
+
     
     rm(Wei)
     
   }
 }
-Mod.AV=list(rel.biom=Mod.AV_depletion,B.Bmsy=Mod.AV_B.Bmsy,F.Fmsy=Mod.AV_F.Fmsy)
-rm(Mod.AV_depletion,Mod.AV_B.Bmsy,Mod.AV_F.Fmsy)
+Mod.AV=list(rel.biom=Mod.AV_depletion,Probs=Mod.AV_Probs,B.Bmsy=Mod.AV_B.Bmsy,F.Fmsy=Mod.AV_F.Fmsy)
+rm(Mod.AV_depletion,Mod.AV_Probs,Mod.AV_B.Bmsy,Mod.AV_F.Fmsy)
 
 
 #18.7 Display Scenarios for combined species: each COM model as an Appendix 
-# Relative biomass (i.e. Depletion) 
+
+  #18.7.1 Relative biomass (i.e. Depletion) 
     #figure (Scenario 1 only)
 for(l in 1:length(Lista.sp.outputs))
 {
   if(length(Lista.sp.outputs[[l]])>8) InMar=.65 else InMar=.5
-  dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species)]
+  dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
   if(length(dis.spicis)>0)
   {
     print(paste("RAR ---- relative.biomass_catch.only by model-----",names(Lista.sp.outputs)[l]))
@@ -2758,7 +2875,7 @@ for(l in 1:length(Lista.sp.outputs))
     #table (all scenarios)
 for(l in 1:length(Lista.sp.outputs))
 {
-  dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species)]
+  dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
   if(length(dis.spicis)>0)
   {
     dummy.mod=vector('list',length(Catch_only))
@@ -2787,14 +2904,32 @@ for(l in 1:length(Lista.sp.outputs))
   }
 }
 
+  # 18.7.2 Catch vs MSY      
+All.catch.MSY=do.call(rbind,compact(Store.catch.MSY))
+All.catch.MSY.species=unique(All.catch.MSY$Species)
+#figure & table (Scenario 1 only)
+for(l in 1:length(Lista.sp.outputs))
+{
+  if(length(Lista.sp.outputs[[l]])>8) InMar=.65 else InMar=.5
+  all.dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%All.catch.MSY.species)]
+  dis.spicis=subset(all.dis.spicis,all.dis.spicis%in%Catch.only.species_display) 
+  print(paste("RAR ---- Catch vs MSY_catch.only by model-----",names(Lista.sp.outputs)[l]))
+  fn.plot.catch.vs.MSY_combined_Appendix(all.this.sp=all.dis.spicis,
+                                         this.sp=dis.spicis,
+                                         d=All.catch.MSY,
+                                         NM=names(Lista.sp.outputs)[l],
+                                         YLAB='Catch (tonnes)')
+}
+
 
 #18.8 Display COM model-average for combined species   
+
 # Relative biomass (i.e. Depletion) 
     #figure
 for(l in 1:length(Lista.sp.outputs))
 {
   if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
-  dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species)]
+  dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
   if(length(dis.spicis)>0)
   {
     print(paste("RAR ---- relative.biomass_catch.only Ensemble-----",names(Lista.sp.outputs)[l]))
@@ -2808,70 +2943,56 @@ for(l in 1:length(Lista.sp.outputs))
     ggsave(paste(Rar.path,'/Relative.biomass_catch.only_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = 13,height = 11,compression = "lzw")
   }
+  
+  #Display species with only catch separately
+  if(length(Catch.only.species_only.ktch)>8) InMar=1.25 else InMar=.5
+  print(paste("RAR ---- relative.biomass_catch.only Ensemble-----","Other.sp_species_only.ktch"))
+  fn.plot.timeseries_combined(this.sp=Catch.only.species_only.ktch,
+                              d=Mod.AV,
+                              YLAB="Relative biomass",
+                              Type="Depletion",
+                              InnerMargin=InMar,
+                              RefPoint=Ref.points.Mod.AV,
+                              Kach=Catch_only$DBSRA$rel.biom)
+  ggsave(paste(Rar.path,'/Relative.biomass_catch.only_Other.sp_species_only.ktch.tiff',sep=''),
+         width = 8,height = 10,compression = "lzw")
+  
 
 }
-    #table   
+    #table
 for(l in 1:length(Lista.sp.outputs))
 {
-  dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species)]
+  dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
   if(length(dis.spicis)>0)
   {
-    dummy.mod=vector('list',length(Catch_only))
-    for(m in 1:length(Catch_only))
-    {
-      str.prob=Catch_only[[m]]$probs.rel.biom
-      str.prob=str.prob[match(Lista.sp.outputs[[l]],names(str.prob))]
-      str.prob=compact(str.prob)
-      dummy=vector('list',length =length(str.prob))
-      for(d in 1:length(dummy))
-      {
-        ddmmi=fn.get.stuff.from.list(str.prob[[d]],'probs')
-        ddmmi=do.call(rbind,ddmmi)%>%
-                mutate(Species=capitalize(names(str.prob)[d]))%>%
-                group_by(Range,Species)%>%
-                summarise(Probability=mean(Probability))%>%
-                mutate(Scenario='S1')%>%
-                group_by(Scenario,Species)%>%
-                mutate(Probability=Probability/sum(Probability))%>%
-                mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
-                arrange(Range)%>%
-          dplyr::select(Range,Probability,Scenario,Species)
-        dummy[[d]]=ddmmi
-      }
-      dummy.mod[[m]]=do.call(rbind,dummy)%>%
-        mutate(Model=names(Catch_only)[m])
-    }
-    WEI=vector('list',length(dis.spicis))
-    for(i in 1:length(dis.spicis))
-    {
-      dis.r.range=do.call(rbind,r.groups)%>%   
-        data.frame%>%
-        mutate(Get=between(r.list[match(dis.spicis[i],Keep.species)],.[[1]] , .[[2]]))%>%   
-        filter(Get==TRUE)
-      Wei=COM_weight_by.r.group%>%
-        filter(r.group==row.names(dis.r.range))%>%
-        dplyr::select(-r.group)
-      if('SSS'%in%names(Catch_only) & !'SSS'%in%Wei$Model)
-      {
-        Wei.SSS=Wei%>%filter(Model=='DBSRA')%>%mutate(Model='SSS')
-        Wei=rbind(Wei,Wei.SSS)
-      }
-      WEI[[i]]=Wei%>%mutate(Species=capitalize(dis.spicis[i]))
-    }
-    WEI=do.call(rbind,WEI)
-    dd=do.call(rbind,dummy.mod)%>%
-      left_join(WEI,by=c('Model','Species'))%>%
-      group_by(Range,Scenario,Species)%>%
-      summarise(Probability=weighted.mean(Probability,w=Weight))%>%
-      group_by(Scenario,Species)%>%
-      mutate(Probability=Probability/sum(Probability))%>%
-      mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))
-    write.csv(dd%>%spread(Species,Probability)%>%
-                arrange(Range),
+    Probs=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs[dis.spicis],'Probs'))%>%
+      mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+      spread(Species,Probability)%>%
+      arrange(Range)
+    Probs.future=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs[dis.spicis],'Probs.future'))%>%
+      mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+      spread(Species,Probability)%>%
+      arrange(Range)
+    write.csv(rbind(Probs,Probs.future),
               paste(Rar.path,'/Table 4. Catch only_current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
               row.names=F)
-    rm(dummy.mod,Wei)
   }
+}
+
+
+# Catch vs MSY  
+  #figure & table (Scenario 1 only)
+for(l in 1:length(Lista.sp.outputs))
+{
+  all.dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%All.catch.MSY.species)]
+  dis.spicis=subset(all.dis.spicis,all.dis.spicis%in%Catch.only.species_display)
+  print(paste("RAR ---- Catch vs MSY_catch.only Ensemble-----",names(Lista.sp.outputs)[l]))
+  fn.plot.catch.vs.MSY_combined(all.this.sp=all.dis.spicis,
+                                this.sp=dis.spicis,
+                                d=All.catch.MSY,
+                                NM=names(Lista.sp.outputs)[l],
+                                YLAB='Catch (tonnes)',
+                                MSY=compact(Mod.AV_MSY))
 }
 
 
@@ -2961,7 +3082,7 @@ if(do.this)
 for(l in 1:length(Lista.sp.outputs))
 {
   this.sp=Lista.sp.outputs[[l]]
-  dis.spicis=this.sp[which(this.sp%in%Catch.only.species)]
+  dis.spicis=this.sp[which(this.sp%in%Catch.only.species_display)]
   if(length(dis.spicis)>0)
   {
     print(paste("RAR ---- Catch-only --- Kobe plot Ensemble-----",names(Lista.sp.outputs)[l]))
@@ -2969,10 +3090,11 @@ for(l in 1:length(Lista.sp.outputs))
     #NKOL=DIMS[2]
     #NRW=DIMS[1]
     NKOL=round(length(dis.spicis)/5)
+    if(names(Lista.sp.outputs)[l]=="Indicator.sp") NKOL=2
     NRW=length(dis.spicis)/NKOL
     if(NKOL%in%3:4) WIZ=14
     if(NKOL==2) WIZ=11
-    if(NKOL==1) WIZ=9
+    if(NKOL==1) WIZ=6
     fn.get.Kobe.plot(this.sp=dis.spicis,
                      d=Mod.AV,
                      NKOL,
@@ -3050,67 +3172,85 @@ if(get.MSY.estimates)
 
 #18.12 Store Consequence and likelihood for WoE 
   #Ensemble of models for S1 only
+Probs=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs,'Probs'))%>%
+  mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+  arrange(Range)
+Probs.future=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs,'Probs.future'))%>%
+  mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+  arrange(Range)
+Store.cons.Like_COM=vector('list',N.sp)
+names(Store.cons.Like_COM)=Keep.species
+for(i in 1:N.sp)
+{
+  Store.cons.Like_COM[[i]]=rbind(Probs%>%
+                                   filter(Species==capitalize(Keep.species[i]))%>%
+                                   dplyr::select(-Species),
+                                  Probs.future%>%
+                                    filter(Species==capitalize(Keep.species[i]))%>%
+                                    dplyr::select(-Species))
+}
+rm(Probs,Probs.future)
 #Store.cons.Like_COM=fn.get.cons.like(lista=Catch_only,
 #                                     Mod.Avrg.weight=COM_weight_by.r.group)   
   #Ensemble of models for all scenarios
-dummy.mod=vector('list',length(Catch_only))
-for(m in 1:length(Catch_only))
-{
-  str.prob=Catch_only[[m]]$probs.rel.biom
-  str.prob=compact(str.prob)
-  dummy=vector('list',length =length(str.prob))
-  for(d in 1:length(dummy))
-  {
-    ddmmi=fn.get.stuff.from.list(str.prob[[d]],'probs')
-    ddmmi=do.call(rbind,ddmmi)%>%
-      mutate(Species=capitalize(names(str.prob)[d]))%>%
-      group_by(Range,Species)%>%
-      summarise(Probability=mean(Probability))%>%
-      mutate(Scenario='S1')%>%
-      group_by(Scenario,Species)%>%
-      mutate(Probability=Probability/sum(Probability))%>%
-      mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
-      arrange(Range)%>%
-      dplyr::select(Range,Probability,Scenario,Species)
-    dummy[[d]]=ddmmi
-  }
-  dummy.mod[[m]]=do.call(rbind,dummy)%>%
-    mutate(Model=names(Catch_only)[m])
-}
-dis.spicis=tolower(unique(dummy.mod[[1]]$Species))
-WEI=vector('list',length(dis.spicis))
-for(i in 1:length(dis.spicis))
-{
-  dis.r.range=do.call(rbind,r.groups)%>%   
-    data.frame%>%
-    mutate(Get=between(r.list[match(dis.spicis[i],Keep.species)],.[[1]] , .[[2]]))%>%   
-    filter(Get==TRUE)
-  Wei=COM_weight_by.r.group%>%
-    filter(r.group==row.names(dis.r.range))%>%
-    dplyr::select(-r.group)
-  if('SSS'%in%names(Catch_only) & !'SSS'%in%Wei$Model)
-  {
-    Wei.SSS=Wei%>%filter(Model=='DBSRA')%>%mutate(Model='SSS')
-    Wei=rbind(Wei,Wei.SSS)
-  }
-  WEI[[i]]=Wei%>%mutate(Species=capitalize(dis.spicis[i]))
-}
-WEI=do.call(rbind,WEI)
-dd=do.call(rbind,dummy.mod)%>%
-  left_join(WEI,by=c('Model','Species'))%>%
-  group_by(Range,Scenario,Species)%>%
-  summarise(Probability=weighted.mean(Probability,w=Weight))%>%
-  group_by(Scenario,Species)%>%
-  mutate(Probability=Probability/sum(Probability))%>%
-  mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')),
-         Species=tolower(Species))%>%
-  ungroup()
-Store.cons.Like_COM=vector('list',length(dis.spicis))
-names(Store.cons.Like_COM)=dis.spicis
-for(f in 1:length(Store.cons.Like_COM))
-{
-  Store.cons.Like_COM[[f]]=dd%>%filter(Species==dis.spicis[f])%>%dplyr::select(Range,Probability)
-}
+# dummy.mod=vector('list',length(Catch_only))
+# for(m in 1:length(Catch_only))
+# {
+#   str.prob=Catch_only[[m]]$probs.rel.biom
+#   str.prob=compact(str.prob)
+#   dummy=vector('list',length =length(str.prob))
+#   for(d in 1:length(dummy))
+#   {
+#     ddmmi=fn.get.stuff.from.list(str.prob[[d]],'probs')
+#     ddmmi=do.call(rbind,ddmmi)%>%
+#       mutate(Species=capitalize(names(str.prob)[d]))%>%
+#       group_by(Range,Species)%>%
+#       summarise(Probability=mean(Probability))%>%
+#       mutate(Scenario='S1')%>%
+#       group_by(Scenario,Species)%>%
+#       mutate(Probability=Probability/sum(Probability))%>%
+#       mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+#       arrange(Range)%>%
+#       dplyr::select(Range,Probability,Scenario,Species)
+#     dummy[[d]]=ddmmi
+#   }
+#   dummy.mod[[m]]=do.call(rbind,dummy)%>%
+#     mutate(Model=names(Catch_only)[m])
+# }
+# dis.spicis=tolower(unique(dummy.mod[[1]]$Species))
+# WEI=vector('list',length(dis.spicis))
+# for(i in 1:length(dis.spicis))
+# {
+#   dis.r.range=do.call(rbind,r.groups)%>%   
+#     data.frame%>%
+#     mutate(Get=between(r.list[match(dis.spicis[i],Keep.species)],.[[1]] , .[[2]]))%>%   
+#     filter(Get==TRUE)
+#   Wei=COM_weight_by.r.group%>%
+#     filter(r.group==row.names(dis.r.range))%>%
+#     dplyr::select(-r.group)
+#   if('SSS'%in%names(Catch_only) & !'SSS'%in%Wei$Model)
+#   {
+#     Wei.SSS=Wei%>%filter(Model=='DBSRA')%>%mutate(Model='SSS')
+#     Wei=rbind(Wei,Wei.SSS)
+#   }
+#   WEI[[i]]=Wei%>%mutate(Species=capitalize(dis.spicis[i]))
+# }
+# WEI=do.call(rbind,WEI)
+# dd=do.call(rbind,dummy.mod)%>%
+#   left_join(WEI,by=c('Model','Species'))%>%
+#   group_by(Range,Scenario,Species)%>%
+#   summarise(Probability=weighted.mean(Probability,w=Weight))%>%
+#   group_by(Scenario,Species)%>%
+#   mutate(Probability=Probability/sum(Probability))%>%
+#   mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')),
+#          Species=tolower(Species))%>%
+#   ungroup()
+# Store.cons.Like_COM=vector('list',length(dis.spicis))
+# names(Store.cons.Like_COM)=dis.spicis
+# for(f in 1:length(Store.cons.Like_COM))
+# {
+#   Store.cons.Like_COM[[f]]=dd%>%filter(Species==dis.spicis[f])%>%dplyr::select(Range,Probability)
+# }
 
 
 

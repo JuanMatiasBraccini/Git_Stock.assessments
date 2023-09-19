@@ -1139,6 +1139,9 @@ send.email(TO=Send.email.to,
            Body= paste("Computation",computation.time),  
            Attachment=NULL) 
 
+Species.with.abundance=names(compact(State.Space.SPM$JABBA$sens.table)) 
+write.csv(paste('1.',capitalize(Species.with.abundance),sep=''),paste(Rar.path,'Species.with.abundance.csv',sep='/'),row.names = F)
+
 
 #---Generate outputs -------------------------------------------------
 

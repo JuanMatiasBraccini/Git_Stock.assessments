@@ -32,7 +32,7 @@ system.time({for(l in 1: N.sp)
     N.min=dummy%>%
       group_by(FINYEAR)%>%
       tally()%>%
-      filter(n>=Min.annual.obs)%>%
+      filter(n>=Min.annual.obs.ktch)%>%
       mutate(Keep=FINYEAR)
     if(nrow(N.min)>0)
     {

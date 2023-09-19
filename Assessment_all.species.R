@@ -140,19 +140,27 @@ do.F.over.Fmsy.series=FALSE
 
 Simplified.scenarios=TRUE  #only 1 base case scenario pero catch-only method
 
+
 #2. Year of assessment and catches
 Year.of.assessment=2022
 AssessYr=Year.of.assessment
 Last.yr.ktch="2021-22"
 Last.yr.ktch.numeric=as.numeric(substr(Last.yr.ktch,1,4))
+years.futures=5  #future projections
+n.last.catch.yrs=3
+catches.futures="constant.last.n.yrs"
+#catches.futures='upper.limit.catch.range'  #only available for indicator species
+future.color='brown4'
 
 #3.New assessment
 New.assessment="NO"
 #New.assessment="YES"   #set to 'YES' the first time a new assessment is run
 
+
 #4. Model run
 if(New.assessment=="YES") First.run="YES"  else #create all model input data sets and data presentation for new assessment
   First.run="NO"
+
 
 #5. Add additional species of interest not selected by PSA given low catch trajectories but needed for specific assessment
 additional.sp=NULL  #if no additional species assessment required
@@ -165,9 +173,11 @@ if(New.assessment=="YES") do.r.prior=TRUE  else
                           do.r.prior=FALSE
 do.steepness=do.r.prior
 
+
 #7. Define if exporting figures as jpeg or tiff (creation of RAR requires jpeg)
 Do.tiff="YES" 
 Do.jpeg="NO"
+
 
 #8. Catch units
 KTCH.UNITS="TONNES" 
@@ -175,10 +185,12 @@ KTCH.UNITS="TONNES"
 if(KTCH.UNITS=="KGS") unitS=1000
 if(KTCH.UNITS=="TONNES") unitS=1
 
+
 #9. Criteria for selecting what species to assess quantitatively
 Min.yrs=5
 if(KTCH.UNITS=="KGS") Min.ktch=5000 
 if(KTCH.UNITS=="TONNES") Min.ktch=5
+
 
 #10. CPUEs
 Min.cpue.yrs=5 #minimum number of years in abundance index
@@ -193,19 +205,21 @@ tdgdlf_not.representative=NULL
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event, not distribution core
 drop.daily.cpue='2007&2008'  #drop 2007 & 2008 from TDGDLF daily cpue (consistently higher cpues across all species due to likely effort reporting bias)
 
+
 #11. Size composition
 MN.SZE=0    # initial bin size
 #MN.SZE="size.at.birth"
 TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
-Min.annual.obs=100 #Minimum number of annual observations for size composition analyses
-Min.annual.obs.ktch=50 #Minimum number of shots for using size composition data
+Min.annual.obs.ktch=50 #Minimum number of annual observations for using size composition data
 Min.Nsamp=10   #Minimum number of trips for catch mean weight or size composition
 fill.in.zeros=TRUE  #add missing size classes with all 0s
   
+
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
 prop.disc.ER=.4  
+
 
 #13. PSA criteria
 PSA.min.tons=5
@@ -214,20 +228,24 @@ PSA.max.ton=50
 Low.risk=2.64  #risk thresholds from Micheli et al 2014
 medium.risk=3.18
 
+
 #14. Assumed PCM for reconstructed discards in TDGLDF
 TDGLDF.disc.assumed.PCM="BaseCase" 
 #TDGLDF.disc.assumed.PCM="100%" 
+
 
 #15. Demography
 Max.Age.up.Scaler=1.3  #scaler of Max maximum age for species with only one record. 1.3 is mean across those species with a range
 Max.r.value=.55 # Max r. .44 for blue shark (Cortes 2016); .51 for Scyliorhinus canicula (Cortes 2002)
 Min.r.value=.025
 
+
 #16. Stock recruitment
 Max.h.shark=.8   #mean of h for blue shark (ICCAT 2023 assessment; Cortes 2016, Kai & Fujinami 2018).
 Min.h.shark=.3  #He et al 2006, Jason Cope pers comm
 Max.SR_sigmaR.shark=0.3   #maximum recruitment variability (blue shark ICCAT 2023 0.29 for North, 0.5 for South, 0.3 bigskate; 0.2 dogfish; 0.18 sandbar)
 do.random.h=TRUE  #take a random sample of h and M for SS or use empirical distributions
+
 
 #17. Reference points
 #note: Historically, there was a single reference point (40% unexploited biomass)
@@ -238,6 +256,7 @@ Lim.prop.bmsy=0.5    #    source: Haddon et al 2014. 'Technical Reviews of Forma
 #SPR.thre=0.3   #Punt 2000 Extinction of marine renewable resources: a demographic analysis. 
 #SPR.tar=0.4    #   Population Ecology 42, 
 Minimum.acceptable.blim=0.2  #Blim should be the max(Minimum.acceptable.blim,Lim.prop.bmsy*Biomass.threshold)
+
 
 #18. Catch-only Models
 do.ensemble.simulations=FALSE
@@ -262,10 +281,13 @@ r.prob.max=0.9999   #quantile probs for defining r range for CMSY
 r.prob.min=1-r.prob.max
 #Ensemble.weight='weighted'  #define if doing weighted or unweighted model average
 Ensemble.weight='equal'
+tweak.BmsyK.Cortes=FALSE #update value to increase COM acceptance rate
+tweak.Final.Bio_low=FALSE #update value to increase COM acceptance rate
 
-#Assessed species by catch methods
-Assessed.ktch.only.species='All'             #assess all species with catch only methods (level 1 assessment)
-#Assessed.ktch.only.species='Only.ktch.data'   #only assess those with only catch data
+  #Assessed species by catch methods
+Assessed.ktch.only.species='All'                #assess all species with catch only methods (level 1 assessment)
+#Assessed.ktch.only.species='Only.ktch.data'   #assess species with only catch data
+display.only.catch.only.sp=FALSE               #just display catch and MSY for species with only catch
 
 
 #19. State space Surplus Production Models
@@ -298,6 +320,11 @@ Mean.Size.at.age.species=NULL   #  Mean.Size.at.age.species=c("gummy shark","whi
                                 # whiskery (only for these species length-@-age data collected from gillnet fishery)
 
 Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
+SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
+                           "Size_composition_NSF.LONGLINE","Size_composition_Survey",
+                           "Size_composition_Other")
+combine.scallopedHH_NSF_Survey=FALSE
+
   #SS model run arguments
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
@@ -375,6 +402,11 @@ if(Do.bespoked)
 
 #22. Weight of Evidence
 LoE.Weights=c(psa=.25,sptemp=.25,efman=.25,COM=.5,JABBA=.75,integrated=1)  
+RiskColors=c('Negligible'="cornflowerblue",
+             'Low'="olivedrab3",
+             'Medium'="yellow",
+             'High'="orange",
+             'Severe'="red2")
 
 #23. Average ratio L50:L95 for species with no L95 estimates
 average.prop.L95_L50=mean(c(135.4/154.5,225/262,210/240,113/138,175/198,281/328,113/139,125/136,113/138))
@@ -414,12 +446,9 @@ fn.in=function(NM) fread(paste(Dat.repository,NM,sep=""),data.table=FALSE)
   #TDGDLF
 Effort.monthly=fn.in(NM='Annual.total.eff.days.csv')          #all years
 Effort.monthly_hours=fn.in(NM='Annual.total.eff.hours.csv')   #all years
-#Effort.monthly_blocks=fn.in("Effort.monthly.csv")
-#Effort.daily_blocks=fn.in("Effort.daily.csv")
   #NSF
 Effort.monthly.north=fn.in(NM='Annual.total.eff_NSF.csv') 
-#Effort.monthly.north_blocks=fn.in("Effort.monthly.NSF.csv")
-#Effort.daily.north_blocks=fn.in("Effort.daily.NSF.csv") 
+
 
 
 #2.3. Import Total Catch
@@ -614,7 +643,7 @@ Logbook=read.csv(handl_OneDrive("Analyses/Catch and effort/Logbook.data.mean.wei
 
 #---3. Life history and selectivity data ------------------------------------------------------  
 LH.data=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv'))
-SS_selectivity_init_pars=read.csv(handl_OneDrive('Data/Population dynamics/StockSynthesis_selectivity_pars.csv'))
+SS_selectivity_init_pars=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.selectivity_pars.csv'))
 
 #---4. PSA (which species to assess quantitatively) -----------------------------------------------  
 #note: run a PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
@@ -655,7 +684,9 @@ ggsave(paste(Exprt,'Annual_ktch_by_species.used.in.PSA.tiff',sep='/'), width = 1
 
 #Export table of species identified in the catch by fishery  (all species including indicator species)
 write.csv(Get.ktch$Table1%>%
-            filter(!is.na(Name)),
+            filter(!is.na(Name))%>%left_join(All.species.names%>%dplyr::select(SPECIES,Scien.nm),by='Scien.nm')%>%
+            relocate(c(SPECIES))%>%
+            arrange(SPECIES),
           paste(Exprt,'Table S1_All.species.caught.by.fishery.csv',sep='/'),row.names = F)
 
 clear.log('Get.ktch')
@@ -770,27 +801,117 @@ for(s in 1:N.sp)
 
 #add size composition C. brachyurus MSF (South Australia)
 Species.data$`copper shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/SA_Cbrachyurus length data.csv'))%>%
-  mutate(DATE=as.Date(DATE,"%d/%m/%Y"),
-         Month=month(DATE),
-         year=year(DATE),
-         FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
-                        paste(year-1,substr(year,3,4),sep='-')),
-         FL=with(LH.data%>%filter(SPECIES==18001),((TL..mm./10)-b_FL.to.TL )/a_FL.to.TL),
-         SEX=ifelse(SEX=="Male ","Male",SEX),
-         SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
-         filter(SAMPLE.SOURCE=='Commercial catch sampling')%>%
-         filter(!is.na(SEX))%>%
-  dplyr::select(Month,FINYEAR,year,FL,SEX)
+                  mutate(DATE=as.Date(DATE,"%d/%m/%Y"),
+                         Month=month(DATE),
+                         year=year(DATE),
+                         FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
+                                        paste(year-1,substr(year,3,4),sep='-')),
+                         FL=with(LH.data%>%filter(SPECIES==18001),((TL..mm./10)-b_FL.to.TL )/a_FL.to.TL),
+                         SEX=ifelse(SEX=="Male ","Male",SEX),
+                         SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
+                         filter(SAMPLE.SOURCE=='Commercial catch sampling')%>%
+                         filter(!is.na(SEX))%>%
+                  dplyr::select(Month,FINYEAR,year,FL,SEX)
 
 Species.data$`copper shark`$Size_composition_Other_Observations=data.frame(
-          FINYEAR=sort(unique(Species.data$`copper shark`$Size_composition_Other$FINYEAR)),
-          Method='LL',
-          zone="SA",
-          SPECIES=18001,
-          N.shots=30,
-          N.observations=NA)
+                  FINYEAR=sort(unique(Species.data$`copper shark`$Size_composition_Other$FINYEAR)),
+                  Method='LL',
+                  zone="SA",
+                  SPECIES=18001,
+                  N.shots=30,
+                  N.observations=NA)
 
-#Remove NA Ages in length-age data
+#add size composition Spotted wobbegong and Western wobbegong to Wobbegongs
+other.wobbies=c('Spotted wobbegong','Western wobbegong')
+Wobbies.data=vector('list',length(other.wobbies))
+names(Wobbies.data)=other.wobbies
+  #1. bring in data
+for(s in 1:length(other.wobbies)) 
+{
+  print(paste('Reading in data for -----',other.wobbies[s]))
+  this.one=other.wobbies[s]
+  files <- list.files(path = paste(Dat.repository,this.one,sep=""), pattern = "*.csv", full.names = T)
+  file.names <- list.files(path = paste(Dat.repository,this.one,sep=""), pattern = "*.csv", full.names = F)
+  removE <- c(".csv", paste(this.one,"_",sep=''), this.one)
+  file.names <- gsub("^\\.","",str_remove_all(file.names, paste(removE, collapse = "|")))
+  if(length(files)>0)
+  {
+    if(length(files)>1)
+    {
+      getfiles=sapply(files, fread, data.table=FALSE)
+      if(is.matrix(getfiles))
+      {
+        getfiles=vector('list',length(file.names))
+        for(g in 1:length(getfiles)) getfiles[[g]]=read.csv(files[g])
+      }
+    }else
+    {
+      getfiles=list(read.csv(files))
+    }
+    names(getfiles)=file.names
+    Wobbies.data[[s]]=getfiles
+  }
+  rm(files)
+}  
+  #2. add to Wobbegongs
+for(s in 1:length(other.wobbies)) 
+{
+  Species.data$wobbegongs$Size_composition_Observations=rbind(Species.data$wobbegongs$Size_composition_Observations,
+                                                              Wobbies.data[[s]]$Size_composition_Observations)
+  Species.data$wobbegongs$Size_composition_West.6.5.inch.raw=rbind(Species.data$wobbegongs$Size_composition_West.6.5.inch.raw,
+                                                                   Wobbies.data[[s]]$Size_composition_West.6.5.inch.raw)
+  Species.data$wobbegongs$Size_composition_West.7.inch.raw=rbind(Species.data$wobbegongs$Size_composition_West.7.inch.raw,
+                                                                 Wobbies.data[[s]]$Size_composition_West.7.inch.raw)
+  Species.data$wobbegongs$Size_composition_Zone1.6.5.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone1.6.5.inch.raw,
+                                                                    Wobbies.data[[s]]$Size_composition_Zone1.6.5.inch.raw)
+  Species.data$wobbegongs$Size_composition_Zone1.7.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone1.7.inch.raw,
+                                                                  Wobbies.data[[s]]$Size_composition_Zone1.7.inch.raw)
+  Species.data$wobbegongs$Size_composition_Zone2.6.5.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone2.6.5.inch.raw,
+                                                                    Wobbies.data[[s]]$Size_composition_Zone2.6.5.inch.raw)
+  Species.data$wobbegongs$Size_composition_Zone2.7.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone2.7.inch.raw,
+                                                                  Wobbies.data[[s]]$Size_composition_Zone2.7.inch.raw)
+}
+Species.data$wobbegongs$Size_composition_Observations=Species.data$wobbegongs$Size_composition_Observations%>%
+  mutate(SPECIES=13000)%>%
+  group_by(FINYEAR,Method,zone,SPECIES)%>%
+  summarise(N.shots=mean(N.shots),
+            N.observations=sum(N.observations))%>%
+  ungroup()
+
+#remove Pilbara trawl as it's not used at all
+for(i in 1:N.sp) 
+{
+  if(any(grepl('Size_composition_Pilbara_Trawl',names(Species.data[[i]]))))
+  {
+    Species.data[[i]]=Species.data[[i]][-match('Size_composition_Pilbara_Trawl',names(Species.data[[i]]))]
+  }
+}
+
+#remove NA sex in length composition data
+for(i in 1:N.sp) 
+{
+  if(any(grepl('Size_composition',names(Species.data[[i]]))))
+  {
+    d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
+                                  names(Species.data[[i]]))]
+    if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
+    if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
+    if(length(d.list)>0)
+    {
+      for(s in 1:length(d.list))
+      {
+        zero.length=d.list[[s]]%>%
+          filter(!is.na(SEX))
+        if(nrow(zero.length)==0)
+        {
+          Species.data[[i]]=Species.data[[i]][-match(names(d.list)[s],names(Species.data[[i]]))]
+        }
+      }
+    }
+  }
+}
+
+#remove NA Ages in length-age data
 for(s in 1:N.sp) 
 {
   if('age_length'%in%names(Species.data[[s]]))
@@ -809,7 +930,7 @@ for(s in 1:N.sp)
   
 }
 
-#Remove nonsense size comp from milk shark
+#remove nonsense size comp from milk shark
 Species.data$`milk shark`$Size_composition_NSF.LONGLINE=Species.data$`milk shark`$Size_composition_NSF.LONGLINE%>%
                                                           filter(FL<=80)
 Species.data$`milk shark`$Size_composition_West.7.inch.raw=Species.data$`milk shark`$Size_composition_West.7.inch.raw%>%
@@ -817,13 +938,13 @@ Species.data$`milk shark`$Size_composition_West.7.inch.raw=Species.data$`milk sh
 Species.data$`milk shark`$Size_composition_Survey=Species.data$`milk shark`$Size_composition_Survey%>%
   filter(FL<=80)
 
-#Remove nonsense size comp from sandbar shark
+#remove nonsense size comp from sandbar shark
 Species.data$`sandbar shark`$Size_composition_NSF.LONGLINE=Species.data$`sandbar shark`$Size_composition_NSF.LONGLINE%>%
   filter(FL<=200)
 Species.data$`sandbar shark`$Size_composition_Survey=Species.data$`sandbar shark`$Size_composition_Survey%>%
   filter(FL<=200)
 
-#Remove Observer cpue data (double dipping with standardised catch rates)
+#remove Observer cpue data (double dipping with standardised catch rates)
 for(s in 1:N.sp)
 {
   iid=grep('CPUE_Observer_TDGDLF',names(Species.data[[s]]))
@@ -925,11 +1046,11 @@ for(l in 1:N.sp)
 rm(sumsq,ObjFunc,L)
 
   #Export table of life history parameters for use in RAR
-Rar.path=paste(handl_OneDrive('Reports/RARs'), AssessYr,sep="/")
+Rar.path=paste(handl_OneDrive('Reports/RARs'), AssessYr,'Figures_and_Tables',sep="/")
 if(!dir.exists(Rar.path))dir.create(Rar.path)
 if(First.run=="YES")
 {
-  setwd(Rar.path)
+  #setwd(Rar.path)
   TabL=LH.data%>%
     filter(SPECIES%in%sapply(List.sp, "[[", "Species"))%>%
     dplyr::select(-SNAME)%>%
@@ -940,9 +1061,21 @@ if(First.run=="YES")
     rename(Species=SNAME)%>%
     dplyr::select(-SPECIES,-Comment)%>%
     relocate(Species,Scien.nm)%>%
-    arrange(Species)
+    arrange(Species)%>%
+    mutate(Max.Age=ifelse(is.na(Max_Age_max),Max_Age,Max_Age_max),
+           b_w8t=round(b_w8t,2),
+           TL.50.mat=round(TL.50.mat),
+           TL.95.mat=round(TL.95.mat),
+           Age.50.Mat=paste('uniform(',Age_50_Mat_min,',',Age_50_Mat_max,')',sep=''),
+           Mean.Fec=round(mean(c(Fecu_min,Fecu_max))),
+           Litter.size=paste('triangular(',Fecu_min,',',Mean.Fec,',',Fecu_max,')',sep=''),
+           Rep.cycle=paste('uniform(',Cycle,',',Cycle_max,')',sep=''))%>%
+    dplyr::select(Species,K,FL_inf,Max.Age,Age.50.Mat,TL.50.mat,TL.95.mat,
+                  Litter.size,Rep.cycle,a_w8t,b_w8t)
+  names(TabL)[match(c("K","FL_inf","Max.Age","Age.50.Mat","TL.50.mat","TL.95.mat","Rep.cycle"),names(TabL))]=
+    c("K (year-1)","FL_inf (cm)","Max.Age (year)","Age.50.Mat (year)","TL.50.mat (cm)","TL.95.mat (cm)","Rep.cycle (year)")
  # fn.word.table(TBL=TabL,Doc.nm="Table 1. Life history pars")
-  write.csv(TabL,"Table 1. Life history pars.csv",row.names = F)
+  write.csv(TabL,paste(Rar.path,"Table 1. Life history pars.csv",sep='/'),row.names = F)
 }
 
   #Export table of species assessed for use in RAR
@@ -1202,10 +1335,13 @@ if(!do.r.prior)
   #display priors   
 for(l in 1:length(Lista.sp.outputs))
 {
+  STXSIZ=16
+  if(names(Lista.sp.outputs)[l]=="Other.sp") STXSIZ=13
   fn.display.priors(d=store.species.r_M.min,
                     sp=Lista.sp.outputs[[l]],
                     XLAB=expression(paste(plain("Maximum intrinsic rate of increase (years") ^ plain("-1"),")",sep="")),
-                    XLIM=c(0,NA))
+                    XLIM=c(0,NA),
+                    Strx.siz=STXSIZ)
   ggsave(paste(Rar.path,'/Prior_r_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
          width = 12,height = 10,compression = "lzw")
 }
@@ -2143,9 +2279,7 @@ if(First.run=="YES")
     print(paste("observed FL is with Lo +/- CV and FLinf --------",names(Species.data)[i]))
     if(any(grepl('Size_composition',names(Species.data[[i]]))))
     {
-      d.list=Species.data[[i]][grep(paste(c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
-                                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
-                                            "Size_composition_Other","Size_composition_Pilbara_Trawl"),collapse="|"),
+      d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
                                     names(Species.data[[i]]))]
       if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
       if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
@@ -2271,9 +2405,7 @@ if(First.run=="YES")
     print(paste("Compare observed size comp and assumed SS selectivity --------",names(Species.data)[i]))
     if(any(grepl('Size_composition',names(Species.data[[i]]))))
     {
-      d.list=Species.data[[i]][grep(paste(c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
-                                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
-                                            "Size_composition_Other","Size_composition_Pilbara_Trawl"),collapse="|"),
+      d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
                                     names(Species.data[[i]]))]
       if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
       if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
@@ -2325,7 +2457,7 @@ if(First.run=="YES")
         })
       }
       mtext("Financial year", side = 1, line = 1,outer=T)
-      mtext("Relative CPUE", side = 2, line = -1,las=3,outer=T)
+      mtext("CPUE", side = 2, line = -1,las=3,outer=T)
       dev.off()
     }
   }
@@ -2334,9 +2466,7 @@ if(First.run=="YES")
 # Get sex ratio by zone
 if(First.run=="YES")
 {
-  Dis.size.data=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
-                  "Size_composition_NSF.LONGLINE","Size_composition_Survey",
-                  "Size_composition_Other")
+  Dis.size.data=SS3_fleet.size.comp.used
   Sex.ratio.zone=vector('list',N.sp)
   names(Sex.ratio.zone)=Keep.species
   for(i in 1:N.sp)
@@ -2363,6 +2493,15 @@ if(First.run=="YES")
     print(paste('Show conditional age at length for ------',Keep.species[i]))
     if(any(grepl('age_length',names(Species.data[[i]]))))
     {
+      ktch=KtCh%>%
+        filter(Name==Keep.species[i])%>%
+        mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
+                             ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                      'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                                    'Other')))
+      Flits.name=sort(unique(ktch$Fishry))  
+      Flits=1:length(Flits.name)
+      names(Flits)=Flits.name
       a=List.sp[[i]]$a_FL.to.TL
       b=List.sp[[i]]$b_FL.to.TL
       dd=Species.data[[i]]$age_length%>%
@@ -2376,7 +2515,7 @@ if(First.run=="YES")
                Sex=ifelse(Sex=='Male',2,ifelse(Sex=='Female',1,0)),
                part=0,
                ageErr=-1,   #- assumes no ageing error
-               Fleet=Flits[match('Southern.shark_1',names(Flits))])%>%
+               Fleet=Flits[match('Southern.shark',names(Flits))])%>%
         group_by(year,Sex,LbinLo,Age)%>%
         mutate(N=n())%>%
         ungroup()%>%
@@ -2384,9 +2523,7 @@ if(First.run=="YES")
       dd%>%
         ggplot(aes(Age,TL,color=year))+
         geom_point()+
-        facet_wrap(~Sex,ncol=1)+
-        ylim(0,max(Cond.age.len.SS.format$TL))
-      
+        facet_wrap(~Sex,ncol=1)
       HandL=handl_OneDrive("Analyses/Population dynamics/1.")
       DiR=paste(HandL,capitalize(Keep.species[i]),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
       ggsave(paste(DiR,'Conditional age at length.tiff',sep='/'), width = 6,height = 6, dpi = 300, compression = "lzw")
@@ -2401,20 +2538,24 @@ Tot.ktch=KtCh %>%
     Type = case_when(
       FishCubeCode=='WRL'~'WRL',
       FishCubeCode=='WTB'~'WTB',
-      FishCubeCode=='TEP'~'TEP',
+      FishCubeCode%in%c('Discards_TDGDLF','TEP')~'TEP',
       FishCubeCode=='Recreational'~'Recreational',
       FishCubeCode=='SA MSF'~'SA MSF',
       FishCubeCode=='NSW fisheries'~'NSW fisheries',
       FishCubeCode=='NT'~'NT',
-      FishCubeCode=='GAB'~'GAB',
+      FishCubeCode=='GAB'~'GAB Trawl',
       FishCubeCode=='Indo'~'Indonesia',
       FishCubeCode=='Taiwan'~'Taiwan',
-      FishCubeCode=='Historic'~'Commercial',
-      FishCubeCode%in%c('JASDGDL','WCDGDL','C070','OAWC')~'Commercial',
-      FishCubeCode%in%c('JANS','OANCGC','WANCS')~'Commercial',   
-      TRUE  ~ "Commercial"))
+      FishCubeCode=='Historic'~'Historic',
+      FishCubeCode%in%c('JASDGDL','WCDGDL','C070','OAWC')~'TDGDLF',
+      FishCubeCode%in%c('JANS','OANCGC','WANCS')~'NSF',   
+      TRUE  ~ "Other WA Commercial"),
+    Type=factor(Type,levels=c("Recreational","TDGDLF","NSF",
+                              "Historic","Other WA Commercial","TEP","WRL",
+                              "NT","NSW fisheries","SA MSF","GAB Trawl","WTB",
+                              "Taiwan","Indonesia")))
 all.yrs=min(Tot.ktch$finyear):max(KtCh$finyear)
-Fishry.type=sort(unique(Tot.ktch$Type))
+Fishry.type=levels(Tot.ktch$Type)
 COLs.type=colfunc(length(Fishry.type))
 names(COLs.type)=Fishry.type
 All.N.sp=sort(unique(Tot.ktch$Name))
@@ -2425,9 +2566,16 @@ if(First.run=="YES")
   for(l in 1:length(Lista.sp.outputs))
   {
   SIZ=2
-  WID=14
+  WID=12
   HEI=10
-  if(length(Lista.sp.outputs[[l]])>8) SIZ=1.5
+  t.siz=15
+  if(length(Lista.sp.outputs[[l]])>8)
+  {
+    SIZ=1.5 
+    t.siz=13
+    WID=14
+  }
+    
   if(length(Lista.sp.outputs[[l]])<4) SIZ=3
   Tot.ktch%>%
     filter(Name%in%Lista.sp.outputs[[l]])%>%
@@ -2440,7 +2588,7 @@ if(First.run=="YES")
     geom_point(size=SIZ)+
     geom_line(linetype=2,alpha=0.4)+
     facet_wrap(~Name,scales='free')+
-    theme_PA(strx.siz=15,leg.siz=14,axs.t.siz=14,axs.T.siz=18)+
+    theme_PA(strx.siz=15,leg.siz=14,axs.t.siz=t.siz,axs.T.siz=18)+
     ylab("Total catch (tonnes)")+xlab("Financial year")+
     theme(legend.position="top",
           legend.title = element_blank(),
@@ -2458,6 +2606,12 @@ if(First.run=="YES")
 #Show life history  
 if(First.run=="YES")
 {
+  Lmx<- expression("TL"['Max'])
+  L50<- expression("TL"[50])
+  L95<- expression("TL"[95])
+  L0<- expression("TL"[0])
+  A50<- expression("Age"[50])
+  Amx<- expression("Age"['Max'])
   for(l in 1:N.sp)
   {
     print(paste('Displaying biology for ------', names(List.sp)[l]))
@@ -2465,7 +2619,7 @@ if(First.run=="YES")
       eig=0:Max.age.F[2]
       lengz=Lzero:TLmax
       TLo=Lzero*a_FL.to.TL+b_FL.to.TL
-      plt=vector('list',length=4)
+      plt=vector('list',length=5)
       plt[[1]]=rbind(data.frame(Age=eig,
                                 TL=TLo+(Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL-TLo)*(1-exp(-Growth.F$k*eig)),
                                 Sex='F'),
@@ -2475,27 +2629,27 @@ if(First.run=="YES")
         ggplot(aes(Age,TL,color=Sex))+
         geom_line(size=1.25)+ylab("TL (cm)")+
         theme_PA()+
-        annotate("text", x = 1, y = TLmax*1.04, label = "Max TL")+
-        geom_hline(yintercept=TLmax, linetype="dashed")+
-        annotate("text", x = 1, y = TLo*.90, label = "TL @ birth")+
-        geom_hline(yintercept=TLo, linetype="dashed")+
-        annotate("text", x = mean(Max.age.F), y = 0, label = "Max age",color='darkorange4')+
-        geom_vline(xintercept=Max.age.F[1], linetype="dashed",color='darkorange4')+
-        geom_vline(xintercept=Max.age.F[2], linetype="dashed",color='darkorange4')+
-        annotate("text", x = mean(Age.50.mat), y = 0, label = "Age.50",col='chartreuse4')+
-        geom_vline(xintercept=Age.50.mat[1], linetype="dashed",col='chartreuse4')+
-        geom_vline(xintercept=Age.50.mat[2], linetype="dashed",col='chartreuse4')+
-        annotate("text", y = TL.50.mat*.95, x = 0, label = "TL.50",col='brown2')+
-        geom_hline(yintercept=TL.50.mat, linetype="dashed",color='brown2')+
-        annotate("text", y = TL.95.mat*.95, x = 0, label = "TL.95",col='brown2')+
-        geom_hline(yintercept=TL.95.mat, linetype="dashed",color='brown2')+
+        annotate("text", x = 1.5, y = TLmax*1.04,parse = T, label = as.character(Lmx))+
+        geom_hline(yintercept=TLmax, linetype="dashed",alpha=0.5)+
+        annotate("text", x = 1.1, y = TLo*.8,parse = T, label = as.character(L0))+
+        geom_hline(yintercept=TLo, linetype="dashed",alpha=0.5)+
+        annotate("text", x = mean(Max.age.F)-2, y = 0,parse = T, label = as.character(Amx),color='darkorange4')+
+        geom_vline(xintercept=Max.age.F[1], linetype="dashed",alpha=0.5,color='darkorange4')+
+        geom_vline(xintercept=Max.age.F[2], linetype="dashed",alpha=0.5,color='darkorange4')+
+        annotate("text", x = mean(Age.50.mat), y = 0, parse = T, label = as.character(A50),col='chartreuse4')+
+        geom_vline(xintercept=Age.50.mat[1], linetype="dashed",alpha=0.5,col='chartreuse4')+
+        geom_vline(xintercept=Age.50.mat[2], linetype="dashed",alpha=0.5,col='chartreuse4')+
+        annotate("text", y = TL.50.mat*.95, x = 1.1,parse = T, label = as.character(L50),col='brown2')+
+        geom_hline(yintercept=TL.50.mat, linetype="dashed",alpha=0.5,color='brown2')+
+        annotate("text", y = TL.95.mat*.95, x = 1.1,parse = T, label =as.character(L95) ,col='brown2')+
+        geom_hline(yintercept=TL.95.mat, linetype="dashed",alpha=0.5,color='brown2')+
         theme(legend.title=element_blank(),
               legend.position="top")
       
       plt[[2]]=data.frame(TL=lengz,
                           Maturity=1/(1+exp(-log(19)*((lengz-TL.50.mat)/(TL.95.mat-TL.50.mat)))))%>%
         ggplot(aes(TL,Maturity))+
-        geom_line(size=1.25)+xlab("TL (cm)")+ylab('Proportion mature')+
+        geom_line(size=1.25,color="#F8766D")+xlab("TL (cm)")+ylab('Proportion mature')+
         theme_PA()+
         annotate("text", x = TL.50.mat*.75, y = .8, label = paste('Fecundity [',Fecundity[1],',',Fecundity[2],']',sep=''))+
         annotate("text", x = TL.50.mat*.75, y = .85, label = paste('Cycle [',Breed.cycle[1],',',Breed.cycle[2],']',sep=''))
@@ -2511,20 +2665,28 @@ if(First.run=="YES")
         geom_line(size=1.25)+xlab("TL (cm)")+ylab('Twt (kg)')+
         theme_PA() 
       
-      plt[[4]]=data.frame(TL=lengz,
+      plt[[4]]=data.frame(Age=eig,
+                          M=Mmean.mean.at.age)%>%
+        ggplot(aes(Age,M))+
+        geom_line(size=1.25,color="black")+xlab("Age")+ylab(expression(paste(plain("Natural mortality (year") ^ plain("-1"),")",sep="")))+
+        theme_PA()
+      
+      plt[[5]]=data.frame(TL=lengz,
                           FL=(lengz-b_FL.to.TL)/a_FL.to.TL)%>%
         ggplot(aes(FL,TL))+
         geom_line(size=1.25)+xlab("FL (cm)")+ylab('TL (cm)')+
         theme_PA()+
         annotate("text", x = mean(lengz), y = mean(lengz)*.8,
                  label = paste('TL =',a_FL.to.TL,' FL + ',b_FL.to.TL ,sep=''))
+
       PLT=ggarrange(plotlist = plt, common.legend = TRUE)
-      annotate_figure(PLT, top = text_grob(capitalize(names(List.sp)[l]),face = "bold", size = 14))
+      #annotate_figure(PLT, top = text_grob(capitalize(names(List.sp)[l]),face = "bold", size = 14))
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                    capitalize(List.sp[[l]]$Name),"/",AssessYr,"/1_Inputs/Visualise data/Biology.tiff",sep=''),
              width = 12,height = 8,compression = "lzw")
+      
     })
-  }
+   }
 }
 
 
@@ -2532,10 +2694,93 @@ if(First.run=="YES")
 
 
 #---18. Catch-only assessments --------------------------------------
-#note: only use Catch-only methods for species with only catch and life history data
-if(Assessed.ktch.only.species=='All') Catch.only.species=Keep.species
-if(Assessed.ktch.only.species=='Only.ktch.data') Catch.only.species=Keep.species[which(!Keep.species%in%names(compact(Catch.rate.series)))]
-if(Do.Ktch.only) fn.source1("Apply_catch only assessments.R")  #~30 mins per species (DBSRA, CMSY & SSS, 1 scenario)
+#Use Catch-only methods for species with only catch and life history data?
+Species.with.length.comp=vector('list',N.sp)
+for(i in 1:N.sp)
+{
+  if(any(grepl('Size_composition',names(Species.data[[i]]))))
+  {
+    d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
+                                  names(Species.data[[i]]))]
+    if(length(d.list)>0)
+    {
+      if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
+      if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
+      Life.history=List.sp[[i]]
+      for(s in 1:length(d.list))
+      {
+        d.list[[s]]=d.list[[s]]%>%
+          filter(FL>=Life.history$Lzero)%>%
+          mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
+                               ifelse(grepl("Survey",names(d.list)[s]),'Survey',
+                                      ifelse(grepl("Other",names(d.list)[s]),'Other',
+                                             'TDGDLF'))),
+                 year=as.numeric(substr(FINYEAR,1,4)),
+                 TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
+                 size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+          filter(TL<=with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))%>%
+          dplyr::rename(sex=SEX)%>%
+          filter(!is.na(sex))%>%
+          group_by(year,fishry,sex,size.class)%>%
+          summarise(n=n())%>%
+          ungroup()
+        
+      }
+      d.list <- d.list[!is.na(d.list)]
+      d.list=do.call(rbind,d.list)%>%
+        group_by(year,fishry,sex,size.class)%>%
+        summarise(n=sum(n))%>%
+        ungroup()%>%
+        filter(!is.na(year))
+      MAXX=max(d.list$size.class)
+      Tab.si.kl=table(d.list$size.class)
+      if(sum(Tab.si.kl[(length(Tab.si.kl)-1):length(Tab.si.kl)])/sum(Tab.si.kl)>.05) MAXX=MAXX*1.2
+      MAXX=min(MAXX,30*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/30))
+      size.classes=seq(min(d.list$size.class),MAXX,by=TL.bins.cm)
+      missing.size.classes=size.classes[which(!size.classes%in%unique(d.list$size.class))]
+      if(fill.in.zeros & length(missing.size.classes)>0)
+      {
+        d.list=rbind(d.list,d.list[1:length(missing.size.classes),]%>%
+                       mutate(size.class=missing.size.classes,
+                              n=0))
+      }
+      Table.n=d.list%>%group_by(year,fishry,sex)%>%
+        summarise(N=sum(n))%>%
+        mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.annual.obs.ktch,10))%>%
+        filter(N>=Min.accepted.N)%>%
+        mutate(dummy=paste(year,fishry,sex))
+      
+      if(nrow(Table.n)>0) Species.with.length.comp[[i]]=Keep.species[i]
+      rm(Life.history)
+    }
+  }
+}
+Species.with.length.comp=c(do.call(rbind,Species.with.length.comp)) 
+not.fitting.SS3=c("pigeye shark")  #no Hessian 
+Species.with.length.comp=subset(Species.with.length.comp,!Species.with.length.comp%in%not.fitting.SS3)
+write.csv(paste('1.',capitalize(Species.with.length.comp),sep=''),paste(Rar.path,'Species.with.length.comp.csv',sep='/'),row.names = F) 
+if(Assessed.ktch.only.species=='All')
+{
+  Catch.only.species=Keep.species
+  Catch.only.species_display=Catch.only.species
+  if(display.only.catch.only.sp)
+  {
+    Catch.only.species_display=Keep.species[which(!Keep.species%in%names(compact(Catch.rate.series)))]
+    Catch.only.species_display=subset(Catch.only.species_display,!Catch.only.species_display%in%Species.with.length.comp)
+  }
+}
+
+if(Assessed.ktch.only.species=='Only.ktch.data') 
+{
+  Catch.only.species=Keep.species[which(!Keep.species%in%names(compact(Catch.rate.series)))]
+  Catch.only.species=subset(Catch.only.species,!Catch.only.species%in%Species.with.length.comp)
+  Catch.only.species_display=Catch.only.species
+}
+
+Catch.only.species_only.ktch=Keep.species[which(!Keep.species%in%names(compact(Catch.rate.series)))]
+Catch.only.species_only.ktch=subset(Catch.only.species_only.ktch,!Catch.only.species_only.ktch%in%Species.with.length.comp)
+
+if(Do.Ktch.only) fn.source1("Apply_catch only assessments.R")  #~40 mins per species (DBSRA, CMSY & SSS, 1 scenario)
 
 #Ballpark M check for SSS
 check.ballpark.M=FALSE
@@ -2704,17 +2949,22 @@ clear.log('Post')
 clear.log('dummy.store.Kobe.probs')
 
 # Create SS-DL tool input files
-for(i in 1:N.sp)
+Export.SS_DL.tool.inputs=FALSE
+if(Export.SS_DL.tool.inputs)
 {
-  fn.create.SS_DL_tool_inputs(Life.history=List.sp[[i]],
-                              CACH=KtCh,
-                              this.wd=paste(handl_OneDrive("Workshops/2023_Jason Cope_SS_DL_tool/Myinputfiles/"),
-                                            capitalize(Keep.species[i]),sep=''),
-                              Neim=Keep.species[i],
-                              InputData=Species.data[[i]],
-                              KtchRates=Catch.rate.series[[i]])
-  print(paste('Export SS-DL tool inputs for ------', Keep.species[i]))
+  for(i in 1:N.sp)
+  {
+    fn.create.SS_DL_tool_inputs(Life.history=List.sp[[i]],
+                                CACH=KtCh,
+                                this.wd=paste(handl_OneDrive("Workshops/2023_Jason Cope_SS_DL_tool/Myinputfiles/"),
+                                              capitalize(Keep.species[i]),sep=''),
+                                Neim=Keep.species[i],
+                                InputData=Species.data[[i]],
+                                KtchRates=Catch.rate.series[[i]])
+    print(paste('Export SS-DL tool inputs for ------', Keep.species[i]))
+  }
 }
+
 
 #---26. Integrated Bespoke (Size-based) Model-------------------------------------------------
 if(Do.bespoked) fn.source1("Integrated_size_based.R")
@@ -2951,7 +3201,7 @@ axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
 dev.off()
 
 
-#3.2.Indicator species
+#3.2.Indicator species    
 Sp.risk.ranking=subset(All.Sp.risk.ranking,All.Sp.risk.ranking%in%names(Indicator.species))
 fn.fig(paste(Rar.path,"Risk_Indicator.sp",sep='/'), 2200, 2400)  
 
@@ -2997,6 +3247,18 @@ axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
 
 dev.off()
 
+#ACA: MISSING. incorporate to script
+
+#general example
+NN=5
+dummy.d=data.frame(Species=paste('Species',rep(1:NN,each=4)),
+                   Consequence=rep(1:4,each=4*NN),
+                   Likelihood=rep(1:4,4*NN),
+                   w=.5)
+Store.risk=fn.risk.figure(d=dummy.d%>%
+                            group_by(Species) %>%
+                            sample_n(size=4),
+                          Risk.colors=RiskColors)
 
 
 #---28. Outputs for strategic papers  ------------------------------------------------- 

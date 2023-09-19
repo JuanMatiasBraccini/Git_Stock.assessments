@@ -182,6 +182,14 @@ for(i in 1:length(DATA_obs))
 }
 
 
+
+# Extract data for Emity-------------------------------------------
+do.this=FALSE
+if(do.this)
+{
+  write.csv(DATA_obs$GN%>%
+    filter(MESH_SIZE%in%c('6','6.5','7')),'C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Desktop/For_Emily.csv',row.names = F)
+}
 # Show Decadal species composition for Commercial catch recons paper-------------------------------------------
 do.this=FALSE  
 if(do.this)

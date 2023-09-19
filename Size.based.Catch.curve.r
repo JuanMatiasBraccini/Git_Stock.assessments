@@ -37,7 +37,7 @@ system.time({for(l in 1: N.sp)
     N.min=dummy%>%
       group_by(year)%>%
       tally()%>%
-      filter(n>=Min.annual.obs)%>%
+      filter(n>=Min.annual.obs.ktch)%>%
       mutate(Keep=year)
     if(nrow(N.min)>0)
     {

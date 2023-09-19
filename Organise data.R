@@ -1280,6 +1280,9 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
       mutate(Size.class=as.numeric(Size.class))
     
     colfunc <- colorRampPalette(c("red","orange","forestgreen","dodgerblue4"))
+    Fem.linf.TL=with(LH.par,FL_inf*a_FL.to.TL+b_FL.to.TL)
+    Male.linf.TL=with(LH.par,male_FL_inf*a_FL.to.TL+b_FL.to.TL)
+    TL.ratio=paste('TL_50%mat : TL_inf ratio =',round(100*LH.par$TL.50.mat/Fem.linf.TL),"%",sep='')
     
     tdgdlf.size=All.size.gathered%>%filter(grepl('TDGDLF',Fishery))%>%ungroup()
     if(nrow(tdgdlf.size)>0)
@@ -1294,11 +1297,17 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         geom_line(aes(linetype=Sex),size=1.05)+
         facet_wrap(~Zone.Fishery,scales='free_y')+
         ylab("Frequency")+xlab("TL size class (cm)")+
-        theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=18)+
+        theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=16)+
         scale_color_manual(values=colfunc(nKl))+
-        geom_vline(xintercept=LH.par$TL.50.mat)+
-        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",size=5,vjust=1.5)
-      ggsave("Size.comp.TDGDLF_dist.tiff",width = 14,height = 10,compression = "lzw")
+        geom_vline(xintercept=LH.par$TL.50.mat,color='deeppink')+
+        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
+        geom_vline(xintercept=Fem.linf.TL)+
+        annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
+        geom_vline(xintercept=Male.linf.TL,linetype="dashed")+
+        xlim(min(tdgdlf.size$Size.class),max(tdgdlf.size$Size.class,Fem.linf.TL))+
+        labs(caption = TL.ratio)+theme(plot.caption = element_text(size = 15))
+ 
+      ggsave("Size.comp.TDGDLF_dist.tiff",width = 14,height = 10,compression = "lzw")  
     }
     
     nsf.size=All.size.gathered%>%filter(grepl('NSF',Fishery))%>%ungroup()
@@ -1312,8 +1321,14 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         ylab("Frequency")+xlab("TL size class (cm)")+
         theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=18)+
         scale_color_manual(values=colfunc(nKl))+
-      geom_vline(xintercept=LH.par$TL.50.mat)+
-        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",size=5,vjust=1.5)
+        geom_vline(xintercept=LH.par$TL.50.mat,color='deeppink')+
+        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
+        geom_vline(xintercept=Fem.linf.TL)+
+        annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
+        geom_vline(xintercept=Male.linf.TL,linetype="dashed")+
+        xlim(min(nsf.size$Size.class),max(nsf.size$Size.class,Fem.linf.TL))+
+        labs(caption = TL.ratio)+theme(plot.caption = element_text(size = 15))
+      
       ggsave("Size.comp.NSF_dist.tiff",width = 10,height = 10,compression = "lzw")
     }
     
@@ -1328,8 +1343,14 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         ylab("Frequency")+xlab("TL size class (cm)")+
         theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=18)+
         scale_color_manual(values=colfunc(nKl))+
-        geom_vline(xintercept=LH.par$TL.50.mat)+
-        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",size=5,vjust=1.5)
+        geom_vline(xintercept=LH.par$TL.50.mat,color='deeppink')+
+        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
+        geom_vline(xintercept=Fem.linf.TL)+
+        annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
+        geom_vline(xintercept=Male.linf.TL,linetype="dashed")+
+        xlim(min(Survey.size$Size.class),max(Survey.size$Size.class,Fem.linf.TL))+
+        labs(caption = TL.ratio)+theme(plot.caption = element_text(size = 15))
+      
       ggsave("Size.comp.Survey_dist.tiff",width = 10,height = 10,compression = "lzw")
     }
     
@@ -1344,8 +1365,14 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         ylab("Frequency")+xlab("TL size class (cm)")+
         theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=18)+
         scale_color_manual(values=colfunc(nKl))+
-        geom_vline(xintercept=LH.par$TL.50.mat)+
-        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",size=5,vjust=1.5)
+        geom_vline(xintercept=LH.par$TL.50.mat,color='deeppink')+
+        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
+        geom_vline(xintercept=Fem.linf.TL)+
+        annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
+        geom_vline(xintercept=Male.linf.TL,linetype="dashed")+
+        xlim(min(pilbara.size$Size.class),max(pilbara.size$Size.class,Fem.linf.TL))+
+        labs(caption = TL.ratio)+theme(plot.caption = element_text(size = 15))
+      
       ggsave("Size.comp.Pilbara.trawl_dist.tiff",width = 10,height = 10,compression = "lzw")
     }
     
@@ -1490,7 +1517,6 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         }
       } 
     }
-    
     
       #2.2 NSF size comp of reported catch
     if('NSF'%in%names(All.size))

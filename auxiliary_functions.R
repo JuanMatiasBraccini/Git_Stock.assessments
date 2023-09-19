@@ -2831,7 +2831,23 @@ fn.out.poly=function(In.dep)
                paste('Compare COMs performance_Init.dep_',In.dep,'.tiff',sep=''),sep=''),
          width = 10,height = 10,compression = "lzw")
 }
-mod.average=function(dd,Weights)
+prob.wrapper=function(DAT,id.yr,B.target,B.threshold,B.limit)
+{
+  f=ecdf(DAT[,id.yr])
+  P.below.target=f(B.target)
+  P.below.threshold=f(B.threshold)
+  P.below.limit=f(B.limit)
+  P.above.target=1-P.below.target
+  P.above.threshold=1-P.below.threshold
+  P.above.limit=1-P.below.limit
+  P.between.thre.tar=P.below.target-P.below.threshold
+  P.between.lim.thre=P.below.threshold-P.below.limit
+  return(data.frame(Range=c('<lim','lim.thr',
+                           'thr.tar','>tar'),
+                   Probability=round(c(P.below.limit,P.between.lim.thre,
+                                       P.between.thre.tar,P.above.target),3)))
+}
+mod.average=function(dd,Weights,Ref.pnt=NULL)
 {
   yrs=as.numeric(gsub("^.*X","",names(dd$CMSY)))
   NN=max(sapply(dd,nrow))
@@ -2846,9 +2862,50 @@ mod.average=function(dd,Weights)
   Median=apply(dd,2,median,na.rm=T)
   Lower=apply(dd,2,function(x) quantile(x,probs=0.025,na.rm=T))
   Upper=apply(dd,2,function(x) quantile(x,probs=0.975,na.rm=T)) 
+  Trajectories=data.frame(year=yrs,median=Median,lower.95=Lower,upper.95=Upper)
   
-  return(data.frame(year=yrs,median=Median,lower.95=Lower,upper.95=Upper))
+  Probs=Probs.future=NULL
+  if(!is.null(Ref.pnt))
+  {
+    Years=Trajectories$year
+    Probs=prob.wrapper(DAT=dd,
+                       id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
+                       B.target=Ref.pnt%>%filter(Rf.pt=='Target')%>%pull(Value),
+                       B.threshold=Ref.pnt%>%filter(Rf.pt=='Threshold')%>%pull(Value),
+                       B.limit=Ref.pnt%>%filter(Rf.pt=='Limit')%>%pull(Value))%>%
+                       mutate(Probability=Probability/sum(Probability),
+                              finyear=as.numeric(substr(Last.yr.ktch,1,4)))
+    
+    Probs.future=prob.wrapper(DAT=dd,
+                              id.yr=match(Years[length(Years)],Years),
+                              B.target=Ref.pnt%>%filter(Rf.pt=='Target')%>%pull(Value),
+                              B.threshold=Ref.pnt%>%filter(Rf.pt=='Threshold')%>%pull(Value),
+                              B.limit=Ref.pnt%>%filter(Rf.pt=='Limit')%>%pull(Value))%>%
+                      mutate(Probability=Probability/sum(Probability),
+                             finyear=Years[length(Years)])
+  }
+  return(list(Trajectories=Trajectories,Probs=Probs,Probs.future=Probs.future))
 }
+mod.average.scalar=function(dd,Weights)
+{
+  NN=max(sapply(dd,nrow))
+  for(w in 1:length(dd))
+  {
+    WEI=Weights%>%filter(Model==names(dd)[w])%>%pull(Weight)
+    Size=round(WEI*NN)
+    dd[[w]]=dd[[w]]%>%
+              filter(Scenario=='S1')%>%
+              dplyr::select(Value)
+    dd[[w]]=dd[[w]][sample(1:nrow(dd[[w]]),Size,replace = T),]
+  }
+  dd=do.call(c,dd)
+  Median=median(dd,na.rm=T)
+  Lower=quantile(dd,probs=0.025,na.rm=T)
+  Upper=quantile(dd,probs=0.975,na.rm=T) 
+  
+  return(data.frame(median=Median,lower.95=Lower,upper.95=Upper))
+}
+
 
 # Display functions  ------------------------------------------------------
 fn.prior=function(N=1e4,d,MAX=NULL)
@@ -2961,6 +3018,16 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
                       id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
                       B.threshold=dd$Estimates[Biomass.threshold,'Median (ll=1)']/dd$Estimates['K','Median (ll=1)'])
       Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+      {
+        Probs.future=add.probs(DAT=d1,
+                               id.yr=match(Years[length(Years)],Years),
+                               B.threshold=dd$Estimates[Biomass.threshold,'Median (ll=1)']/dd$Estimates['K','Median (ll=1)'])
+        Probs$probs.future=Probs.future$probs%>%
+          mutate(Scenario=scen,
+                 finyear=Years[length(Years)])
+      }
+      
     }
     if(Type=='F.series')d1=dd$F.series[1:length(Years)]
     if(Type=='B.Bmsy') d1=dd$B.Bmsy[1:length(Years)]
@@ -2989,6 +3056,15 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
                       id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
                       B.threshold=median(dd$Bmsy)/dd$Statistics$output['K','50%'])
       Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+      {
+        Probs.future=add.probs(DAT=d1,
+                        id.yr=match(Years[length(Years)],Years),
+                        B.threshold=median(dd$Bmsy)/dd$Statistics$output['K','50%'])
+        Probs$probs.future=Probs.future$probs%>%
+                            mutate(Scenario=scen,
+                                   finyear=Years[length(Years)])
+      }
     }
     
     if(Type=='F.series')  d1=dd$F.traj[,1:length(Years)]
@@ -3024,6 +3100,16 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
                       id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
                       B.threshold=median(dd$posteriors$SBmsy)/K)
       Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      
+      if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+      {
+        Probs.future=add.probs(DAT=sweep(dd$posteriors$SB,1,dd$posteriors$K,'/'),
+                               id.yr=match(Years[length(Years)],Years),
+                               B.threshold=median(dd$posteriors$SBmsy)/K)
+        Probs$probs.future=Probs.future$probs%>%
+          mutate(Scenario=scen,
+                 finyear=Years[length(Years)])
+      }
     }
     if(Type=='F.series')
     {
@@ -3109,6 +3195,19 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
                         B.threshold=median(SSB_MSY$Depletion))
         Probs$probs=Probs$probs%>%mutate(Scenario=scen)
         
+        if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+        {
+          Probs.future=add.probs(DAT=SSB%>%
+                                   dplyr::select(Simulation,year,Depletion)%>%
+                                   spread(year,Depletion)%>%
+                                   dplyr::select(-Simulation),
+                                 id.yr=match(Years[length(Years)],Years),
+                                 B.threshold=median(SSB_MSY$Depletion))
+          Probs$probs.future=Probs.future$probs%>%
+            mutate(Scenario=scen,
+                   finyear=Years[length(Years)])
+        }
+        
       }
       if(biom.type=='total')
       {
@@ -3139,6 +3238,18 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
                         B.threshold=median(SSB_MSY$Depletion))
         Probs$probs=Probs$probs%>%mutate(Scenario=scen)
         
+        if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+        {
+          Probs.future=add.probs(DAT=TotB%>%
+                                   dplyr::select(Simulation,year,Depletion)%>%
+                                   spread(year,Depletion)%>%
+                                   dplyr::select(-Simulation),
+                                 id.yr=match(Years[length(Years)],Years),
+                                 B.threshold=median(SSB_MSY$Depletion))
+          Probs$probs.future=Probs.future$probs%>%
+            mutate(Scenario=scen,
+                   finyear=Years[length(Years)])
+        }
       }
     }
     
@@ -3336,7 +3447,7 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen)
   
 }
 
-fn.display.priors=function(d,sp,XLAB,XLIM)
+fn.display.priors=function(d,sp,XLAB,XLIM,Strx.siz=16)
 {
   dummy=lapply(d[sp],function(x) rnorm(1e4,x$mean,x$sd))
   dummy=lapply(dummy,function(x)data.frame(var=x))
@@ -3348,7 +3459,7 @@ fn.display.priors=function(d,sp,XLAB,XLIM)
     geom_density(aes(color=Species),size=1.5)+
     facet_wrap(~Species,scales='free_y')+
     xlab(XLAB)+ylab("Density")+
-    theme_PA(axs.T.siz=22,axs.t.siz=14,strx.siz=16)+
+    theme_PA(axs.T.siz=22,axs.t.siz=14,strx.siz=Strx.siz)+
     theme(legend.position = "none",
           plot.title =element_text(size=17))+
     scale_x_continuous(limits = XLIM)
@@ -3384,6 +3495,15 @@ make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,YLAB=''
       scale_y_continuous(sec.axis = sec_axis(~.*coeff, name=""))
   }
   p=p+geom_line(size=1.1)
+  future.ktch=da%>%filter(year>Last.yr.ktch.numeric)
+  if(nrow(future.ktch)>0)
+  {
+    p=p+
+      geom_ribbon(data=future.ktch,aes(ymin = lower.95, ymax = upper.95), alpha = 0.2,fill=future.color) +
+      geom_line(data=future.ktch,aes(year,median),color=future.color,size=1.1)
+    if(addKtch)p=p+geom_line(data=future.ktch, aes(x=year, y=Ktch.scaled),size=1.1,color=future.color)
+    
+  }
   return(p)
 }
 fn.ribbon=function(Dat,YLAB,XLAB,Titl,HLIne,addKtch,nfacets=1,AXST=14,AXSt=12,STRs=14,InrMarg=.25,dropTitl=FALSE)
@@ -3405,9 +3525,8 @@ fn.ribbon=function(Dat,YLAB,XLAB,Titl,HLIne,addKtch,nfacets=1,AXST=14,AXSt=12,ST
                Threshold=HLIne[2],
                Limit=HLIne[3])
     }
-    
   }
-  p_lst <- lapply(data2, make_plot,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,HLine=HLIne)
+  p_lst <- lapply(data2, make_plot,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,HLine=NULL)
   for(ii in 1:length(p_lst))
   {
     p_lst[[ii]]=p_lst[[ii]]+theme(plot.margin = unit(c(0, 0, 0, 0), "pt"))
@@ -3444,7 +3563,7 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
         store.probs[[m]]=do.call(rbind,sapply(str.prob,'[',1))%>%  
           mutate(Model=names(store.probs)[m])
       }
-      store.plots[[m]]=fn.ribbon(Dat=Var,
+      store.plots[[m]]=fn.ribbon(Dat=Var,  
                                  YLAB='',
                                  XLAB="",
                                  Titl=names(d)[m],
@@ -3671,6 +3790,168 @@ fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,
     return(figure)
   }
 }
+fn.plot.catch.vs.MSY=function(d,sp,YLAB)
+{
+  mods=names(d)
+  store.plots=vector('list',length(mods))
+  names(store.plots)=mods
+  id=match(sp,Keep.species)
+  for(m in 1:length(mods))
+  {
+    if(!is.null(d[[m]]$estimates[[id]]))
+    {
+      MSY.estim=d[[m]]$estimates[[id]]
+      if(!'Parameter'%in%names(MSY.estim)) MSY.estim$Parameter=MSY.estim$Par
+      MSY.estim=MSY.estim[grep('MSY',MSY.estim$Parameter),]%>%filter(Scenario=='S1')
+      
+      Ktch=d[[m]]$rel.biom[[id]]%>%filter(Scenario=='S1')
+      
+      suppressWarnings({store.plots[[m]]=data.frame(Year=Ktch$year,
+                                                    Catch=Ktch$Catch,
+                                                    MSY_Lower.95=MSY.estim$Lower.95,
+                                                    MSY_Median=MSY.estim$Median,
+                                                    MSY_Upper.95=MSY.estim$Upper.95,
+                                                    Model=mods[m])}) 
+    }
+  }
+  store.plots=compact(store.plots)
+  if(length(store.plots)>0)
+  {
+    store.plots=do.call(rbind,store.plots)
+    
+    figure=store.plots%>%
+      ggplot(aes(Year,Catch))+
+      geom_line(aes(Year,MSY_Median),color="black",size=.65)+
+      geom_ribbon(aes(ymin = MSY_Lower.95, ymax = MSY_Upper.95), alpha=.1,fill ="black")+
+      geom_line(size=.75,color='dodgerblue4')+
+      facet_wrap(~Model,ncol=1)+
+      theme_PA()+ylab(YLAB)+xlab('Financial year')
+    future.ktch=store.plots%>%filter(Year>Last.yr.ktch.numeric)
+    if(nrow(future.ktch)>0)
+    {
+      figure=figure+
+              geom_line(data=future.ktch,aes(Year,Catch),size=.75,color=future.color)
+    }
+    print(figure)      
+    return(store.plots%>%mutate(Species=sp))
+  }
+}
+fn.plot.catch.vs.MSY_combined_Appendix=function(all.this.sp,this.sp,d,NM,YLAB)
+{
+  #table
+  d1=d%>%
+    filter(Species%in%all.this.sp)%>%
+    filter(Year<=Last.yr.ktch.numeric)%>%
+    mutate(Species=capitalize(Species))%>%
+    group_by(Model,Species)%>%
+    summarise(Catch.last.yr=mean(data.table::last(Catch,1)),
+              Catch.mean.last.3.yrs=mean(data.table::last(Catch,3)),
+              MSY_Lower.95=mean(MSY_Lower.95),
+              MSY_Median=mean(MSY_Median),
+              MSY_Upper.95=mean(MSY_Upper.95))
+  write.csv(d1,
+            paste(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_',NM,'_Appendix','.csv',sep=''),
+            row.names=F)
+  
+  #figure
+  if(length(this.sp)>0)
+  {
+    d=d%>%
+      filter(Species%in%this.sp)%>%
+      mutate(Species=capitalize(Species))
+    mods=unique(d$Model)
+    nnn=length(unique(d$Species))
+    Nkl=ifelse(nnn<4,1,ifelse(nnn>=4 & nnn<=8,2,3))
+    WID=ifelse(Nkl<3,7,7)
+    aXS.si=ifelse(Nkl<3,12,9)
+    STR.siz=ifelse(Nkl<3,15,10.5)
+
+    for(m in 1:length(mods))
+    {
+      figure=d%>%
+        filter(Model==mods[m])%>%
+        ggplot(aes(Year,Catch))+
+        geom_line(aes(Year,MSY_Median),color="black",size=.65)+
+        geom_ribbon(aes(ymin = MSY_Lower.95, ymax = MSY_Upper.95), alpha=.1,fill ="black")+
+        geom_line(size=.75,color='dodgerblue4')+
+        facet_wrap(~Species,scales='free_y',ncol=Nkl)+
+        theme_PA(axs.t.siz=aXS.si,strx.siz=STR.siz)+
+        ylab(YLAB)+xlab("Financial year")
+      future.ktch=d%>%filter(Year>Last.yr.ktch.numeric)
+      if(nrow(future.ktch)>0)
+      {
+        figure=figure+
+          geom_line(data=future.ktch,aes(Year,Catch),size=.75,color=future.color)
+      }
+      print(figure)
+      ggsave(paste(Rar.path,'/Catch_vs_MSY_catch.only_',NM,'_',mods[m],'_Appendix_S1','.tiff',sep=''),
+             width = WID,height = 7,compression = "lzw")
+    }
+  }
+
+}
+fn.plot.catch.vs.MSY_combined=function(all.this.sp,this.sp,d,NM,YLAB,MSY)
+{
+  for(k in 1:length(MSY)) MSY[[k]]$Species=names(MSY)[k]
+  MSY=do.call(rbind,MSY)%>%
+    rename(ensembled.median=median,
+           ensembled.lower.95=lower.95,
+           ensembled.upper.95=upper.95)
+  
+  #table
+  d1=d%>%
+    dplyr::select(-c(MSY_Lower.95,MSY_Median,MSY_Upper.95))%>%
+    filter(Species%in%all.this.sp)%>%
+    filter(Year<=Last.yr.ktch.numeric)%>%
+    left_join(MSY,by='Species')%>%
+    mutate(Species=capitalize(Species))%>%
+    group_by(Species)%>%
+    summarise(Catch.last.yr=mean(data.table::last(Catch,1)),
+              Catch.mean.last.3.yrs=mean(data.table::last(Catch,3)),
+              MSY_Lower.95=mean(ensembled.lower.95),
+              MSY_Median=mean(ensembled.median),
+              MSY_Upper.95=mean(ensembled.upper.95))
+  write.csv(d1,
+            paste(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_',NM,'.csv',sep=''),
+            row.names=F)
+  
+  #figure
+  if(length(this.sp)>0)
+  {
+    MSY=MSY%>%filter(Species%in%this.sp)
+    d=d%>%
+      filter(Species%in%this.sp)
+    mods=unique(d$Model)
+    nnn=length(unique(d$Species))
+    Nkl=ifelse(nnn<4,1,ifelse(nnn>=4 & nnn<=8,2,4))
+    WID=ifelse(Nkl<3,7,8)
+    aXS.si=ifelse(Nkl<3,12,9)
+    STR.siz=ifelse(Nkl<3,15,10.5)
+    d=d%>%
+      filter(Model==mods[1])%>%
+      left_join(MSY,by='Species')%>%
+      mutate(Species=capitalize(Species))
+    
+    figure=d%>%
+      ggplot(aes(Year,Catch))+
+      geom_line(aes(Year,ensembled.median),color="black",size=.65)+
+      geom_ribbon(aes(ymin = MSY_Lower.95, ymax = MSY_Upper.95), alpha=.1,fill ="black")+
+      geom_line(size=.75,color='dodgerblue4')+
+      facet_wrap(~Species,scales='free_y',ncol=Nkl)+
+      theme_PA(axs.t.siz=aXS.si,strx.siz=STR.siz)+
+      ylab(YLAB)+xlab("Financial year")
+    future.ktch=d%>%filter(Year>Last.yr.ktch.numeric)
+    if(nrow(future.ktch)>0)
+    {
+      figure=figure+
+        geom_line(data=future.ktch,aes(Year,Catch),size=.75,color=future.color)
+    }
+    print(figure)
+    ggsave(paste(Rar.path,'/Catch_vs_MSY_catch.only_',NM,'.tiff',sep=''),
+           width = WID,height = 7,compression = "lzw")
+    
+  }
+}
 kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=4)
 {
   dta=data.frame(x=b.traj,
@@ -3746,10 +4027,13 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
     #DBSRA
     if('DBSRA'%in%names(d)[[pp]])
     {
-      dummy=d$DBSRA$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+      dummy=d$DBSRA$B.Bmsy[[id]]%>%
+                  filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
       yrs=dummy%>%pull(year)
       Bmsy=dummy$median
-      Fmsy=d$DBSRA$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      Fmsy=d$DBSRA$F.Fmsy[[id]]%>%
+              filter(Scenario==Scen& year<=Last.yr.ktch.numeric)%>%
+              pull(median)
       p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
                        b.traj=Bmsy[1:length(yrs)],
                        Years=yrs,
@@ -3770,10 +4054,13 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
       }
       if(CMSY.method=="Haddon")
       {
-        dummy=d$CMSY$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+        dummy=d$CMSY$B.Bmsy[[id]]%>%
+                  filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
         yrs=dummy%>%pull(year)
         Bmsy=dummy$median
-        Fmsy=d$CMSY$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+        Fmsy=d$CMSY$F.Fmsy[[id]]%>%
+              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
+              pull(median)
       }
       p.plot=kobePlot(f.traj=Fmsy,
                       b.traj=Bmsy,
@@ -3786,10 +4073,13 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
     #JABBA
     if('JABBA'%in%names(d)[[pp]])
     {
-      dummy=d$JABBA$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+      dummy=d$JABBA$B.Bmsy[[id]]%>%
+                filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
       yrs=dummy%>%pull(year)
       Bmsy=dummy$median
-      Fmsy=d$JABBA$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      Fmsy=d$JABBA$F.Fmsy[[id]]%>%
+            filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
+            pull(median)
       if(!do.probs)
       {
         p.plot=kobePlot(f.traj=Fmsy,
@@ -3813,10 +4103,13 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
     #SSS
     if('SSS'%in%names(d)[[pp]])
     {
-      dummy=d$SSS$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+      dummy=d$SSS$B.Bmsy[[id]]%>%
+              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
       yrs=dummy%>%pull(year)
       Bmsy=dummy$median
-      Fmsy=d$SSS$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      Fmsy=d$SSS$F.Fmsy[[id]]%>%
+              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
+              pull(median)
       p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
                      b.traj=Bmsy[1:length(yrs)],
                      Years=yrs,
@@ -3828,10 +4121,13 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
     #SS
     if('SS'%in%names(d)[[pp]])
     {
-      dummy=d$SS$B.Bmsy[[id]]%>%filter(Scenario==Scen)
+      dummy=d$SS$B.Bmsy[[id]]%>%
+              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
       yrs=dummy%>%pull(year)
       Bmsy=dummy$median
-      Fmsy=d$SS$F.Fmsy[[id]]%>%filter(Scenario==Scen)%>%pull(median)
+      Fmsy=d$SS$F.Fmsy[[id]]%>%
+              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
+              pull(median)
       p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
                     b.traj=Bmsy[1:length(yrs)],
                     Years=yrs,
@@ -3892,8 +4188,8 @@ fn.get.Kobe.plot=function(this.sp,d,NKOL,NRW,do.probs=FALSE)
   plotlist=vector('list',length(Bmsy))
   for(x in 1:length(Bmsy))
   {
-    dis.fmsy=Fmsy[[x]]
-    dis.bmsy=Bmsy[[x]] 
+    dis.fmsy=Fmsy[[x]]%>%filter(year<=Last.yr.ktch.numeric)
+    dis.bmsy=Bmsy[[x]]%>%filter(year<=Last.yr.ktch.numeric)
     
     if('Scenario'%in%names(dis.fmsy))
     {
@@ -3908,7 +4204,7 @@ fn.get.Kobe.plot=function(this.sp,d,NKOL,NRW,do.probs=FALSE)
                   b.traj=dis.bmsy$median,
                   Years=dis.bmsy$year,
                   Titl=capitalize(names(Bmsy)[x]),
-                  YrSize=6)+rremove("axis.title")
+                  YrSize=5)+rremove("axis.title")
     }
     
     if(do.probs)
@@ -4079,11 +4375,11 @@ fn.each.LoE.risk=function(N.sp,CX.axis)
   severe.Vec <- fn.cons.po(rep(12,nn),rep(16,nn))
   plot(X.rng,xlim=c(0,16),ylim=c(0,N.sp+1),xaxs="i",yaxs="i",
        col="transparent",ylab="",xlab="",xaxt='n',yaxt='n')
-  polygon(negigible.Vec, x.Vec, col = 'cornflowerblue', border = "transparent")
-  polygon(low.Vec, x.Vec, col = 'olivedrab3', border = "transparent")
-  polygon(medium.Vec, x.Vec, col = 'yellow', border = "transparent")
-  polygon(high.Vec, x.Vec, col = 'orange', border = "transparent")
-  polygon(severe.Vec, x.Vec, col = 'red', border = "transparent")
+  polygon(negigible.Vec, x.Vec, col = RiskColors['Negligible'], border = "transparent")
+  polygon(low.Vec, x.Vec, col = RiskColors['Low'], border = "transparent")
+  polygon(medium.Vec, x.Vec, col = RiskColors['Medium'], border = "transparent")
+  polygon(high.Vec, x.Vec, col = RiskColors['High'], border = "transparent")
+  polygon(severe.Vec, x.Vec, col = RiskColors['Severe'], border = "transparent")
   
   axis(1,at=c(mean(negigible.Vec),mean(low.Vec),mean(medium.Vec),mean(high.Vec),mean(severe.Vec)),
        labels=c("Negl.","Low","Med.","High","Severe"),cex.axis=CX.axis)
@@ -4093,11 +4389,82 @@ fn.overall.risk=function(N,RISK,sp,CX=1.5)
 {
   x.Vec <-  c(1,3,3,1)
   y.Vec <- c(rep((s-.5),2),rep((s+.5),2))
-  if(RISK=="Negligible") CL = 'cornflowerblue'
-  if(RISK=="Low") CL = 'olivedrab3'
-  if(RISK=="Medium") CL ='yellow'
-  if(RISK=="High") CL ='orange'
-  if(RISK=="Severe") CL ='red'
+  if(RISK=="Negligible") CL = RiskColors['Negligible']
+  if(RISK=="Low") CL = RiskColors['Low']
+  if(RISK=="Medium") CL =RiskColors['Medium']
+  if(RISK=="High") CL =RiskColors['High']
+  if(RISK=="Severe") CL =RiskColors['Severe']
   polygon(x.Vec, y.Vec, col = CL, border = "transparent")
   text(1.5,mean(y.Vec),sp,cex=CX)
+}
+fn.risk.figure=function(d,Risk.colors)   
+{
+  d=d%>%
+    mutate(Score=Consequence*Likelihood,
+           Cons=case_when(Consequence==1~'Minor',
+                          Consequence==2~'Moderate',
+                          Consequence==3~'High',
+                          Consequence==4~'Major'),
+           Like=case_when(Likelihood==1~'Remote',
+                          Likelihood==2~'Unlikely',
+                          Likelihood==3~'Possible',
+                          Likelihood==4~'Likely'),
+           Cons.lbl=paste(paste(Cons,'\n',sep=''),' (',Consequence,')',sep=''),
+           Cons.lbl=factor(Cons.lbl,levels=rev(c("Minor\n (1)","Moderate\n (2)","High\n (3)","Major\n (4)"))),
+           Like.lbl=paste(paste(Like,'\n',sep=''),' (',Likelihood,')',sep=''),
+           Like.lbl=factor(Like.lbl,c("Remote\n (1)","Unlikely\n (2)","Possible\n (3)","Likely\n (4)")),
+           Risk=case_when(Score<=2~'Negligible',
+                          Score>2 & Score<=4~'Low',
+                          Score>4 & Score<=8~'Medium',
+                          Score>8 & Score<12~'High',
+                          Cons=='High' & Like=='Likely'~'High',
+                          Cons=='Major' & Like=='Possible'~'Severe',
+                          Score>12~'Severe'),
+           Risk=factor(Risk,levels=c('Negligible','Low','Medium','High','Severe')))%>%
+    group_by(Species)%>%
+    mutate(Max.val=max(Score))%>%
+    ungroup()%>%
+    mutate(Max.val=ifelse(Max.val==Score,Max.val,''),
+           id = row_number())
+  iid.dups=which(!d$Max.val=='')
+  dumi=d[iid.dups,]
+  tab1=table(dumi$Species)
+  if(any(tab1>1))
+  {
+    drop.dis=dumi%>%
+      filter(Species%in%names(tab1)[tab1>1])%>%
+      group_by(Species)%>%
+      mutate(Max.cons=max(Consequence))%>%
+      filter(!Consequence==Max.cons)%>%
+      pull(id)
+    iid.dups=iid.dups[-match(drop.dis,iid.dups)]
+    d=d%>%
+      mutate(Max.val=ifelse(id%in%drop.dis,'',Max.val))
+  }
+  
+  p=d%>%
+    ggplot(aes(Like.lbl,Cons.lbl,  width = w)) +
+    geom_tile(aes(fill = Risk))+
+    facet_wrap(~Species,ncol=2)+
+    scale_fill_manual(values=Risk.colors)+
+    theme_bw()%+replace% 
+    theme(legend.position = "none",
+          panel.background = element_blank(),
+          panel.border = element_rect(colour = "black", fill=NA, size=1.15),
+          panel.grid.major = element_blank(),    
+          panel.grid.minor = element_blank(),    
+          axis.line = element_line(colour = "black"),
+          strip.background = element_rect(fill = "transparent",colour = "transparent"),
+          strip.text = element_text(size = 16),
+          axis.title = element_text(size = 18),
+          axis.text = element_text(size = 12),
+          axis.text.y=element_text(hjust=0.5),
+          plot.caption = element_text(hjust = -0.25,size=9))+
+    xlab('Likelihood')+ylab('Consequence')+
+    geom_text(aes(Like.lbl,Cons.lbl,label=Max.val),size=5,fontface='bold')+
+    labs(caption=expression(atop('Consequence: Minor, B'[Cur]*'>B'[Tar]*'; Moderate, B'[Tar]*'>B'[Cur]*'>B'[Thr]*
+                                   '; High, B'[Thr]*'>B'[Cur]*'>B'[Lim]*'; Major, B'[Lim]*'>B'[Cur],
+                                 'Likelihood: Remote, <5%, Unlikely, 5-20%, Possible, 20-50%, Likely, >50%                                  ')))
+  print(p)  
+  return(d[iid.dups,]%>%dplyr::select(-c(w,Cons.lbl,Like.lbl,Max.val,id)))
 }

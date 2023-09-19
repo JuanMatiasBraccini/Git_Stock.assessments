@@ -44,15 +44,18 @@ for(i in 1:N.sp)
     if(nrow(ktch)>1)for(q in 2:nrow(ktch)) ktch$Depletion[q]=(ktch$Depletion[q-1]+ktch$Depletion[q-1]*R)*exp(-alpha*ktch$Depletion[q-1])
     ktch=ktch%>%filter(G.yr==1)
     
-    if(ktch$Depletion[nrow(ktch)]>=0.8) updated.FINALBIO1=0.6
-    if(ktch$Depletion[nrow(ktch)]>=0.6 & ktch$Depletion[nrow(ktch)]<0.8) updated.FINALBIO1=0.4
-    if(ktch$Depletion[nrow(ktch)]<0.6)  updated.FINALBIO1=Depletion.levels%>%filter(Species==Keep.species[i])%>%pull(FINALBIO1)
-    if(Depletion.levels$Species[i]=="narrow sawfish" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.3
-    if(Depletion.levels$Species[i]=="scalloped hammerhead" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.2
-    if(Depletion.levels$Species[i]%in%c("green sawfish","snaggletooth","weasel shark","tiger shark","zebra shark") & updated.FINALBIO1==0.6) updated.FINALBIO1=0.3
-    Depletion.levels[i,]=Depletion.levels[i,]%>%
-      mutate(FINALBIO1=ifelse(Species==Keep.species[i],updated.FINALBIO1,
-                              FINALBIO1))
+    if(tweak.Final.Bio_low)
+    {
+      if(ktch$Depletion[nrow(ktch)]>=0.8) updated.FINALBIO1=0.6
+      if(ktch$Depletion[nrow(ktch)]>=0.6 & ktch$Depletion[nrow(ktch)]<0.8) updated.FINALBIO1=0.4
+      if(ktch$Depletion[nrow(ktch)]<0.6)  updated.FINALBIO1=Depletion.levels%>%filter(Species==Keep.species[i])%>%pull(FINALBIO1)
+      if(Depletion.levels$Species[i]=="narrow sawfish" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.3
+      if(Depletion.levels$Species[i]=="scalloped hammerhead" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.2
+      if(Depletion.levels$Species[i]%in%c("green sawfish","snaggletooth","weasel shark","tiger shark","zebra shark") & updated.FINALBIO1==0.6) updated.FINALBIO1=0.3
+      Depletion.levels[i,]=Depletion.levels[i,]%>%
+        mutate(FINALBIO1=ifelse(Species==Keep.species[i],updated.FINALBIO1,
+                                FINALBIO1))
+    }
   }
 }
 
@@ -165,12 +168,15 @@ for(l in 1:N.sp)
   bmsyK=0.5   #Schaefer
   if(NeiM=="lemon shark") bmsyK=0.45    #to improve convergence of DBSRA
   BmsyK.Cortes=BmsyK.species%>%filter(Species==names(List.sp)[l])%>%pull(BmsyK)
-  if(NeiM%in%c("angel sharks","lemon shark")) BmsyK.Cortes=0.4   #update value to increase COM acceptance rate, not affecting biomass trajectories
-  if(NeiM=="grey nurse shark") BmsyK.Cortes=0.49
-  if(NeiM=="milk shark") BmsyK.Cortes=0.375
-  if(NeiM=="pigeye shark") BmsyK.Cortes=0.45
-  if(NeiM=="sawsharks") BmsyK.Cortes=0.475
-  if(NeiM=="sandbar shark") BmsyK.Cortes=0.49
+  if(tweak.BmsyK.Cortes)
+  {
+    if(NeiM%in%c("angel sharks","lemon shark")) BmsyK.Cortes=0.4   
+    if(NeiM=="grey nurse shark") BmsyK.Cortes=0.49
+    if(NeiM=="milk shark") BmsyK.Cortes=0.375
+    if(NeiM=="pigeye shark") BmsyK.Cortes=0.45
+    if(NeiM=="sawsharks") BmsyK.Cortes=0.475
+    if(NeiM=="sandbar shark") BmsyK.Cortes=0.49
+  }
   
   #2.1 DBSRA scenarios
   AgeMat=List.sp[[l]]$Age.50.mat[1]
@@ -358,6 +364,9 @@ for(l in 1:N.sp)
     #Always calculate extra SD for Q or only when CV is small
   List.sp[[l]]$Sens.test$SS$extra.SD.Q='always'
   
+    #Remove SSS inputs
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%dplyr::select(-c(Final.dpl,Sims))
+  
     #4.1.2 Growth
   List.sp[[l]]$Growth.CV_young=0.1  #constant CV 8.5%-10% Tremblay-Boyer et al 2019
   List.sp[[l]]$Growth.CV_old=0.1
@@ -385,8 +394,9 @@ for(l in 1:N.sp)
   #                 p2. 95% width (>0)
   
   SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
+    #init values
   attach(SS.sel.init.pars)
-    #NSF, Survey and Others
+      #NSF, Survey and Others
     p1.sel=NSF_p1       
     p2.sel=NSF_p2 
     p3.sel=NSF_p3
@@ -408,7 +418,7 @@ for(l in 1:N.sp)
     p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel 
     p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel 
     p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel 
-    #TDGLDF
+      #TDGLDF
     p1.sel_TDGDLF=TDGDLF_p1
     p2.sel_TDGDLF=TDGDLF_p2
     p3.sel_TDGDLF=TDGDLF_p3
@@ -434,6 +444,58 @@ for(l in 1:N.sp)
                                            P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
                                            P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
                                            P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))
+    #retention
+    if(any(!is.na(SS.sel.init.pars[,grepl('Ret_',names(SS.sel.init.pars))])))
+    {
+      xx=SS.sel.init.pars[,grepl('Ret_',names(SS.sel.init.pars))]
+      if(!is.na(xx$Ret_p1))
+      {
+        List.sp[[l]]$SS_retention=data.frame(Fleet=xx$Ret_Fleet,
+                                             P_1=xx$Ret_p1,
+                                             P_2=xx$Ret_p2,
+                                             P_3=xx$Ret_p3,
+                                             P_4=xx$Ret_p4)
+      }
+        
+    }
+    
+    #phases
+    attach(SS.sel.init.pars)
+      #NSF, Survey and Others
+    p1.sel=Phase_NSF_p1       
+    p2.sel=Phase_NSF_p2 
+    p3.sel=Phase_NSF_p3
+    p4.sel=Phase_NSF_p4 
+    p5.sel=Phase_NSF_p5 
+    p6.sel=Phase_NSF_p6 
+    if(NSF_Alternative_sel_type=='Logistic')
+    {
+      p1.sel=Phase_Logistic_p1       
+      p2.sel=Phase_Logistic_p2 
+    }
+    p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel       
+    p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel 
+    p3.sel_NSF=p3.sel_Other=p3.sel_Survey=p3.sel
+    p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel 
+    p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel 
+    p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel 
+      #TDGLDF
+    p1.sel_TDGDLF=Phase_TDGDLF_p1
+    p2.sel_TDGDLF=Phase_TDGDLF_p2
+    p3.sel_TDGDLF=Phase_TDGDLF_p3
+    p4.sel_TDGDLF=Phase_TDGDLF_p4
+    p5.sel_TDGDLF=Phase_TDGDLF_p5
+    p6.sel_TDGDLF=Phase_TDGDLF_p6
+    detach(SS.sel.init.pars)
+    List.sp[[l]]$SS_selectivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
+                                                 P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
+                                                 P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
+                                                 P_3=c(p3.sel_NSF,p3.sel_Other,p3.sel_TDGDLF,p3.sel_TDGDLF,p3.sel_Survey),
+                                                 P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
+                                                 P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
+                                                 P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))%>%
+                                          replace(is.na(.), -2)
+    
     #AgeSelex 
     List.sp[[l]]$age_selex_pattern=0  #0,Selectivity = 1.0 for ages 0+; 10, Selectivity = 1.0 for all ages beginning at age 1
     if(NeiM=="spinner shark") List.sp[[l]]$age_selex_pattern=10  #to allow convergence
