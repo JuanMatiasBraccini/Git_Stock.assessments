@@ -79,6 +79,22 @@ for(w in 1:length(State.Space.SPM))
             arrange(Year)%>%
             data.frame
           if(Neim=='milk shark') ktch$Total[1:10]=1 #convergence issues with first 10 years for milk shark, but catch is 0 anyways
+          #future catches
+          outktch=ktch$Total
+          add.ct.future=NULL
+          if('State.Space.SPM'%in%future.models)
+          {
+            if(catches.futures=="constant.last.n.yrs")
+            {
+              NN=nrow(ktch)
+              add.ct.future=ktch[1:years.futures,]%>%
+                mutate(Year=ktch$Year[NN]+(1:years.futures),
+                       Total=rep(mean(ktch$Total[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+              outktch=c(outktch,add.ct.future$Total)
+            }
+          }
+
+          
           
           #CPUE series
           CPUE=compact(Catch.rate.series[[i]])
@@ -213,8 +229,8 @@ for(w in 1:length(State.Space.SPM))
             this.wd1=this.wd
             Out.Scens=Scens%>%
               mutate(Bo.mean=NA,Bo.CV=NA,r.mean=NA,r.cv=NA,Rdist=NA,Kdist=NA,PsiDist=NA,bmsyk.mean=NA)
-            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=
-              Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
+            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=
+              Out.B.Bmsy=Out.F.Fmsy=Out.deviance=vector('list',length(Store.sens))
             
             for(s in 1:length(Store.sens))
             {
@@ -223,7 +239,14 @@ for(w in 1:length(State.Space.SPM))
               if(!dir.exists(this.wd))dir.create(this.wd)
               
               #cpues
-              #remove daily years 
+                #select relevant indices
+              if(!is.na(Scens$use.these.abundances[s]))
+              {
+                use.these=str_split_1(Scens$use.these.abundances[s], "_")
+                Cpues=Cpues%>%dplyr::select('Year',use.these)
+                Cpues.SE=Cpues.SE%>%dplyr::select('Year',paste0(use.these,'.CV'))
+              }
+                #remove daily years 
               Cpues1=Cpues
               Cpues1.SE=Cpues.SE
               if(!is.na(Scens$Daily.cpues[s]) & 'TDGDLF.daily'%in%names(Cpues))
@@ -239,7 +262,9 @@ for(w in 1:length(State.Space.SPM))
               bmsyk.mean=Scens$bmsyk[s]
               Proc.error=Scens$Proc.error[s]
               r.CV.multi=Scens$r.CV.multiplier[s]
-              K.prior=c(Scens$K.mean[s],log(Scens$K.CV[s]))  
+              Kdist=Scens$Kdist[s]
+              if(Kdist=="lnorm") K.prior=c(Scens$K.mean[s],log(Scens$K.CV[s]))
+              if(Kdist=="range") K.prior=c(Scens$Klow[s],Scens$Kup[s])
               Mn=min(Scens$r[s],Max.r.value)  #some life history pars yield unrealistically high r
               Mn=max(Mn,Min.r.value)          #allow minimum recruitment
               r.prior=c(Mn, (Scens$r.sd[s]/Mn)*Scens$r.CV.multiplier[s])
@@ -289,7 +314,7 @@ for(w in 1:length(State.Space.SPM))
               
               #Put inputs together 
               input=list(Ktch=ktch,
-                         MDL="Pella_m",  #Pella_m if estimating m; other options: "Schaefer", "Fox", "Pella"
+                         MDL=Scens$model.type[s],  #Pella_m if estimating m; other options: "Schaefer", "Fox", "Pella"
                          Ktch.CV=Ktch.CV,
                          ASS=Neim,
                          Rdist = Rdist,
@@ -332,36 +357,43 @@ for(w in 1:length(State.Space.SPM))
                                      Obs.Error=Obs.Err.JABBA,
                                      thinning = THIN,
                                      nchains = CHAINS,
-                                     burn.in= BURNIN)
+                                     burn.in= BURNIN,
+                                     Projections=add.ct.future)
               output=JABBA.run$fit
-                
+              
+              #Store deviance
+              Out.deviance[s]=output$posteriors$deviance
+              
               #Display model fits
+              JABBA=output
+              if(!is.null(add.ct.future))JABBA=list_modify(output, yr = input$Ktch$Year)
               fn.fig(paste(this.wd,"Fit_stdresiduals",sep='/'), 2400, 2400)
-              jbplot_stdresiduals(output)
+              jbplot_stdresiduals(JABBA)
               dev.off()
               fn.fig(paste(this.wd,"Fit_dresiduals",sep='/'), 2400, 2400)
-              jbplot_residuals(output)
+              jbplot_residuals(JABBA)
               dev.off()
               fn.fig(paste(this.wd,"Fit_cpues",sep='/'), 2400, 2400)
-              jbplot_cpuefits(output)
+              jbplot_cpuefitsNEW(JABBA)
               dev.off()
               fn.fig(paste(this.wd,"Fit_cpues_log",sep='/'), 2400, 2400)
-              jbplot_logfits(output) 
+              jbplot_logfits(JABBA) 
               dev.off()
               fn.fig(paste(this.wd,"Fit_catcherror",sep='/'), 2400, 2400)
-              jbplot_catcherror(output)
+              jbplot_catcherror(JABBA)
               dev.off()
               fn.fig(paste(this.wd,"Fit_runstest",sep='/'), 2400, 2400)
-              jbplot_runstest(output)
+              jbplot_runstest(JABBA)
               dev.off()
               fn.fig(paste(this.wd,"Summary",sep='/'), 2400, 2400)
-              jbplot_summary(output)
+              jbplot_summary(JABBA)
               dev.off()
               
               #Get posteriors
-              output$posteriors$P=output$posteriors$P[,1:nrow(ktch)]
-              output$posteriors$BtoBmsy=output$posteriors$BtoBmsy[,1:nrow(ktch)]
-              output$posteriors$SB=output$posteriors$SB[,1:nrow(ktch)]
+              output$posteriors$P=output$posteriors$P[,1:length(outktch)]
+              output$posteriors$BtoBmsy=output$posteriors$BtoBmsy[,1:length(outktch)]
+              output$posteriors$SB=output$posteriors$SB[,1:length(outktch)]
+              
               Store.sens[[s]]=list(input=input,output=output)
               
               #find pattern in residuals
@@ -400,7 +432,7 @@ for(w in 1:length(State.Space.SPM))
                                                 mods=names(State.Space.SPM)[w],  
                                                 Type='Depletion',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Total)
+                                                Katch=outktch)
               Out.rel.biom[[s]]=dummy$Dat
               Out.probs.rel.biom[[s]]=dummy$Probs
               
@@ -408,37 +440,100 @@ for(w in 1:length(State.Space.SPM))
                                                 mods=names(State.Space.SPM)[w],
                                                 Type='F.series',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Total)
+                                                Katch=outktch)
               Out.f.series[[s]]=dummy$Dat
               
               dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                                 mods=names(State.Space.SPM)[w],
                                                 Type='B.Bmsy',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Total)
+                                                Katch=outktch)
               Out.B.Bmsy[[s]]=dummy$Dat
+              Out.probs.B.Bmsy[[s]]=dummy$Probs
               
               dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                                 mods=names(State.Space.SPM)[w],
                                                 Type='F.Fmsy',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Total)
+                                                Katch=outktch)
               Out.F.Fmsy[[s]]=dummy$Dat
               rm(dummy)
               
-              if(Scens$Scenario[s]=='S1') Out.Kobe.probs=Store.sens[[s]]$output$kobe%>%dplyr::select(stock,harvest)
+              #Kobe probs
+              Kob.prop=Store.sens[[s]]$output$kobe%>%dplyr::select(stock,harvest)
+              rbind(data.frame(Posterior=Kob.prop$stock,Name='Stock'),
+                    data.frame(Posterior=Kob.prop$harvest,Name='Harvest'))%>%
+                ggplot(aes(Posterior))+
+                facet_wrap(~Name,ncol=1)+
+                geom_density(fill="#69b3a2", alpha=0.8)+
+                theme_PA()+
+                ggtitle(ktch$Year[nrow(ktch)])
+              ggsave(paste(this.wd,"/Posterior_current_depletion_F.tiff",sep=''),width = 7,height = 8, dpi = 300, compression = "lzw")
+              if(Scens$Scenario[s]=='S1') Out.Kobe.probs=Kob.prop
               
-              #Evaluate posteriors and fit diagnostics
+              
+              #Evaluate parameter posteriors and fit diagnostics
+              outfilename=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                                capitalize(Neim),"/",AssessYr,"/",'JABBA CPUE/',Scens$Scenario[s],sep='')
+              
+                #1. Display Priors vs Posteriors 
+              show.psi=FALSE
+              par.list=c("r","K","m")   
+              if(show.psi) par.list=c("r","K","psi","m")
+              stuff=Store.sens[[s]]$input
+              dummy.prior=as.list(par.list)
+              names(dummy.prior)=par.list
+              dummy.prior$r=list(dist=stuff$Rdist,
+                                 mean=log(stuff$Rprior[1]),
+                                 sd=stuff$Rprior[2])
+              K.prior.dist=Kdist
+              if(K.prior.dist=="range") K.prior.dist='unif'
+              dummy.prior$K=list(dist=K.prior.dist,
+                                 mean=log(Store.sens[[s]]$output$settings$K.pr[1]),  
+                                 sd=Store.sens[[s]]$output$settings$K.pr[2],
+                                 low=Scens$Klow[s],
+                                 up=Scens$Kup[s]) 
+              
+              if(show.psi)
+              {
+                dummy.prior$psi=list(dist=stuff$PsiDist,
+                                     mean=stuff$Psiprior[1],
+                                     sd=stuff$Psiprior[2])
+                if(dummy.prior$psi$dist=='lnorm') dummy.prior$psi$mean=log(dummy.prior$psi$mean)
+              }
+              
+              dummy.prior$m=list(dist="lnorm",    
+                                 mean=log(m.par%>%filter(Species==Neim)%>%pull(m)),
+                                 sd=input$shape.CV)
+              
+              dummy.post=Store.sens[[s]]$output$pars_posterior%>%
+                dplyr::select(all_of(par.list))   
+              names(dummy.prior)=names(dummy.post)
+              pars=colnames(dummy.post)
+              out=vector('list',length(pars))
+              for(p in 1:length(pars))
+              {
+                Value.prior=fn.prior(d=dummy.prior[[pars[p]]])
+                # if(pars[p]=="K") Value.prior=fn.prior(d=dummy.prior[[pars[p]]],MAX=max(stuff$Ktch$Total,na.rm=T)*50)
+                out[[p]]=rbind(data.frame(Distribuion="Prior",
+                                          Value=Value.prior),
+                               data.frame(Distribuion="Posterior",
+                                          Value=dummy.post[[pars[p]]]))%>%
+                  mutate(Parameter=pars[p])
+              }
+              fn.show.density(d=do.call(rbind,out),NCOL=1)
+              ggsave(paste(outfilename,"/Prior.and.posterior.tiff",sep=''),
+                     width = 12,height = 14, dpi = 300, compression = "lzw")
+              rm(stuff,dummy.prior,dummy.post)
+              
+                #2. Fit diagnostics for base case scenario
               if(Scens$Scenario[s]=='S1')
               {
-                outfilename=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                                  capitalize(Neim),"/",AssessYr,"/",'JABBA CPUE/',Scens$Scenario[s],sep='')
-                
                 #MCMC trace-plots, Geweke (2003) and Gelman and Rubin (1992) diagnostics
                 #https://cran.r-project.org/web/packages/ggmcmc/vignettes/using_ggmcmc.html
                 if(do.MCMC.diagnostics)
                 {
-                  these.post.pars=c('K','r','psi')  #estimable pars
+                  these.post.pars=par.list  #estimable pars
                   NN=nrow(output$pars_posterior)/CHAINS
                   Post=Store.sens[[s]]$output$pars_posterior%>%
                     dplyr::select(all_of(these.post.pars))%>%
@@ -473,51 +568,15 @@ for(w in 1:length(State.Space.SPM))
                   
                   ggsave(paste(outfilename,"/Fit_Bayesian convergence diagnostics.tiff",sep=''),
                          width = 16,height = 8, dpi = 300, compression = "lzw")
-                  
-                  
-                  #Display Priors vs Posteriors for base case scenario (S1)
-                  par.list=c("r","K","psi")
-                  stuff=Store.sens[[s]]$input
-                  dummy.prior=as.list(par.list)
-                  names(dummy.prior)=par.list
-                  dummy.prior$r=list(dist=stuff$Rdist,
-                                     mean=log(stuff$Rprior[1]),
-                                     sd=stuff$Rprior[2])
-                  dummy.prior$K=list(dist='lnorm',
-                                     mean=log(Store.sens[[s]]$output$settings$K.pr[1]),  
-                                     sd=Store.sens[[s]]$output$settings$K.pr[2])
-                  dummy.prior$psi=list(dist=stuff$PsiDist,
-                                       mean=stuff$Psiprior[1],
-                                       sd=stuff$Psiprior[2])
-                  if(dummy.prior$psi$dist=='lnorm') dummy.prior$psi$mean=log(dummy.prior$psi$mean)
-                  dummy.post=Store.sens[[s]]$output$pars_posterior%>%
-                    dplyr::select(r,K,psi)
-                  names(dummy.prior)=names(dummy.post)
-                  pars=colnames(dummy.post)
-                  out=vector('list',length(pars))
-                  for(p in 1:length(pars))
-                  {
-                    Value.prior=fn.prior(d=dummy.prior[[pars[p]]])
-                    if(pars[p]=="K") Value.prior=fn.prior(d=dummy.prior[[pars[p]]],MAX=max(stuff$Ktch$Total,na.rm=T)*50)
-                    out[[p]]=rbind(data.frame(Distribuion="Prior",
-                                              Value=Value.prior),
-                                   data.frame(Distribuion="Posterior",
-                                              Value=dummy.post[[pars[p]]]))%>%
-                      mutate(Parameter=pars[p])
-                  }
-                  rm(stuff,dummy.prior,dummy.post)
-                  
-                  fn.show.density(d=do.call(rbind,out),NCOL=1)
-                  ggsave(paste(outfilename,"/Prior.and.posterior.tiff",sep=''),
-                         width = 12,height = 14, dpi = 300, compression = "lzw")
-                  
                 }
                 
                 #Hindcasting and retrospective analysis  
                 if(do.hindcasting)
                 {
-                  #retrospective
-                  hc = hindcast_jabba(jbinput=JABBA.run$jbinput,fit=JABBA.run$fit,peels=1:5)
+                  #retrospective  
+                  hc = hindcast_jabba(jbinput=JABBA.run$jbinput,
+                                      fit=list_modify(JABBA.run$fit,yr=JABBA.run$jbinput$data$yr),
+                                      peels=1:PEELS)
                   
                   tiff(paste(outfilename,"/Fit_retrospective.tiff",sep=''),
                        width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
@@ -575,7 +634,7 @@ for(w in 1:length(State.Space.SPM))
                             Kdist,K.mean,K.CV,
                             PsiDist,Bo.mean,Bo.CV,
                             bmsyk.mean,Proc.error,Ktch.CV,
-                            Daily.cpues)%>%
+                            Daily.cpues,model.type)%>%
               mutate(K.mean=round(K.mean),
                      r.mean=round(r.mean,3),
                      bmsyk.mean=round(bmsyk.mean,3),
@@ -586,13 +645,16 @@ for(w in 1:length(State.Space.SPM))
                      Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
                      PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
 
-            return(list(dummy.store.sens.table=Out.Scens,
+            return(list(dummy.store.deviance=Out.deviance,
+                        dummy.store.sens.table=Out.Scens,
                         dummy.store.rel.biom=do.call(rbind,Out.rel.biom),
                         dummy.store.probs.rel.biom=Out.probs.rel.biom,
+                        dummy.store.probs.B.Bmsy=Out.probs.B.Bmsy,
                         dummy.store.f.series=do.call(rbind,Out.f.series),
                         dummy.store.B.Bmsy=do.call(rbind,Out.B.Bmsy),
                         dummy.store.F.Fmsy=do.call(rbind,Out.F.Fmsy),
-                        dummy.store.Kobe.probs=Out.Kobe.probs, 
+                        dummy.store.Kobe.probs=Out.Kobe.probs,
+                        dummy.store.MSY=output$posteriors$MSY,
                         dummy.store.estimates=do.call(rbind,Out.estimates)))
                         
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
@@ -603,14 +665,17 @@ for(w in 1:length(State.Space.SPM))
       stopCluster(cl)
       names(out.species)=Keep.species
 
+      State.Space.SPM[[w]]$deviance=fn.get.and.name(LISTA=out.species,x="dummy.store.deviance")
       State.Space.SPM[[w]]$sens.table=fn.get.and.name(LISTA=out.species,x="dummy.store.sens.table")
       State.Space.SPM[[w]]$estimates=fn.get.and.name(LISTA=out.species,x="dummy.store.estimates")
       State.Space.SPM[[w]]$rel.biom=fn.get.and.name(LISTA=out.species,x="dummy.store.rel.biom")
       State.Space.SPM[[w]]$probs.rel.biom=fn.get.and.name(LISTA=out.species,x="dummy.store.probs.rel.biom")
+      State.Space.SPM[[w]]$probs.B.Bmsy=fn.get.and.name(LISTA=out.species,x="dummy.store.probs.B.Bmsy")
       State.Space.SPM[[w]]$f.series=fn.get.and.name(LISTA=out.species,x="dummy.store.f.series")
       State.Space.SPM[[w]]$B.Bmsy=fn.get.and.name(LISTA=out.species,x="dummy.store.B.Bmsy")
       State.Space.SPM[[w]]$F.Fmsy=fn.get.and.name(LISTA=out.species,x="dummy.store.F.Fmsy")
       State.Space.SPM[[w]]$Kobe.probs=fn.get.and.name(LISTA=out.species,x="dummy.store.Kobe.probs")
+      State.Space.SPM[[w]]$MSY=fn.get.and.name(LISTA=out.species,x="dummy.store.MSY")
       
       rm(out.species)
       
@@ -620,8 +685,8 @@ for(w in 1:length(State.Space.SPM))
     {
       dummy.store=vector('list',N.sp)     
       names(dummy.store)=Keep.species
-      dummy.store.sens.table=dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
-        dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=dummy.store
+      dummy.store.sens.table=dummy.store.deviance=dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
+        dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=dummy.store.MSY=dummy.store
       
       for(i in 1:length(dummy.store))
       {
@@ -643,6 +708,21 @@ for(w in 1:length(State.Space.SPM))
             arrange(Year)%>%
             data.frame
           if(Neim=='milk shark') ktch$Total[1:10]=1 #convergence issues with first 10 years for milk shark, but catch is 0 anyways
+          #future catches
+          outktch=ktch$Total
+          add.ct.future=NULL
+          if('State.Space.SPM'%in%future.models)
+          {
+            if(catches.futures=="constant.last.n.yrs")
+            {
+              NN=nrow(ktch)
+              add.ct.future=ktch[1:years.futures,]%>%
+                mutate(Year=ktch$Year[NN]+(1:years.futures),
+                       Total=rep(mean(ktch$Total[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+              outktch=c(outktch,add.ct.future$Total)
+            }
+          }
+
           
           #CPUE series
           CPUE=compact(Catch.rate.series[[i]])
@@ -776,8 +856,8 @@ for(w in 1:length(State.Space.SPM))
             this.wd1=this.wd
             Out.Scens=Scens%>%
               mutate(Bo.mean=NA,Bo.CV=NA,r.mean=NA,r.cv=NA,Rdist=NA,Kdist=NA,PsiDist=NA,bmsyk.mean=NA)
-            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=
-              Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
+            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=
+              Out.B.Bmsy=Out.F.Fmsy=Out.deviance=vector('list',length(Store.sens))
             
             for(s in 1:length(Store.sens))
             {
@@ -786,7 +866,14 @@ for(w in 1:length(State.Space.SPM))
               if(!dir.exists(this.wd))dir.create(this.wd)
               
               #cpues
-              #remove daily years
+                #select relevant indices
+              if(!is.na(Scens$use.these.abundances[s]))
+              {
+                use.these=str_split_1(Scens$use.these.abundances[s], "_")
+                Cpues=Cpues%>%dplyr::select('Year',use.these)
+                Cpues.SE=Cpues.SE%>%dplyr::select('Year',paste0(use.these,'.CV'))
+              }
+                #remove daily years
               Cpues1=Cpues
               Cpues1.SE=Cpues.SE
               if(!is.na(Scens$Daily.cpues[s]) & 'TDGDLF.daily'%in%names(Cpues))
@@ -802,7 +889,9 @@ for(w in 1:length(State.Space.SPM))
               bmsyk.mean=Scens$bmsyk[s]
               Proc.error=Scens$Proc.error[s]
               r.CV.multi=Scens$r.CV.multiplier[s]
-              K.prior=c(Scens$K.mean[s],log(Scens$K.CV[s]))  
+              Kdist=Scens$Kdist[s]
+              if(Kdist=="lnorm") K.prior=c(Scens$K.mean[s],log(Scens$K.CV[s]))
+              if(Kdist=="range") K.prior=c(Scens$Klow[s],Scens$Kup[s])  
               Mn=min(Scens$r[s],Max.r.value)  #some life history pars yield unrealistically high r
               Mn=max(Mn,Min.r.value)          #allow minimum recruitment
               r.prior=c(Mn, (Scens$r.sd[s]/Mn)*Scens$r.CV.multiplier[s])
@@ -852,7 +941,7 @@ for(w in 1:length(State.Space.SPM))
               
               #Put inputs together 
               input=list(Ktch=ktch,
-                         MDL="Pella_m",  #Pella_m if estimating m; other options: "Schaefer", "Fox", "Pella"
+                         MDL=Scens$model.type[s],  #Pella_m if estimating m; other options: "Schaefer", "Fox", "Pella"
                          Ktch.CV=Ktch.CV,
                          ASS=Neim,
                          Rdist = Rdist,
@@ -871,57 +960,67 @@ for(w in 1:length(State.Space.SPM))
               CHAINS=2
               BURNIN=min(0.15*Scens$Sims[s],5000)
               JABBA.run=apply.JABBA(Ktch=input$Ktch,
-                                 CPUE=Cpues1,
-                                 CPUE.SE=Cpues1.SE,
-                                 auxil=auxiliary.effort,
-                                 auxil.se=auxiliary.effort.se,
-                                 auxil.type=auxiliary.type,
-                                 MDL=input$MDL,
-                                 Ktch.CV=input$Ktch.CV,
-                                 ASS=input$ASS,
-                                 Rdist = input$Rdist,
-                                 Rprior = input$Rprior,
-                                 Kdist=input$Kdist,
-                                 Kprior=input$Kprior,
-                                 PsiDist=input$PsiDist,
-                                 Psiprior=input$Psiprior,
-                                 Bprior=input$Bprior,
-                                 BMSYK=input$BMSYK,
-                                 Shape.CV=input$shape.CV,
-                                 output.dir=this.wd,
-                                 outfile="fit_Appendix",
-                                 Sims=Scens$Sims[s],
-                                 Proc.error.JABBA=Proc.error,
-                                 Obs.Error=Obs.Err.JABBA,
-                                 thinning = THIN,
-                                 nchains = CHAINS,
-                                 burn.in= BURNIN)
+                                     CPUE=Cpues1,
+                                     CPUE.SE=Cpues1.SE,
+                                     auxil=auxiliary.effort,
+                                     auxil.se=auxiliary.effort.se,
+                                     auxil.type=auxiliary.type,
+                                     MDL=input$MDL,
+                                     Ktch.CV=input$Ktch.CV,
+                                     ASS=input$ASS,
+                                     Rdist = input$Rdist,
+                                     Rprior = input$Rprior,
+                                     Kdist=input$Kdist,
+                                     Kprior=input$Kprior,
+                                     PsiDist=input$PsiDist,
+                                     Psiprior=input$Psiprior,
+                                     Bprior=input$Bprior,
+                                     BMSYK=input$BMSYK,
+                                     Shape.CV=input$shape.CV,
+                                     output.dir=this.wd,
+                                     outfile="fit_Appendix",
+                                     Sims=Scens$Sims[s],
+                                     Proc.error.JABBA=Proc.error,
+                                     Obs.Error=Obs.Err.JABBA,
+                                     thinning = THIN,
+                                     nchains = CHAINS,
+                                     burn.in= BURNIN,
+                                     Projections=add.ct.future)  
               output=JABBA.run$fit
               
+              #Store deviance
+              Out.deviance[s]=output$posteriors$deviance
+              
               #Display model fits
+              JABBA=output
+              if(!is.null(add.ct.future))JABBA=list_modify(output, yr = input$Ktch$Year)
               fn.fig(paste(this.wd,"Fit_stdresiduals",sep='/'), 2400, 2400)
-              jbplot_stdresiduals(output)
+              jbplot_stdresiduals(JABBA)
               dev.off()
               fn.fig(paste(this.wd,"Fit_dresiduals",sep='/'), 2400, 2400)
-              jbplot_residuals(output)
+              jbplot_residuals(JABBA)
               dev.off()
               fn.fig(paste(this.wd,"Fit_cpues",sep='/'), 2400, 2400)
-              jbplot_cpuefits(output)
+              jbplot_cpuefitsNEW(JABBA)
               dev.off()
               fn.fig(paste(this.wd,"Fit_cpues_log",sep='/'), 2400, 2400)
-              jbplot_logfits(output) 
+              jbplot_logfits(JABBA) 
               dev.off()
               fn.fig(paste(this.wd,"Fit_catcherror",sep='/'), 2400, 2400)
-              jbplot_catcherror(output)
+              jbplot_catcherror(JABBA)
+              dev.off()
+              fn.fig(paste(this.wd,"Fit_runstest",sep='/'), 2400, 2400)
+              jbplot_runstest(JABBA)
               dev.off()
               fn.fig(paste(this.wd,"Summary",sep='/'), 2400, 2400)
-              jbplot_summary(output)
+              jbplot_summary(JABBA)
               dev.off()
               
               #Get posteriors
-              output$posteriors$P=output$posteriors$P[,1:nrow(ktch)]
-              output$posteriors$BtoBmsy=output$posteriors$BtoBmsy[,1:nrow(ktch)]
-              output$posteriors$SB=output$posteriors$SB[,1:nrow(ktch)]
+              output$posteriors$P=output$posteriors$P[,1:length(outktch)]
+              output$posteriors$BtoBmsy=output$posteriors$BtoBmsy[,1:length(outktch)]
+              output$posteriors$SB=output$posteriors$SB[,1:length(outktch)]
+              
               Store.sens[[s]]=list(input=input,output=output)
               
               #find pattern in residuals
@@ -931,8 +1030,6 @@ for(w in 1:length(State.Space.SPM))
               store.runs.test=vector('list',ncol(RES))
               names(store.runs.test)=names(RES)
               for(x in 1:ncol(RES)) store.runs.test[[x]]=runs.test(RES[!is.na(RES[,x]),x])
-              
-              
               
               #Store Scenarios
               Out.Scens$Bo.mean[s]=Bint.mean
@@ -962,7 +1059,7 @@ for(w in 1:length(State.Space.SPM))
                                                 mods=names(State.Space.SPM)[w],  
                                                 Type='Depletion',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Total)
+                                                Katch=outktch)
               Out.rel.biom[[s]]=dummy$Dat
               Out.probs.rel.biom[[s]]=dummy$Probs
               
@@ -970,117 +1067,159 @@ for(w in 1:length(State.Space.SPM))
                                                 mods=names(State.Space.SPM)[w],
                                                 Type='F.series',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Total)
+                                                Katch=outktch)
               Out.f.series[[s]]=dummy$Dat
               
               dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                                 mods=names(State.Space.SPM)[w],
                                                 Type='B.Bmsy',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Total)
+                                                Katch=outktch)
               Out.B.Bmsy[[s]]=dummy$Dat
+              Out.probs.B.Bmsy[[s]]=dummy$Probs
               
               dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                                 mods=names(State.Space.SPM)[w],
                                                 Type='F.Fmsy',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Total)
+                                                Katch=outktch)
               Out.F.Fmsy[[s]]=dummy$Dat
               rm(dummy)
               
-              if(Scens$Scenario[s]=='S1') Out.Kobe.probs=Store.sens[[s]]$output$kobe%>%dplyr::select(stock,harvest)
+              #Kobe probs
+              Kob.prop=Store.sens[[s]]$output$kobe%>%dplyr::select(stock,harvest)
+              rbind(data.frame(Posterior=Kob.prop$stock,Name='Stock'),
+                    data.frame(Posterior=Kob.prop$harvest,Name='Harvest'))%>%
+                ggplot(aes(Posterior))+
+                facet_wrap(~Name,ncol=1)+
+                geom_density(fill="#69b3a2", alpha=0.8)+
+                theme_PA()+
+                ggtitle(ktch$Year[nrow(ktch)])
+              ggsave(paste(this.wd,"/Posterior_current_depletion_F.tiff",sep=''),width = 7,height = 8, dpi = 300, compression = "lzw")
+              if(Scens$Scenario[s]=='S1') Out.Kobe.probs=Kob.prop
               
-              #Evaluate posterior  
-              #https://cran.r-project.org/web/packages/ggmcmc/vignettes/using_ggmcmc.html
-              #MCMC trace-plots, Geweke (2003) and Gelman and Rubin (1992) diagnostics 
+              
+              #Evaluate parameter posteriors and fit
+              show.psi=FALSE
+              par.list=c("r","K","m")   
+              if(show.psi) par.list=c("r","K","psi","m")
               if(Scens$Scenario[s]=='S1')
               {
-                these.post.pars=c('K','r','psi')  #estimable pars
-                NN=nrow(output$pars_posterior)/CHAINS
-                Post=Store.sens[[s]]$output$pars_posterior%>%
-                  dplyr::select(all_of(these.post.pars))%>%
-                  mutate(Iteration=rep(1:NN,CHAINS),
-                         Chain=rep(1:CHAINS,each=NN))%>%
-                  gather(Parameter,value,-Iteration,- Chain)
-                tibble()
-                attributes(Post)$nChains=CHAINS
-                attributes(Post)$nParameters=length(these.post.pars)
-                attributes(Post)$nIterations=NN
-                attributes(Post)$nBurnin=BURNIN
-                attributes(Post)$nThin=THIN
+                outfilename=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                                  capitalize(Neim),"/",AssessYr,"/",'JABBA CPUE/',Scens$Scenario[s],sep='')
                 
-                Post.density=ggs_density(Post)+ggtitle("Density")
-                Post.trace.plot=ggs_traceplot(Post)+ggtitle("Trace plot")+theme(axis.text.x = element_text(angle = 90))
-                Post.running.mean=ggs_running(Post)+ggtitle('Running mean')+theme(axis.text.x = element_text(angle = 90))
-                Post.autocorr=ggs_autocorrelation(Post)+ggtitle('Autocorrelation')
-                Gelman.diag=ggs_Rhat(Post) + 
-                  geom_point(size=3)+
-                  xlab("R_hat")+
-                  ggtitle('Gelman diagnostic')
-                Geweke.diag= ggs_geweke(Post)+
-                  geom_point(size=3)+
-                  ggtitle('Geweke diagnostic')+
-                  theme(legend.position = 'none')+
-                  scale_color_manual(values=c("#F8766D", "#00BFC4", "#56B4E9"))
+                #MCMC trace-plots, Geweke (2003) and Gelman and Rubin (1992) diagnostics
+                #https://cran.r-project.org/web/packages/ggmcmc/vignettes/using_ggmcmc.html
+                if(do.MCMC.diagnostics)
+                {
+                  these.post.pars=par.list  #estimable pars
+                  NN=nrow(output$pars_posterior)/CHAINS
+                  Post=Store.sens[[s]]$output$pars_posterior%>%
+                    dplyr::select(all_of(these.post.pars))%>%
+                    mutate(Iteration=rep(1:NN,CHAINS),
+                           Chain=rep(1:CHAINS,each=NN))%>%
+                    gather(Parameter,value,-Iteration,- Chain)
+                  tibble()
+                  attributes(Post)$nChains=CHAINS
+                  attributes(Post)$nParameters=length(these.post.pars)
+                  attributes(Post)$nIterations=NN
+                  attributes(Post)$nBurnin=BURNIN
+                  attributes(Post)$nThin=THIN
+                  
+                  Post.density=ggs_density(Post)+ggtitle("Density")
+                  Post.trace.plot=ggs_traceplot(Post)+ggtitle("Trace plot")+theme(axis.text.x = element_text(angle = 90))
+                  Post.running.mean=ggs_running(Post)+ggtitle('Running mean')+theme(axis.text.x = element_text(angle = 90))
+                  Post.autocorr=ggs_autocorrelation(Post)+ggtitle('Autocorrelation')
+                  Gelman.diag=ggs_Rhat(Post) + 
+                    geom_point(size=3)+
+                    xlab("R_hat")+
+                    ggtitle('Gelman diagnostic')
+                  Geweke.diag= ggs_geweke(Post)+
+                    geom_point(size=3)+
+                    ggtitle('Geweke diagnostic')+
+                    theme(legend.position = 'none')+
+                    scale_color_manual(values=c("#F8766D", "#00BFC4", "#56B4E9"))
+                  
+                  pp=ggarrange(plotlist = list(Gelman.diag,Geweke.diag),ncol=1)
+                  ggarrange(plotlist = list(Post.density,Post.trace.plot,Post.running.mean,
+                                            Post.autocorr,pp),
+                            ncol=5,common.legend = TRUE)
+                  
+                  ggsave(paste(outfilename,"/Fit_Bayesian convergence diagnostics.tiff",sep=''),
+                         width = 16,height = 8, dpi = 300, compression = "lzw")
+                }
                 
-                pp=ggarrange(plotlist = list(Gelman.diag,Geweke.diag),ncol=1)
-                ggarrange(plotlist = list(Post.density,Post.trace.plot,Post.running.mean,
-                                          Post.autocorr,pp),
-                          ncol=5,common.legend = TRUE)
-                
-                ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                             capitalize(Neim),"/",AssessYr,"/",'JABBA CPUE',
-                             "/Convergence diagnostics.tiff",sep=''),
-                       width = 16,height = 8, dpi = 300, compression = "lzw")
-                
-                
+                #Hindcasting and retrospective analysis  
+                if(do.hindcasting)
+                {
+                  #retrospective  
+                  hc = hindcast_jabba(jbinput=JABBA.run$jbinput,
+                                      fit=list_modify(JABBA.run$fit,yr=JABBA.run$jbinput$data$yr),
+                                      peels=1:PEELS)
+                  
+                  tiff(paste(outfilename,"/Fit_retrospective.tiff",sep=''),
+                       width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+                  mohns=jbplot_retro(hc) 
+                  dev.off()
+                  write.csv(mohns,paste(outfilename,"/Fit_retrospective_mohns.csv",sep=''))
+                  
+                  #hindcasting  
+                  tiff(paste(outfilename,"/Fit_hindcasting.tiff",sep=''),
+                       width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+                  jbplot_hcxval(hc)
+                  dev.off()
+                  
+                }
               }
               
-              #Display Priors vs Posteriors for base case scenario (S1)
-              if(Scens$Scenario[s]=='S1')
+              #Display Priors vs Posteriors
+              stuff=Store.sens[[s]]$input
+              dummy.prior=as.list(par.list)
+              names(dummy.prior)=par.list
+              dummy.prior$r=list(dist=stuff$Rdist,
+                                 mean=log(stuff$Rprior[1]),
+                                 sd=stuff$Rprior[2])
+              K.prior.dist=Kdist
+              if(K.prior.dist=="range") K.prior.dist='unif'
+              dummy.prior$K=list(dist=K.prior.dist,
+                                 mean=log(Store.sens[[s]]$output$settings$K.pr[1]),  
+                                 sd=Store.sens[[s]]$output$settings$K.pr[2],
+                                 low=Scens$Klow[s],
+                                 up=Scens$Kup[s]) 
+              
+              if(show.psi)
               {
-                par.list=c("r","K","psi")
-                stuff=Store.sens[[s]]$input
-                dummy.prior=as.list(par.list)
-                names(dummy.prior)=par.list
-                dummy.prior$r=list(dist=stuff$Rdist,
-                                   mean=log(stuff$Rprior[1]),
-                                   sd=stuff$Rprior[2])
-                dummy.prior$K=list(dist='lnorm',
-                                   mean=log(Store.sens[[s]]$output$settings$K.pr[1]),  
-                                   sd=Store.sens[[s]]$output$settings$K.pr[2])
                 dummy.prior$psi=list(dist=stuff$PsiDist,
                                      mean=stuff$Psiprior[1],
                                      sd=stuff$Psiprior[2])
                 if(dummy.prior$psi$dist=='lnorm') dummy.prior$psi$mean=log(dummy.prior$psi$mean)
-                dummy.post=Store.sens[[s]]$output$pars_posterior%>%
-                  dplyr::select(r,K,psi)
-                
-                names(dummy.prior)=names(dummy.post)
-                
-                pars=colnames(dummy.post)
-                out=vector('list',length(pars))
-                
-                
-                for(p in 1:length(pars))
-                {
-                  Value.prior=fn.prior(d=dummy.prior[[pars[p]]])
-                  if(pars[p]=="K") Value.prior=fn.prior(d=dummy.prior[[pars[p]]],MAX=max(stuff$Ktch$Total,na.rm=T)*50)
-                  out[[p]]=rbind(data.frame(Distribuion="Prior",
-                                            Value=Value.prior),
-                                 data.frame(Distribuion="Posterior",
-                                            Value=dummy.post[[pars[p]]]))%>%
-                    mutate(Parameter=pars[p])
-                }
-                rm(stuff,dummy.prior,dummy.post)
-                
-                fn.show.density(d=do.call(rbind,out),NCOL=1)
-                ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                             capitalize(Neim),"/",AssessYr,"/",'JABBA CPUE/',Scens$Scenario[s],"/Prior.and.posterior.tiff",sep=''),
-                       width = 12,height = 14, dpi = 300, compression = "lzw")
               }
               
-            }
+              dummy.prior$m=list(dist="lnorm",    
+                                 mean=log(m.par%>%filter(Species==Neim)%>%pull(m)),
+                                 sd=input$shape.CV)
+              
+              dummy.post=Store.sens[[s]]$output$pars_posterior%>%
+                dplyr::select(all_of(par.list))   
+              names(dummy.prior)=names(dummy.post)
+              pars=colnames(dummy.post)
+              out=vector('list',length(pars))
+              for(p in 1:length(pars))
+              {
+                Value.prior=fn.prior(d=dummy.prior[[pars[p]]])
+                # if(pars[p]=="K") Value.prior=fn.prior(d=dummy.prior[[pars[p]]],MAX=max(stuff$Ktch$Total,na.rm=T)*50)
+                out[[p]]=rbind(data.frame(Distribuion="Prior",
+                                          Value=Value.prior),
+                               data.frame(Distribuion="Posterior",
+                                          Value=dummy.post[[pars[p]]]))%>%
+                  mutate(Parameter=pars[p])
+              }
+              fn.show.density(d=do.call(rbind,out),NCOL=1)
+              ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                           capitalize(Neim),"/",AssessYr,"/",'JABBA CPUE/',Scens$Scenario[s],"/Prior.and.posterior.tiff",sep=''),
+                     width = 12,height = 14, dpi = 300, compression = "lzw")
+              rm(stuff,dummy.prior,dummy.post)
+            } # end s loop
             
             Out.Scens=Out.Scens%>%
               dplyr::select(Species,Scenario,
@@ -1088,7 +1227,7 @@ for(w in 1:length(State.Space.SPM))
                             Kdist,K.mean,K.CV,
                             PsiDist,Bo.mean,Bo.CV,
                             bmsyk.mean,Proc.error,Ktch.CV,
-                            Daily.cpues)%>%
+                            Daily.cpues,model.type)%>%
               mutate(K.mean=round(K.mean),
                      r.mean=round(r.mean,3),
                      bmsyk.mean=round(bmsyk.mean,3),
@@ -1099,33 +1238,41 @@ for(w in 1:length(State.Space.SPM))
                      Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
                      PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
 
+            dummy.store.deviance[[i]]=Out.deviance
             dummy.store.sens.table[[i]]=Out.Scens
             dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
             dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
+            dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
             dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
             dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
             dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
             dummy.store.Kobe.probs[[i]]=Out.Kobe.probs  
             dummy.store.estimates[[i]]=do.call(rbind,Out.estimates)
+            dummy.store.MSY[[i]]=output$posteriors$MSY   
             
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
-               Out.B.Bmsy,Out.F.Fmsy,Out.Kobe.probs,Out.estimates)
+               Out.B.Bmsy,Out.F.Fmsy,Out.Kobe.probs,Out.estimates,
+               Out.probs.B.Bmsy)
           }
         }
       }
       
+      State.Space.SPM[[w]]$deviance=dummy.store.deviance
       State.Space.SPM[[w]]$sens.table=dummy.store.sens.table
       State.Space.SPM[[w]]$estimates=dummy.store.estimates
       State.Space.SPM[[w]]$rel.biom=dummy.store.rel.biom
       State.Space.SPM[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
+      State.Space.SPM[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
       State.Space.SPM[[w]]$f.series=dummy.store.f.series
       State.Space.SPM[[w]]$B.Bmsy=dummy.store.B.Bmsy
       State.Space.SPM[[w]]$F.Fmsy=dummy.store.F.Fmsy
       State.Space.SPM[[w]]$Kobe.probs=dummy.store.Kobe.probs
+      State.Space.SPM[[w]]$MSY=dummy.store.MSY   
       
       rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,
          dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,
-         dummy.store.B.Bmsy,dummy.store.F.Fmsy)
+         dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.MSY,
+         dummy.store.probs.B.Bmsy)   
       
     }
   }
@@ -1203,7 +1350,7 @@ for(i in 1:N.sp)
     #export graph
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                  capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_time_series_relative_biomass.tiff",sep=''),
-           width = 6,height = 10,compression = "lzw")
+           width = 8,height = 12,compression = "lzw")
     
     #export current depletion probabilities
     write.csv(a$store.probs%>%
@@ -1224,14 +1371,14 @@ if(do.F.series)
   {
     print(paste("JABBA --- Fishing mortality plot -----",Keep.species[i]))
     a=fn.plot.timeseries(d=State.Space.SPM,
-                                   sp=Keep.species[i],
-                                   Type='F.series',
-                                   YLAB='Fishing mortality')
+                         sp=Keep.species[i],
+                         Type='F.series',
+                         YLAB='Fishing mortality')
     if(!is.null(a))
     {
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/time_series_fishing_mortality.tiff",sep=''),
-             width = 6,height = 10,compression = "lzw")
+                   capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_time_series_fishing_mortality.tiff",sep=''),
+             width = 8,height = 12,compression = "lzw")
     }
   }
 }
@@ -1248,8 +1395,8 @@ if(do.B.over.Bmsy.series)
     if(!is.null(a))
     {
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/time_series_B_Bmsy.tiff",sep=''),
-             width = 6,height = 10,compression = "lzw")
+                   capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_time_series_B_Bmsy.tiff",sep=''),
+             width = 8,height = 12,compression = "lzw")
     }
   }
 }
@@ -1266,8 +1413,8 @@ if(do.F.over.Fmsy.series)
     if(!is.null(a))
     {
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/time_series_F_Fmsy.tiff",sep=''),
-             width = 6,height = 10,compression = "lzw")
+                   capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_time_series_F_Fmsy.tiff",sep=''),
+             width = 8,height = 12,compression = "lzw")
     }
   }
 }
@@ -1278,6 +1425,7 @@ if(do.F.over.Fmsy.series)
   #figure
 for(l in 1:length(Lista.sp.outputs))
 {
+  print(paste("JABBA --- Relative biomass plot S1 -----",names(Lista.sp.outputs)[l],"----- single plot")) 
   if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
   a=fn.plot.timeseries_combined(this.sp=Lista.sp.outputs[[l]],
                                 d=State.Space.SPM$JABBA,
@@ -1305,8 +1453,12 @@ for(l in 1:length(Lista.sp.outputs))
       dummy=vector('list',length =length(str.prob))
       for(d in 1:length(dummy))
       {
-        dummy[[d]]=str.prob[[d]][[1]]$probs%>%
-          mutate(Species=capitalize(names(str.prob)[d]))
+        pp.future=str.prob[[d]][[1]]$probs.future
+        pp=str.prob[[d]][[1]]$probs%>%
+                    mutate(finyear=unique(pp.future$finyear)-years.futures)
+        
+        dummy[[d]]=rbind(pp,pp.future)%>%
+                    mutate(Species=capitalize(names(str.prob)[d]))
       }
       dummy.mod[[m]]=do.call(rbind,dummy)%>%
         mutate(Model=names(State.Space.SPM)[m])
@@ -1318,7 +1470,7 @@ for(l in 1:length(Lista.sp.outputs))
     write.csv(do.call(rbind,dummy.mod)%>%
                 mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                 spread(Species,Probability)%>%
-                arrange(Range),
+                arrange(finyear,Range),
               paste(Rar.path,'/Table 8. JABBA CPUE_Current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
               row.names=F)
     rm(dummy.mod)
@@ -1329,6 +1481,7 @@ for(l in 1:length(Lista.sp.outputs))
   #24.3.3 Display sensitivity tests for combined species
 for(l in 1:length(Lista.sp.outputs))
 {
+  print(paste("JABBA --- Relative biomass plot by Scenario -----",names(Lista.sp.outputs)[l],"----- single plot")) 
   if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
   a=fn.plot.timeseries_combined_sensitivity(this.sp=Lista.sp.outputs[[l]], 
                                             d=State.Space.SPM$JABBA,
@@ -1341,7 +1494,9 @@ for(l in 1:length(Lista.sp.outputs))
                         width = WIDt,height = 10,compression = "lzw")
 }
 
+
 #24.4. Kobe plots (Scenario 1)  
+
   #24.4.1 by species 
 store.kobes=vector('list',N.sp)
 names(store.kobes)=Keep.species
@@ -1354,12 +1509,13 @@ for(i in 1:N.sp)
                                                sp=Keep.species[i],
                                                do.probs=TRUE)
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/Kobe_plot.tiff",sep=''),
+                 capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_Kobe_plot.tiff",sep=''),
            width = 10,height = 10, dpi = 300,compression = "lzw")
   }
   
 }
 store.kobes=compact(store.kobes)
+
   #24.4.2 Display combined species  
 for(l in 1:length(Lista.sp.outputs))
 {
@@ -1385,6 +1541,7 @@ for(l in 1:length(Lista.sp.outputs))
     
   }
 }
+
 
 #24.5 store Consequence and likelihood for WoE
 Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 

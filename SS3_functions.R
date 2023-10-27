@@ -354,7 +354,7 @@ fn.get.in.betwee=function(x,PATRN="_") str_before_nth(str_after_nth(x, PATRN, 1)
 fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.yr,
                       fleets=NULL,fleetinfo=NULL,abundance=NULL,size.comp=NULL,meanbodywt=NULL,
                       F.tagging=NULL,cond.age.len=NULL,MeanSize.at.Age.obs=NULL,Lamdas=NULL,
-                      RecDev_Phase=-3,SR_sigmaR=0.2,Var.adjust.factor=NULL)
+                      RecDev_Phase=-3,SR_sigmaR=0.2,Var.adjust.factor=NULL,Future.project=NULL)
 {
   # 1.Copy templates
   copy_SS_inputs(dir.old = Templates, dir.new = new.path,overwrite = TRUE)
@@ -1272,10 +1272,56 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   start$datfile='data.dat'
   start$ctlfile='control.ctl'
   
-  #3.4. forecast file
-  fore$Fcast_selex=0
-  #fore$    #consider updating reference points, years, etc   
+  #3.4. forecast file 
+  fore$benchmarks=1 # 0 = skip; 1 = calc F_spr,F_btgt & F_msy
+  fore$MSY=2 #1 = set to F(SPR); 2= calc F(MSY); 3 = set to F(Btgt); 4 = set to F(endyr) 
+  fore$SPRtarget=0.6
+  fore$Btarget=0.4
+  fore$Bmark_relF_Basis=1
+  fore$Forecast=2 #0=none; 1=F(SPR); 2=F(MSY) 3=F(Btgt); 4=Ave F (uses first-last relF yrs); 5=input annual F scalar
+  if(!is.null(Future.project))fore$Nforecastyrs=length(Future.project$finyear)
+  fore$Fcast_selex=0 #0=mean from year range, 1=annual time varying
+  fore$ControlRuleMethod=1 #0=none, 1=catch as function of SSB, 2=F as function of SSB
+  fore$BforconstantF=0.4
+  fore$BfornoF=0.1
+  fore$Flimitfraction=0.913
+  fore$N_forecast_loops=3 #1=OFL only; 2=ABC; 3=get F from forecast ABC catch with allocations applied
+  fore$First_forecast_loop_with_stochastic_recruitment=3
+  fore$fcast_rec_option=0
+  fore$fcast_rec_val=1 #0 = spawner recruit curve,1 = value*(spawner recruit curve), 2 = value*(virgin recruitment), 3 = recent mean from year range above
+  fore$Forecast_loop_control_5=0
+  if(!is.null(Future.project)) fore$FirstYear_for_caps_and_allocations=Future.project$finyear[nrow(Future.project)]+1
+  fore$stddev_of_log_catch_ratio=0
+  fore$Do_West_Coast_gfish_rebuilder_output=0
+  fore$Ydecl=-1
+  fore$Yinit=-1
+  fore$fleet_relative_F=1
   
+  fore$basis_for_fcast_catch_tuning=2 #2=total catch biomass; 3=retained catch biomass; 5=total catch numbers; 6=retained total numbers
+  fore$N_allocation_groups=0   
+  fore$InputBasis=2 #-1 = Read basis with each observation, 2 = Dead catch (retained + discarded),3 = Retained catch, 99 = Input apical F
+  if(!is.null(Future.project))  # future catch
+  {
+    if(Scenario$Model=='SSS')
+    {
+      Future.catch=data.frame(year=Future.project$finyear,
+                              seas=1,
+                              fleet=1,
+                              catch=Future.project$Tonnes)
+    }
+    if(Scenario$Model=='SS')
+    {
+      dis.kls=(ncol(Future.project)-nrow(dat$fleetinfo)+1):ncol(Future.project)
+      Future.catch=Future.project[,-match(c('SPECIES','Name'),names(Future.project))]%>%
+                      gather(fleet,catch,-finyear)%>%
+                      mutate(seas=1)%>%
+                      arrange(finyear)%>%
+                      relocate(seas,.before=fleet)%>%
+                      rename(Year=finyear)
+    }
+    fore$ForeCatch=Future.catch 
+  }
+
   
   # 4.Export updated templates
   r4ss::SS_writestarter(start, dir = new.path, overwrite = TRUE,verbose = FALSE)

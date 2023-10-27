@@ -770,7 +770,10 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
           legend.position="top",
           legend.key=element_blank(),
           panel.border = element_rect(colour = "black", fill=NA, size=1))+
-    labs(fill = "")
+    labs(fill = "")+
+    labs(caption="Productivity or Susceptibility axis: low score = low risk")+
+    #labs(caption="Productivity: low score = low risk; high score = high risk \nSusceptibility: low score = low risk; high score = high risk")+
+    theme(plot.caption = element_text(hjust = 0))
   p
   ggsave(paste(Exprt,'Figure 2_PSA.tiff',sep='/'), width = W,height = H, dpi = 300, compression = "lzw")
   
@@ -2358,8 +2361,151 @@ dbsra_tweeked=function(year = NULL, catch = NULL, catchCV = NULL,
   }
   return(ans)
 }
+dlproj.tweaked=function (dlobj = NULL, projyears = NULL, projtype = 1, projcatch = NULL, 
+                         grout = 1, grargs = list(lwd = 1, unit = "MT", mains = " ", 
+                                                  cex.main = 1, cex.axis = 1, cex.lab = 1), grtif = list(zoom = 4, 
+                                                                                                         width = 11, height = 13, pointsize = 10)) 
+{
+  if (is.null(dlobj)) 
+    stop("dlobj is missing")
+  if (!any(names(dlobj) == "type")) 
+    stop("dlobj not a catchmsy or dbsra output object file")
+  if (!dlobj$type %in% c("dbsra", "catchmsy")) 
+    stop("dlobj not a catchmsy or dbsra output object file")
+  if (dlobj$type %in% c("dbsra", "catchmsy")) {
+    if (projtype == 2 & is.null(projcatch)) 
+      stop("For projtype=2, enter value for projcatch")
+    if (is.null(projyears)) 
+      stop("projyears is missing")
+  }
+  grdef = list(lwd = 1, unit = "MT", cex.axis = 1, cex.lab = 1, 
+               mains = " ", cex.main = 1)
+  if (any(names(grargs) == "unit")) {
+    if (any(grdef$unit != grargs$unit)) 
+      grdef$unit <- grargs$unit
+  }
+  if (any(names(grargs) == "cex.axis")) {
+    if (any(grdef$cex.axis != grargs$cex.axis)) 
+      grdef$cex.axis <- grargs$cex.axis
+  }
+  if (any(names(grargs) == "cex.lab")) {
+    if (any(grdef$cex.lab != grargs$cex.lab)) 
+      grdef$cex.lab <- grargs$cex.lab
+  }
+  if (any(names(grargs) == "mains")) {
+    if (any(grdef$mains != grargs$mains)) 
+      grdef$mains <- grargs$mains
+  }
+  if (any(names(grargs) == "cex.main")) {
+    if (any(grdef$cex.main != grargs$cex.main)) 
+      grdef$cex.main <- grargs$cex.main
+  }
+  if (any(names(grargs) == "lwd")) {
+    if (any(grdef$lwd != grargs$lwd)) 
+      grdef$lwd <- grargs$lwd
+  }
+  tifdef = list(zoom = 4, width = 11, height = 13, pointsize = 10)
+  if (any(names(grtif) == "zoom")) {
+    if (tifdef$zoom != grtif$zoom) 
+      tifdef$zoom <- grtif$zoom
+  }
+  if (any(names(grtif) == "width")) {
+    if (tifdef$width != grtif$width) 
+      tifdef$width <- grtif$width
+  }
+  if (any(names(grtif) == "height")) {
+    if (tifdef$height != grtif$height) 
+      tifdef$height <- grtif$height
+  }
+  if (any(names(grtif) == "pointsize")) {
+    if (tifdef$pointsize != grtif$pointsize) 
+      tifdef$pointsize <- grtif$pointsize
+  }
+  if (dlobj$type == "dbsra") {
+    agemat <- dlobj$agemat
+    if (projtype < 2) {
+      if (projtype == 0) 
+        catch1 <- dlobj$Estimates[1, 2]
+      if (projtype == 1) 
+        catch1 <- dlobj$Estimates[1, 1]
+      catch1 <- rep(catch1, projyears)
+    }
+    if (projtype == 2) {
+      if (is.null(projcatch)) 
+        stop("projcatch must be specified")
+      if (length(projcatch) > 1 && length(projcatch) < 
+          projyears) 
+        stop("length of projcatch does not match length of projyears")
+      if (length(projcatch) > 1) 
+        catch1 <- projcatch
+      if (length(projcatch) == 1) 
+        catch1 <- rep(projcatch, projyears)
+    }
+    parms <- dlobj$Values[dlobj$Values[, 1] == 1, c(2, 4, 
+                                                    5, 6, 7, 8, 9, 14, 15)]
+    names(parms) <- c("FmsyM", "BmsyK", "M", 
+                      "K", "Fmsy", "Umsy", "MSY", 
+                      "n", "g")
+    P <- NULL
+    bigB <- dlobj$Biom.traj
+    bigB <- t(bigB)
+    pB <- as.data.frame(bigB[c(nrow(bigB) - agemat):nrow(bigB),])
+    star <- nrow(pB)
+    pB[c(nrow(pB) + 1):c(c(nrow(pB) + 1) + projyears - 1),] <- NA
+    for (nn in 1:nrow(parms)) {
+      P <- 0
+      MSY <- parms$MSY[nn]
+      for (t in star:c(nrow(pB) - 1)) {
+        if (parms$BmsyK[nn] >= 0.5) 
+          P <- parms$g[nn] * MSY * (pB[t - agemat, nn]/parms$K[nn]) - 
+            parms$g[nn] * MSY * (pB[t - agemat, nn]/parms$K[nn])^parms$n[nn]
+        if (parms$BmsyK[nn] > 0.3 & parms$BmsyK[nn] < 
+            0.5) {
+          bjoin <- (0.75 * parms$BmsyK[nn] - 0.075) * 
+            parms$K[nn]
+          if (pB[t - agemat, nn] < bjoin) {
+            PJ <- parms$g[nn] * MSY * (bjoin/parms$K[nn]) - 
+              parms$g[nn] * MSY * (bjoin/parms$K[nn])^parms$n[nn]
+            cc <- (1 - parms$n[nn]) * MSY * parms$g[nn] * 
+              (bjoin^(parms$n[nn] - 2)) * parms$K[nn]^-parms$n[nn]
+            P <- pB[t - agemat, nn] * (PJ/bjoin + cc * 
+                                         (pB[t - agemat, nn] - bjoin))
+          }
+          if (pB[t - agemat, nn] >= bjoin) 
+            P <- parms$g[nn] * MSY * (pB[t - agemat, 
+                                         nn]/parms$K[nn]) - parms$g[nn] * MSY * 
+              (pB[t - agemat, nn]/parms$K[nn])^parms$n[nn]
+        }
+        if (parms$BmsyK[nn] <= 0.3) {
+          bjoin <- (0.5 * parms$BmsyK[nn]) * parms$K[nn]
+          if (pB[t - agemat, nn] < bjoin) {
+            PJ <- parms$g[nn] * MSY * (bjoin/parms$K[nn]) - 
+              parms$g[nn] * MSY * (bjoin/parms$K[nn])^parms$n[nn]
+            cc <- (1 - parms$n[nn]) * MSY * parms$g[nn] * 
+              (bjoin^(parms$n[nn] - 2)) * parms$K[nn]^-parms$n[nn]
+            P <- pB[t - agemat, nn] * (PJ/bjoin + cc * 
+                                         (pB[t - agemat, nn] - bjoin))
+          }
+          if (pB[t - agemat, nn] >= bjoin) 
+            P <- parms$g[nn] * MSY * (pB[t - agemat, 
+                                         nn]/parms$K[nn]) - parms$g[nn] * MSY * 
+              (pB[t - agemat, nn]/parms$K[nn])^parms$n[nn]
+        }
+        P <- ifelse(P < 0, 0, P)
+        pB[t + 1, nn] <- max(0, pB[t, nn] + P - catch1[t - 
+                                                         (star - 1)])
+      }
+    }
+    dd <- pB[star:c(length(pB[, 1])), ]
+    rownames(dd) <- c(dlobj$end1yr:c(dlobj$end1yr + projyears))
+    ans <- list(dlobj$type, t(dd))
+    names(ans) <- c("type", "ProjBio")
+    return(ans)
+  }
+  
+}
 apply.DBSRA_tweeked=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,bmsyk,M,graph,
-                             nsims=Niters,grout,WD,outfile)
+                             nsims=Niters,grout,WD,outfile,Projections=NULL)
 {
   setwd(WD)  #dbsra automatically exports the biomass trajectories
   #store inputs
@@ -2395,11 +2541,26 @@ apply.DBSRA_tweeked=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,b
                           nsims=nsims,
                           grout=grout)
   
+  #projections
+  if(!is.null(Projections))
+  {
+    Future.projections<-dlproj.tweaked(dlobj = output,
+                                       projyears = length(Projections$finyear),
+                                       projtype = 2,
+                                       projcatch = Projections$Tonnes, 
+                                       grout = 0)
+    output$Biom.traj=cbind(output$Biom.traj,Future.projections$ProjBio)
+    output$Depletion.traj=cbind(output$Depletion.traj,Future.projections$ProjBio/output$Values%>%filter(ll==1)%>%pull(K))
+    adumi=output$B.Bmsy[,1:ncol(Future.projections$ProjBio)]
+    adumi[,]=NA
+    output$B.Bmsy=cbind(output$B.Bmsy,adumi)
+    output$F.series=cbind(output$F.series,adumi)
+    output$F.Fmsy=cbind(output$F.Fmsy,adumi)
+    year=c(year,Projections$finyear)  
+  }
   
   #extract years
   output$Years=year
-  
-  
   return(list(input=input,output=output))
 }
 apply.DBSRA=function(year,catch,catchCV,catargs,agemat,k,b1k,btk,fmsym,bmsyk,M,graph,
@@ -2499,7 +2660,7 @@ Res.fn=function(r,Def)
   return(out)
 }
 apply.CMSY=function(year,catch,r.range,k.range,Bo.low,Bo.hi,Int.yr=NA,Bint.low=NA,Bint.hi=NA,
-                    Bf.low,Bf.hi,outfile,CMSY=CMSY.method,nsims=Niters,Proc.error,RES)
+                    Bf.low,Bf.hi,outfile,CMSY=CMSY.method,nsims=Niters,Proc.error,RES,Projections=NULL)
 {
   input=list(r.range=r.range,
              stb.low=Bo.low,
@@ -2548,7 +2709,6 @@ apply.CMSY=function(year,catch,r.range,k.range,Bo.low,Bo.hi,Int.yr=NA,Bint.low=N
     ggsave(paste(outfile,'.tiff',sep=''),width = 14,height = 8, dpi = 300, compression = "lzw")  
     
   }
-  
   if(CMSY=="Haddon")
   {
     glb=list(resilience=RES,spsname="")
@@ -2593,6 +2753,31 @@ apply.CMSY=function(year,catch,r.range,k.range,Bo.low,Bo.hi,Int.yr=NA,Bint.low=N
     output$Years=year
     output$acceptance.rate=round(100*length(ciMSY$r)/nsims,2)  
   }
+  
+  #projections
+  if(!is.null(Projections))
+  {
+    Future.projections<-doproject(intraj=gettraject(output$R1,
+                                                    projn=length(Projections$finyear)),
+                                  constC=mean(Projections$Tonnes),
+                                  projn=length(Projections$finyear),
+                                  sigpR=Proc.error)
+    Future.projections=Future.projections[,match(Projections$finyear[-1],colnames(Future.projections))]
+    colnames(Future.projections)=paste("X",colnames(Future.projections),sep='')
+    output$B.traj=cbind(output$B.traj,Future.projections)
+    
+    output$Depletion.traj=cbind(output$Depletion.traj,Future.projections/Kei)
+    adumi=output$B.Bmsy[,1:ncol(Future.projections)]
+    adumi[,]=NA
+    colnames(adumi)=paste("X",Projections$finyear[-1],sep='')
+    output$B.Bmsy=cbind(output$B.Bmsy,adumi)
+    adumi=output$F.traj[,1:(ncol(Future.projections)+1)]
+    adumi[,]=NA
+    output$F.traj=cbind(output$F.traj,adumi)
+    output$F.Fmsy=cbind(output$F.Fmsy,adumi)
+    output$Years=c(output$Years,Projections$finyear)
+  }
+  
   return(list(input=input,output=output))
 }
 apply.OCOM=function(year,catch,M,outfile)
@@ -2631,7 +2816,7 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,auxil=NULL,auxil.se=NULL,auxil.type=NULL,
                      MDL,Ktch.CV,ASS,Rdist,Rprior,Kdist,Kprior,
                      PsiDist,Psiprior,Bprior,BMSYK,Shape.CV,output.dir,outfile,Sims,
                      Proc.error.JABBA,Obs.Error=NULL,
-                     thinning = 5,nchains = 2,burn.in=5000,ktch.error="random")
+                     thinning = 5,nchains = 2,burn.in=5000,ktch.error="random",Projections=NULL)
 {
   # Compile JABBA JAGS model
   if(is.null(CPUE))
@@ -2730,11 +2915,232 @@ apply.JABBA=function(Ktch,CPUE,CPUE.SE,auxil=NULL,auxil.se=NULL,auxil.type=NULL,
   ggarrange(plotlist = list(p1,p2,p3),nrow=1,widths = c(1,1,2))
   ggsave(paste(outfile,'.tiff',sep=''),width = 14,height = 8, dpi = 300, compression = "lzw")  
   
+  #projections  
+  if(!is.null(Projections))
+  {
+    Future.projections<-fw_jabba(jabba=output,
+                                 nyears=length(Projections$Year),
+                                 quant="Catch",
+                                 type="abs",
+                                 imp.values=Projections$Total,
+                                 AR1=FALSE)
+    Future.projections=Future.projections%>%
+      filter(year%in%Projections$Year)
+    
+    adumi=Future.projections%>%
+            dplyr::select(year,B,iter)%>%
+            distinct()%>%
+            spread(year,B)%>%
+            dplyr::select(-iter)%>%
+            as.matrix()
+    colnames(adumi)=NULL
+    output$posteriors$SB=cbind(output$posteriors$SB,adumi)
+    
+    adumi=Future.projections%>%
+      dplyr::select(year,BB0,iter)%>%
+      distinct()%>%
+      spread(year,BB0)%>%
+      dplyr::select(-iter)%>%
+      as.matrix()
+    colnames(adumi)=NULL
+    output$posteriors$P=cbind(output$posteriors$P,adumi) 
+    
+    adumi=Future.projections%>%
+      dplyr::select(year,H,iter)%>%
+      distinct()%>%
+      spread(year,H)%>%
+      dplyr::select(-iter)%>%
+      as.matrix()
+    colnames(adumi)=NULL
+    output$posteriors$H=cbind(output$posteriors$H,adumi) 
+    
+    adumi[,]=NA
+    output$posteriors$BtoBmsy=cbind(output$posteriors$BtoBmsy,adumi)
+    output$posteriors$HtoHmsy=cbind(output$posteriors$HtoHmsy,adumi)
+
+    output$yr=c(output$yr,Projections$Year)
+  }
   
   return(list(fit=output,jbinput=jbinput))
 }
 F.from.U=function(U) -log(1-U) 
-
+jbplot_cpuefitsNEW=function (jabba, index = NULL, output.dir = getwd(), add = FALSE, 
+                             as.png = FALSE, single.plots = add, width = NULL, height = NULL, 
+                             plotCIs = TRUE, verbose = TRUE) 
+{
+  if (as.png == TRUE) 
+    add = FALSE
+  if (jabba$settings$CatchOnly == FALSE | jabba$settings$Auxiliary == 
+      TRUE) {
+    if (verbose) 
+      cat(paste0("\n", "><> jbplot_cpue() - fits to CPUE <><", 
+                 "\n"))
+    if (jabba$settings$Auxiliary) {
+      if (jabba$settings$CatchOnly) {
+        jabba$settings$nI = jabba$settings$nA
+        jabba$settings$I = as.matrix(jabba$settings$A)
+        jabba$settings$SE2 = as.matrix(jabba$settings$A.SE2)
+        di = dim(jabba$cpue.ppd)[3]
+        jabba$cpue.ppd[, , 1:(di - 1)] = jabba$cpue.ppd[, 
+                                                        , 2:(di)]
+        jabba$cpue.hat[, , 1:(di - 1)] = jabba$cpue.hat[, 
+                                                        , 2:(di)]
+      }
+      else {
+        jabba$settings$nI = jabba$settings$nI + jabba$settings$nA
+        jabba$settings$I = cbind(jabba$settings$I, as.matrix(jabba$settings$A))
+        jabba$settings$SE2 = cbind(jabba$settings$SE2, 
+                                   as.matrix(jabba$settings$A.SE2))
+      }
+    }
+    if (is.null(index)) 
+      index = 1:jabba$settings$nI
+    N = jabba$settings$N
+    years = jabba$yr
+    indices = unique(jabba$diags$name)[index]
+    CPUE = jabba$settings$I
+    n.indices = length(indices)
+    series = 1:n.indices
+    if (single.plots == TRUE) {
+      if (is.null(width)) 
+        width = 5
+      if (is.null(height)) 
+        height = 3.5
+      for (i in 1:n.indices) {
+        Par = list(mfrow = c(1, 1), mar = c(3.5, 3.5, 
+                                            0.5, 0.1), mgp = c(2, 0.5, 0), tck = -0.02, 
+                   cex = 0.8)
+        if (as.png == TRUE) {
+          png(file = paste0(output.dir, "/Fits", jabba$assessment, 
+                            "_", jabba$scenario, "_", indices[i], ".png"), 
+              width = width, height = height, res = 200, 
+              units = "in")
+        }
+        if (!add) {
+          if (as.png == TRUE | i == 1) 
+            par(Par)
+        }
+        Yr = jabba$yr
+        Yr = min(Yr):max(Yr)
+        yr = Yr - min(years) + 1
+        fit = t(jabba$cpue.ppd[, c(2, 1, 3), index[i]])
+        fit.hat = t(jabba$cpue.hat[, c(2, 1, 3), index[i]])
+        mufit = mean(fit[2, ])
+        fit = fit
+        fit.hat = fit.hat
+        cpue.i = CPUE[is.na(CPUE[, index[i]]) == F, index[i]]
+        yr.i = Yr[is.na(CPUE[, index[i]]) == F]
+        se.i = sqrt(jabba$settings$SE2[is.na(CPUE[, index[i]]) == 
+                                         F, index[i]])
+        ylim = c(min(fit * 0.9, exp(log(cpue.i) - 1.96 * 
+                                      se.i)), max(fit * 1.05, exp(log(cpue.i) + 1.96 * 
+                                                                    se.i)))
+        cord.x <- c(Yr, rev(Yr))
+        cord.y <- c(fit[1, yr], rev(fit[3, yr]))
+        cord.yhat <- c(fit.hat[1, yr], rev(fit.hat[3, 
+                                                   yr]))
+        plot(years, CPUE[, index[i]], ylab = "Index", 
+             xlab = "Year", ylim = ylim, xlim = range(jabba$yr), 
+             type = "n", xaxt = "n", yaxt = "n")
+        axis(1, labels = TRUE, cex = 0.8)
+        axis(2, labels = TRUE, cex = 0.8)
+        polygon(cord.x, cord.y, col = grey(0.5, 0.5), 
+                border = 0, lty = 2)
+        polygon(cord.x, cord.yhat, col = grey(0.3, 0.5), 
+                border = grey(0.3, 0.5), lty = 2)
+        lines(Yr, fit[2, yr], lwd = 2, col = 1)
+        if (plotCIs) {
+          upper <- qlnorm(0.975, meanlog = log(cpue.i), 
+                          sdlog = se.i)
+          lower <- qlnorm(0.025, meanlog = log(cpue.i), 
+                          sdlog = se.i)
+          arrows(x0 = yr.i, y0 = lower, x1 = yr.i, y1 = upper, 
+                 length = 0.02, angle = 90, code = 3, col = 1)
+        }
+        points(yr.i, cpue.i, pch = 21, xaxt = "n", yaxt = "n", 
+               bg = "white")
+        legend("top", paste(indices[i]), bty = "n", y.intersp = -0.2, 
+               cex = 0.9)
+        if (as.png == TRUE) 
+          dev.off()
+      }
+    }
+    else {
+      if (is.null(width)) 
+        width = 7
+      if (is.null(height)) 
+        height = ifelse(n.indices == 1, 5, ifelse(n.indices == 
+                                                    2, 3, 2.5)) * round(n.indices/2 + 0.01, 0)
+      Par = list(mfrow = c(round(n.indices/2 + 0.01, 0), 
+                           ifelse(n.indices == 1, 1, 2)), mai = c(0.35, 
+                                                                  0.15, 0, 0.15), omi = c(0.2, 0.25, 0.2, 0) + 
+                   0.1, mgp = c(2, 0.5, 0), tck = -0.02, cex = 0.8)
+      if (as.png == TRUE) {
+        png(file = paste0(output.dir, "/Fits_", jabba$assessment, 
+                          "_", jabba$scenario, ".png"), width = 7, height = ifelse(n.indices == 
+                                                                                     1, 5, ifelse(n.indices == 2, 3, 2.5)) * round(n.indices/2 + 
+                                                                                                                                     0.01, 0), res = 200, units = "in")
+      }
+      if (!add) 
+        par(Par)
+      for (i in 1:n.indices) {
+        Yr = jabba$yr
+        Yr = min(Yr):max(Yr)
+        yr = Yr - min(years) + 1
+        fit = t(jabba$cpue.ppd[, c(2, 1, 3), index[i]])
+        fit.hat = t(jabba$cpue.hat[, c(2, 1, 3), index[i]])
+        mufit = mean(fit[2, ])
+        fit = fit
+        fit.hat = fit.hat
+        cpue.i = CPUE[is.na(CPUE[, index[i]]) == F, index[i]]
+        yr.i = Yr[is.na(CPUE[, index[i]]) == F]
+        se.i = sqrt(jabba$settings$SE2[is.na(CPUE[, index[i]]) == 
+                                         F, index[i]])
+        ylim = c(min(fit * 0.9, exp(log(cpue.i) - 1.96 * 
+                                      se.i)), max(fit * 1.05, exp(log(cpue.i) + 1.96 * 
+                                                                    se.i)))
+        cord.x <- c(Yr, rev(Yr))
+        cord.y <- c(fit[1, yr], rev(fit[3, yr]))
+        cord.yhat <- c(fit.hat[1, yr], rev(fit.hat[3, 
+                                                   yr]))
+        plot(years, CPUE[, index[i]], ylab = "", xlab = "", 
+             ylim = ylim, xlim = range(jabba$yr), type = "n", 
+             xaxt = "n", yaxt = "n")
+        axis(1, labels = TRUE, cex = 0.8)
+        axis(2, labels = TRUE, cex = 0.8)
+        polygon(cord.x, cord.y, col = grey(0.5, 0.5), 
+                border = 0, lty = 2)
+        polygon(cord.x, cord.yhat, col = grey(0.3, 0.5), 
+                border = grey(0.3, 0.5), lty = 2)
+        lines(Yr, fit[2, yr], lwd = 2, col = 1)
+        if (plotCIs) {
+          upper <- qlnorm(0.975, meanlog = log(cpue.i), 
+                          sdlog = se.i)
+          lower <- qlnorm(0.025, meanlog = log(cpue.i), 
+                          sdlog = se.i)
+          arrows(x0 = yr.i, y0 = lower, x1 = yr.i, y1 = upper, 
+                 length = 0.02, angle = 90, code = 3, col = 1)
+        }
+        points(yr.i, cpue.i, pch = 21, xaxt = "n", yaxt = "n", 
+               bg = "white")
+        legend("top", paste(indices[i]), bty = "n", y.intersp = -0.2, 
+               cex = 0.9)
+      }
+      mtext(paste("Year"), side = 1, outer = TRUE, at = 0.5, 
+            line = 1, cex = 1)
+      mtext(paste("Index"), side = 2, outer = TRUE, at = 0.5, 
+            line = 1, cex = 1)
+      if (as.png == TRUE) {
+        dev.off()
+      }
+    }
+  }
+  else {
+    if (verbose) 
+      cat(paste0("\n", "><> jbplot_cpuefits() not available CatchOnly=TRUE <><", 
+                 "\n"))
+  }
+}
 # Catch-only ensemble  ------------------------------------------------------
 SPM=function(K,r,Init.dep,HRscen)
 {
@@ -2861,8 +3267,12 @@ mod.average=function(dd,Weights,Ref.pnt=NULL)
   dd=do.call(rbind,dd)
   Median=apply(dd,2,median,na.rm=T)
   Lower=apply(dd,2,function(x) quantile(x,probs=0.025,na.rm=T))
-  Upper=apply(dd,2,function(x) quantile(x,probs=0.975,na.rm=T)) 
-  Trajectories=data.frame(year=yrs,median=Median,lower.95=Lower,upper.95=Upper)
+  Upper=apply(dd,2,function(x) quantile(x,probs=0.975,na.rm=T))
+  Lower.60=apply(dd,2,function(x) quantile(x,probs=0.2,na.rm=T))
+  Upper.60=apply(dd,2,function(x) quantile(x,probs=0.8,na.rm=T))
+  Trajectories=data.frame(year=yrs,median=Median,
+                          lower.60=Lower.60,upper.60=Upper.60,
+                          lower.95=Lower,upper.95=Upper)
   
   Probs=Probs.future=NULL
   if(!is.null(Ref.pnt))
@@ -2901,9 +3311,13 @@ mod.average.scalar=function(dd,Weights)
   dd=do.call(c,dd)
   Median=median(dd,na.rm=T)
   Lower=quantile(dd,probs=0.025,na.rm=T)
-  Upper=quantile(dd,probs=0.975,na.rm=T) 
+  Upper=quantile(dd,probs=0.975,na.rm=T)
+  Lower.60=quantile(dd,probs=0.2,na.rm=T)
+  Upper.60=quantile(dd,probs=0.8,na.rm=T)
   
-  return(data.frame(median=Median,lower.95=Lower,upper.95=Upper))
+  return(data.frame(median=Median,
+                    lower.60=Lower.60,upper.60=Upper.60,
+                    lower.95=Lower,upper.95=Upper))
 }
 
 
@@ -3030,10 +3444,28 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
       
     }
     if(Type=='F.series')d1=dd$F.series[1:length(Years)]
-    if(Type=='B.Bmsy') d1=dd$B.Bmsy[1:length(Years)]
+    if(Type=='B.Bmsy')
+    {
+      d1=dd$B.Bmsy[1:length(Years)]
+      Probs=add.probs(DAT=d1,
+                      id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
+                      B.threshold=1)
+      Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+      {
+        Probs.future=add.probs(DAT=d1,
+                               id.yr=match(Years[length(Years)],Years),
+                               B.threshold=1)
+        Probs$probs.future=Probs.future$probs%>%
+          mutate(Scenario=scen,
+                 finyear=Years[length(Years)])
+      }
+    }
     if(Type=='F.Fmsy') d1=dd$F.Fmsy[1:length(Years)]
     Dat=data.frame(year=Years,
                    median=apply(d1,2,median),
+                   lower.60=apply(d1,2,function(x)quantile(x,probs=0.2,na.rm=T)),
+                   upper.60=apply(d1,2,function(x)quantile(x,probs=0.8,na.rm=T)),
                    upper.95=apply(d1,2,function(x)quantile(x,probs=0.975,na.rm=T)),
                    lower.95=apply(d1,2,function(x)quantile(x,probs=0.025,na.rm=T)))%>%
       mutate(Model=mods,
@@ -3068,11 +3500,30 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
     }
     
     if(Type=='F.series')  d1=dd$F.traj[,1:length(Years)]
-    if(Type=='B.Bmsy') d1=dd$B.Bmsy[1:length(Years)]
+    if(Type=='B.Bmsy')
+    {
+      d1=dd$B.Bmsy[1:length(Years)]
+      Probs=add.probs(DAT=d1,
+                      id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
+                      B.threshold=1)
+      Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+      {
+        Probs.future=add.probs(DAT=d1,
+                               id.yr=match(Years[length(Years)],Years),
+                               B.threshold=1)
+        Probs$probs.future=Probs.future$probs%>%
+          mutate(Scenario=scen,
+                 finyear=Years[length(Years)])
+      }
+    }
+      
     if(Type=='F.Fmsy') d1=dd$F.Fmsy[,1:length(Years)]
     
     Dat=data.frame(year=as.numeric(Years),
                    median=apply(d1,2,median),
+                   lower.60=apply(d1,2,function(x)quantile(x,probs=0.2,na.rm=T)),
+                   upper.60=apply(d1,2,function(x)quantile(x,probs=0.8,na.rm=T)),
                    upper.95=apply(d1,2,function(x)quantile(x,probs=0.975,na.rm=T)),  
                    lower.95=apply(d1,2,function(x)quantile(x,probs=0.025,na.rm=T)))%>%
       mutate(Model=mods,
@@ -3094,6 +3545,8 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
       K=dd$pars
       K=K[match("K",rownames(K)),"Median"]
       d1=data.frame(mu=apply(dd$posteriors$P,2,median,na.rm=T),
+                    lci.60=apply(dd$posteriors$P,2,function(x) quantile(x,probs=0.2,na.rm=T)),
+                    uci.60=apply(dd$posteriors$P,2,function(x) quantile(x,probs=0.8,na.rm=T)),
                     lci=apply(dd$posteriors$P,2,function(x) quantile(x,probs=0.025,na.rm=T)),
                     uci=apply(dd$posteriors$P,2,function(x) quantile(x,probs=0.975,na.rm=T)))
       Probs=add.probs(DAT=sweep(dd$posteriors$SB,1,dd$posteriors$K,'/'),
@@ -3114,18 +3567,37 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
     if(Type=='F.series')
     {
       d1=data.frame(mu=apply(dd$posteriors$H,2,median,na.rm=T),
+                    lci.60=apply(dd$posteriors$H,2,function(x) quantile(x,probs=0.2,na.rm=T)),
+                    uci.60=apply(dd$posteriors$H,2,function(x) quantile(x,probs=0.8,na.rm=T)),
                     lci=apply(dd$posteriors$H,2,function(x) quantile(x,probs=0.025,na.rm=T)),
                     uci=apply(dd$posteriors$H,2,function(x) quantile(x,probs=0.975,na.rm=T)))
     }
     if(Type=='B.Bmsy')
     {
       d1=data.frame(mu=apply(dd$posteriors$BtoBmsy,2,median,na.rm=T),
+                    lci.60=apply(dd$posteriors$BtoBmsy,2,function(x) quantile(x,probs=0.2,na.rm=T)),
+                    uci.60=apply(dd$posteriors$BtoBmsy,2,function(x) quantile(x,probs=0.8,na.rm=T)),
                     lci=apply(dd$posteriors$BtoBmsy,2,function(x) quantile(x,probs=0.025,na.rm=T)),
                     uci=apply(dd$posteriors$BtoBmsy,2,function(x) quantile(x,probs=0.975,na.rm=T)))
+      Probs=add.probs(DAT=sweep(dd$posteriors$SB,1,dd$posteriors$K,'/'),
+                      id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
+                      B.threshold=1)
+      Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+      {
+        Probs.future=add.probs(DAT=sweep(dd$posteriors$SB,1,dd$posteriors$K,'/'),
+                               id.yr=match(Years[length(Years)],Years),
+                               B.threshold=1)
+        Probs$probs.future=Probs.future$probs%>%
+          mutate(Scenario=scen,
+                 finyear=Years[length(Years)])
+      }
     }
     if(Type=='F.Fmsy')
     {
       d1=data.frame(mu=apply(dd$posteriors$HtoHmsy,2,median,na.rm=T),
+                    lci.60=apply(dd$posteriors$HtoHmsy,2,function(x) quantile(x,probs=0.2,na.rm=T)),
+                    uci.60=apply(dd$posteriors$HtoHmsy,2,function(x) quantile(x,probs=0.8,na.rm=T)),
                     lci=apply(dd$posteriors$HtoHmsy,2,function(x) quantile(x,probs=0.025,na.rm=T)),
                     uci=apply(dd$posteriors$HtoHmsy,2,function(x) quantile(x,probs=0.975,na.rm=T)))
     }
@@ -3133,6 +3605,8 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
     
     Dat=data.frame(year=as.numeric(Years),
                    median=d1$mu[1:length(Years)],
+                   lower.60=d1$lci.60[1:length(Years)],
+                   upper.60=d1$uci.60[1:length(Years)],
                    upper.95=d1$uci[1:length(Years)],  
                    lower.95=d1$lci[1:length(Years)])%>%
       mutate(Model=mods,
@@ -3152,7 +3626,8 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
     if(mods=='SSS') biom.type='total'
     if(mods=='SS3') biom.type='spawning'
     
-    Years=with(d[[1]],startyr:endyr)  
+    Years=with(d[[1]],startyr:endyr)
+    if(d[[1]]$N_forecast_yrs>1) Years=with(d[[1]],startyr:(endyr+d[[1]]$N_forecast_yrs))
     
     dum=do.call(rbind,fn.get.stuff.from.list(d,"derived_quants"))
     
@@ -3185,6 +3660,8 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
         d1=SSB%>%
           group_by(year)%>%
           summarise(mu=median(Depletion,na.rm=T),
+                    lci.60=quantile(Depletion,probs=0.2,na.rm=T),
+                    uci.60=quantile(Depletion,probs=0.8,na.rm=T),
                     lci=quantile(Depletion,probs=0.025,na.rm=T),
                     uci=quantile(Depletion,probs=0.975,na.rm=T))
         Probs=add.probs(DAT=SSB%>%
@@ -3228,6 +3705,8 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
         d1=TotB%>%
           group_by(year)%>%
           summarise(mu=median(Depletion,na.rm=T),
+                    lci.60=quantile(Depletion,probs=0.2,na.rm=T),
+                    uci.60=quantile(Depletion,probs=0.8,na.rm=T),
                     lci=quantile(Depletion,probs=0.025,na.rm=T),
                     uci=quantile(Depletion,probs=0.975,na.rm=T))
         Probs=add.probs(DAT=TotB%>%
@@ -3260,6 +3739,8 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
         mutate(year=readr::parse_number(Label))%>%
         group_by(year)%>%
         summarise(mu=median(Value,na.rm=T),
+                  lci.60=quantile(Value,probs=0.2,na.rm=T),
+                  uci.60=quantile(Value,probs=0.8,na.rm=T),
                   lci=quantile(Value,probs=0.025,na.rm=T),
                   uci=quantile(Value,probs=0.975,na.rm=T))
     }
@@ -3276,9 +3757,31 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
         mutate(B_Bmys=Value/Value.MSY)%>%
         group_by(year)%>%
         summarise(mu=median(B_Bmys,na.rm=T),
+                  lci.60=quantile(B_Bmys,probs=0.2,na.rm=T),
+                  uci.60=quantile(B_Bmys,probs=0.8,na.rm=T),
                   lci=quantile(B_Bmys,probs=0.025,na.rm=T),
                   uci=quantile(B_Bmys,probs=0.975,na.rm=T))
       
+      Probs=add.probs(DAT=SSB%>%
+                        dplyr::select(Simulation,year,Depletion)%>%
+                        spread(year,Depletion)%>%
+                        dplyr::select(-Simulation),
+                      id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
+                      B.threshold=1)
+      Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      
+      if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+      {
+        Probs.future=add.probs(DAT=SSB%>%
+                                 dplyr::select(Simulation,year,Depletion)%>%
+                                 spread(year,Depletion)%>%
+                                 dplyr::select(-Simulation),
+                               id.yr=match(Years[length(Years)],Years),
+                               B.threshold=1)
+        Probs$probs.future=Probs.future$probs%>%
+          mutate(Scenario=scen,
+                 finyear=Years[length(Years)])
+      }
     }
     
     if(Type=='F.Fmsy')
@@ -3300,6 +3803,8 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
         mutate(F_Fmsy=Value/Value.F_MSY)%>%
         group_by(year)%>%
         summarise(mu=median(F_Fmsy,na.rm=T),
+                  lci.60=quantile(F_Fmsy,probs=0.2,na.rm=T),
+                  uci.60=quantile(F_Fmsy,probs=0.8,na.rm=T),
                   lci=quantile(F_Fmsy,probs=0.025,na.rm=T),
                   uci=quantile(F_Fmsy,probs=0.975,na.rm=T))
       
@@ -3307,6 +3812,8 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
     
     Dat=data.frame(year=as.numeric(Years),
                    median=d1$mu[1:length(Years)],
+                   lower.60=d1$lci.60[1:length(Years)],
+                   upper.60=d1$uci.60[1:length(Years)],
                    upper.95=d1$uci[1:length(Years)],  
                    lower.95=d1$lci[1:length(Years)])%>%
       mutate(Model=mods,
@@ -3322,7 +3829,7 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
   
   Dat=Dat%>%mutate(Scenario=scen)
   
-  if(Type=='Depletion')
+  if(Type%in%c('Depletion','B.Bmsy'))
   {
     return(list(Dat=Dat,Probs=Probs))
   }else
@@ -3470,8 +3977,9 @@ make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,YLAB=''
 {
   p=da%>%
     ggplot(aes(year, median))+
-    geom_ribbon(aes(ymin = lower.95, ymax = upper.95), alpha = 0.2,fill='grey60') +
-    geom_line(size=1.1)  +
+    geom_ribbon(aes(ymin = lower.95, ymax = upper.95), alpha = 0.2,fill='grey60')+
+    geom_ribbon(aes(ymin = lower.60, ymax = upper.60), alpha = 0.2,fill='grey20')+
+    geom_line()  +
     facet_wrap(~Scenario,ncol=nfacets)+
     theme_PA(axs.T.siz=AXST,axs.t.siz=AXSt,strx.siz=STRs)+
     theme(plot.title =element_text(hjust = 0.5))+
@@ -3482,19 +3990,29 @@ make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,YLAB=''
   if(any(!is.na(da$upper.50))) p=p+geom_ribbon(aes(ymin = lower.50, ymax = upper.50), alpha = 0.1)
   if(!is.null(HLine))
   {
-    p=p+geom_hline(data=da,aes(yintercept=unique(Target)),color='forestgreen', size=1.05)
+    if('Target'%in%names(da)) p=p+geom_hline(data=da,aes(yintercept=unique(Target)),color='forestgreen', size=1.05)
     p=p+geom_hline(data=da,aes(yintercept=unique(Threshold)),color='orange', size=1.05)
-    p=p+geom_hline(data=da,aes(yintercept=unique(Limit)),color='red', size=1.05)
+    if('Limit'%in%names(da)) p=p+geom_hline(data=da,aes(yintercept=unique(Limit)),color='red', size=1.05)
   }
+  if(!addKtch) p=p+scale_y_continuous(limits = c(0, NA))
   if(addKtch)
   {
+    sklr=1
+    if(unique(da$Threshold)==1) sklr=2
     coeff=max(da$Catch)
-    da$Ktch.scaled=da$Catch/coeff
+    da$Ktch.scaled=da$Catch/(coeff/sklr)
+    lbs=seq(0,10*ceiling(coeff/10),length.out=4)
+    lbs=pretty(lbs,n=(length(lbs)-1))
+    bks=seq(0,10*ceiling(sklr*coeff/10),length.out=length(lbs))
+    bks=pretty(bks,n=(length(bks)-1))
+    min.lb=min(length(lbs),length(bks))
+    lbs=lbs[1:min.lb]
+    bks=bks[1:min.lb]
     p=p+ 
       geom_line(data=da, aes(x=year, y=Ktch.scaled),size=1.1,color='dodgerblue4',alpha=0.5,linetype ='dashed')+
-      scale_y_continuous(sec.axis = sec_axis(~.*coeff, name=""))
+      scale_y_continuous(limits = c(0, NA),sec.axis = sec_axis(~.*coeff, name="",labels = lbs,breaks = bks))
   }
-  p=p+geom_line(size=1.1)
+  p=p+geom_line(size=.7)
   future.ktch=da%>%filter(year>Last.yr.ktch.numeric)
   if(nrow(future.ktch)>0)
   {
@@ -3504,29 +4022,13 @@ make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,YLAB=''
     if(addKtch)p=p+geom_line(data=future.ktch, aes(x=year, y=Ktch.scaled),size=1.1,color=future.color)
     
   }
+  
   return(p)
 }
 fn.ribbon=function(Dat,YLAB,XLAB,Titl,HLIne,addKtch,nfacets=1,AXST=14,AXSt=12,STRs=14,InrMarg=.25,dropTitl=FALSE)
 {
   data2 <- split(Dat, Dat$Scenario)
-  for(ii in 1:length(data2))
-  {
-    if(is.list(HLIne))
-    {
-      gg=HLIne[[tolower(names(data2)[ii])]]
-      data2[[ii]]=data2[[ii]]%>%
-        mutate(Target=gg%>%filter(Rf.pt=='Target')%>%pull(Value),
-               Threshold=gg%>%filter(Rf.pt=='Threshold')%>%pull(Value),
-               Limit=gg%>%filter(Rf.pt=='Limit')%>%pull(Value))
-    }else
-    {
-      data2[[ii]]=data2[[ii]]%>%
-        mutate(Target=HLIne[1],
-               Threshold=HLIne[2],
-               Limit=HLIne[3])
-    }
-  }
-  p_lst <- lapply(data2, make_plot,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,HLine=NULL)
+  p_lst <- lapply(data2, make_plot,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,HLine=HLIne)
   for(ii in 1:length(p_lst))
   {
     p_lst[[ii]]=p_lst[[ii]]+theme(plot.margin = unit(c(0, 0, 0, 0), "pt"))
@@ -3548,18 +4050,38 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
   {
     if(!is.null(d[[m]]$estimates[[id]]))
     {
-      Hline=NULL
+      Hline=NULL 
       addKtch=FALSE
       if(Type=='F.series') Var=d[[m]]$f.series[[id]]
-      if(Type=='B.Bmsy')   Var=d[[m]]$B.Bmsy[[id]]
-      if(Type=='F.Fmsy')   Var=d[[m]]$F.Fmsy[[id]]
+      if(Type=='B.Bmsy')
+      {
+        Hline=TRUE  
+        addKtch=FALSE
+        Var=d[[m]]$B.Bmsy[[id]]
+        dis=data.frame(Limit=Lim.prop.bmsy,Target=Tar.prop.bmsny,Threshold=1,Scenario=unique(Var$Scenario))
+        Var=Var%>%left_join(dis,by='Scenario')
+      }
+      if(Type=='F.Fmsy')
+      {
+        Hline=TRUE  
+        addKtch=FALSE
+        Var=d[[m]]$F.Fmsy[[id]]
+        dis=data.frame(Threshold=1,Scenario=unique(Var$Scenario))
+        Var=Var%>%left_join(dis,by='Scenario')
+        
+      }
       if(Type=='Depletion')
       {
         addKtch=TRUE
         Var=d[[m]]$rel.biom[[id]]
         str.prob=compact(d[[m]]$probs.rel.biom[[id]])   
-        str.ref.point[[m]]=str.prob[[1]]$Reference.points
-        Hline=str.ref.point[[m]]$Value
+        #dis=str.prob[[1]]$Reference.points   
+        dis=fn.get.stuff.from.list(str.prob,'Reference.points')
+        for(y in 1:length(dis)) dis[[y]]$Scenario=paste('S',y,sep='')
+        Var=Var%>%left_join(do.call(rbind,dis)%>%spread(Rf.pt,Value),by='Scenario')
+        Hline='YES'
+        str.ref.point[[m]]=dis
+        #Hline=str.ref.point[[m]]$Value
         store.probs[[m]]=do.call(rbind,sapply(str.prob,'[',1))%>%  
           mutate(Model=names(store.probs)[m])
       }
@@ -3584,7 +4106,7 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
                                          fig.lab=capitalize(sp),
                                          fig.lab.pos='top.left',
                                          fig.lab.size=28)
-    if(Type=='Depletion')
+    if(addKtch)
     {
       figure=annotate_figure(figure,
                              right=text_grob('Total catch (tonnes)',size=26,rot = 90,
@@ -3601,6 +4123,10 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
 fn.plot.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin)
 {
   mods=names(d)
+  Out.name='Relative.biomass'
+  if(Type=="F.series") Out.name='F.series'
+  if(Type=="B.Bmsy") Out.name='B.over.Bmsy'
+  if(Type=="F.Fmsy") Out.name='F.over.Fmsy'
   if(length(this.sp)>8)
   {
     for(m in 1:length(mods))
@@ -3609,13 +4135,34 @@ fn.plot.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin
       Hline=NULL
       addKtch=FALSE
       if(Type=='F.series')  Var=d[[m]]$f.series[id]
-      if(Type=='B.Bmsy')    Var=d[[m]]$B.Bmsy[id]
-      if(Type=='F.Fmsy')    Var=d[[m]]$F.Fmsy[id]
+      if(Type=='B.Bmsy')
+      {
+        Hline=TRUE  
+        addKtch=FALSE
+        Var=d[[m]]$B.Bmsy[id]
+        dis=data.frame(Limit=Lim.prop.bmsy,Target=Tar.prop.bmsny,Threshold=1,Scenario=unique(Var[[1]]$Scenario))
+        for(q in 1:length(Var)) Var[[q]]=Var[[q]]%>%left_join(dis,by='Scenario')
+      }
+      if(Type=='F.Fmsy')
+      {
+        Hline=TRUE  
+        addKtch=FALSE
+        Var=d[[m]]$F.Fmsy[id]
+        dis=data.frame(Threshold=1,Scenario=unique(Var[[1]]$Scenario))
+        for(q in 1:length(Var)) Var[[q]]=Var[[q]]%>%left_join(dis,by='Scenario')
+      }
       if(Type=='Depletion')
       {
-        Var=d[[m]]$rel.biom[id]
         addKtch=TRUE
-        Hline=d[[m]]$probs.rel.biom[[id[1]]][[1]]$Reference.points$Value
+        Var=d[[m]]$rel.biom[id]
+        str.prob=compact(d[[m]]$probs.rel.biom[id]) 
+        for(q in 1:length(str.prob))
+        {
+          dis=fn.get.stuff.from.list(str.prob[[q]],'Reference.points')
+          for(y in 1:length(dis)) dis[[y]]$Scenario=paste('S',y,sep='')
+          Var[[q]]=Var[[q]]%>%left_join(do.call(rbind,dis)%>%spread(Rf.pt,Value),by='Scenario')
+        }
+        Hline='YES' #Hline=d[[m]]$probs.rel.biom[[id[1]]][[1]]$Reference.points$Value 
       }
       figure=fn.ribbon(Dat=do.call(rbind,Var)%>%
                          rownames_to_column()%>%
@@ -3635,15 +4182,15 @@ fn.plot.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin
                              bottom = text_grob('Financial year',size=26,vjust =-0.15),
                              left = text_grob(YLAB,size=26,rot = 90,vjust=0.8))+
         theme(plot.margin = unit(c(.1,.1,0,0), "cm"))
-      if(Type=='Depletion')
+      if(addKtch)
       {
         figure=annotate_figure(figure,
                                right=text_grob('Total catch (tonnes)',size=26,rot = 90,
                                                color ='dodgerblue4',vjust=-.2))
       }
       print(figure)
-      ggsave(paste(Rar.path,'/Relative.biomass_catch.only_',NM,'_',mods[m],'_Appendix_S1','.tiff',sep=''),
-             width = 13,height = 11,compression = "lzw")
+      ggsave(paste(Rar.path,'/',Out.name,'_catch.only_',NM,'_',mods[m],'_Appendix_S1','.tiff',sep=''),
+             width = 14,height = 11,compression = "lzw")
     }
     
   }else
@@ -3654,14 +4201,36 @@ fn.plot.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin
       id=match(this.sp,names(d[[m]]$rel.biom))
       Hline=NULL
       addKtch=FALSE
-      if(Type=='F.series')  Var=d[[m]]$f.series[id]
-      if(Type=='B.Bmsy')    Var=d[[m]]$B.Bmsy[id]
-      if(Type=='F.Fmsy')    Var=d[[m]]$F.Fmsy[id]
+      if(Type=='F.series')  Var=d[[m]]$f.series[id] 
+      if(Type=='B.Bmsy')
+      {
+        Hline=TRUE  
+        addKtch=FALSE
+        Var=d[[m]]$B.Bmsy[id]
+        dis=data.frame(Limit=Lim.prop.bmsy,Target=Tar.prop.bmsny,Threshold=1,Scenario=unique(Var[[1]]$Scenario))
+        for(q in 1:length(Var)) Var[[q]]=Var[[q]]%>%left_join(dis,by='Scenario')
+      }
+      if(Type=='F.Fmsy')
+      {
+        Hline=TRUE  
+        addKtch=FALSE
+        Var=d[[m]]$F.Fmsy[id]
+        dis=data.frame(Threshold=1,Scenario=unique(Var[[1]]$Scenario))
+        for(q in 1:length(Var)) Var[[q]]=Var[[q]]%>%left_join(dis,by='Scenario')
+      }
       if(Type=='Depletion')
       {
-        Var=d[[m]]$rel.biom[id]
         addKtch=TRUE
-        Hline=d[[m]]$probs.rel.biom[[id[1]]][[1]]$Reference.points$Value
+        Var=d[[m]]$rel.biom[id]
+        str.prob=compact(d[[m]]$probs.rel.biom[id]) 
+        for(q in 1:length(str.prob))
+        {
+          dis=fn.get.stuff.from.list(str.prob[[q]],'Reference.points')
+          for(y in 1:length(dis)) dis[[y]]$Scenario=paste('S',y,sep='')
+          Var[[q]]=Var[[q]]%>%left_join(do.call(rbind,dis)%>%spread(Rf.pt,Value),by='Scenario')
+        }
+        Hline='YES'
+        #Hline=d[[m]]$probs.rel.biom[[id[1]]][[1]]$Reference.points$Value 
       }
       plot.list[[m]]=fn.ribbon(Dat=do.call(rbind,Var)%>%
                                  filter(Scenario=='S1')%>%
@@ -3682,19 +4251,19 @@ fn.plot.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin
     figure=annotate_figure(figure,
                            bottom = text_grob('Financial year',size=26,vjust =-0.15),
                            left = text_grob(YLAB,size=26,rot = 90,vjust=0.8))
-    if(Type=='Depletion')
+    if(addKtch)
     {
       figure=annotate_figure(figure,
                              right=text_grob('Total catch (tonnes)',size=26,rot = 90,
                                              color ='dodgerblue4',vjust=-.2))
     }
     print(figure)
-    ggsave(paste(Rar.path,'/Relative.biomass_catch.only_',NM,'_Appendix_S1','.tiff',sep=''),
-           width = 15,height = 10,compression = "lzw")
+    ggsave(paste(Rar.path,'/',Out.name,'_catch.only_',NM,'_Appendix_S1','.tiff',sep=''),
+           width = 14,height = 10,compression = "lzw")
     
   }
 }
-fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Kach)
+fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Kach,SCEn='S1')
 {
   id=match(this.sp,names(d$rel.biom))
   RefPoint=compact(RefPoint[id])
@@ -3711,12 +4280,49 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
     Hline=NULL
     addKtch=FALSE
     if(Type=='F.series')  Var=d$f.series[id]
-    if(Type=='B.Bmsy')    Var=d$B.Bmsy[id]
-    if(Type=='F.Fmsy')    Var=d$F.Fmsy[id]
+    if(Type=='B.Bmsy')
+    {
+      Hline='YES'
+      Var=d$B.Bmsy[id]
+      for(q in 1:length(Var))
+      {
+        Var[[q]]=Var[[q]]%>%
+          mutate(Target=Tar.prop.bmsny,
+                 Threshold=1,
+                 Limit=Lim.prop.bmsy)
+      }
+    }
+    if(Type=='F.Fmsy')
+    {
+      Hline='YES'
+      Var=d$F.Fmsy[id]
+      for(q in 1:length(Var))
+      {
+        Var[[q]]=Var[[q]]%>%
+          mutate(Threshold=1)
+      }
+    }
     if(Type=='Depletion')
     {
-      Var=d$rel.biom[id]
+      Var=compact(d$rel.biom[id])
       addKtch=TRUE
+      for(q in 1:length(Var))
+      {
+        RP=RefPoint[[q]]%>%data.frame
+        if(!is.data.frame(RP))
+        {
+          if(length(RP)>1)
+          {
+            RP=do.call(rbind,RP)%>%
+              filter(Scenario==SCEn)
+          }
+        }
+        Var[[q]]=Var[[q]]%>%
+          mutate(Target=RP%>%filter(Rf.pt=='Target')%>%pull( Value),
+                 Threshold=RP%>%filter(Rf.pt=='Threshold')%>%pull( Value),
+                 Limit=RP%>%filter(Rf.pt=='Limit')%>%pull( Value))
+      }
+      Hline='YES'
     }
     Var=compact(Var)
     
@@ -3726,7 +4332,7 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
     
     Dat=do.call(rbind,Var)
     if('Catch'%in%names(Dat))Dat=Dat%>%dplyr::select(-Catch)
-    if('Scenario'%in%names(Dat))Dat=Dat%>%filter(Scenario=='S1')
+    if('Scenario'%in%names(Dat))Dat=Dat%>%filter(Scenario==SCEn)
     STRs=16
     if(length(Var)>8) STRs=13
     figure=fn.ribbon(Dat=Dat%>%
@@ -3736,7 +4342,7 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
                      YLAB='',
                      XLAB="",
                      Titl='',
-                     HLIne=RefPoint,   
+                     HLIne=Hline,
                      addKtch=addKtch,
                      nfacets=Nfast,
                      AXST=15,AXSt=12,STRs=STRs,
@@ -3747,7 +4353,7 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
                            bottom = text_grob('Financial year',size=26,vjust =-0.15),
                            left = text_grob(YLAB,size=26,rot = 90,vjust=0.8)) +
       theme(plot.margin = unit(c(.1,.1,0,0), "cm"))
-    if(Type=='Depletion')
+    if(addKtch)
     {
       figure=annotate_figure(figure,
                              right=text_grob('Total catch (tonnes)',size=26,rot = 90,
@@ -3756,7 +4362,7 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
     return(figure)
   }
 }
-fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,Kach)
+fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,Kach,SCEn='S1')
 {
   id=match(this.sp,names(d$rel.biom))
   RefPoint=compact(RefPoint[id])
@@ -3766,19 +4372,28 @@ fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,
     ach=do.call(rbind,Kach)%>%
       rownames_to_column()%>%
       mutate(Species=capitalize(sub("\\..*", "", rowname)))
-    Hline=do.call(rbind,RefPoint)%>%
+    if(length(RefPoint[[1]])>1)
+    {
+      for(ref in 1:length(RefPoint)) RefPoint[[ref]]=do.call(rbind,RefPoint[[ref]])
+    }
+    Hline=do.call(rbind,RefPoint)%>%  
       rownames_to_column()%>%
       mutate(Species=capitalize(sub("\\..*", "", rowname)))%>%
       dplyr::select(-rowname)%>%
-      spread(Rf.pt,Value)
+      filter(Scenario==SCEn)%>%
+      spread(Rf.pt,Value)%>%
+      dplyr::select(-Scenario)
     ach=ach%>%left_join(Hline,by='Species')
     figure=ach%>%
       ggplot(aes(year,median,color=Scenario))+
       facet_wrap(~Species)+
       geom_ribbon(aes(ymin = lower.95, ymax = upper.95,fill=Scenario), alpha = 0.1)+
       geom_line(size=2)+
+      guides(color = guide_legend(nrow = 1),fill= guide_legend(nrow = 1))+
       ylim(0,max(ach$upper.95))+
-      theme_PA()+
+      theme_PA(strx.siz=14)+
+      theme(legend.position = 'top',
+            legend.title = element_blank())+
       ylab('')+xlab('')+
       geom_hline(aes(yintercept=Limit), size=1.05,alpha=0.35,color='red')+
       geom_hline(aes(yintercept=Threshold), size=1.05,alpha=0.35,color='orange')+
@@ -3802,8 +4417,21 @@ fn.plot.catch.vs.MSY=function(d,sp,YLAB)
     {
       MSY.estim=d[[m]]$estimates[[id]]
       if(!'Parameter'%in%names(MSY.estim)) MSY.estim$Parameter=MSY.estim$Par
+      MSY.estimS2=MSY.estim[grep('MSY',MSY.estim$Parameter),]%>%filter(Scenario=='S2')
       MSY.estim=MSY.estim[grep('MSY',MSY.estim$Parameter),]%>%filter(Scenario=='S1')
       
+      MSY.estim.60.per=d[[m]]$ensemble[[id]]$MSY%>%
+                        group_by(Scenario)%>%
+                        summarise(Upper.60=quantile(Value,probs=0.8,na.rm=T),
+                                  Lower.60=quantile(Value,probs=0.2,na.rm=T))   
+      MSY.estimS2.60.per=MSY.estim.60.per%>%filter(Scenario=='S2')
+      MSY.estim.60.per=MSY.estim.60.per%>%filter(Scenario=='S1')
+      if(nrow(MSY.estimS2)==0)
+      {
+        MSY.estimS2=MSY.estim
+        MSY.estimS2.60.per=MSY.estim.60.per
+      }
+        
       Ktch=d[[m]]$rel.biom[[id]]%>%filter(Scenario=='S1')
       
       suppressWarnings({store.plots[[m]]=data.frame(Year=Ktch$year,
@@ -3811,18 +4439,32 @@ fn.plot.catch.vs.MSY=function(d,sp,YLAB)
                                                     MSY_Lower.95=MSY.estim$Lower.95,
                                                     MSY_Median=MSY.estim$Median,
                                                     MSY_Upper.95=MSY.estim$Upper.95,
+                                                    MSY_Lower.95_S2=MSY.estimS2$Lower.95,
+                                                    MSY_Median_S2=MSY.estimS2$Median,
+                                                    MSY_Upper.95_S2=MSY.estimS2$Upper.95,
+                                                    MSY_Upper.60=MSY.estim.60.per$Upper.60,
+                                                    MSY_Lower.60=MSY.estim.60.per$Lower.60,
+                                                    MSY_Upper.60_S2=MSY.estimS2.60.per$Upper.60,
+                                                    MSY_Lower.60_S2=MSY.estimS2.60.per$Lower.60,
                                                     Model=mods[m])}) 
     }
   }
   store.plots=compact(store.plots)
   if(length(store.plots)>0)
   {
+    CoLS1="black"
+    ColS2="darkcyan"
+    if(!"S2"%in%unique(d$SSS$estimates[[id]]$Scenario))ColS2="transparent"  
     store.plots=do.call(rbind,store.plots)
     
     figure=store.plots%>%
       ggplot(aes(Year,Catch))+
-      geom_line(aes(Year,MSY_Median),color="black",size=.65)+
-      geom_ribbon(aes(ymin = MSY_Lower.95, ymax = MSY_Upper.95), alpha=.1,fill ="black")+
+      geom_line(aes(Year,MSY_Median),color=CoLS1,size=.65)+
+      geom_ribbon(aes(ymin = MSY_Lower.95, ymax = MSY_Upper.95), alpha=.1,fill =CoLS1)+
+      geom_ribbon(aes(ymin = MSY_Lower.60, ymax = MSY_Upper.60), alpha=.3,fill =CoLS1)+
+      geom_line(aes(Year,MSY_Median_S2),color=ColS2,size=.65)+
+      geom_ribbon(aes(ymin = MSY_Lower.95_S2, ymax = MSY_Upper.95_S2), alpha=.1,fill =ColS2)+
+      geom_ribbon(aes(ymin = MSY_Lower.60_S2, ymax = MSY_Upper.60_S2), alpha=.3,fill =ColS2)+
       geom_line(size=.75,color='dodgerblue4')+
       facet_wrap(~Model,ncol=1)+
       theme_PA()+ylab(YLAB)+xlab('Financial year')
@@ -3832,7 +4474,7 @@ fn.plot.catch.vs.MSY=function(d,sp,YLAB)
       figure=figure+
               geom_line(data=future.ktch,aes(Year,Catch),size=.75,color=future.color)
     }
-    print(figure)      
+    suppressWarnings({print(figure)})     
     return(store.plots%>%mutate(Species=sp))
   }
 }
@@ -3847,7 +4489,9 @@ fn.plot.catch.vs.MSY_combined_Appendix=function(all.this.sp,this.sp,d,NM,YLAB)
     summarise(Catch.last.yr=mean(data.table::last(Catch,1)),
               Catch.mean.last.3.yrs=mean(data.table::last(Catch,3)),
               MSY_Lower.95=mean(MSY_Lower.95),
+              MSY_Lower.60=mean(MSY_Lower.60),
               MSY_Median=mean(MSY_Median),
+              MSY_Upper.60=mean(MSY_Upper.60),
               MSY_Upper.95=mean(MSY_Upper.95))
   write.csv(d1,
             paste(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_',NM,'_Appendix','.csv',sep=''),
@@ -3873,6 +4517,7 @@ fn.plot.catch.vs.MSY_combined_Appendix=function(all.this.sp,this.sp,d,NM,YLAB)
         ggplot(aes(Year,Catch))+
         geom_line(aes(Year,MSY_Median),color="black",size=.65)+
         geom_ribbon(aes(ymin = MSY_Lower.95, ymax = MSY_Upper.95), alpha=.1,fill ="black")+
+        geom_ribbon(aes(ymin = MSY_Lower.60, ymax = MSY_Upper.60), alpha=.3,fill ="black")+
         geom_line(size=.75,color='dodgerblue4')+
         facet_wrap(~Species,scales='free_y',ncol=Nkl)+
         theme_PA(axs.t.siz=aXS.si,strx.siz=STR.siz)+
@@ -3895,21 +4540,26 @@ fn.plot.catch.vs.MSY_combined=function(all.this.sp,this.sp,d,NM,YLAB,MSY)
   for(k in 1:length(MSY)) MSY[[k]]$Species=names(MSY)[k]
   MSY=do.call(rbind,MSY)%>%
     rename(ensembled.median=median,
+           ensembled.lower.60=lower.60,
+           ensembled.upper.60=upper.60,
            ensembled.lower.95=lower.95,
            ensembled.upper.95=upper.95)
   
   #table
   d1=d%>%
-    dplyr::select(-c(MSY_Lower.95,MSY_Median,MSY_Upper.95))%>%
+    #dplyr::select(-c(MSY_Lower.95,MSY_Median,MSY_Upper.95))%>%
+    dplyr::select(Year,Catch, Species)%>%
     filter(Species%in%all.this.sp)%>%
     filter(Year<=Last.yr.ktch.numeric)%>%
     left_join(MSY,by='Species')%>%
     mutate(Species=capitalize(Species))%>%
     group_by(Species)%>%
     summarise(Catch.last.yr=mean(data.table::last(Catch,1)),
-              Catch.mean.last.3.yrs=mean(data.table::last(Catch,3)),
+              Catch.mean.last.n.yrs=mean(data.table::last(Catch,n.last.catch.yrs)),
               MSY_Lower.95=mean(ensembled.lower.95),
+              MSY_Lower.60=mean(ensembled.lower.60),
               MSY_Median=mean(ensembled.median),
+              MSY_Upper.60=mean(ensembled.upper.60),
               MSY_Upper.95=mean(ensembled.upper.95))
   write.csv(d1,
             paste(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_',NM,'.csv',sep=''),
@@ -3935,7 +4585,8 @@ fn.plot.catch.vs.MSY_combined=function(all.this.sp,this.sp,d,NM,YLAB,MSY)
     figure=d%>%
       ggplot(aes(Year,Catch))+
       geom_line(aes(Year,ensembled.median),color="black",size=.65)+
-      geom_ribbon(aes(ymin = MSY_Lower.95, ymax = MSY_Upper.95), alpha=.1,fill ="black")+
+      geom_ribbon(aes(ymin = ensembled.lower.95, ymax = ensembled.upper.95), alpha=.1,fill ="black")+
+      geom_ribbon(aes(ymin = ensembled.lower.60, ymax = ensembled.upper.60), alpha=.3,fill ="black")+
       geom_line(size=.75,color='dodgerblue4')+
       facet_wrap(~Species,scales='free_y',ncol=Nkl)+
       theme_PA(axs.t.siz=aXS.si,strx.siz=STR.siz)+
@@ -3994,7 +4645,7 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
       scale_fill_manual(labels=c("95%","80%","50%"),values = kernels)+
       geom_point(data=Pr.d,aes(x, y,color=col),alpha = 1,size=5)+
       scale_color_manual(labels=names(pr.ds),values = pr.ds)+
-      labs(CI="CI", col="Prob.")
+      labs(CI="", col=dta[nrow(dta),'yr'])
   }
   kobe <-kobe +
     geom_path(linetype = 2, size = 0.5,color='deepskyblue4')+
@@ -4014,6 +4665,7 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
           legend.title = element_text(size=17),
           legend.margin=margin(0,0,0,0),
           legend.box.margin=margin(-10,0,-10,-10))
+  if(!is.null(Probs)) kobe=kobe+theme(legend.title = element_blank(),legend.text.align = 1)
   return(kobe)
 }
 fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE,txt.size=6)

@@ -580,6 +580,20 @@ for(w in 1:n.SS)
             #rename fleets following SS nomenclature
             names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))
             
+            #future catches
+            if("SS"%in%future.models)
+            {
+              NN=nrow(ktch)
+              add.ct.future=ktch[1:years.futures,]
+              add.ct.future$finyear=ktch$finyear[NN]+(1:years.futures)
+              lef.flits=match(Flits,colnames(add.ct.future))
+              for(lf in 1:length(lef.flits))
+              {
+                add.ct.future[,lef.flits[lf]]=mean(unlist(ktch[(NN-years.futures+1):NN,lef.flits[lf]]),na.rm=T)
+              }  
+            }
+
+            
             #Execute SS
             for(s in 1:length(Store.sens))
             {
@@ -613,7 +627,8 @@ for(w in 1:n.SS)
                            cond.age.len=Cond.age.len.SS.format,
                            MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
                            Lamdas=Lamdas.SS.lambdas,
-                           Var.adjust.factor=Var.ad.factr)
+                           Var.adjust.factor=Var.ad.factr,
+                           Future.project=add.ct.future)
               clear.log("Var.ad.factr")
               
               #b. Run SS3
@@ -1409,6 +1424,21 @@ for(w in 1:n.SS)
             #rename fleets following SS nomenclature
             names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))
             
+            #future catches
+            if("SS"%in%future.models)
+            {
+              NN=nrow(ktch)
+              add.ct.future=ktch[1:years.futures,]
+              add.ct.future$finyear=ktch$finyear[NN]+(1:years.futures)
+              lef.flits=match(Flits,colnames(add.ct.future))
+              for(lf in 1:length(lef.flits))
+              {
+                add.ct.future[,lef.flits[lf]]=mean(unlist(ktch[(NN-years.futures+1):NN,lef.flits[lf]]),na.rm=T)
+              }
+            }
+
+              
+            
             #Execute SS
             for(s in 1:length(Store.sens))
             {
@@ -1442,7 +1472,8 @@ for(w in 1:n.SS)
                            cond.age.len=Cond.age.len.SS.format,
                            MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
                            Lamdas=Lamdas.SS.lambdas,
-                           Var.adjust.factor=Var.ad.factr)
+                           Var.adjust.factor=Var.ad.factr,
+                           Future.project=add.ct.future)
               clear.log("Var.ad.factr")
               
               #b. Run SS3

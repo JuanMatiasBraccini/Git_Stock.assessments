@@ -310,18 +310,34 @@ for(l in 1:N.sp)
   #2.5 JABBA - cpue scenarios
   List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA_catch.only[1,]%>%
                                         mutate(Proc.error=Proc.Error.cpue)   
-  tested.r=c(r.mean,r.mean_lower,r.mean_upper,r.mean,r.mean)
+  tested.r=c(r.mean,r.mean_lower,r.mean_upper,rep(r.mean,5))
   #tested.r=rep(r.mean,4)
   List.sp[[l]]$Sens.test$JABBA=do.call("rbind", replicate(length(tested.r), List.sp[[l]]$Sens.test$JABBA, simplify = FALSE))%>%
                                   mutate(r=tested.r,
-                                         Scenario=paste('S',row_number(),sep=''))
+                                         Scenario=paste('S',row_number(),sep=''),
+                                         Klow=NA,
+                                         Kup=NA)
   List.sp[[l]]$Sens.test$JABBA$Proc.error[4]=Proc.Error.cpue2
+  List.sp[[l]]$Sens.test$JABBA$Kdist=KDIST
+  List.sp[[l]]$Sens.test$JABBA$Kdist[5]="range"
+  List.sp[[l]]$Sens.test$JABBA$K.mean[5]=NA  
+  List.sp[[l]]$Sens.test$JABBA$K.CV[5]=NA
+  List.sp[[l]]$Sens.test$JABBA$Klow[5]=Klow.spcfik
+  List.sp[[l]]$Sens.test$JABBA$Kup[5]=Kup.spcfik
   List.sp[[l]]$Sens.test$JABBA$Daily.cpues=c(rep(drop.daily.cpue,length(tested.r)-1),NA)
   if(NeiM%in%c("gummy shark","whiskery shark")) List.sp[[l]]$Sens.test$JABBA$K.mean=6000  #improve K mean as very wide range used for catch only
   if(NeiM=="tiger shark") List.sp[[l]]$Sens.test$JABBA$K.mean=9000
   if(NeiM=="smooth hammerhead") List.sp[[l]]$Sens.test$JABBA$K.mean=1500
-
-  
+  List.sp[[l]]$Sens.test$JABBA$use.these.abundances=NA
+  List.sp[[l]]$Sens.test$JABBA$model.type=c(rep("Pella_m",nrow(List.sp[[l]]$Sens.test$JABBA)-3),"Schaefer", "Fox","Pella_m")
+  if(NeiM%in%c("dusky shark","sandbar shark"))
+  {
+    List.sp[[l]]$Sens.test$JABBA$use.these.abundances=c('Survey') # Due to selectivity, TDGDLF catches small juveniles not spawning stock "Survey_TDGDLF.monthly"
+    List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%   #redundant scenario
+                                    filter(!is.na(Daily.cpues))
+    List.sp[[l]]$Sens.test$JABBA$model.type=c(rep("Pella_m",nrow(List.sp[[l]]$Sens.test$JABBA)-2),"Schaefer", "Fox") 
+  }
+    
   
   # 3... Dynamic catch and size model
   InRec=NULL

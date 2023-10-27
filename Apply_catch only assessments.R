@@ -14,8 +14,8 @@ for(w in 1:length(Catch_only))
     dummy.store=vector('list',N.sp)     
     names(dummy.store)=Keep.species
     dummy.store.sens.table=dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
-      dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.accept.rate=
-      dummy.store.ensemble=dummy.store
+      dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=
+      dummy.store.accept.rate=dummy.store.ensemble=dummy.store
     for(i in 1:length(dummy.store))  
     {
       if(names(dummy.store)[i]%in%Catch.only.species)    
@@ -31,14 +31,21 @@ for(w in 1:length(Catch_only))
         }
         
         #future catches
-        if(catches.futures=="constant.last.n.yrs")
+        outktch=ktch$Tonnes
+        add.ct.future=NULL
+        if('Catch_only'%in%future.models)
         {
-          NN=nrow(ktch)
-          add.ct.future=ktch[1:years.futures,]%>%
-                          mutate(finyear=ktch$finyear[NN]+(1:years.futures),
-                                 Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
-          ktch=rbind(ktch,add.ct.future)
+          if(catches.futures=="constant.last.n.yrs")
+          {
+            NN=nrow(ktch)
+            add.ct.future=ktch[1:years.futures,]%>%
+              mutate(finyear=ktch$finyear[NN]+(1:years.futures),
+                     Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+            outktch=c(outktch,add.ct.future$Tonnes)
+            #ktch=rbind(ktch,add.ct.future)
+          } 
         }
+
         
         #working directory
         this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
@@ -55,7 +62,7 @@ for(w in 1:length(Catch_only))
         Out.Scens=Scens%>%
           mutate(M.dist=NA,M.CV=NA,fmsym.dist=NA,fmsym.CV=NA,bmsyk.dist=NA,bmsyk.mean=NA,bmsyk.CV=NA,
                  b1k.dist=NA,b1k.low=NA,b1k.up=NA,btk.dist=NA,btk.low=NA,btk.up=NA)
-        Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=
+        Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=
           Out.B.Bmsy=Out.F.Fmsy=Out.accept.rate=Out.ensemble=vector('list',length(Store.sens))
         names(Out.ensemble)=names(Store.sens)
         
@@ -117,7 +124,8 @@ for(w in 1:length(Catch_only))
                                               nsims=Scens$Sims[s],
                                               grout=1,
                                               WD='C:/DummyDBSRA',  #output to dummy folder because OneDrive backup stuff things up
-                                              outfile="Appendix_fit")
+                                              outfile="Appendix_fit",
+                                              Projections=add.ct.future)
           
           #Store acceptance rate
           Accept.tab=table(Store.sens[[s]]$output$Values$ll)
@@ -160,7 +168,7 @@ for(w in 1:length(Catch_only))
                                             mods=names(Catch_only)[w],
                                             Type='Depletion',
                                             scen=Scens$Scenario[s],
-                                            Katch=ktch$Tonnes)
+                                            Katch=outktch)
           Out.rel.biom[[s]]=dummy$Dat
           Out.probs.rel.biom[[s]]=dummy$Probs
           
@@ -169,21 +177,22 @@ for(w in 1:length(Catch_only))
                                             mods=names(Catch_only)[w],
                                             Type='F.series',
                                             scen=Scens$Scenario[s],
-                                            Katch=ktch$Tonnes)
+                                            Katch=outktch)
           Out.f.series[[s]]=dummy$Dat
           
           dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                             mods=names(Catch_only)[w],
                                             Type='B.Bmsy',
                                             scen=Scens$Scenario[s],
-                                            Katch=ktch$Tonnes)
+                                            Katch=outktch)
           Out.B.Bmsy[[s]]=dummy$Dat
+          Out.probs.B.Bmsy[[s]]=dummy$Probs
           
           dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                             mods=names(Catch_only)[w],
                                             Type='F.Fmsy',
                                             scen=Scens$Scenario[s],
-                                            Katch=ktch$Tonnes)
+                                            Katch=outktch)
           Out.F.Fmsy[[s]]=dummy$Dat
           rm(dummy)
           
@@ -211,6 +220,9 @@ for(w in 1:length(Catch_only))
             }
             rm(dummy.prior,dummy.post)
             fn.show.density(d=do.call(rbind,out),NCOL=2)
+            ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                         capitalize(names(dummy.store)[i]),"/",AssessYr,"/",'DBSRA',"/Prior.and.posterior.tiff",sep=''),
+                   width = 12,height = 14, dpi = 300, compression = "lzw")
           }
           
           #Store quantities for ensemble model  
@@ -258,6 +270,7 @@ for(w in 1:length(Catch_only))
         dummy.store.accept.rate[[i]]=do.call(rbind,Out.accept.rate)
         dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
         dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
+        dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
         dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
         dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
         dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
@@ -272,6 +285,7 @@ for(w in 1:length(Catch_only))
     Catch_only[[w]]$estimates=dummy.store.estimates
     Catch_only[[w]]$rel.biom=dummy.store.rel.biom
     Catch_only[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
+    Catch_only[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
     Catch_only[[w]]$f.series=dummy.store.f.series
     Catch_only[[w]]$B.Bmsy=dummy.store.B.Bmsy
     Catch_only[[w]]$F.Fmsy=dummy.store.F.Fmsy
@@ -280,7 +294,7 @@ for(w in 1:length(Catch_only))
     rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,
        dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,
        dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.accept.rate,
-       dummy.store.ensemble)
+       dummy.store.ensemble,dummy.store.probs.B.Bmsy)
   }
   
   #2. CMSY    
@@ -291,8 +305,8 @@ for(w in 1:length(Catch_only))
     dummy.store=vector('list',N.sp)     
     names(dummy.store)=Keep.species 
     dummy.store.sens.table=dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
-      dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.accept.rate=
-      dummy.store.ensemble=dummy.store
+      dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=
+      dummy.store.accept.rate=dummy.store.ensemble=dummy.store
     for(i in 1:length(dummy.store))  
     {
       if(names(dummy.store)[i]%in%Catch.only.species) 
@@ -312,14 +326,21 @@ for(w in 1:length(Catch_only))
         }
         
         #future catches
-        if(catches.futures=="constant.last.n.yrs")
+        outktch=ktch$Tonnes
+        add.ct.future=NULL
+        if('Catch_only'%in%future.models)
         {
-          NN=nrow(ktch)
-          add.ct.future=ktch[1:years.futures,]%>%
-            mutate(finyear=ktch$finyear[NN]+(1:years.futures),
-                   Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
-          ktch=rbind(ktch,add.ct.future)
+          if(catches.futures=="constant.last.n.yrs")
+          {
+            NN=nrow(ktch)
+            add.ct.future=ktch[1:years.futures,]%>%
+              mutate(finyear=ktch$finyear[NN]+(1:years.futures),
+                     Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+            outktch=c(outktch,add.ct.future$Tonnes)
+            #ktch=rbind(ktch,add.ct.future)
+          }
         }
+
         
         year=ktch$finyear
         catch=ktch$Tonnes
@@ -333,7 +354,7 @@ for(w in 1:length(Catch_only))
         
         Out.Scens=Scens%>%   
           mutate(Bo.low=NA,Bo.hi=NA,Bf.low=NA,Bf.hi=NA,r.low=NA,r.up=NA)
-        Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=
+        Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=
           Out.B.Bmsy=Out.F.Fmsy=Out.accept.rate=Out.ensemble=vector('list',length(Store.sens))
         names(Out.ensemble)=names(Store.sens)
         for(s in 1:length(Store.sens))
@@ -391,7 +412,8 @@ for(w in 1:length(Catch_only))
                                      outfile=paste(this.wd,'Appendix_fit',sep='/'),
                                      nsims=Scens$Sims[s],
                                      Proc.error=Proc.error,
-                                     RES=RES)
+                                     RES=RES,
+                                     Projections=add.ct.future)  
           
           #Store acceptance rate
           Out.accept.rate[[s]]=data.frame(
@@ -434,7 +456,7 @@ for(w in 1:length(Catch_only))
                                             mods=names(Catch_only)[w],
                                             Type='Depletion',
                                             scen=Scens$Scenario[s],
-                                            Katch=catch)
+                                            Katch=outktch)
           Out.rel.biom[[s]]=dummy$Dat
           Out.probs.rel.biom[[s]]=dummy$Probs
           
@@ -442,21 +464,22 @@ for(w in 1:length(Catch_only))
                                             mods=names(Catch_only)[w],
                                             Type='F.series',
                                             scen=Scens$Scenario[s],
-                                            Katch=catch)
+                                            Katch=outktch)
           Out.f.series[[s]]=dummy$Dat
           
           dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                             mods=names(Catch_only)[w],
                                             Type='B.Bmsy',
                                             scen=Scens$Scenario[s],
-                                            Katch=catch)
+                                            Katch=outktch)
           Out.B.Bmsy[[s]]=dummy$Dat
+          Out.probs.B.Bmsy[[s]]=dummy$Probs
           
           dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                             mods=names(Catch_only)[w],
                                             Type='F.Fmsy',
                                             scen=Scens$Scenario[s],
-                                            Katch=catch)
+                                            Katch=outktch)
           Out.F.Fmsy[[s]]=dummy$Dat
           rm(dummy)
           
@@ -538,6 +561,7 @@ for(w in 1:length(Catch_only))
         dummy.store.accept.rate[[i]]=do.call(rbind,Out.accept.rate)
         dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
         dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
+        dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
         dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
         dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
         dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
@@ -551,6 +575,7 @@ for(w in 1:length(Catch_only))
     Catch_only[[w]]$estimates=dummy.store.estimates
     Catch_only[[w]]$rel.biom=dummy.store.rel.biom
     Catch_only[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
+    Catch_only[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
     Catch_only[[w]]$f.series=dummy.store.f.series
     Catch_only[[w]]$B.Bmsy=dummy.store.B.Bmsy
     Catch_only[[w]]$F.Fmsy=dummy.store.F.Fmsy
@@ -559,7 +584,7 @@ for(w in 1:length(Catch_only))
     rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,
        dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,
        dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.accept.rate,
-       dummy.store.ensemble)
+       dummy.store.ensemble,dummy.store.probs.B.Bmsy)
   }
   
   #3. OCOM assessment (Zhou et al (2018))
@@ -595,8 +620,8 @@ for(w in 1:length(Catch_only))
     dummy.store=vector('list',N.sp)     
     names(dummy.store)=Keep.species
     dummy.store.sens.table=dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
-      dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
-      dummy.store.ensemble=dummy.store
+      dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=
+      dummy.store.Kobe.probs=dummy.store.ensemble=dummy.store
     for(i in 1:length(dummy.store))  
     {
       if(names(dummy.store)[i]%in%Catch.only.species) 
@@ -623,14 +648,21 @@ for(w in 1:length(Catch_only))
         if(names(dummy.store)[i]=='milk shark') ktch$Total[1:10]=1 #convergence issues with first 10 years for milk shark, but catch is 0 anyways
         
         #future catches
-        if(catches.futures=="constant.last.n.yrs")
+        outktch=ktch$Total
+        add.ct.future=NULL
+        if('Catch_only'%in%future.models)
         {
-          NN=nrow(ktch)
-          add.ct.future=ktch[1:years.futures,]%>%
-            mutate(Year=ktch$Year[NN]+(1:years.futures),
-                   Total=rep(mean(ktch$Total[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
-          ktch=rbind(ktch,add.ct.future)
+          if(catches.futures=="constant.last.n.yrs")
+          {
+            NN=nrow(ktch)
+            add.ct.future=ktch[1:years.futures,]%>%
+              mutate(Year=ktch$Year[NN]+(1:years.futures),
+                     Total=rep(mean(ktch$Total[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+            outktch=c(outktch,add.ct.future$Total)
+            #ktch=rbind(ktch,add.ct.future)
+          }
         }
+
         
         #Scenarios
         Scens=List.sp[[i]]$Sens.test$JABBA_catch.only%>%
@@ -642,7 +674,7 @@ for(w in 1:length(Catch_only))
         Out.Scens=Scens%>%
           mutate(Bo.mean=NA,Bo.CV=NA,Bf.mean=NA,Bf.CV=NA,r.mean=NA,r.cv=NA,Rdist=NA,
                  Kdist=NA,PsiDist=NA,bmsyk.mean=NA)
-        Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=
+        Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=
           Out.B.Bmsy=Out.F.Fmsy=Out.ensemble=vector('list',length(Store.sens))
         names(Out.ensemble)=names(Store.sens)
         
@@ -705,30 +737,31 @@ for(w in 1:length(Catch_only))
           CHAINS=2
           BURNIN=min(0.15*Scens$Sims[s],5000)
           JABBA.run=apply.JABBA(Ktch=input$Ktch,
-                             CPUE=NULL,
-                             CPUE.SE=NULL,
-                             MDL=input$MDL,
-                             Ktch.CV=input$Ktch.CV,
-                             ASS=input$ASS,
-                             Rdist = input$Rdist,
-                             Rprior = input$Rprior,
-                             Kdist=input$Kdist,
-                             Kprior=input$Kprior,
-                             PsiDist=input$PsiDist,
-                             Psiprior=input$Psiprior,
-                             Bprior=input$Bprior,
-                             BMSYK=input$BMSYK,
-                             output.dir=this.wd,
-                             outfile="Appendix_fit",
-                             Sims=Scens$Sims[s],
-                             Proc.error.JABBA=Proc.error,
-                             thinning = THIN,
-                             nchains = CHAINS,
-                             burn.in= BURNIN)
+                                CPUE=NULL,
+                                CPUE.SE=NULL,
+                                MDL=input$MDL,
+                                Ktch.CV=input$Ktch.CV,
+                                ASS=input$ASS,
+                                Rdist = input$Rdist,
+                                Rprior = input$Rprior,
+                                Kdist=input$Kdist,
+                                Kprior=input$Kprior,
+                                PsiDist=input$PsiDist,
+                                Psiprior=input$Psiprior,
+                                Bprior=input$Bprior,
+                                BMSYK=input$BMSYK,
+                                output.dir=this.wd,
+                                outfile="Appendix_fit",
+                                Sims=Scens$Sims[s],
+                                Proc.error.JABBA=Proc.error,
+                                thinning = THIN,
+                                nchains = CHAINS,
+                                burn.in= BURNIN,
+                                Projections= add.ct.future)
           output=JABBA.run$fit
-          output$posteriors$P=output$posteriors$P[,1:nrow(ktch)]
-          output$posteriors$BtoBmsy=output$posteriors$BtoBmsy[,1:nrow(ktch)]
-          output$posteriors$SB=output$posteriors$SB[,1:nrow(ktch)]
+          output$posteriors$P=output$posteriors$P[,1:length(outktch)]
+          output$posteriors$BtoBmsy=output$posteriors$BtoBmsy[,1:length(outktch)]
+          output$posteriors$SB=output$posteriors$SB[,1:length(outktch)]
           
           
           #keep results if final depletion within specified priors
@@ -776,7 +809,7 @@ for(w in 1:length(Catch_only))
                                               mods=names(Catch_only)[w],
                                               Type='Depletion',
                                               scen=Scens$Scenario[s],
-                                              Katch=ktch$Total)
+                                              Katch=outktch)
             Out.rel.biom[[s]]=dummy$Dat
             Out.probs.rel.biom[[s]]=dummy$Probs
             
@@ -784,21 +817,22 @@ for(w in 1:length(Catch_only))
                                               mods=names(Catch_only)[w],
                                               Type='F.series',
                                               scen=Scens$Scenario[s],
-                                              Katch=ktch$Total)
+                                              Katch=outktch)
             Out.f.series[[s]]=dummy$Dat
             
             dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                               mods=names(Catch_only)[w],
                                               Type='B.Bmsy',
                                               scen=Scens$Scenario[s],
-                                              Katch=ktch$Total)
+                                              Katch=outktch)
             Out.B.Bmsy[[s]]=dummy$Dat
+            Out.probs.B.Bmsy[[s]]=dummy$Probs
             
             dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                               mods=names(Catch_only)[w],
                                               Type='F.Fmsy',
                                               scen=Scens$Scenario[s],
-                                              Katch=ktch$Total)
+                                              Katch=outktch)
             Out.F.Fmsy[[s]]=dummy$Dat
             rm(dummy)
             
@@ -943,6 +977,7 @@ for(w in 1:length(Catch_only))
         dummy.store.sens.table[[i]]=Out.Scens
         dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
         dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
+        dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
         dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
         dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
         dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
@@ -957,6 +992,7 @@ for(w in 1:length(Catch_only))
     Catch_only[[w]]$estimates=dummy.store.estimates
     Catch_only[[w]]$rel.biom=dummy.store.rel.biom
     Catch_only[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
+    Catch_only[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
     Catch_only[[w]]$f.series=dummy.store.f.series
     Catch_only[[w]]$B.Bmsy=dummy.store.B.Bmsy
     Catch_only[[w]]$F.Fmsy=dummy.store.F.Fmsy
@@ -965,7 +1001,8 @@ for(w in 1:length(Catch_only))
     
     rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,
        dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,
-       dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.ensemble)
+       dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.ensemble,
+       dummy.store.probs.B.Bmsy)
   }
   
   #5. SSS-MC assessment (Cope (2013))   
@@ -1006,14 +1043,21 @@ for(w in 1:length(Catch_only))
           }
           
           #future catches
-          if(catches.futures=="constant.last.n.yrs")
+          outktch=ktch$Tonnes
+          add.ct.future=NULL
+          if('Catch_only'%in%future.models)
           {
-            NN=nrow(ktch)
-            add.ct.future=ktch[1:years.futures,]%>%
-              mutate(finyear=ktch$finyear[NN]+(1:years.futures),
-                     Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
-            ktch=rbind(ktch,add.ct.future)
+            if(catches.futures=="constant.last.n.yrs")
+            {
+              NN=nrow(ktch)
+              add.ct.future=ktch[1:years.futures,]%>%
+                mutate(finyear=ktch$finyear[NN]+(1:years.futures),
+                       Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+              outktch=c(outktch,add.ct.future$Tonnes)
+              #ktch=rbind(ktch,add.ct.future)
+            }
           }
+
           
           #random LH samples
           LH.sim=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),
@@ -1026,7 +1070,7 @@ for(w in 1:length(Catch_only))
             mutate(h.mean=NA,h.sd=NA,Initial.bio.low=NA,Initial.bio.up=NA,Final.bio.low=NA,Final.bio.up=NA)
           Store.sens=vector('list',nrow(Scens))
           names(Store.sens)=Scens$Scenario
-          Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
+          Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=Out.B.Bmsy=
             Out.F.Fmsy=store.warnings=store.convergence=Out.ensemble=
             Out.accept.rate=Out.prior.post=vector('list',length(Store.sens))
           names(Out.ensemble)=names(Store.sens)
@@ -1111,7 +1155,8 @@ for(w in 1:length(Catch_only))
                            Scenario=Scenario,
                            Catch=ktch,
                            life.history=Life.history,
-                           depletion.yr=Depletion.year)
+                           depletion.yr=Depletion.year,
+                           Future.project=add.ct.future)
               
               #3. Run SS3
               fn.run.SS(where.inputs=this.wd1,
@@ -1223,7 +1268,7 @@ for(w in 1:length(Catch_only))
                                                 mods=names(Catch_only)[w],
                                                 Type='Depletion',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Tonnes)
+                                                Katch=outktch)
               Out.rel.biom[[s]]=dummy$Dat
               Out.probs.rel.biom[[s]]=dummy$Probs
               
@@ -1231,26 +1276,27 @@ for(w in 1:length(Catch_only))
                                                 mods=names(Catch_only)[w],
                                                 Type='F.series',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Tonnes)
+                                                Katch=outktch)
               Out.f.series[[s]]=dummy$Dat
               
               dummy=fn.ktch.only.get.timeseries(d=Report,
                                                 mods=names(Catch_only)[w],
                                                 Type='B.Bmsy',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Tonnes)
+                                                Katch=outktch)
               Out.B.Bmsy[[s]]=dummy$Dat
+              Out.probs.B.Bmsy[[s]]=dummy$Probs
               
               dummy=fn.ktch.only.get.timeseries(d=Report,
                                                 mods=names(Catch_only)[w],
                                                 Type='F.Fmsy',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Tonnes)
+                                                Katch=outktch)
               Out.F.Fmsy[[s]]=dummy$Dat
               
               
               #Store quantities for ensemble model
-              Years=ktch$finyear
+              Years=c(ktch$finyear,add.ct.future$finyear)
               
               dum=do.call(rbind,fn.get.stuff.from.list(Report,"derived_quants"))
               
@@ -1403,6 +1449,7 @@ for(w in 1:length(Catch_only))
           
           return(list(dummy.store.sens.table=Out.Scens,dummy.store.estimates=do.call(rbind,Out.estimates),
                       dummy.store.rel.biom=do.call(rbind,Out.rel.biom), dummy.store.probs.rel.biom=Out.probs.rel.biom,
+                      dummy.store.probs.B.Bmsy=Out.probs.B.Bmsy, 
                       dummy.store.f.series=do.call(rbind,Out.f.series),dummy.store.B.Bmsy=do.call(rbind,Out.B.Bmsy),
                       dummy.store.F.Fmsy=do.call(rbind,Out.F.Fmsy),dummy.store.Kobe.probs=NULL,
                       dummy.store.ensemble=Out.ens,dummy.store.warnings=do.call(rbind,store.warnings),
@@ -1418,6 +1465,7 @@ for(w in 1:length(Catch_only))
       Catch_only[[w]]$estimates=fn.get.and.name(LISTA=out.species,x="dummy.store.estimates")
       Catch_only[[w]]$rel.biom=fn.get.and.name(LISTA=out.species,x="dummy.store.rel.biom")
       Catch_only[[w]]$probs.rel.biom=fn.get.and.name(LISTA=out.species,x="dummy.store.probs.rel.biom")
+      Catch_only[[w]]$probs.B.Bmsy=fn.get.and.name(LISTA=out.species,x="dummy.store.probs.B.Bmsy")
       Catch_only[[w]]$f.series=fn.get.and.name(LISTA=out.species,x="dummy.store.f.series")
       Catch_only[[w]]$B.Bmsy=fn.get.and.name(LISTA=out.species,x="dummy.store.B.Bmsy")
       Catch_only[[w]]$F.Fmsy=fn.get.and.name(LISTA=out.species,x="dummy.store.F.Fmsy")
@@ -1478,7 +1526,7 @@ for(w in 1:length(Catch_only))
       dummy.store=vector('list',N.sp)
       names(dummy.store)=Keep.species
       dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
-        dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
+        dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
         dummy.store.sens.table=dummy.store.ensemble=dummy.store.warnings=dummy.store.accept.rate=
         dummy.store.convergence=dummy.store
       for(i in 1:N.sp)
@@ -1505,14 +1553,21 @@ for(w in 1:length(Catch_only))
             ktch=rbind(ktch,ktch[length(misn.yr),]%>%mutate(finyear=misn.yr,Tonnes=0))%>%arrange(finyear)
           }
           #future catches
-          if(catches.futures=="constant.last.n.yrs")
+          outktch=ktch$Tonnes
+          add.ct.future=NULL
+          if('Catch_only'%in%future.models)
           {
-            NN=nrow(ktch)
-            add.ct.future=ktch[1:years.futures,]%>%
-              mutate(finyear=ktch$finyear[NN]+(1:years.futures),
-                     Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
-            ktch=rbind(ktch,add.ct.future)
+            if(catches.futures=="constant.last.n.yrs")
+            {
+              NN=nrow(ktch)
+              add.ct.future=ktch[1:years.futures,]%>%
+                mutate(finyear=ktch$finyear[NN]+(1:years.futures),
+                       Tonnes=rep(mean(ktch$Tonnes[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+              outktch=c(outktch,add.ct.future$Tonnes)
+              #ktch=rbind(ktch,add.ct.future)
+            }
           }
+
           
           
           #random LH samples
@@ -1526,7 +1581,7 @@ for(w in 1:length(Catch_only))
             mutate(h.mean=NA,h.sd=NA,Initial.bio.low=NA,Initial.bio.up=NA,Final.bio.low=NA,Final.bio.up=NA)
           Store.sens=vector('list',nrow(Scens))
           names(Store.sens)=Scens$Scenario
-          Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
+          Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=Out.B.Bmsy=
             Out.F.Fmsy=store.warnings=store.convergence=Out.ensemble=Out.accept.rate=vector('list',length(Store.sens))
           names(Out.ensemble)=names(Store.sens)
           for(s in 1:length(Store.sens))
@@ -1610,7 +1665,8 @@ for(w in 1:length(Catch_only))
                            Scenario=Scenario,
                            Catch=ktch,
                            life.history=Life.history,
-                           depletion.yr=Depletion.year)
+                           depletion.yr=Depletion.year,
+                           Future.project=add.ct.future) 
               
               #3. Run SS3
               fn.run.SS(where.inputs=this.wd1,
@@ -1739,12 +1795,12 @@ for(w in 1:length(Catch_only))
               Out.Scens$Final.bio.up[s]=List.sp[[i]]$FINALBIO[2]
               
               
-              #Store trajectories
+              #Store trajectories  
               dummy=fn.ktch.only.get.timeseries(d=Report,
                                                 mods=names(Catch_only)[w],
                                                 Type='Depletion',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Tonnes)
+                                                Katch=outktch)
               Out.rel.biom[[s]]=dummy$Dat
               Out.probs.rel.biom[[s]]=dummy$Probs
               
@@ -1752,26 +1808,27 @@ for(w in 1:length(Catch_only))
                                                 mods=names(Catch_only)[w],
                                                 Type='F.series',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Tonnes)
+                                                Katch=outktch)
               Out.f.series[[s]]=dummy$Dat
               
               dummy=fn.ktch.only.get.timeseries(d=Report,
                                                 mods=names(Catch_only)[w],
                                                 Type='B.Bmsy',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Tonnes)
+                                                Katch=outktch)
               Out.B.Bmsy[[s]]=dummy$Dat
+              Out.probs.B.Bmsy[[s]]=dummy$Probs
               
               dummy=fn.ktch.only.get.timeseries(d=Report,
                                                 mods=names(Catch_only)[w],
                                                 Type='F.Fmsy',
                                                 scen=Scens$Scenario[s],
-                                                Katch=ktch$Tonnes)
+                                                Katch=outktch)
               Out.F.Fmsy[[s]]=dummy$Dat
               
               
               #Store quantities for ensemble model
-              Years=ktch$finyear  
+              Years=c(ktch$finyear,add.ct.future$finyear)  
               dum=do.call(rbind,fn.get.stuff.from.list(Report,"derived_quants"))
               
               SSB_Virgin=dum[grep("SSB_Virgin",dum$Label),]
@@ -1938,6 +1995,7 @@ for(w in 1:length(Catch_only))
           dummy.store.estimates[[i]]=do.call(rbind,Out.estimates)
           dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
           dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
+          dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
           dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
           dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
           dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
@@ -1972,6 +2030,7 @@ for(w in 1:length(Catch_only))
       Catch_only[[w]]$estimates=dummy.store.estimates
       Catch_only[[w]]$rel.biom=dummy.store.rel.biom
       Catch_only[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
+      Catch_only[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
       Catch_only[[w]]$f.series=dummy.store.f.series
       Catch_only[[w]]$B.Bmsy=dummy.store.B.Bmsy
       Catch_only[[w]]$F.Fmsy=dummy.store.F.Fmsy
@@ -1984,7 +2043,8 @@ for(w in 1:length(Catch_only))
       rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,
          dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,
          dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.ensemble,
-         dummy.store.warnings,dummy.store.convergence,dummy.store.accept.rate)
+         dummy.store.warnings,dummy.store.convergence,dummy.store.accept.rate,
+         dummy.store.probs.B.Bmsy)
       
     }
   }
@@ -2725,7 +2785,7 @@ if(do.F.series)
                            YLAB='Fishing mortality')
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                    capitalize(Keep.species[i]),"/",AssessYr,"/Catch_only_time_series_fishing_mortality.tiff",sep=''),
-             width = 6,height = 10,compression = "lzw")
+             width = 5,height = 10,compression = "lzw")
       
     }
   }
@@ -2764,7 +2824,7 @@ if(do.F.over.Fmsy.series)
                            YLAB='F/Fmsy')
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                    capitalize(Keep.species[i]),"/",AssessYr,"/Catch_only_time_series_F_Fmsy.tiff",sep=''),
-             width = 6,height = 10,compression = "lzw")
+             width = 5,height = 10,compression = "lzw")
     }
   }
 }
@@ -2793,7 +2853,7 @@ for(i in 1:N.sp)
 #      second sample models proportionally to weights (done here)
 Mod.AV_depletion=vector('list',length(List.sp))
 names(Mod.AV_depletion)=names(List.sp)
-Mod.AV_B.Bmsy=Mod.AV_F.Fmsy=Mod.AV_MSY=Mod.AV_Probs=Ref.points.Mod.AV=Mod.AV_depletion
+Mod.AV_B.Bmsy=Mod.AV_F.Fmsy=Mod.AV_MSY=Mod.AV_Probs=Mod.AV_Probs_B.Bmsy=Ref.points.Mod.AV=Mod.AV_depletion
 for(i in 1:N.sp)  
 {
   if(Keep.species[i]%in%Catch.only.species)
@@ -2813,15 +2873,22 @@ for(i in 1:N.sp)
     }
     Wei=Wei%>%filter(Model%in%names(Catch_only)) 
     
-    #Reference points  ACA
+    #Reference points  
     Avg.Ref.point=Ref.points[[i]]
-    for(av in 1:length(Avg.Ref.point)) Avg.Ref.point[[av]]$Model=names(Avg.Ref.point)[av]
+    Avg.Ref.point=unlist(Avg.Ref.point,recursive=FALSE)
+    for(av in 1:length(Avg.Ref.point))
+    {
+      Avg.Ref.point[[av]]=Avg.Ref.point[[av]]%>%
+                            mutate(Model=names(Avg.Ref.point)[av],
+                                   Model=gsub('[0-9]+', '', Model))
+    }
+      
     Avg.Ref.point=do.call(rbind,Avg.Ref.point)%>%
-      left_join(Wei,by='Model')%>%
-      group_by(Rf.pt)%>%
-      summarise(Value=weighted.mean(Value,Weight,na.rm=T))%>%
-      mutate(Rf.pt=factor(Rf.pt,levels=c('Target','Threshold','Limit')))%>%
-      arrange(Rf.pt)
+                    left_join(Wei,by='Model')%>%
+                    group_by(Rf.pt)%>%
+                    summarise(Value=weighted.mean(Value,Weight,na.rm=T))%>%
+                    mutate(Rf.pt=factor(Rf.pt,levels=c('Target','Threshold','Limit')))%>%
+                    arrange(Rf.pt)
     Ref.points.Mod.AV[[i]]=Avg.Ref.point
     
     #depletion
@@ -2832,15 +2899,23 @@ for(i in 1:N.sp)
     dumi$Probs$Species=capitalize(Keep.species[i])
     dumi$Probs.future$Species=capitalize(Keep.species[i])
     Mod.AV_Probs[[i]]=dumi[c("Probs" ,"Probs.future")] 
+    
     #B.Bmsy
     dumi=mod.average(dd=map(Catch_only, ~.x$ensemble[[i]]$B.Bmsy),
-                     Weights=Wei)
+                     Weights=Wei,
+                     Ref.pnt=data.frame(Rf.pt=c('Target','Threshold','Limit'),
+                                        Value=c(Tar.prop.bmsny,1,Lim.prop.bmsy)))
     Mod.AV_B.Bmsy[[i]]=dumi$Trajectories
+    dumi$Probs$Species=capitalize(Keep.species[i])
+    dumi$Probs.future$Species=capitalize(Keep.species[i])
+    Mod.AV_Probs_B.Bmsy[[i]]=dumi[c("Probs" ,"Probs.future")]
+    
     #F.Fmsy
     dumi=mod.average(dd=map(Catch_only, ~.x$ensemble[[i]]$F.Fmsy),   
                      Weights=Wei)
     Mod.AV_F.Fmsy[[i]]=dumi$Trajectories
     
+    #MSY
     Mod.AV_MSY[[i]]=mod.average.scalar(dd=map(Catch_only, ~.x$ensemble[[i]]$MSY),   
                                        Weights=Wei)  
 
@@ -2849,14 +2924,16 @@ for(i in 1:N.sp)
     
   }
 }
-Mod.AV=list(rel.biom=Mod.AV_depletion,Probs=Mod.AV_Probs,B.Bmsy=Mod.AV_B.Bmsy,F.Fmsy=Mod.AV_F.Fmsy)
-rm(Mod.AV_depletion,Mod.AV_Probs,Mod.AV_B.Bmsy,Mod.AV_F.Fmsy)
+Mod.AV=list(rel.biom=Mod.AV_depletion,Probs=Mod.AV_Probs,
+            B.Bmsy=Mod.AV_B.Bmsy,Probs_B.Bmsy=Mod.AV_Probs_B.Bmsy,
+            F.Fmsy=Mod.AV_F.Fmsy,MSY=Mod.AV_MSY)
+rm(Mod.AV_depletion,Mod.AV_Probs,Mod.AV_B.Bmsy,Mod.AV_F.Fmsy,Mod.AV_MSY,Mod.AV_Probs_B.Bmsy)
 
 
 #18.7 Display Scenarios for combined species: each COM model as an Appendix 
 
   #18.7.1 Relative biomass (i.e. Depletion) 
-    #figure (Scenario 1 only)
+    #figure  (Scenario 1 only)
 for(l in 1:length(Lista.sp.outputs))
 {
   if(length(Lista.sp.outputs[[l]])>8) InMar=.65 else InMar=.5
@@ -2904,7 +2981,102 @@ for(l in 1:length(Lista.sp.outputs))
   }
 }
 
-  # 18.7.2 Catch vs MSY      
+  #18.7.2 B over Bmsy        
+if(do.B.over.Bmsy.series)
+{
+  #figure  (Scenario 1 only)
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    if(length(Lista.sp.outputs[[l]])>8) InMar=.65 else InMar=.5
+    dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
+    if(length(dis.spicis)>0)
+    {
+      print(paste("RAR ---- B.over.Bmsy_catch.only by model-----",names(Lista.sp.outputs)[l]))
+      fn.plot.timeseries_combined_Appendix(this.sp=dis.spicis,   
+                                           d=Catch_only,
+                                           YLAB="B/Bmsy",
+                                           NM=names(Lista.sp.outputs)[l],
+                                           Type="B.Bmsy",
+                                           InnerMargin=InMar)
+    }
+  }
+  
+  #table (all scenarios)
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
+    if(length(dis.spicis)>0)
+    {
+      dummy.mod=vector('list',length(Catch_only))
+      for(m in 1:length(Catch_only))
+      {
+        str.prob=Catch_only[[m]]$probs.B.Bmsy
+        str.prob=str.prob[match(Lista.sp.outputs[[l]],names(str.prob))]
+        str.prob=compact(str.prob)
+        dummy=vector('list',length =length(str.prob))
+        for(d in 1:length(dummy))
+        {
+          ddmmi=fn.get.stuff.from.list(str.prob[[d]],'probs')
+          dummy[[d]]=do.call(rbind,ddmmi)%>%
+            mutate(Species=capitalize(names(str.prob)[d]))
+        }
+        dummy.mod[[m]]=do.call(rbind,dummy)%>%
+          mutate(Model=names(Catch_only)[m])
+      }
+      write.csv(do.call(rbind,dummy.mod)%>%
+                  mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
+                  spread(Species,Probability)%>%
+                  arrange(Range),
+                paste(Rar.path,'/Table 4. Catch only_current.B.over.Bmsy_',names(Lista.sp.outputs)[l],'_Appendix','.csv',sep=''),
+                row.names=F)
+      rm(dummy.mod)
+    }
+  }
+}
+
+  #18.7.3 Fishing mortality 
+#figure (Scenario 1 only)
+if(do.F.series)
+{
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    if(length(Lista.sp.outputs[[l]])>8) InMar=.65 else InMar=.5
+    dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
+    if(length(dis.spicis)>0)
+    {
+      print(paste("RAR ---- Fishing mortality_catch.only by model-----",names(Lista.sp.outputs)[l]))
+      fn.plot.timeseries_combined_Appendix(this.sp=dis.spicis,   
+                                           d=Catch_only,
+                                           YLAB="Fishing mortality (y-1)",
+                                           NM=names(Lista.sp.outputs)[l],
+                                           Type="F.series",
+                                           InnerMargin=InMar)
+    }
+  }
+}
+
+  #18.7.4 F over Fmsy   
+  #figure  (Scenario 1 only)
+if(do.F.over.Fmsy.series)
+{
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    if(length(Lista.sp.outputs[[l]])>8) InMar=.65 else InMar=.5
+    dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
+    if(length(dis.spicis)>0)
+    {
+      print(paste("RAR ---- F.over.Fmsy_catch.only by model-----",names(Lista.sp.outputs)[l]))
+      fn.plot.timeseries_combined_Appendix(this.sp=dis.spicis,   
+                                           d=Catch_only,
+                                           YLAB="F/Fmsy",
+                                           NM=names(Lista.sp.outputs)[l],
+                                           Type="F.Fmsy",
+                                           InnerMargin=InMar)
+    }
+  }
+}
+
+  #18.7.5 Catch vs MSY       
 All.catch.MSY=do.call(rbind,compact(Store.catch.MSY))
 All.catch.MSY.species=unique(All.catch.MSY$Species)
 #figure & table (Scenario 1 only)
@@ -2924,7 +3096,7 @@ for(l in 1:length(Lista.sp.outputs))
 
 #18.8 Display COM model-average for combined species   
 
-# Relative biomass (i.e. Depletion) 
+# 18.8.1 Relative biomass (i.e. Depletion) 
     #figure
 for(l in 1:length(Lista.sp.outputs))
 {
@@ -2939,25 +3111,26 @@ for(l in 1:length(Lista.sp.outputs))
                                 Type="Depletion",
                                 InnerMargin=InMar,
                                 RefPoint=Ref.points.Mod.AV,
-                                Kach=Catch_only$DBSRA$rel.biom)
+                                Kach=Catch_only$DBSRA$rel.biom)  
     ggsave(paste(Rar.path,'/Relative.biomass_catch.only_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = 13,height = 11,compression = "lzw")
   }
   
   #Display species with only catch separately
-  if(length(Catch.only.species_only.ktch)>8) InMar=1.25 else InMar=.5
-  print(paste("RAR ---- relative.biomass_catch.only Ensemble-----","Other.sp_species_only.ktch"))
-  fn.plot.timeseries_combined(this.sp=Catch.only.species_only.ktch,
-                              d=Mod.AV,
-                              YLAB="Relative biomass",
-                              Type="Depletion",
-                              InnerMargin=InMar,
-                              RefPoint=Ref.points.Mod.AV,
-                              Kach=Catch_only$DBSRA$rel.biom)
-  ggsave(paste(Rar.path,'/Relative.biomass_catch.only_Other.sp_species_only.ktch.tiff',sep=''),
-         width = 8,height = 10,compression = "lzw")
-  
-
+  if(names(Lista.sp.outputs)[l]=="Other.sp")
+  {
+    if(length(Catch.only.species_only.ktch)>8) InMar=1.25 else InMar=.5
+    print(paste("RAR ---- relative.biomass_catch.only Ensemble-----","Other.sp_species_only.ktch"))
+    fn.plot.timeseries_combined(this.sp=Catch.only.species_only.ktch,
+                                d=Mod.AV,
+                                YLAB="Relative biomass",
+                                Type="Depletion",
+                                InnerMargin=InMar,
+                                RefPoint=Ref.points.Mod.AV,
+                                Kach=Catch_only$DBSRA$rel.biom)
+    ggsave(paste(Rar.path,'/Relative.biomass_catch.only_Other.sp_species_only.ktch.tiff',sep=''),
+           width = 8,height = 10,compression = "lzw")
+  }
 }
     #table
 for(l in 1:length(Lista.sp.outputs))
@@ -2973,15 +3146,107 @@ for(l in 1:length(Lista.sp.outputs))
       mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
       spread(Species,Probability)%>%
       arrange(Range)
-    write.csv(rbind(Probs,Probs.future),
+    dd=rbind(Probs,Probs.future)%>%
+      mutate(dummy=paste(Range, finyear))%>%
+      distinct(dummy,.keep_all = T)%>%
+      dplyr::select(-dummy)
+    write.csv(dd,
               paste(Rar.path,'/Table 4. Catch only_current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
               row.names=F)
   }
 }
 
+  #18.8.2 B over Bmsy        
+if(do.B.over.Bmsy.series) 
+{
+  #figure
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
+    dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
+    if(length(dis.spicis)>0)
+    {
+      print(paste("RAR ---- B.over.Bmsy_catch.only Ensemble-----",names(Lista.sp.outputs)[l]))
+      fn.plot.timeseries_combined(this.sp=dis.spicis,
+                                  d=Mod.AV,
+                                  YLAB="B/Bmsy",
+                                  Type="B.Bmsy",
+                                  InnerMargin=InMar,
+                                  RefPoint=NULL,
+                                  Kach=Catch_only$DBSRA$rel.biom)  
+      ggsave(paste(Rar.path,'/B.over.Bmsy_catch.only_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+             width = 13,height = 11,compression = "lzw")
+    }
+    
+    #Display species with only catch separately
+    if(names(Lista.sp.outputs)[l]=="Other.sp")
+    {
+      if(length(Catch.only.species_only.ktch)>8) InMar=1.25 else InMar=.5
+      print(paste("RAR ---- B.over.Bmsy_catch.only Ensemble-----","Other.sp_species_only.ktch"))
+      fn.plot.timeseries_combined(this.sp=Catch.only.species_only.ktch,
+                                  d=Mod.AV,
+                                  YLAB="B/Bmsy",
+                                  Type="B.Bmsy",
+                                  InnerMargin=InMar,
+                                  RefPoint=NULL,
+                                  Kach=Catch_only$DBSRA$rel.biom)
+      ggsave(paste(Rar.path,'/B.over.Bmsy_catch.only_Other.sp_species_only.ktch.tiff',sep=''),
+             width = 8,height = 10,compression = "lzw")
+    }
+  }
+  #table
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
+    if(length(dis.spicis)>0)
+    {
+      Probs=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs_B.Bmsy[dis.spicis],'Probs'))%>%
+        mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+        spread(Species,Probability)%>%
+        arrange(Range)
+      Probs.future=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs_B.Bmsy[dis.spicis],'Probs.future'))%>%
+        mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+        spread(Species,Probability)%>%
+        arrange(Range)
+      dd=rbind(Probs,Probs.future)%>%
+        mutate(dummy=paste(Range, finyear))%>%
+        distinct(dummy,.keep_all = T)%>%
+        dplyr::select(-dummy)
+      write.csv(dd,
+                paste(Rar.path,'/Table 4. Catch only_current.B.over.Bmsy_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+                row.names=F)
+    }
+  }
+}
 
-# Catch vs MSY  
-  #figure & table (Scenario 1 only)
+
+  #18.8.3 F over Fmsy   
+if(do.F.over.Fmsy.series)
+{
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
+    dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%Catch.only.species_display)]
+    if(length(dis.spicis)>0)
+    {
+      print(paste("RAR ---- F.over.Fmsy_catch.only Ensemble-----",names(Lista.sp.outputs)[l]))
+      fn.plot.timeseries_combined(this.sp=dis.spicis,
+                                  d=Mod.AV,
+                                  YLAB="F/Fmsy",
+                                  Type="F.Fmsy",
+                                  InnerMargin=InMar,
+                                  RefPoint=NULL,
+                                  Kach=Catch_only$DBSRA$rel.biom)  
+      ggsave(paste(Rar.path,'/F.over.Fmsy_catch.only_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+             width = 13,height = 11,compression = "lzw")
+    }
+    
+    
+  }
+}
+
+# 18.8.4 Catch vs MSY  
+  #figure & table
 for(l in 1:length(Lista.sp.outputs))
 {
   all.dis.spicis=Lista.sp.outputs[[l]][which(Lista.sp.outputs[[l]]%in%All.catch.MSY.species)]
@@ -2992,7 +3257,7 @@ for(l in 1:length(Lista.sp.outputs))
                                 d=All.catch.MSY,
                                 NM=names(Lista.sp.outputs)[l],
                                 YLAB='Catch (tonnes)',
-                                MSY=compact(Mod.AV_MSY))
+                                MSY=compact(Mod.AV$MSY))
 }
 
 
@@ -3190,67 +3455,3 @@ for(i in 1:N.sp)
                                     dplyr::select(-Species))
 }
 rm(Probs,Probs.future)
-#Store.cons.Like_COM=fn.get.cons.like(lista=Catch_only,
-#                                     Mod.Avrg.weight=COM_weight_by.r.group)   
-  #Ensemble of models for all scenarios
-# dummy.mod=vector('list',length(Catch_only))
-# for(m in 1:length(Catch_only))
-# {
-#   str.prob=Catch_only[[m]]$probs.rel.biom
-#   str.prob=compact(str.prob)
-#   dummy=vector('list',length =length(str.prob))
-#   for(d in 1:length(dummy))
-#   {
-#     ddmmi=fn.get.stuff.from.list(str.prob[[d]],'probs')
-#     ddmmi=do.call(rbind,ddmmi)%>%
-#       mutate(Species=capitalize(names(str.prob)[d]))%>%
-#       group_by(Range,Species)%>%
-#       summarise(Probability=mean(Probability))%>%
-#       mutate(Scenario='S1')%>%
-#       group_by(Scenario,Species)%>%
-#       mutate(Probability=Probability/sum(Probability))%>%
-#       mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
-#       arrange(Range)%>%
-#       dplyr::select(Range,Probability,Scenario,Species)
-#     dummy[[d]]=ddmmi
-#   }
-#   dummy.mod[[m]]=do.call(rbind,dummy)%>%
-#     mutate(Model=names(Catch_only)[m])
-# }
-# dis.spicis=tolower(unique(dummy.mod[[1]]$Species))
-# WEI=vector('list',length(dis.spicis))
-# for(i in 1:length(dis.spicis))
-# {
-#   dis.r.range=do.call(rbind,r.groups)%>%   
-#     data.frame%>%
-#     mutate(Get=between(r.list[match(dis.spicis[i],Keep.species)],.[[1]] , .[[2]]))%>%   
-#     filter(Get==TRUE)
-#   Wei=COM_weight_by.r.group%>%
-#     filter(r.group==row.names(dis.r.range))%>%
-#     dplyr::select(-r.group)
-#   if('SSS'%in%names(Catch_only) & !'SSS'%in%Wei$Model)
-#   {
-#     Wei.SSS=Wei%>%filter(Model=='DBSRA')%>%mutate(Model='SSS')
-#     Wei=rbind(Wei,Wei.SSS)
-#   }
-#   WEI[[i]]=Wei%>%mutate(Species=capitalize(dis.spicis[i]))
-# }
-# WEI=do.call(rbind,WEI)
-# dd=do.call(rbind,dummy.mod)%>%
-#   left_join(WEI,by=c('Model','Species'))%>%
-#   group_by(Range,Scenario,Species)%>%
-#   summarise(Probability=weighted.mean(Probability,w=Weight))%>%
-#   group_by(Scenario,Species)%>%
-#   mutate(Probability=Probability/sum(Probability))%>%
-#   mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')),
-#          Species=tolower(Species))%>%
-#   ungroup()
-# Store.cons.Like_COM=vector('list',length(dis.spicis))
-# names(Store.cons.Like_COM)=dis.spicis
-# for(f in 1:length(Store.cons.Like_COM))
-# {
-#   Store.cons.Like_COM[[f]]=dd%>%filter(Species==dis.spicis[f])%>%dplyr::select(Range,Probability)
-# }
-
-
-

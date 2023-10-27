@@ -134,9 +134,9 @@ do.Size.based.Catch.curve=FALSE  #superseded by dynamic catch-only and size mode
 do.Dynamic.catch.size.comp=FALSE #not applicable due to poor contrast in available size comp
 Do.sim.Test="NO" #do simulation testing of size-based model?
 
-do.F.series=FALSE   #plot these time series
-do.B.over.Bmsy.series=FALSE
-do.F.over.Fmsy.series=FALSE
+do.F.series=TRUE   #plot these time series
+do.B.over.Bmsy.series=TRUE
+do.F.over.Fmsy.series=TRUE
 
 Simplified.scenarios=TRUE  #only 1 base case scenario pero catch-only method
 
@@ -146,11 +146,13 @@ Year.of.assessment=2022
 AssessYr=Year.of.assessment
 Last.yr.ktch="2021-22"
 Last.yr.ktch.numeric=as.numeric(substr(Last.yr.ktch,1,4))
-years.futures=5  #future projections
-n.last.catch.yrs=3
+  #future projections
+future.models=c('SS')   #c('Catch_only','State.Space.SPM','SS')
+years.futures=5  #number of years to project
+n.last.catch.yrs=5 #number of recent years used to calculate future catch
 catches.futures="constant.last.n.yrs"
-#catches.futures='upper.limit.catch.range'  #only available for indicator species
-future.color='brown4'
+#catches.futures='upper.limit.catch.range'  #catch ranges are only available for indicator species
+future.color="brown4"
 
 #3.New assessment
 New.assessment="NO"
@@ -201,7 +203,7 @@ survey_not.representative=c("scalloped hammerhead","great hammerhead",
 NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF was dropped from assessment due to convergence issues
                           "lemon shark","pigeye shark","tiger shark",
                          "dusky shark" ,"sandbar shark")
-tdgdlf_not.representative=NULL
+tdgdlf_not.representative="smooth hammerhead"       #catch rates are for hammerheads
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event, not distribution core
 drop.daily.cpue='2007&2008'  #drop 2007 & 2008 from TDGDLF daily cpue (consistently higher cpues across all species due to likely effort reporting bias)
 
@@ -295,7 +297,7 @@ state.space.SPM='JABBA'
 do.parallel.JABBA=TRUE #do JABBA in parallel or not (set to FALSE)
 use.auxiliary.effort=FALSE  #using effort as auxiliary data yielded very high RMSE and poor fits to effort
 Rdist = "lnorm"
-Kdist="lnorm"  
+KDIST="lnorm"  
 PsiDist='beta'
 Whiskery.q.periods=2  # split monthly cpue into this number of periods (Simpfendorfer 2000, Braccini et al 2021)
 Gummy.q.periods=1     
@@ -303,10 +305,10 @@ Obs.Err.JABBA=0.01   #JABBA uses SE2" = CPUE.se^2 + fixed.obsE^2
 increase.CV.JABBA=TRUE   #for consistency with SS3 and because not using fixed.obsE
 do.MCMC.diagnostics=do.hindcasting=FALSE
 if(First.run=="YES")  do.MCMC.diagnostics=do.hindcasting=TRUE
-Proc.Error.cpue=5e-02   # Default process error when fitting cpue; 5e-02 process error for JABBA  (Winker et al 2018 School shark)
-Proc.Error.cpue2=0.01   #alternative, suggested by Beth Babcock
+Proc.Error.cpue=1e-01   # Default process error when fitting cpue to allow enough flexibilty (0.2 showed no differences) 
+Proc.Error.cpue2=5e-02   #alternative, 5e-02 process error for JABBA  (Winker et al 2018 School shark) ; Beth Babcock suggested 0.01
 k.cv=2                #Carrying capacity CV (Winker et al 2018 School shark)
-   
+PEELS=5               #number of years to peel for hindcasting and retrospective   
 
 #20. Integrated age-based model 
 Integrated.age.based='SS'
@@ -598,15 +600,37 @@ do.pie.donut=FALSE
 if(do.pie.donut)
 {
   fn.fig(handl_OneDrive("Analyses/Population dynamics/Proportional catch_WA"),2400,2400)
-  KtCh.method%>%
-    filter(!Data.set%in%c('Historic',Non.WA.fisheries))%>%
-    mutate(Shark.Fishery=ifelse(FishCubeCode%in%Shark.Fisheries,'Shark fisheries',
-                                'Other fisheries'))%>%
-    group_by(Shark.Fishery,Gear)%>%
-    summarise(LIVEWT.c=sum(LIVEWT.c))%>%
-    PieDonut(aes(Shark.Fishery,Gear,count=LIVEWT.c),title='Proportional catch',
-             explode = 2,r0=.2,r1=.8,maxx=1.45, titlesize=8,
-             pieLabelSize=6.5,donutLabelSize=5.5,showPieName=FALSE)
+ KtCh.method%>%
+      filter(!Data.set%in%c('Historic',Non.WA.fisheries))%>%
+      mutate(Shark.Fishery=ifelse(FishCubeCode%in%Shark.Fisheries,'Shark fisheries',
+                                  'Other fisheries'))%>%
+      group_by(Shark.Fishery,Gear)%>%
+      summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+      PieDonut(aes(Shark.Fishery,Gear,count=LIVEWT.c),title='Proportional catch',
+               explode = 2,r0=.2,r1=.8,maxx=1.45, titlesize=8,
+               pieLabelSize=6.5,donutLabelSize=5.5,showPieName=FALSE)
+  
+  # ddd=KtCh.method%>%
+  #   filter(!Data.set%in%c('Historic',Non.WA.fisheries))%>%
+  #   mutate(Shark.Fishery=ifelse(FishCubeCode%in%Shark.Fisheries,'Shark fisheries',
+  #                               'Other fisheries'),
+  #          FinYr=ifelse(finyear<2006,'Pre landing ban','Post landing ban'))
+  # p2=ddd%>%
+  #   filter(FinYr=='Pre landing ban')%>%
+  #   group_by(Shark.Fishery,Gear)%>%
+  #   summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+  #   PieDonut(aes(Shark.Fishery,Gear,count=LIVEWT.c),title='Pre landing ban',
+  #            explode = 2,r0=.2,r1=.8,maxx=1.45, titlesize=8,
+  #            pieLabelSize=6.5,donutLabelSize=5.5,showPieName=FALSE)
+  # 
+  # p3=ddd%>%
+  #   filter(FinYr=='Post landing ban')%>%
+  #   group_by(Shark.Fishery,Gear)%>%
+  #   summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+  #   PieDonut(aes(Shark.Fishery,Gear,count=LIVEWT.c),title='Post landing ban',
+  #            explode = 2,r0=.2,r1=.8,maxx=1.45, titlesize=8,
+  #            pieLabelSize=6.5,donutLabelSize=5.5,showPieName=FALSE)
+  
   dev.off()
   
 }
@@ -1591,7 +1615,7 @@ if(First.run=="YES")
 #---12. Extract catch rates-----------------------------------------------------------------------
 Catch.rate.series=vector('list',N.sp) 
 names(Catch.rate.series)=Keep.species
-for(l in 1:N.sp)
+for(l in 1:N.sp) 
 {
   Neim=Keep.species[l]
   if(any(c(grepl('annual.abundance',names(Species.data[[l]])),
@@ -1780,6 +1804,41 @@ for(l in 1:N.sp)
   }
 }
 
+# Change Naturaliste survey from numbers to weights
+for(i in 1:N.sp)
+{
+  if("Survey"%in%names(Catch.rate.series[[i]]))
+  {
+    ddim=Catch.rate.series[[i]]$Survey%>%
+      left_join(Species.data[[i]]$Srvy.FixSt_size.absolute%>%
+                  dplyr::select(yr,MeAn)%>%
+                  rename(Size=MeAn),by='yr')%>%
+      mutate(Size=ifelse(is.na(Size)&!is.na(Mean),mean(Size,na.rm=T),Size))
+    if(grepl(paste(c("shovelnose","zebra shark"),collapse='|'),names(Catch.rate.series)[i])) Size.var='TL' else Size.var='FL'
+    if(Size.var=="FL") ddim$Size=with(List.sp[[i]],ddim$Size*a_FL.to.TL+b_FL.to.TL)
+    ddim=ddim%>%
+      mutate(TW=with(List.sp[[i]],AwT*Size^BwT),
+             Mean=Mean*TW,
+             SE=CV*Mean,
+             UP.CI=UP.CI*TW,
+             LOW.CI=LOW.CI*TW)%>%
+      dplyr::select(names(Catch.rate.series[[i]]$Survey))
+    
+    fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                 capitalize(List.sp[[i]]$Name),"/",AssessYr,'/1_Inputs/Visualise data/CPUE_Survey in weight',sep=''),
+           1800,2000) 
+    par(mfcol=c(2,1))
+    with(Catch.rate.series[[i]]$Survey,plot(yr,Mean,main='Survey in numbers',pch=19,
+                                            ylim=c(0,max(UP.CI,na.rm=T))))
+    with(Catch.rate.series[[i]]$Survey,segments(x0=yr, y0=LOW.CI, x1 = yr, y1 = UP.CI))
+    with(ddim,plot(yr,Mean,pch=19,main='Converted to total weight (kg)',ylim=c(0,max(ddim$UP.CI,na.rm=T))))
+    with(ddim,segments(x0=yr, y0=LOW.CI, x1 = yr, y1 = UP.CI))
+    dev.off()
+    
+    Catch.rate.series[[i]]$Survey=ddim
+  }
+}
+
 # get SE if only CV available and define if using CV or SE in assessment model  
 for(i in 1:N.sp)
 {
@@ -1801,6 +1860,15 @@ for(i in 1:N.sp)
     }
   }
   
+}
+
+#consistency between daily cpue and daily mean weight
+for(l in 1:N.sp)
+{
+  if(is.null(Catch.rate.series[[l]]) & "annual.mean.size"%in%names(Species.data[[l]]))
+  {
+    Species.data[[l]]=Species.data[[l]][-match("annual.mean.size",names(Species.data[[l]]))] 
+  }
 }
 
 #---13. Calculate Steepness ----------------------------------------------------------------------- 
@@ -2407,27 +2475,28 @@ if(First.run=="YES")
     {
       d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
                                     names(Species.data[[i]]))]
-      if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
-      if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
-      for(x in 1:length(d.list)) d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
-      d.list=do.call(rbind,d.list)
-      d.list=d.list%>%mutate(fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
-                             Fleet=ifelse(fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
-                                   ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
-                                   ifelse(fleet=='NSF.LONGLINE','Northern.shark',
-                                   fleet))),
-                             TL=FL*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL)
-
-      tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
-                      "/",AssessYr,"/1_Inputs/Visualise data","/Observe size VS selectivity used in SS.tiff",sep=''),
-           width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-      fun.compare.sel.obs.size.comp(TL=with(List.sp[[i]],seq(round(Lzero*a_FL.to.TL+b_FL.to.TL),TLmax)),
-                                    Sel=List.sp[[i]]$SS_selectivity,
-                                    size.comps=d.list,
-                                    Flts=sort(unique(d.list$Fleet)))
-      dev.off()
-      
-      
+      if(length(d.list)>0)
+      {
+        if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
+        if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
+        for(x in 1:length(d.list)) d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
+        d.list=do.call(rbind,d.list)
+        d.list=d.list%>%mutate(fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
+                               Fleet=ifelse(fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
+                                            ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
+                                                   ifelse(fleet=='NSF.LONGLINE','Northern.shark',
+                                                          fleet))),
+                               TL=FL*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL)
+        
+        tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
+                        "/",AssessYr,"/1_Inputs/Visualise data","/Observe size VS selectivity used in SS.tiff",sep=''),
+             width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+        fun.compare.sel.obs.size.comp(TL=with(List.sp[[i]],seq(round(Lzero*a_FL.to.TL+b_FL.to.TL),TLmax)),
+                                      Sel=List.sp[[i]]$SS_selectivity,
+                                      size.comps=d.list,
+                                      Flts=sort(unique(d.list$Fleet)))
+        dev.off()
+      }
     }
   }
   clear.log('fun.compare.sel.obs.size.comp')
@@ -2530,6 +2599,33 @@ if(First.run=="YES")
       
     }
   }
+}
+
+#Compare r dist and life history invariant r~ 1.5-2 M
+if(First.run=="YES")
+{
+  r.within.m.range=vector('list',N.sp)
+  for(i in 1:N.sp)
+  {
+    
+    r.within.m.range[[i]]=data.frame(Species=capitalize(names(List.sp)[i]),
+                                     r=seq(0,1,.01))%>%
+      mutate(r.prob=dnorm(seq(0,1,.01),
+                          mean=List.sp[[i]]$Sens.test$JABBA$r[1],
+                          sd=List.sp[[i]]$Sens.test$JABBA$r.sd[1]),
+             m_1.5=1.5*List.sp[[i]]$Sens.test$DBSRA$Mmean[1],
+             m_2=2*List.sp[[i]]$Sens.test$DBSRA$Mmean[1])
+  }
+  d=do.call(rbind,r.within.m.range)
+  d%>%
+    ggplot(aes(r,r.prob))+
+    geom_polygon()+
+    geom_vline(aes(xintercept=m_1.5),color=2,size=.9)+
+    geom_vline(aes(xintercept=m_2),color=2,size=.9)+
+    facet_wrap(~Species,scales='free')+
+    theme_PA(strx.siz=9)+ylab('')
+  ggsave(handl_OneDrive('Analyses/Population dynamics/M1.5_M2_vs_r dist.tiff'), width = 9,height = 8, dpi = 300, compression = "lzw")
+  
 }
 
 #---17. Display catches by fishery & display life history ----
@@ -2690,7 +2786,11 @@ if(First.run=="YES")
 }
 
 
-
+#export catch year index for reporting
+fut.yr=as.numeric(substr(Last.yr.ktch,1,4))+years.futures
+write.csv(data.frame(year.current=Last.yr.ktch,
+                     year.future=paste(fut.yr,substr(fut.yr+1,3,4),sep='-')),
+          paste(Rar.path,'year_current_future.csv',sep='/'),row.names = FALSE)
 
 
 #---18. Catch-only assessments --------------------------------------
@@ -2780,7 +2880,7 @@ if(Assessed.ktch.only.species=='Only.ktch.data')
 Catch.only.species_only.ktch=Keep.species[which(!Keep.species%in%names(compact(Catch.rate.series)))]
 Catch.only.species_only.ktch=subset(Catch.only.species_only.ktch,!Catch.only.species_only.ktch%in%Species.with.length.comp)
 
-if(Do.Ktch.only) fn.source1("Apply_catch only assessments.R")  #~40 mins per species (DBSRA, CMSY & SSS, 1 scenario)
+if(Do.Ktch.only) fn.source1("Apply_catch only assessments.R")  #~60 mins per species (DBSRA, CMSY & SSS, 1 scenario)
 
 #Ballpark M check for SSS
 check.ballpark.M=FALSE
@@ -2923,7 +3023,24 @@ clear.log('recruit.cpiui')
 #---24. JABBA Surplus production model -------------------------------------------------
 #note: Only fitting to 'indicator and 'other species' with representative abundance time series 
 #Assumptions: negligible exploitation at start of time series
-if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes <1 hour (9 species with 5 scenarios), takes <2 hours is doing fit diagnostics
+
+  #Get m parameter value
+m.par=vector('list',N.sp)
+names(m.par)=Keep.species
+fn2 <- function(m)
+{
+  pred=m^(-(1/(m-1)))
+  return((bmsy.over.K-pred)^2)
+}
+for(l in 1:N.sp)
+{
+  bmsy.over.K=List.sp[[l]]$Sens.test$JABBA$bmsyk[1]
+  m=optim(1.5,fn2,method ="Brent",lower=0.1,upper=5)  
+  m.par[[l]]=data.frame(Species=names(m.par)[l],bmsyK=bmsy.over.K,m=m$par)
+}
+m.par=do.call(rbind,m.par)
+
+if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes 2 hours (8 species with 7 scenarios), takes <2 hours if doing fit diagnostics
 clear.log('Store.sens')
 clear.log('output')
 clear.log('F.Fmsy')
