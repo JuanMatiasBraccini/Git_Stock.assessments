@@ -1730,7 +1730,7 @@ for(w in 1:length(Catch_only))
                        dep.f=dep.f,
                        Current.depletion=unlist(fn.get.stuff.from.list(Report,'current_depletion')),
                        Delta.fin.dep=abs(dep.f-Current.depletion),
-                       LnRo=Estims$Value,
+                       LnRo=Estims%>%filter(!is.na(Phase))%>%pull(Value),
                        Delta.lower.LnRo=abs(LnRo-1),
                        Delta.upper.LnRo=abs(LnRo-20),
                        Keep=ifelse(Delta.fin.dep>Criteria.delta.fin.dep,'No','Yes'))
@@ -2530,7 +2530,7 @@ if(do.ensemble.simulations)   #56 sec per iteration under do.full.sims=FALSE (it
                                dep.f=dep.f,
                                Current.depletion=unlist(fn.get.stuff.from.list(Report,'current_depletion')),
                                Delta.fin.dep=abs(dep.f-Current.depletion),
-                               LnRo=Estims$Value,
+                               LnRo=Estims%>%filter(!is.na(Phase))%>%pull(Value),
                                Delta.lower.LnRo=abs(LnRo-1),
                                Delta.upper.LnRo=abs(LnRo-20),
                                Keep=ifelse(Delta.conv.criteria>0.001 | Delta.fin.dep>Criteria.delta.fin.dep |
@@ -3175,7 +3175,7 @@ if(do.B.over.Bmsy.series)
                                   RefPoint=NULL,
                                   Kach=Catch_only$DBSRA$rel.biom)  
       ggsave(paste(Rar.path,'/B.over.Bmsy_catch.only_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
-             width = 13,height = 11,compression = "lzw")
+             width = 12,height = 10.5,compression = "lzw")
     }
     
     #Display species with only catch separately
@@ -3238,7 +3238,7 @@ if(do.F.over.Fmsy.series)
                                   RefPoint=NULL,
                                   Kach=Catch_only$DBSRA$rel.biom)  
       ggsave(paste(Rar.path,'/F.over.Fmsy_catch.only_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
-             width = 13,height = 11,compression = "lzw")
+             width = 12,height = 10.5,compression = "lzw")
     }
     
     
@@ -3436,22 +3436,58 @@ if(get.MSY.estimates)
 
 
 #18.12 Store Consequence and likelihood for WoE 
-  #Ensemble of models for S1 only
-Probs=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs,'Probs'))%>%
-  mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
-  arrange(Range)
-Probs.future=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs,'Probs.future'))%>%
-  mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
-  arrange(Range)
-Store.cons.Like_COM=vector('list',N.sp)
-names(Store.cons.Like_COM)=Keep.species
-for(i in 1:N.sp)
+get.cons.like.COM=FALSE  #import from table instead
+if(get.cons.like.COM)
 {
-  Store.cons.Like_COM[[i]]=rbind(Probs%>%
-                                   filter(Species==capitalize(Keep.species[i]))%>%
-                                   dplyr::select(-Species),
-                                  Probs.future%>%
-                                    filter(Species==capitalize(Keep.species[i]))%>%
-                                    dplyr::select(-Species))
+  #Ensemble of models for S1 only
+  Probs=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs,'Probs'))%>%
+    mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+    arrange(Range)
+  Probs_B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs_B.Bmsy,'Probs'))%>%
+    mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+    arrange(Range)
+  if('Catch_only'%in%future.models)
+  {
+    Probs.future=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs,'Probs.future'))%>%
+      mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+      arrange(Range)
+    Probs.future_B.Bmsy=do.call(rbind,fn.get.stuff.from.list(Mod.AV$Probs_B.Bmsy,'Probs.future'))%>%
+      mutate(Range=factor(Range,levels=c('>tar','thr.tar','lim.thr','<lim')))%>%
+      arrange(Range)
+  }
+  
+  Store.cons.Like_COM=vector('list',N.sp)
+  names(Store.cons.Like_COM)=Keep.species
+  for(i in 1:N.sp)
+  {
+    if('Catch_only'%in%future.models)
+    {
+      ddd=rbind(Probs%>%
+                  filter(Species==capitalize(Keep.species[i]))%>%
+                  dplyr::select(-Species),
+                Probs.future%>%
+                  filter(Species==capitalize(Keep.species[i]))%>%
+                  dplyr::select(-Species))
+      ddd_B.Bmsy=rbind(Probs_B.Bmsy%>%
+                         filter(Species==capitalize(Keep.species[i]))%>%
+                         dplyr::select(-Species),
+                       Probs.future_B.Bmsy%>%
+                         filter(Species==capitalize(Keep.species[i]))%>%
+                         dplyr::select(-Species))
+    }else
+    {
+      ddd=Probs%>%
+        filter(Species==capitalize(Keep.species[i]))%>%
+        dplyr::select(-Species)
+      ddd_B.Bmsy=Probs_B.Bmsy%>%
+        filter(Species==capitalize(Keep.species[i]))%>%
+        dplyr::select(-Species)
+    }
+    
+    Store.cons.Like_COM[[i]]$Depletion=ddd
+    Store.cons.Like_COM[[i]]$B.over.Bmsy=ddd_B.Bmsy
+  }
+  rm(Probs,Probs_B.Bmsy)
+  if('Catch_only'%in%future.models) rm(Probs.future,Probs.future_B.Bmsy)
 }
-rm(Probs,Probs.future)
+ 

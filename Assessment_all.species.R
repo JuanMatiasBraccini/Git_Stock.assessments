@@ -89,6 +89,7 @@ library(strex)
 library(doSNOW)
 library(tictoc)
 library(ks)
+library(ggwordcloud)
 
 clear.log <- function(x, env = globalenv()) if(exists(x, envir = env))  rm(list = x, envir = env)
 
@@ -123,7 +124,7 @@ Send.email.to="matias.braccini@dpird.wa.gov.au"   #send email when model run fin
 #Send.email.to="braccinimatias@gmail.com.au"  #IT firewall doesn't allow sending to gmail :(
 
 #1. Control which assessment method to implement
-Do.Ktch.only=TRUE
+Do.Ktch.only=FALSE
 Do.StateSpaceSPM=TRUE
 Do.integrated=TRUE  #SS3
 Do.bespoked=FALSE   #bespoked size-based
@@ -409,6 +410,11 @@ RiskColors=c('Negligible'="cornflowerblue",
              'Medium'="yellow",
              'High'="orange",
              'Severe'="red2")
+Choose.probability="B.over.Bmsy" #"Depletion"  #use B/Bmys or B/K probabilities
+Like.ranges=list(L1=c(0,0.0499999),
+                 L2=c(0.05,0.2),
+                 L3=c(0.20001,0.5),
+                 L4=c(0.50001,1))
 
 #23. Average ratio L50:L95 for species with no L95 estimates
 average.prop.L95_L50=mean(c(135.4/154.5,225/262,210/240,113/138,175/198,281/328,113/139,125/136,113/138))
@@ -712,6 +718,59 @@ write.csv(Get.ktch$Table1%>%
             relocate(c(SPECIES))%>%
             arrange(SPECIES),
           paste(Exprt,'Table S1_All.species.caught.by.fishery.csv',sep='/'),row.names = F)
+
+#Export species word cloud #ACA
+Word.cloud=Get.ktch$Table1%>%
+  data.frame%>%
+  mutate(Tot=rowSums(across(where(is.numeric))))%>%
+  dplyr::select(Name,Scien.nm,Tot)%>%
+  left_join(All.species.names%>%
+              distinct(Scien.nm,.keep_all=T),
+            by='Scien.nm')%>%
+  filter(!is.na(Scien.nm))%>%
+  mutate(CITES=ifelse(CITES%in%c("") |is.na(CITES),NA,"CITES"),
+         CMS=ifelse(CMS%in%c("") |is.na(CMS),NA,"CMS"),
+         EPBC=ifelse(EPBC%in%c("") |is.na(EPBC),NA,"EPBC"),
+         SAFS=ifelse(SAFS%in%c("") |is.na(SAFS),NA,"SAFS"),
+         WA_BC_Act=ifelse(WA_BC_Act%in%c("") |is.na(WA_BC_Act),NA,"WA BC Act"),
+         Indicators=ifelse(Name%in%capitalize(names(Indicator.species)),'Indicators','Non.indicators'))%>%
+  unite(col='Protection',CITES,CMS,EPBC,WA_BC_Act,sep=',',na.rm = TRUE)%>%
+  mutate(Listed=ifelse(!Protection=="",'Listed (CITES, CMS, EPBC, WA BC Act)',"Not listed"))
+
+p=Word.cloud%>%
+  ggplot(aes(label = Name, size = Tot,color=Indicators))+
+  geom_text_wordcloud() +
+  scale_size_area(max_size = 20) +
+  theme_minimal()+
+  scale_color_manual(values=c(Non.indicators = "black", Indicators = "steelblue"))
+ggsave(paste(Exprt,'Catch_word_cloud.tiff',sep='/'), width = 10,height = 10, dpi = 300, compression = "lzw")
+
+p1=Word.cloud%>%
+  filter(Listed=='Not listed')%>%
+  mutate(dummy='dummy')%>%
+  ggplot(aes(label = Name, size = Tot,color=dummy))+
+  geom_text_wordcloud(show.legend = FALSE, family="Purisa") +
+  scale_size_area(max_size = 20) +
+  theme_minimal()+
+  guides(size = "none")+
+  ggtitle("Not listed")+
+  theme(plot.title = element_text(size=28,hjust=0.5,vjust = -8))+
+  scale_color_manual(values=c(dummy = "grey50"))
+
+p2=Word.cloud%>%
+  filter(!Listed=='Not listed')%>%
+  ggplot(aes(label = Name, size = Tot,color=Protection))+
+  geom_text_wordcloud(show.legend = FALSE, family="Purisa") +
+  scale_size_area(max_size = 20) +
+  theme_minimal()+
+  guides(size = "none")+
+  ggtitle("Listed (CITES, CMS, EPBC, WA BC Act)")+
+  theme(plot.title = element_text(size=28,hjust=0.5,vjust = -8))
+
+
+ggarrange(p1,p2,nrow=2)+theme(plot.margin = unit(c(-1,-1,-1,-1), 'lines'))
+ggsave(paste(Exprt,'Catch_word_cloud_protection.tiff',sep='/'),
+       width = 250,height = 250,units = "mm", dpi = 300, compression = "lzw")
 
 clear.log('Get.ktch')
 clear.log('WAislands')  
@@ -2971,6 +3030,24 @@ if(plot.bmsyK)
   
 }
 
+#Get Consequence and likelihoods
+Store.cons.Like_COM=list(Depletion=NULL,B.over.Bmsy=NULL)     
+DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
+for(l in 1:length(Lista.sp.outputs))  
+{
+  ddis=names(Lista.sp.outputs)[l]
+  DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
+                        gather(Species,Probability,-c(Range,finyear))%>%
+                        mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+  
+  DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.depletion_',ddis,'.csv',sep=''))%>%
+                        gather(Species,Probability,-c(Range,finyear))%>%
+                        mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+}
+Store.cons.Like_COM$Depletion=do.call(rbind,DD.depletion)
+Store.cons.Like_COM$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
+  
+
 clear.log('Store.sens')
 clear.log('output')
 clear.log('out')
@@ -3040,7 +3117,27 @@ for(l in 1:N.sp)
 }
 m.par=do.call(rbind,m.par)
 
-if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes 2 hours (8 species with 7 scenarios), takes <2 hours if doing fit diagnostics
+if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes 1.3 (8 species with 8 scenarios and fit diagnostics)
+
+Store.cons.Like_JABBA=list(Depletion=NULL,B.over.Bmsy=NULL)     
+DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
+for(l in 1:length(Lista.sp.outputs))  
+{
+  ddis=names(Lista.sp.outputs)[l]
+  DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 8. JABBA CPUE_Current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
+    dplyr::select(-c(Scenario,Model))%>%
+    gather(Species,Probability,-c(Range,finyear))%>%
+    mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+  
+  DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 8. JABBA CPUE_Current.depletion_',ddis,'.csv',sep=''))%>%
+    dplyr::select(-c(Scenario,Model))%>%
+    gather(Species,Probability,-c(Range,finyear))%>%
+    mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+}
+Store.cons.Like_JABBA$Depletion=do.call(rbind,DD.depletion)
+Store.cons.Like_JABBA$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)  
+
+
 clear.log('Store.sens')
 clear.log('output')
 clear.log('F.Fmsy')
@@ -3090,20 +3187,97 @@ if(Do.bespoked) fn.source1("Integrated_size_based.R")
 #---27. Weight of Evidence Assessment ------
 
 #1. Calculate risk for each line of evidence  
-  #1.1. PSA (Drop.species only)
+  #1.1. PSA 
+#note: only use PSA scores for species dropped by the PSA as this is the only available LoE 
 Drop.species=subset(Drop.species,!Drop.species=="other sharks")
 Risk.PSA=vector('list',length(Drop.species))  
 names(Risk.PSA)=Drop.species
 for(s in 1:length(Risk.PSA))
 {
   xxx=PSA.out%>%mutate(Species=tolower(Species))%>%filter(Species==tolower(names(Risk.PSA)[s]))
-  if(xxx$Vulnerability=='Low') dummy=data.frame(Max.Risk.Score=c(0,4,0,0))    
-  if(xxx$Vulnerability=='Medium') dummy=data.frame(Max.Risk.Score=c(0,0,6,0))  #possible moderate risk
+  if(xxx$Vulnerability=='Low') dummy=data.frame(Species=capitalize(xxx$Species),
+                                                Consequence=1:4,
+                                                Likelihood=c(2,1,1,1),
+                                                w=0.5)  
+  if(xxx$Vulnerability=='Medium') dummy=data.frame(Species=capitalize(xxx$Species),
+                                                   Consequence=1:4,
+                                                   Likelihood=c(4,2,1,1),
+                                                   w=0.5)  
   Risk.PSA[[s]]=dummy
   rm(xxx,dummy)
 }
+Risk.PSA=do.call(rbind,Risk.PSA)
 
-  #1.2. catch spatio-temporal    
+  #1.2. COMS  
+if(exists("Store.cons.Like_COM"))
+{
+  if(Choose.probability=="Depletion")   Risk.COM=fn.risk(d=Store.cons.Like_COM$Depletion,w=0.5)
+  if(Choose.probability=="B.over.Bmsy") Risk.COM=fn.risk(d=Store.cons.Like_COM$B.over.Bmsy,w=0.5)
+}
+
+  #1.3. JABBA
+if(exists("Store.cons.Like_JABBA"))
+{
+  if(Choose.probability=="Depletion")   Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=0.5)
+  if(Choose.probability=="B.over.Bmsy") Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=0.5)
+}
+
+  #1.4. SS3
+if(exists("Store.cons.Like_Age.based"))
+{
+  if(Choose.probability=="Depletion")   Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$Depletion,w=0.5)
+  if(Choose.probability=="B.over.Bmsy") Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$B.over.Bmsy,w=0.5)
+}
+
+
+#2. Determine overall final risk   #ACA: how to combine the risk from COM, JABBA, SS, spatial catch stuff...
+Risk_Drop.species=Risk.PSA
+Risk_Other.sp=Risk.COM%>%
+                filter(tolower(Species)%in%Lista.sp.outputs$Other.sp)
+Risk_Indicator.sp=Risk.COM%>%
+                  filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp)
+
+
+#3. Plot Consequence and Likelihood and extract overall risk by species   
+Store.risk_Drop.species=fn.risk.figure(d=Risk_Drop.species, Risk.colors=RiskColors, out.plot=FALSE)
+
+Store.risk_Other.sp=fn.risk.figure(d=Risk_Other.sp, Risk.colors=RiskColors, out.plot=TRUE)
+ggsave(paste(Rar.path,"Risk_Other.sp.tiff",sep='/'),width = 12,height = 10,compression = "lzw")
+
+Store.risk_Indicator.sp=fn.risk.figure(d=Risk_Indicator.sp, Risk.colors=RiskColors, out.plot=TRUE)
+ggsave(paste(Rar.path,"Risk_Indicator.sp.tiff",sep='/'),width = 10,height = 10,compression = "lzw")
+
+
+#4. Display final risk for all species combined   
+Final.risk_Drop.species=Store.risk_Drop.species%>%
+                                group_by(Score,Risk)%>%
+                                tally()%>%
+                                mutate(Species=paste0("PSA-only species \n", "(n=",n,")"))%>%
+                                dplyr::select(Species,Score,Risk)
+
+Final.risk_Other.sp=Store.risk_Other.sp%>%dplyr::select(Species,Score,Risk)
+Final.risk_Indicator.sp=Store.risk_Indicator.sp%>%dplyr::select(Species,Score,Risk)
+
+p=rbind(Final.risk_Drop.species,Final.risk_Other.sp,Final.risk_Indicator.sp)%>%
+  mutate(Species=factor(Species,levels=p%>%arrange(Score)%>%pull(Species)))
+
+p%>%
+  ggplot(aes(Species,Score,fill=Risk))+
+  geom_bar(stat="identity")+ coord_flip()+
+  theme_PA(axs.t.siz=14)+
+  theme(legend.title = element_blank(),
+        legend.position = 'bottom')+
+  ylab('Risk score')+xlab('')+
+  scale_fill_manual(values=Risk.colors)+
+  scale_y_continuous(breaks = breaks_width(1))
+
+ggsave(paste(Rar.path,"Risk_all species together.tiff",sep='/'),width = 8,height = 10,compression = "lzw")
+
+
+#---Remove this stuff once risk stuff is done  ------------------------------------------------- 
+
+
+  #1.2. catch spatio-temporal    #ACA
 stopped.landing=c('angel sharks','sawsharks',
                   "spurdogs","grey nurse shark")  #landings ceased/decreased due to lack of market for spurdogs, 
                                                   # and marine heatwave for angel and sawsharks (industry consultation AMM 2022)
@@ -3192,10 +3366,7 @@ for(s in 1:length(Risk.effort.mangmnt))
 }
 
 #1.4. population dynamics models
-Like.ranges=list(L1=c(0,0.0499999),
-                 L2=c(0.05,0.2),
-                 L3=c(0.20001,0.5),
-                 L4=c(0.50001,1))
+
 Risk.tab=data.frame(Consequence=paste("C",1:4,sep=""),
                     L1=NA,L2=NA,L3=NA,L4=NA,
                     Max.Risk.Score=NA)
@@ -3207,13 +3378,23 @@ if(Do.integrated) Risk.integrated=Risk.COM
 for(s in 1: N.sp)
 {
   #COM
-  Risk.COM[[s]]=fn.risk(likelihood=Store.cons.Like_COM[[s]])
+  if(exists("Store.cons.Like_COM"))
+  {
+    Risk.COM[[s]]=fn.risk(likelihood=Store.cons.Like_COM[[s]])
+  }
   
   #JABBA
-  if(!is.null(Store.cons.Like_JABBA[[s]]))Risk.JABBA[[s]]=fn.risk(likelihood=Store.cons.Like_JABBA[[s]])
+  if(exists('Store.cons.Like_JABBA'))
+  {
+    Risk.JABBA[[s]]=fn.risk(likelihood=Store.cons.Like_JABBA[[s]]) 
+  }
   
   #Integrated model
-  if(Do.integrated) Risk.integrated[[s]]=fn.risk(likelihood=Store.cons.Like.Age.based[[s]])   
+  if(exists('Store.cons.Like_Age.based'))
+  {
+    Risk.integrated[[s]]=fn.risk(likelihood=Store.cons.Like_Age.based[[s]])
+  }
+       
   
 }
 
@@ -3364,18 +3545,6 @@ axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
 
 dev.off()
 
-#ACA: MISSING. incorporate to script
-
-#general example
-NN=5
-dummy.d=data.frame(Species=paste('Species',rep(1:NN,each=4)),
-                   Consequence=rep(1:4,each=4*NN),
-                   Likelihood=rep(1:4,4*NN),
-                   w=.5)
-Store.risk=fn.risk.figure(d=dummy.d%>%
-                            group_by(Species) %>%
-                            sample_n(size=4),
-                          Risk.colors=RiskColors)
 
 
 #---28. Outputs for strategic papers  ------------------------------------------------- 

@@ -362,7 +362,7 @@ for(w in 1:length(State.Space.SPM))
               output=JABBA.run$fit
               
               #Store deviance
-              Out.deviance[s]=output$posteriors$deviance
+              Out.deviance[[s]]=c(output$posteriors$deviance)
               
               #Display model fits
               JABBA=output
@@ -989,7 +989,7 @@ for(w in 1:length(State.Space.SPM))
               output=JABBA.run$fit
               
               #Store deviance
-              Out.deviance[s]=output$posteriors$deviance
+              Out.deviance[[s]]=c(output$posteriors$deviance)
               
               #Display model fits
               JABBA=output
@@ -1389,9 +1389,9 @@ if(do.B.over.Bmsy.series)
   {
     print(paste("JABBA --- B over Bmsy plot -----",Keep.species[i]))
     a=fn.plot.timeseries(d=State.Space.SPM,
-                                   sp=Keep.species[i],
-                                   Type='B.Bmsy',
-                                   YLAB='B/Bmsy')
+                         sp=Keep.species[i],
+                         Type='B.Bmsy',
+                         YLAB='B/Bmsy')
     if(!is.null(a))
     {
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
@@ -1420,8 +1420,7 @@ if(do.F.over.Fmsy.series)
 }
 
   #24.3.2 Display Scenario 1 for combined species
-
-#Relative biomass (i.e. Depletion) 
+#24.3.2.1 Relative biomass (i.e. Depletion) 
   #figure
 for(l in 1:length(Lista.sp.outputs))
 {
@@ -1453,12 +1452,24 @@ for(l in 1:length(Lista.sp.outputs))
       dummy=vector('list',length =length(str.prob))
       for(d in 1:length(dummy))
       {
-        pp.future=str.prob[[d]][[1]]$probs.future
-        pp=str.prob[[d]][[1]]$probs%>%
-                    mutate(finyear=unique(pp.future$finyear)-years.futures)
-        
-        dummy[[d]]=rbind(pp,pp.future)%>%
+        pp=str.prob[[d]][[1]]$probs
+        outdis=pp%>%
+          mutate(Species=capitalize(names(str.prob)[d]))
+        if(!'finyear'%in%names(outdis) & !'probs.future'%in%names(str.prob[[d]][[1]]))
+        {
+          aidi=match(names(str.prob)[d],names(State.Space.SPM[[m]]$rel.biom))
+          outdis$finyear=max(State.Space.SPM[[m]]$rel.biom[[aidi]]$year) 
+        }
+          
+        if('probs.future'%in%names(str.prob[[d]][[1]]))
+        {
+          pp.future=str.prob[[d]][[1]]$probs.future
+          pp=pp%>%
+            mutate(finyear=unique(pp.future$finyear)-years.futures)
+          outdis=rbind(pp,pp.future)%>%
                     mutate(Species=capitalize(names(str.prob)[d]))
+        }
+        dummy[[d]]=outdis
       }
       dummy.mod[[m]]=do.call(rbind,dummy)%>%
         mutate(Model=names(State.Space.SPM)[m])
@@ -1475,6 +1486,99 @@ for(l in 1:length(Lista.sp.outputs))
               row.names=F)
     rm(dummy.mod)
     
+  }
+}
+  #24.3.2.2 B over Bmsy  
+if(do.B.over.Bmsy.series)
+{
+  #figure
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    print(paste("RAR --- B.over.Bmsy_JABBA plot S1 -----",names(Lista.sp.outputs)[l],"----- single plot")) 
+    if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
+    a=fn.plot.timeseries_combined(this.sp=Lista.sp.outputs[[l]],
+                                  d=State.Space.SPM$JABBA,
+                                  YLAB="B/Bmsy",
+                                  Type="B.Bmsy",
+                                  InnerMargin=InMar,
+                                  RefPoint=NULL,
+                                  Kach=State.Space.SPM$JABBA$rel.biom)
+    WIDt=10
+    if(length(compact(State.Space.SPM$JABBA$sens.table))<=3) WIDt=7
+    if(!is.null(a))ggsave(paste(Rar.path,'/B.over.Bmsy_JABBA CPUE_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+                          width = WIDt,height = 10,compression = "lzw")
+  }
+  #table 
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    dummy.mod=vector('list',length(State.Space.SPM))
+    for(m in 1:length(State.Space.SPM))
+    {
+      str.prob=State.Space.SPM[[m]]$probs.B.Bmsy  
+      str.prob=str.prob[match(Lista.sp.outputs[[l]],names(str.prob))]
+      str.prob=compact(str.prob)
+      if(length(str.prob)>0)
+      {
+        dummy=vector('list',length =length(str.prob))
+        for(d in 1:length(dummy))
+        {
+          pp=str.prob[[d]][[1]]$probs
+          outdis=pp%>%
+            mutate(Species=capitalize(names(str.prob)[d]))
+          if(!'finyear'%in%names(outdis) & !'probs.future'%in%names(str.prob[[d]][[1]]))
+          {
+            aidi=match(names(str.prob)[d],names(State.Space.SPM[[m]]$rel.biom))
+            outdis$finyear=max(State.Space.SPM[[m]]$rel.biom[[aidi]]$year) 
+          }
+          
+          if('probs.future'%in%names(str.prob[[d]][[1]]))
+          {
+            pp.future=str.prob[[d]][[1]]$probs.future
+            pp=pp%>%
+              mutate(finyear=unique(pp.future$finyear)-years.futures)
+            outdis=rbind(pp,pp.future)%>%
+              mutate(Species=capitalize(names(str.prob)[d]))
+          }
+          dummy[[d]]=outdis
+        }
+        dummy.mod[[m]]=do.call(rbind,dummy)%>%
+          mutate(Model=names(State.Space.SPM)[m])
+      }
+    }
+    dummy.mod=compact(dummy.mod)
+    if(length(dummy.mod)>0)
+    {
+      write.csv(do.call(rbind,dummy.mod)%>%
+                  mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
+                  spread(Species,Probability)%>%
+                  arrange(finyear,Range),
+                paste(Rar.path,'/Table 8. JABBA CPUE_Current.B.over.Bmsy_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+                row.names=F)
+      rm(dummy.mod)
+      
+    }
+  }
+  
+}
+  #24.3.2.3 F over Fmsy  
+if(do.F.over.Fmsy.series)
+{
+  #figure
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    print(paste("RAR --- F.over.Fmsy_JABBA plot S1 -----",names(Lista.sp.outputs)[l],"----- single plot")) 
+    if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
+    a=fn.plot.timeseries_combined(this.sp=Lista.sp.outputs[[l]],
+                                  d=State.Space.SPM$JABBA,
+                                  YLAB="F/Fmsy",
+                                  Type="F.Fmsy",
+                                  InnerMargin=InMar,
+                                  RefPoint=NULL,
+                                  Kach=State.Space.SPM$JABBA$rel.biom)
+    WIDt=10
+    if(length(compact(State.Space.SPM$JABBA$sens.table))<=3) WIDt=7
+    if(!is.null(a))ggsave(paste(Rar.path,'/F.over.Fmsy_JABBA CPUE_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+                          width = WIDt,height = 10,compression = "lzw")
   }
 }
 
@@ -1544,7 +1648,11 @@ for(l in 1:length(Lista.sp.outputs))
 
 
 #24.5 store Consequence and likelihood for WoE
-Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 
+get.cons.like.JABBA=FALSE  #import from table instead
+{
+  Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 
+}
+
 
 
 
