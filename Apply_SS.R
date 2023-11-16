@@ -1719,7 +1719,9 @@ for(l in 1: length(Lista.sp.outputs))
     dummy=Age.based[[w]]$sens.table
     dummy=dummy[match(Lista.sp.outputs[[l]],names(dummy))]
     dummy=compact(dummy)
-    write.csv(do.call(rbind,dummy)%>%relocate(Species),
+    d.tbl=do.call(rbind,dummy)%>%relocate(Species)
+    if(!evaluate.07.08.cpue) d.tbl=d.tbl%>%dplyr::select(-Daily.cpues)
+    write.csv(d.tbl,
               paste(Rar.path,paste('Table 9. Age.based_',names(Age.based)[w],'_scenarios_',
                                    names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
               row.names = F)
@@ -1963,7 +1965,8 @@ for(l in 1:length(Lista.sp.outputs))
 }
 
 #25.5 Store Consequence and likelihood for WoE 
-Store.cons.Like_Age.based=fn.get.cons.like(lista=Age.based) 
+get.cons.like.SS=FALSE  #import from table instead
+if(get.cons.like.SS) Store.cons.Like_Age.based=fn.get.cons.like(lista=Age.based) 
 
 
 

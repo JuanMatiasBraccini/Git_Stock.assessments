@@ -3076,7 +3076,7 @@ if(do.F.over.Fmsy.series)
   }
 }
 
-  #18.7.5 Catch vs MSY       
+  #18.7.5 Catch vs MSY       #ACA, get the probs from the emperical distribution and add to table!!
 All.catch.MSY=do.call(rbind,compact(Store.catch.MSY))
 All.catch.MSY.species=unique(All.catch.MSY$Species)
 #figure & table (Scenario 1 only)

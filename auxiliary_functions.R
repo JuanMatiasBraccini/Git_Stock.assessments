@@ -770,12 +770,22 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
           legend.position="top",
           legend.key=element_blank(),
           panel.border = element_rect(colour = "black", fill=NA, size=1))+
-    labs(fill = "")+
-    labs(caption="Productivity or Susceptibility axis: low score = low risk")+
-    #labs(caption="Productivity: low score = low risk; high score = high risk \nSusceptibility: low score = low risk; high score = high risk")+
-    theme(plot.caption = element_text(hjust = 0))
-  p
-  ggsave(paste(Exprt,'Figure 2_PSA.tiff',sep='/'), width = W,height = H, dpi = 300, compression = "lzw")
+    theme(plot.caption = element_text(hjust = 0))+
+    ylab('')+xlab('')+
+    coord_cartesian(clip = 'off')+
+    annotation_custom(segmentsGrob(c(0.80,-0.05), c(-0.05, 0.15), 
+                                   c(0.15, -0.05), c(-0.05, 0.82), gp = gpar(lwd = 3,col='dodgerblue4'),
+                                   arrow = arrow(length = unit(5, 'mm'))))+
+    annotation_custom(textGrob("High Productivity", gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
+                      xmin=1.5,xmax=1.5,ymin=0.63,ymax=0.63)+
+    annotation_custom(textGrob("Low Productivity", gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
+                      xmin=3.15,xmax=3.05,ymin=0.63,ymax=0.63)+
+    annotation_custom(textGrob("Low Susceptibility",rot = 90, gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
+                      xmin=1.325,xmax=1.325,ymin=0.85,ymax=0.85)+
+    annotation_custom(textGrob("High Susceptibility",rot = 90, gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
+                      xmin=1.325,xmax=1.325,ymin=3,ymax=3)
+  print(p)
+  ggsave(paste(Exprt,'Figure_PSA.tiff',sep='/'), width = W,height = H, dpi = 300, compression = "lzw")
   
   #Table PSA scores
   Table.PSA=d
@@ -4062,6 +4072,7 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
         Var=d[[m]]$B.Bmsy[[id]]
         dis=data.frame(Limit=Lim.prop.bmsy,Target=Tar.prop.bmsny,Threshold=1,Scenario=unique(Var$Scenario))
         Var=Var%>%left_join(dis,by='Scenario')
+        YLAB=expression("B/B"[MSY])
       }
       if(Type=='F.Fmsy')
       {
@@ -4070,7 +4081,7 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
         Var=d[[m]]$F.Fmsy[[id]]
         dis=data.frame(Threshold=1,Scenario=unique(Var$Scenario))
         Var=Var%>%left_join(dis,by='Scenario')
-        
+        YLAB=expression("F/F"[MSY])
       }
       if(Type=='Depletion')
       {
@@ -4104,6 +4115,7 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
   {
     figure=ggarrange(plotlist=store.plots, nrow = length(mods),common.legend=TRUE)
     if(add.sp.nm) figure=figure+theme(plot.margin = margin(1,0,0,0, "cm"))
+
     figure=annotate_figure(figure,
                            bottom = text_grob('Financial year',size=26,vjust =-0.15),
                            left = text_grob(YLAB,size=26,rot = 90,vjust=0.8))
@@ -4154,16 +4166,19 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
                  Threshold=1,
                  Limit=Lim.prop.bmsy)
       }
+      YLAB=expression("B/B"[MSY])
     }
     if(Type=='F.Fmsy')
     {
       Hline='YES'
       Var=d$F.Fmsy[id]
+      Var=compact(Var)
       for(q in 1:length(Var))
       {
         Var[[q]]=Var[[q]]%>%
           mutate(Threshold=1)
       }
+      YLAB=expression("F/F"[MSY])
     }
     if(Type=='Depletion')
     {
@@ -4217,7 +4232,6 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
                      AXST=15,AXSt=aXSt,STRs=STRs,
                      InrMarg=InnerMargin,
                      dropTitl=TRUE)
-    
     figure=annotate_figure(figure,
                            bottom = text_grob('Financial year',size=26,vjust =-0.15),
                            left = text_grob(YLAB,size=26,rot = 90,vjust=0.8)) +
@@ -4253,6 +4267,7 @@ fn.plot.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin
         Var=d[[m]]$B.Bmsy[id]
         dis=data.frame(Limit=Lim.prop.bmsy,Target=Tar.prop.bmsny,Threshold=1,Scenario=unique(Var[[1]]$Scenario))
         for(q in 1:length(Var)) Var[[q]]=Var[[q]]%>%left_join(dis,by='Scenario')
+        YLAB=expression("B/B"[MSY])
       }
       if(Type=='F.Fmsy')
       {
@@ -4261,6 +4276,7 @@ fn.plot.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin
         Var=d[[m]]$F.Fmsy[id]
         dis=data.frame(Threshold=1,Scenario=unique(Var[[1]]$Scenario))
         for(q in 1:length(Var)) Var[[q]]=Var[[q]]%>%left_join(dis,by='Scenario')
+        YLAB=expression("F/F"[MSY])
       }
       if(Type=='Depletion')
       {
@@ -4288,7 +4304,7 @@ fn.plot.timeseries_combined_Appendix=function(this.sp,d,YLAB,NM,Type,InnerMargin
                        AXST=15,AXSt=12,STRs=12,
                        InrMarg=InnerMargin,
                        dropTitl=TRUE)
-      
+
       figure=annotate_figure(figure,
                              bottom = text_grob('Financial year',size=26,vjust =-0.15),
                              left = text_grob(YLAB,size=26,rot = 90,vjust=0.8))+
@@ -4628,10 +4644,10 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
     ggplot(aes(x, y))+    
     scale_x_continuous(limits=c(0,Mx.B)) +
     scale_y_continuous(limits=c(0,Mx.F))+
-    geom_rect(xmin = 1, xmax = Mx.B, ymin = 0, ymax = 1, fill = 'chartreuse3', alpha = 0.05) +
-    geom_rect(xmin = 0, xmax = 1, ymin = 1, ymax = Mx.F, fill = 'brown1', alpha = 0.05) +
-    geom_rect(xmin = 1, xmax = Mx.B, ymin = 1, ymax = Mx.F, fill = 'orange', alpha = 0.05) +
-    geom_rect(xmin = 0, xmax = 1, ymin = 0, ymax = 1, fill = 'yellow', alpha = 0.05)
+    geom_rect(xmin = 1, xmax = Mx.B, ymin = 0, ymax = 1, fill = RiskColors['Low'], alpha = 0.05) +
+    geom_rect(xmin = 0, xmax = 1, ymin = 1, ymax = Mx.F, fill = RiskColors['Severe'], alpha = 0.05) +
+    geom_rect(xmin = 1, xmax = Mx.B, ymin = 1, ymax = Mx.F, fill = RiskColors['High'], alpha = 0.05) +
+    geom_rect(xmin = 0, xmax = 1, ymin = 0, ymax = 1, fill = RiskColors['Medium'], alpha = 0.05)
   if(!is.null(Probs))
   {
     kernelF <- gplots::ci2d(Probs$x, Probs$y, nbins = 151, factor = 1.5, 
@@ -4647,11 +4663,14 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
                        sum(ifelse(Probs$x < 1 & Probs$y <= 1, 1, 0))/length(Probs$x)*100,
                        sum(ifelse(Probs$x >= 1 & Probs$y > 1, 1, 0))/length(Probs$x)*100,
                        sum(ifelse(Probs$x < 1 & Probs$y > 1, 1, 0))/length(Probs$x) * 100),
-                col=c("green","yellow","orange","red"),
+                col=RiskColors[c('Low','Medium','High','Severe')],
                 x=rep(-10,4),  #dummy
                 y=rep(-10,4))
     pr.ds=Pr.d%>%pull(col)
-    names(pr.ds)=paste(round(Pr.d%>%pull(Prob),2),'%',sep='')
+    Nms.probs=round(Pr.d%>%pull(Prob),1)
+    Nms.probs=ifelse(Nms.probs>0 & Nms.probs<0.1,'<0.1',Nms.probs)
+    names(pr.ds)=paste(Nms.probs,'%',sep='')
+    pr.ds=pr.ds[which(!names(pr.ds)=='0%')]
     kobe <-kobe +
       geom_polygon(data=KernelD%>%dplyr::filter(y<=Mx.F & x<=Mx.B),aes(x, y,fill=CI),size=1.25,alpha=0.5)+
       scale_fill_manual(labels=c("95%","80%","50%"),values = kernels)+
@@ -5012,6 +5031,50 @@ fn.get.cons.like=function(lista,Mod.Avrg.weight=NULL)
   return(list(Depletion=out2,B.over.Bmsy=out2.bmsy))
 }
 # Weight of Evidence assessment   ------------------------------------------------------
+fun.risk.spatial.dist=function(d)
+{
+  risk.tab=vector('list',nrow(d))
+  for(r in 1:nrow(d))
+  {
+    dd=Combos%>%
+      filter(Conservation==d[r,]$Conservation & Market==d[r,]$Market &
+               Blocks.fished==d[r,]$Blocks.fished & Catch==d[r,]$Catch & 
+               Blocks.with.catch==d[r,]$Blocks.with.catch & Management_driven.effort==d[r,]$Management_driven.effort)
+    
+    Like.C1=with(d[r,],
+                 ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),4,
+                        ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',4,
+                               ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',4,
+                                      ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',4,
+                                             NA)))))
+    Like.C2=with(d[r,],
+                 ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),2,
+                        ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',2,
+                               ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',2,
+                                      ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',2,
+                                             NA)))))
+    Like.C3=with(d[r,],
+                 ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),1,
+                        ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',1,
+                               ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',1,
+                                      ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',1,
+                                             NA)))))
+    Like.C4=with(d[r,],
+                 ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),1,
+                        ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',1,
+                               ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',1,
+                                      ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',1,
+                                             NA)))))
+    
+    risk.tab[[r]]=data.frame(Species=d[r,]$Species,
+                             Consequence=1:4,
+                             Likelihood=c(Like.C1,Like.C2,Like.C3,Like.C4))
+  }
+  return(do.call(rbind,risk.tab)%>%
+           mutate(Probability=NA,
+                  w=1,
+                  Species=capitalize(Species)))
+}
 fn.risk=function(d,w)
 {
   d=d%>%
@@ -5024,7 +5087,7 @@ fn.risk=function(d,w)
   {
     d$Likelihood[n]=which(unlist(lapply(Like.ranges,function(x) check.in.range(d$Probability[n],x,fatal=F))))
   }
-  return(d%>%dplyr::select(Species,Consequence,Likelihood,w))
+  return(d%>%dplyr::select(Species,Consequence,Likelihood,Probability,w))
 }
 Integrate.LoE=function(Cons.Like.tab,criteriaMinMax,plot.data,LoE.weights,Normalised)
 {
@@ -5151,32 +5214,332 @@ fn.risk.figure=function(d,Risk.colors,out.plot)
   if(out.plot)
   {
     NN=n2mfrow(length(unique(d$Species)))
-    if(NN[2]<=3) HJUST=-0.2
-    if(NN[2]>3) HJUST=-0.125
+    if(NN[2]<=3)
+    {
+      HJUST=1
+      Strip.size=16
+      Axis.titl=19
+      Axis.txt=14
+    }
+      
+    if(NN[2]>3)
+    {
+      HJUST=1
+      Strip.size=14
+      Axis.titl=17
+      Axis.txt=10
+    }
+      
     p=d%>%
-      ggplot(aes(Like.lbl,Cons.lbl,  width = w)) +
+      ggplot(aes(Like.lbl,Cons.lbl,  width = w,height=w)) +
       geom_tile(aes(fill = Risk))+
-      facet_wrap(~Species,nrow=NN[1],ncol=NN[2])+
+      facet_wrap(~Species,nrow=NN[1],ncol=NN[2],strip.position="bottom")+
       scale_fill_manual(values=Risk.colors)+
       theme_bw()%+replace% 
       theme(legend.position = "none",
-            panel.background = element_blank(),
-            panel.border = element_rect(colour = "black", fill=NA, size=1.15),
+            panel.background = element_rect(fill="grey95"),
+            panel.border = element_rect(colour = "grey75", fill=NA, size=1.15),
             panel.grid.major = element_blank(),    
             panel.grid.minor = element_blank(),    
-            axis.line = element_line(colour = "black"),
+            axis.line = element_line(colour = "grey75"),
             strip.background = element_rect(fill = "transparent",colour = "transparent"),
-            strip.text = element_text(size = 16),
-            axis.title = element_text(size = 18),
-            axis.text = element_text(size = 12),
+            strip.text = element_text(size = Strip.size),
+            axis.title = element_text(size = Axis.titl),
+            axis.text = element_text(size = Axis.txt),
             axis.text.y=element_text(hjust=0.5),
-            plot.caption = element_text(hjust = HJUST,size=9))+
+            axis.ticks.x=element_blank(),
+            axis.ticks.y=element_blank(),
+            plot.caption = element_text(hjust = HJUST,size=10,vjust=-3))+
       xlab('Likelihood')+ylab('Consequence')+
-      geom_text(aes(Like.lbl,Cons.lbl,label=Max.val),size=5,fontface='bold')+
-      labs(caption=expression(atop('Consequence: Minor, B'[Cur]*'>B'[Tar]*'; Moderate, B'[Tar]*'>B'[Cur]*'>B'[Thr]*
-                                     '; High, B'[Thr]*'>B'[Cur]*'>B'[Lim]*'; Major, B'[Lim]*'>B'[Cur],
-                                   'Likelihood: Remote, <5%, Unlikely, 5-20%, Possible, 20-50%, Likely, >50%                                  ')))
+      scale_y_discrete(expand = c(0, 0))+scale_x_discrete(expand = c(0, 0),position = "top")+
+      geom_hline(yintercept=c(1.5,2.5,3.5),color='grey75')+
+      geom_vline(xintercept=c(1.5,2.5,3.5),color='grey75')+
+      geom_text(aes(Like.lbl,Cons.lbl,label=Max.val),size=6,fontface='bold')+
+       labs(caption=expression(atop('Cons.: Minor, B'[Cur]*'>B'[Tar]*'; Moderate, B'[Tar]*'>B'[Cur]*'>B'[Thr]*
+                                      '; High, B'[Thr]*'>B'[Cur]*'>B'[Lim]*'; Major, B'[Lim]*'>B'[Cur]*
+                                    '   Like.: Remote, <5%, Unlikely, 5-20%, Possible, 20-50%, Likely, >50%')))
+      # labs(caption=expression(atop('Consequence: Minor, B'[Cur]*'>B'[Tar]*'; Moderate, B'[Tar]*'>B'[Cur]*'>B'[Thr]*
+      #                                '; High, B'[Thr]*'>B'[Cur]*'>B'[Lim]*'; Major, B'[Lim]*'>B'[Cur],
+      #                              'Likelihood: Remote, <5%, Unlikely, 5-20%, Possible, 20-50%, Likely, >50%                                  ')))
     print(p)
   }
-   return(d[iid.dups,]%>%dplyr::select(-c(w,Cons.lbl,Like.lbl,Max.val,id)))
+  return(d[iid.dups,]%>%dplyr::select(-c(w,Cons.lbl,Like.lbl,Max.val,id)))
+}
+
+
+#---Old WoE risk integration  ------------------------------------------------- 
+
+do.old.WOE=FALSE
+if(do.old.WOE)
+{
+  #1.2. catch spatio-temporal    
+  stopped.landing=c('angel sharks','sawsharks',
+                    "spurdogs","grey nurse shark")  #landings ceased/decreased due to lack of market for spurdogs, 
+  # and marine heatwave for angel and sawsharks (industry consultation AMM 2022)
+  #or protection for greynurse shark
+  Risk.spatial.temporal.ktch=vector('list',length(Store.spatial.temporal.ktch))
+  names(Risk.spatial.temporal.ktch)=names(Store.spatial.temporal.ktch)
+  for(s in 1: length(Risk.spatial.temporal.ktch))
+  {
+    sp.dat=Store.spatial.temporal.ktch[[s]]$prop.ktch_over.fished.bocks%>%
+      mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+      filter(year<=(Last.yr.ktch.numeric))%>%
+      filter(year>=(Last.yr.ktch.numeric-4))%>%  #average last 5 years  
+      group_by(SNAME)%>%
+      summarise(Mean=mean(prop))%>%
+      ungroup()%>%
+      rename(Species=SNAME)%>%
+      filter(!Species%in%stopped.landing)
+    dummy=vector('list',nrow(sp.dat))
+    names(dummy)=sp.dat$Species
+    for(x in 1:length(dummy))
+    {
+      dd=sp.dat%>%filter(Species==names(dummy)[x])%>%pull(Mean)
+      if(dd==1) d=data.frame(Max.Risk.Score=c(2,0,0,0))
+      if(dd<1 & dd>=.75) d=data.frame(Max.Risk.Score=c(0,4,0,0))
+      if(dd<.75 & dd>=.5) d=data.frame(Max.Risk.Score=c(0,0,6,0))
+      if(dd<.5 & dd>=.25) d=data.frame(Max.Risk.Score=c(0,0,12,0))
+      if(dd<.25) d=data.frame(Max.Risk.Score=c(0,0,0,16))
+      dummy[[x]]=d
+    }
+    Risk.spatial.temporal.ktch[[s]]=dummy
+  }
+  
+  #1.3. overall effort-management               
+  Risk.effort.mangmnt=Risk.spatial.temporal.ktch
+  Rel.eff.s=Effort.monthly
+  Rel.eff.n=rbind(Effort.monthly.north%>%rename(Total='Hook hours')%>%dplyr::select(FINYEAR,Total),  #add 0 effort if no fishing
+                  data.frame(FINYEAR=Effort.monthly$FINYEAR[which(!Effort.monthly$FINYEAR%in%Effort.monthly.north$FINYEAR)],
+                             Total=0))%>%
+    arrange(FINYEAR)
+  Yr.max.eff.s=Rel.eff.s%>%filter(Total==max(Total))%>%pull(FINYEAR)
+  Yr.max.eff.n=Rel.eff.n%>%filter(Total==max(Total))%>%pull(FINYEAR)
+  Rel.eff.n=mean(Rel.eff.n$Total[(nrow(Rel.eff.n)-4):nrow(Rel.eff.n)])/max(Rel.eff.n$Total) #average last 5 years
+  Rel.eff.s=mean(Rel.eff.s$Total[(nrow(Rel.eff.s)-4):nrow(Rel.eff.s)])/max(Rel.eff.s$Total)
+  REgn=Tot.ktch%>% 
+    filter(Name%in%names(List.sp))%>%
+    group_by(Name,Region)%>%
+    summarise(Tot=sum(LIVEWT.c))
+  for(s in 1:length(Risk.effort.mangmnt))
+  {
+    dat=Store.spatial.temporal.ktch[[s]]$Fished.blks.Fishery
+    dat.max.n=dat%>%filter(FINYEAR==Yr.max.eff.n & Fishery=='Northern')%>%pull(Tot)
+    dat.max.s=dat%>%filter(FINYEAR==Yr.max.eff.s & Fishery=='Southern')%>%pull(Tot)
+    dat=dat%>%  
+      filter(year<=(Last.yr.ktch.numeric))%>%
+      filter(year>=(Last.yr.ktch.numeric-4))%>%  #average last 5 years  
+      group_by(Fishery)%>%
+      summarise(Mean=mean(Tot))%>%
+      ungroup
+    
+    Rel.blk.n=dat%>%filter(Fishery=='Northern')%>%pull(Mean)/dat.max.n
+    Rel.blk.s=dat%>%filter(Fishery=='Southern')%>%pull(Mean)/dat.max.s
+    
+    Eff.blk.n=Rel.eff.n*Rel.blk.n
+    Eff.blk.s=Rel.eff.s*Rel.blk.s
+    
+    dis.sp=Lista.sp.outputs[-match('additional.sp',names(Lista.sp.outputs))][[s]]
+    dummy=vector('list',length(dis.sp))
+    names(dummy)=dis.sp
+    for(x in 1:length(dummy))
+    {
+      Which.ef=REgn%>%filter(Name==names(dummy)[x])%>%pull(Region)
+      Which.ef=paste(Which.ef,collapse='-')
+      
+      if(Which.ef=='North') Which.ef=Eff.blk.n
+      if(Which.ef=='South') Which.ef=Eff.blk.s
+      if(Which.ef=='North-South') Which.ef=max(c(Eff.blk.s,Eff.blk.n))
+      
+      if(Which.ef==0) d=data.frame(Max.Risk.Score=c(2,0,0,0))
+      if(Which.ef>0 & Which.ef<=.25) d=data.frame(Max.Risk.Score=c(0,4,0,0))
+      if(Which.ef>.25 & Which.ef<=.5) d=data.frame(Max.Risk.Score=c(0,0,6,0))
+      if(Which.ef>.5 & Which.ef<=.75) d=data.frame(Max.Risk.Score=c(0,0,12,0))
+      if(Which.ef>.75) d=data.frame(Max.Risk.Score=c(0,0,0,16))
+      dummy[[x]]=d
+    }
+    Risk.effort.mangmnt[[s]]=dummy
+  }
+  
+  #1.4. population dynamics models
+  
+  Risk.tab=data.frame(Consequence=paste("C",1:4,sep=""),
+                      L1=NA,L2=NA,L3=NA,L4=NA,
+                      Max.Risk.Score=NA)
+  
+  Risk.COM=vector('list',N.sp)
+  names(Risk.COM)=names(List.sp)
+  Risk.JABBA=Risk.COM
+  if(Do.integrated) Risk.integrated=Risk.COM
+  for(s in 1: N.sp)
+  {
+    #COM
+    if(exists("Store.cons.Like_COM"))
+    {
+      Risk.COM[[s]]=fn.risk(likelihood=Store.cons.Like_COM[[s]])
+    }
+    
+    #JABBA
+    if(exists('Store.cons.Like_JABBA'))
+    {
+      Risk.JABBA[[s]]=fn.risk(likelihood=Store.cons.Like_JABBA[[s]]) 
+    }
+    
+    #Integrated model
+    if(exists('Store.cons.Like_Age.based'))
+    {
+      Risk.integrated[[s]]=fn.risk(likelihood=Store.cons.Like_Age.based[[s]])
+    }
+    
+    
+  }
+  
+  
+  #2. Integrate the risk from each line of evidence    
+  
+  #note: Use a weighted sum to aggregate the Risk Categories form the alternative lines of evidence
+  #      Normalize each criterion by dividing by the highest value of each criterion. 
+  #      Assign weights to each criteria 
+  Order=c('Negligible','Low','Medium','High','Severe')
+  Order <- factor(Order,ordered = TRUE,levels = Order)
+  
+  
+  All.sp=sort(c(Drop.species,Keep.species))
+  Overall.risk=vector('list',length(All.sp))
+  names(Overall.risk)=All.sp
+  for(s in 1:length(All.sp))
+  {
+    nm=All.sp[s]
+    nm2=nm
+    if(nm=="smooth hammerhead") nm2='hammerheads'
+    iid=ifelse(nm%in%Other.species,"Other.sp",ifelse(nm%in%names(Indicator.species),"Indicator.sp","Drop.species"))  
+    iid=match(iid,names(Risk.spatial.temporal.ktch))
+    dummy=list(psa=Risk.PSA[[match(nm,names(Risk.PSA))]]$Max.Risk.Score,
+               sptemp=Risk.spatial.temporal.ktch[[iid]][[match(nm2,names(Risk.spatial.temporal.ktch[[iid]]))]]$Max.Risk.Score,
+               efman=Risk.effort.mangmnt[[iid]][[match(nm,names(Risk.effort.mangmnt[[iid]]))]]$Max.Risk.Score,
+               COM=Risk.COM[[match(nm,names(Risk.COM))]]$Max.Risk.Score,
+               JABBA=Risk.JABBA[[match(nm,names(Risk.JABBA))]]$Max.Risk.Score)
+    if(Do.integrated)dummy$integrated=Risk.integrated[[match(nm,names(Risk.integrated))]]$Max.Risk.Score
+    dummy=dummy[!sapply(dummy, is.null)]
+    NMs=names(dummy)
+    dummy=do.call(cbind,dummy)
+    colnames(dummy)=NMs
+    rownames(dummy)=paste("C",1:4,sep='')
+    
+    Overall.risk[[s]]=Integrate.LoE(Cons.Like.tab=dummy,
+                                    criteriaMinMax <- "max",
+                                    plot.data=FALSE,
+                                    LoE.weights = LoE.Weights[match(colnames(dummy),names(LoE.Weights))],
+                                    Normalised="YES")
+  }
+  
+  
+  #3. Display overall risk for each species
+  LoE.col=c(psa="coral3", sptemp="grey50", efman="burlywood4",
+            COM="grey80", JABBA="grey35", integrated="black")
+  LoE.names=c(psa="PSA", sptemp="Blocks fished", efman="Effort & Manag.",
+              COM="COM", JABBA="BSSPM", integrated="Int. mod.")
+  if(!Do.integrated)
+  {
+    LoE.col=LoE.col[-match('integrated',names(LoE.col))]
+    LoE.names=LoE.names[-match('integrated',names(LoE.names))]
+  }
+  All.Sp.risk.ranking=factor(unlist(lapply(Overall.risk, '[[', 'risk')),levels=levels(Order))  
+  All.Sp.risk.ranking=names(sort(All.Sp.risk.ranking))
+  All.Sp.risk.ranking=All.Sp.risk.ranking[!duplicated(All.Sp.risk.ranking)]
+  
+  
+  #3.1. Other species
+  Sp.risk.ranking=subset(All.Sp.risk.ranking,!All.Sp.risk.ranking%in%names(Indicator.species))
+  fn.fig(paste(Rar.path,"Risk_Other.sp",sep='/'), 2000, 2400)
+  par(mar=c(.5,.5,3,1),oma=c(3,13.5,.5,.1),las=1,mgp=c(1,.5,0),cex.axis=1.5,xpd=TRUE)
+  layout(matrix(c(rep(1,6),rep(2,3)),ncol=3))
+  
+  #3.1.1. Risk for each line of evidence
+  fn.each.LoE.risk(N.sp=length(Sp.risk.ranking),CX.axis=0.95) #main plot
+  for(s in 1:length(Sp.risk.ranking))
+  {
+    nm=Sp.risk.ranking[s]
+    dummy=Overall.risk[[match(nm, names(Overall.risk))]]$Cons.Like.tab
+    if(ncol(dummy)==1) Adjst=0
+    if(ncol(dummy)>1) Adjst=seq(-.3,.3,length.out = ncol(dummy))
+    
+    for(nn in 1:ncol(dummy))
+    {
+      segments(0,s+Adjst[nn],max(dummy[,nn]),s+Adjst[nn],
+               lwd=3.75,lend=1,col=LoE.col[match(colnames(dummy)[nn],names(LoE.col))])
+    }
+    
+  }
+  axis(2,1:length(Sp.risk.ranking),capitalize(Sp.risk.ranking),cex.axis=.8)
+  mtext("Risk score",1,cex=1.25,line=2)
+  legend(-1.5,length(Sp.risk.ranking)+6,LoE.names[1:3],
+         bty='n',col=LoE.col[1:3],lty=1,lwd=3,horiz = T,cex=1.20,
+         text.width=c(0,1,2.25))
+  legend(-1.5,length(Sp.risk.ranking)+4.5,LoE.names[4:length(LoE.names)],bty='n',cex=1.20,
+         col=LoE.col[4:length(LoE.col)],lty=1,lwd=3,horiz = T,text.width=c(0,1.5))
+  
+  #3.1.2. Overall risk
+  plot(0:1,ylim=c(0,length(Sp.risk.ranking)+1),fg='white',xaxs="i",yaxs="i",
+       col="transparent",ylab="",xlab="",xaxt='n',yaxt='n')
+  for(s in 1:length(Sp.risk.ranking))
+  {
+    ss=Sp.risk.ranking[s] 
+    fn.overall.risk(N=s,
+                    RISK=Overall.risk[[match(ss,names(Overall.risk))]]$risk,
+                    sp=capitalize(Sp.risk.ranking[s]),
+                    CX=.9)
+  }
+  axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
+  
+  dev.off()
+  
+  
+  #3.2.Indicator species    
+  Sp.risk.ranking=subset(All.Sp.risk.ranking,All.Sp.risk.ranking%in%names(Indicator.species))
+  fn.fig(paste(Rar.path,"Risk_Indicator.sp",sep='/'), 2200, 2400)  
+  
+  par(mar=c(.5,.5,3,1),oma=c(3,9.5,.5,.1),las=1,mgp=c(1,.5,0),cex.axis=1.5,xpd=TRUE)
+  layout(matrix(c(rep(1,6),rep(2,3)),ncol=3))
+  
+  #3.2.1. Risk for each line of evidence
+  fn.each.LoE.risk(N.sp=length(Sp.risk.ranking),CX.axis=1.35) #main plot
+  for(s in 1:length(Sp.risk.ranking))
+  {
+    nm=Sp.risk.ranking[s]
+    dummy=Overall.risk[[match(nm, names(Overall.risk))]]$Cons.Like.tab
+    if(ncol(dummy)==1) Adjst=0
+    if(ncol(dummy)>1) Adjst=seq(-.3,.3,length.out = ncol(dummy))
+    
+    for(nn in 1:ncol(dummy))
+    {
+      segments(0,s+Adjst[nn],max(dummy[,nn]),s+Adjst[nn],
+               lwd=3.75,lend=1,col=LoE.col[match(colnames(dummy)[nn],names(LoE.col))])
+    }
+    
+  }
+  axis(2,1:length(Sp.risk.ranking),capitalize(Sp.risk.ranking),cex.axis=1.5)
+  mtext("Risk score",1,cex=1.25,line=2)
+  legend(-1.5,length(Sp.risk.ranking)+1.3,LoE.names[1:3],
+         bty='n',col=LoE.col[1:3],lty=1,lwd=3,horiz = T,cex=1.25,
+         text.width=c(0,1,2.25))
+  legend(-1.5,length(Sp.risk.ranking)+1.22,LoE.names[4:length(LoE.names)],bty='n',cex=1.5,
+         col=LoE.col[4:length(LoE.col)],lty=1,lwd=3,horiz = T,text.width=c(0,1.5))
+  
+  #3.2.2. Overall risk
+  plot(0:1,ylim=c(0,length(Sp.risk.ranking)+1),fg='white',xaxs="i",yaxs="i",
+       col="transparent",ylab="",xlab="",xaxt='n',yaxt='n')
+  for(s in 1:length(Sp.risk.ranking))
+  {
+    ss=Sp.risk.ranking[s] 
+    fn.overall.risk(N=s,
+                    RISK=Overall.risk[[match(ss,names(Overall.risk))]]$risk,
+                    sp=capitalize(Sp.risk.ranking[s]),
+                    CX=1.5)
+  }
+  axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
+  
+  dev.off()
+  
+  
+  
 }

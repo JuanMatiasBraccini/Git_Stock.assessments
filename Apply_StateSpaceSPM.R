@@ -230,7 +230,7 @@ for(w in 1:length(State.Space.SPM))
             Out.Scens=Scens%>%
               mutate(Bo.mean=NA,Bo.CV=NA,r.mean=NA,r.cv=NA,Rdist=NA,Kdist=NA,PsiDist=NA,bmsyk.mean=NA)
             Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=
-              Out.B.Bmsy=Out.F.Fmsy=Out.deviance=vector('list',length(Store.sens))
+              Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
             
             for(s in 1:length(Store.sens))
             {
@@ -361,9 +361,6 @@ for(w in 1:length(State.Space.SPM))
                                      Projections=add.ct.future)
               output=JABBA.run$fit
               
-              #Store deviance
-              Out.deviance[[s]]=c(output$posteriors$deviance)
-              
               #Display model fits
               JABBA=output
               if(!is.null(add.ct.future))JABBA=list_modify(output, yr = input$Ktch$Year)
@@ -423,8 +420,7 @@ for(w in 1:length(State.Space.SPM))
                 mutate(Parameter=rownames(d1),
                        Model='JABBA CPUE',
                        Scenario=names(Store.sens)[s])%>%
-                relocate(Model,Scenario,Parameter,Lower.95)%>%
-                filter(Parameter%in%c("K","r","psi","Hmsy","SBmsy","MSY"))   
+                relocate(Model,Scenario,Parameter,Lower.95)  
               Out.estimates[[s]]=d1
               
               #Store trajectories  
@@ -645,8 +641,7 @@ for(w in 1:length(State.Space.SPM))
                      Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
                      PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
 
-            return(list(dummy.store.deviance=Out.deviance,
-                        dummy.store.sens.table=Out.Scens,
+            return(list(dummy.store.sens.table=Out.Scens,
                         dummy.store.rel.biom=do.call(rbind,Out.rel.biom),
                         dummy.store.probs.rel.biom=Out.probs.rel.biom,
                         dummy.store.probs.B.Bmsy=Out.probs.B.Bmsy,
@@ -665,7 +660,6 @@ for(w in 1:length(State.Space.SPM))
       stopCluster(cl)
       names(out.species)=Keep.species
 
-      State.Space.SPM[[w]]$deviance=fn.get.and.name(LISTA=out.species,x="dummy.store.deviance")
       State.Space.SPM[[w]]$sens.table=fn.get.and.name(LISTA=out.species,x="dummy.store.sens.table")
       State.Space.SPM[[w]]$estimates=fn.get.and.name(LISTA=out.species,x="dummy.store.estimates")
       State.Space.SPM[[w]]$rel.biom=fn.get.and.name(LISTA=out.species,x="dummy.store.rel.biom")
@@ -685,7 +679,7 @@ for(w in 1:length(State.Space.SPM))
     {
       dummy.store=vector('list',N.sp)     
       names(dummy.store)=Keep.species
-      dummy.store.sens.table=dummy.store.deviance=dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
+      dummy.store.sens.table=dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
         dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=dummy.store.MSY=dummy.store
       
       for(i in 1:length(dummy.store))
@@ -857,7 +851,7 @@ for(w in 1:length(State.Space.SPM))
             Out.Scens=Scens%>%
               mutate(Bo.mean=NA,Bo.CV=NA,r.mean=NA,r.cv=NA,Rdist=NA,Kdist=NA,PsiDist=NA,bmsyk.mean=NA)
             Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=
-              Out.B.Bmsy=Out.F.Fmsy=Out.deviance=vector('list',length(Store.sens))
+              Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
             
             for(s in 1:length(Store.sens))
             {
@@ -988,9 +982,6 @@ for(w in 1:length(State.Space.SPM))
                                      Projections=add.ct.future)  
               output=JABBA.run$fit
               
-              #Store deviance
-              Out.deviance[[s]]=c(output$posteriors$deviance)
-              
               #Display model fits
               JABBA=output
               if(!is.null(add.ct.future))JABBA=list_modify(output, yr = input$Ktch$Year)
@@ -1050,8 +1041,8 @@ for(w in 1:length(State.Space.SPM))
                 mutate(Parameter=rownames(d1),
                        Model='JABBA CPUE',
                        Scenario=names(Store.sens)[s])%>%
-                relocate(Model,Scenario,Parameter,Lower.95)%>%
-                filter(Parameter%in%c("K","r","psi","Hmsy","SBmsy","MSY"))   
+                relocate(Model,Scenario,Parameter,Lower.95)
+                   
               Out.estimates[[s]]=d1
               
               #Store trajectories  
@@ -1238,7 +1229,6 @@ for(w in 1:length(State.Space.SPM))
                      Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
                      PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
 
-            dummy.store.deviance[[i]]=Out.deviance
             dummy.store.sens.table[[i]]=Out.Scens
             dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
             dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
@@ -1257,7 +1247,6 @@ for(w in 1:length(State.Space.SPM))
         }
       }
       
-      State.Space.SPM[[w]]$deviance=dummy.store.deviance
       State.Space.SPM[[w]]$sens.table=dummy.store.sens.table
       State.Space.SPM[[w]]$estimates=dummy.store.estimates
       State.Space.SPM[[w]]$rel.biom=dummy.store.rel.biom
@@ -1300,7 +1289,10 @@ for(l in 1: length(Lista.sp.outputs))
     dummy=State.Space.SPM[[w]]$sens.table
     dummy=dummy[match(Lista.sp.outputs[[l]],names(dummy))]
     
-    write.csv(do.call(rbind,dummy)%>%relocate(Species),
+    d.tbl=do.call(rbind,dummy)%>%relocate(Species)
+    if(!evaluate.07.08.cpue) d.tbl=d.tbl%>%dplyr::select(-Daily.cpues)
+      
+    write.csv(d.tbl,
               paste(Rar.path,paste('Table 6. ',names(State.Space.SPM)[w],' CPUE_scenarios_',
                                    names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
               row.names = F)
@@ -1599,9 +1591,51 @@ for(l in 1:length(Lista.sp.outputs))
 }
 
 
-#24.4. Kobe plots (Scenario 1)  
+#24.4. Compare goodness of fit for different Scenarios  
+#note: compare DIC, RMSE & SDNR 
+for(l in 1:length(Lista.sp.outputs))
+{
+  Nms=names(compact(State.Space.SPM$JABBA$estimates))
+  this.sp=Lista.sp.outputs[[l]]
+  this.sp=this.sp[which(this.sp%in%Nms)]
+  print(paste("JABBA --- Compare Scenarios goodness of fit -----",names(Lista.sp.outputs)[l])) 
+  if(length(this.sp)>0)
+  {
+    stor.plt=vector('list',length(this.sp))
+    for(q in 1:length(this.sp))
+    {
+      i=match(this.sp[q],Keep.species)
+      this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                    capitalize(List.sp[[i]]$Name),"/",AssessYr,"/JABBA CPUE",sep='')
+      if(file.exists(this.wd))
+      {
+        Scens=List.sp[[i]]$Sens.test$JABBA$Scenario #ACA
+        a=vector('list',length(Scens))
+        for(s in 1:length(Scens))
+        {
+          a[[s]]=read.csv(paste(paste(this.wd,"/",Scens[s],sep=''),
+                                paste0('GoodnessFit_',List.sp[[i]]$Name,'_CPUE.csv'),sep='/'))%>%
+            dplyr::select(-X)%>%mutate(Scenario=Scens[s])
+        }
+        stor.plt[[q]]=do.call(rbind,a)%>%
+          filter(Stastistic%in%c('RMSE','DIC'))%>%
+          ggplot(aes(Scenario,Value))+
+          geom_col(fill='brown')+
+          facet_wrap(~Stastistic,scales='free',ncol=2)+
+          theme_PA()+ylab('')+xlab('')+
+          ggtitle(capitalize(List.sp[[i]]$Name))
+      }
+    }
+    figure <- ggarrange(plotlist=stor.plt,ncol=1,nrow=length(this.sp),common.legend = TRUE)
+    figure=annotate_figure(figure,bottom = text_grob('Scenario', size=22),left = text_grob('Value',rot = 90, size=22))
+    ggsave(paste(Rar.path,'/GoodnessFit per scenario_JABBA CPUE_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+           width = 5,height = 8,compression = "lzw")
+  }
+}
 
-  #24.4.1 by species 
+
+#24.5. Kobe plots (Scenario 1)  
+  #24.5.1 by species 
 store.kobes=vector('list',N.sp)
 names(store.kobes)=Keep.species
 for(i in 1:N.sp)
@@ -1620,7 +1654,7 @@ for(i in 1:N.sp)
 }
 store.kobes=compact(store.kobes)
 
-  #24.4.2 Display combined species  
+  #24.5.2 Display combined species  
 for(l in 1:length(Lista.sp.outputs))
 {
   Nms=names(compact(State.Space.SPM$JABBA$estimates))
@@ -1647,11 +1681,10 @@ for(l in 1:length(Lista.sp.outputs))
 }
 
 
-#24.5 store Consequence and likelihood for WoE
+#24.6 store Consequence and likelihood for WoE
 get.cons.like.JABBA=FALSE  #import from table instead
-{
-  Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 
-}
+if(get.cons.like.JABBA) Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 
+
 
 
 

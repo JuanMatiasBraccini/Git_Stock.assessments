@@ -337,7 +337,8 @@ for(l in 1:N.sp)
                                     filter(!is.na(Daily.cpues))
     List.sp[[l]]$Sens.test$JABBA$model.type=c(rep("Pella_m",nrow(List.sp[[l]]$Sens.test$JABBA)-2),"Schaefer", "Fox") 
   }
-    
+  if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%filter(!is.na(Daily.cpues))
+  
   
   # 3... Dynamic catch and size model
   InRec=NULL
@@ -382,6 +383,8 @@ for(l in 1:N.sp)
   
     #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%dplyr::select(-c(Final.dpl,Sims))
+  
+  if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
   
     #4.1.2 Growth
   List.sp[[l]]$Growth.CV_young=0.1  #constant CV 8.5%-10% Tremblay-Boyer et al 2019

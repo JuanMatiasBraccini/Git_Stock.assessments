@@ -90,6 +90,7 @@ library(doSNOW)
 library(tictoc)
 library(ks)
 library(ggwordcloud)
+library(grid)
 
 clear.log <- function(x, env = globalenv()) if(exists(x, envir = env))  rm(list = x, envir = env)
 
@@ -310,6 +311,7 @@ Proc.Error.cpue=1e-01   # Default process error when fitting cpue to allow enoug
 Proc.Error.cpue2=5e-02   #alternative, 5e-02 process error for JABBA  (Winker et al 2018 School shark) ; Beth Babcock suggested 0.01
 k.cv=2                #Carrying capacity CV (Winker et al 2018 School shark)
 PEELS=5               #number of years to peel for hindcasting and retrospective   
+evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
 
 #20. Integrated age-based model 
 Integrated.age.based='SS'
@@ -406,10 +408,10 @@ if(Do.bespoked)
 #22. Weight of Evidence
 LoE.Weights=c(psa=.25,sptemp=.25,efman=.25,COM=.5,JABBA=.75,integrated=1)  
 RiskColors=c('Negligible'="cornflowerblue",
-             'Low'="olivedrab3",
-             'Medium'="yellow",
+             'Low'="chartreuse3",  #olivedrab3
+             'Medium'="yellow2",
              'High'="orange",
-             'Severe'="red2")
+             'Severe'="brown1")   #red2
 Choose.probability="B.over.Bmsy" #"Depletion"  #use B/Bmys or B/K probabilities
 Like.ranges=list(L1=c(0,0.0499999),
                  L2=c(0.05,0.2),
@@ -599,22 +601,36 @@ Shark.Fisheries=c('Joint Authority Southern Demersal Gillnet and Demersal Longli
                   'Discards_TDGDLF'='Discards_TDGDLF',
                   'TEP_greynurse'='TEP_greynurse',
                   'TEP_dusky'='TEP_dusky')
+Southern.shark.fisheries=c('Joint Authority Southern Demersal Gillnet and Demersal Longline Managed Fishery'='JASDGDL',
+                           'West Coast Demersal Gillnet and Demersal Longline (Interim) Managed Fishery'='WCDGDL',
+                           'FBL condition 70 Power operated net hauler'='C070',
+                           'Open Access in the West Coast Bioregion'='OAWC',
+                           'Discards_TDGDLF'='Discards_TDGDLF',
+                           'TEP_greynurse'='TEP_greynurse',
+                           'TEP_dusky'='TEP_dusky')
+Northern.shark.fisheries=c('Western Australian North Coast Shark Fishery'='WANCS',
+                           'Open Access in the North Coast and Gascoyne Coast Bioregions'='OANCGC',
+                           'Joint Authority Northern Shark Fishery'='JANS')
 
 Non.WA.fisheries=c('GAB.trawl','Indonesia','NSW fisheries','NT','SA MSF','Taiwan')
 
-do.pie.donut=FALSE
+do.pie.donut=FALSE 
 if(do.pie.donut)
 {
+  
+ #Catch pie donut
   fn.fig(handl_OneDrive("Analyses/Population dynamics/Proportional catch_WA"),2400,2400)
- KtCh.method%>%
-      filter(!Data.set%in%c('Historic',Non.WA.fisheries))%>%
-      mutate(Shark.Fishery=ifelse(FishCubeCode%in%Shark.Fisheries,'Shark fisheries',
-                                  'Other fisheries'))%>%
-      group_by(Shark.Fishery,Gear)%>%
-      summarise(LIVEWT.c=sum(LIVEWT.c))%>%
-      PieDonut(aes(Shark.Fishery,Gear,count=LIVEWT.c),title='Proportional catch',
-               explode = 2,r0=.2,r1=.8,maxx=1.45, titlesize=8,
-               pieLabelSize=6.5,donutLabelSize=5.5,showPieName=FALSE)
+  KtCh.method%>%
+    filter(!Data.set%in%c('Historic',Non.WA.fisheries))%>%
+    mutate(Shark.Fishery=ifelse(FishCubeCode%in%Shark.Fisheries,'Shark fisheries',
+                                'Other fisheries'))%>%
+    group_by(Shark.Fishery,Gear)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+    PieDonut(aes(Shark.Fishery,Gear,count=LIVEWT.c),title='Proportional catch',
+             explode = 2,r0=.2,r1=.8,maxx=1.45, titlesize=9,
+             pieLabelSize=6.5,donutLabelSize=4.8,showPieName=FALSE)
+  dev.off()
+  
   
   # ddd=KtCh.method%>%
   #   filter(!Data.set%in%c('Historic',Non.WA.fisheries))%>%
@@ -637,7 +653,37 @@ if(do.pie.donut)
   #            explode = 2,r0=.2,r1=.8,maxx=1.45, titlesize=8,
   #            pieLabelSize=6.5,donutLabelSize=5.5,showPieName=FALSE)
   
-  dev.off()
+  #WA fisheries word cloud
+  fn.fig(handl_OneDrive("Analyses/Population dynamics/Proportional catch_WA_word.cloud"),2400,2400)
+  KtCh.method%>%
+    filter(!Data.set%in%c('Historic',Non.WA.fisheries))%>%
+    mutate(FishCubeCode=ifelse(FishCubeCode=="Discards_TDGDLF","JASDGDL",FishCubeCode),
+           Shark.Fishery=ifelse(FishCubeCode%in%Southern.shark.fisheries,'Southern.shark.fisheries',
+                                ifelse(FishCubeCode%in%Northern.shark.fisheries,'Northern.shark.fisheries',
+                                       'Other')))%>%
+    group_by(Shark.Fishery,FishCubeCode)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+    ggplot(aes(label = FishCubeCode, size = LIVEWT.c^(0.5),color=Shark.Fishery))+
+    geom_text_wordcloud(show.legend = FALSE, family="Purisa") +
+    scale_size_area(max_size = 20)+
+    guides(size = "none")+
+    theme_minimal()+
+    ggtitle("WA's fisheries interacting with sharks and rays")+
+    theme(plot.title = element_text(size=22,hjust=0.5,vjust = -30))+
+    scale_color_manual(values=c(Other = "black",
+                                Southern.shark.fisheries = 'forestgreen', Northern.shark.fisheries = 'darkorange3'))
+  dev.off()  
+  
+  #Combine the two
+  require(magick)
+  Prop <- image_read(handl_OneDrive("Analyses/Population dynamics/Proportional catch_WA.tiff"))%>%
+    image_resize("650x")%>%image_crop("632x600+10+10")
+  Cloud <- image_read(handl_OneDrive("Analyses/Population dynamics/Proportional catch_WA_word.cloud.tiff"))%>%
+    image_resize("800x")%>%image_crop("700x600+50+100")
+  a=image_append(c(Prop, Cloud),stack=TRUE)
+  image_write(a, path = handl_OneDrive("Analyses/Population dynamics/Proportional catch_WA_combined.tiff"),
+              format = "tiff")
+
   
 }
 
@@ -719,7 +765,7 @@ write.csv(Get.ktch$Table1%>%
             arrange(SPECIES),
           paste(Exprt,'Table S1_All.species.caught.by.fishery.csv',sep='/'),row.names = F)
 
-#Export species word cloud #ACA
+#Export species word cloud 
 Word.cloud=Get.ktch$Table1%>%
   data.frame%>%
   mutate(Tot=rowSums(across(where(is.numeric))))%>%
@@ -2687,7 +2733,7 @@ if(First.run=="YES")
   
 }
 
-#---17. Display catches by fishery & display life history ----
+#---17. Display catches by fishery,life history & available time series ----
 Tot.ktch=KtCh %>%      
   mutate(
     Type = case_when(
@@ -2851,6 +2897,56 @@ write.csv(data.frame(year.current=Last.yr.ktch,
                      year.future=paste(fut.yr,substr(fut.yr+1,3,4),sep='-')),
           paste(Rar.path,'year_current_future.csv',sep='/'),row.names = FALSE)
 
+#Display available time series by species
+if(First.run=='YES')
+{
+  Data.availability=vector('list',N.sp)
+  for(i in 1:N.sp)
+  {
+    dd=data.frame(Species=rep(capitalize(names(Species.data)[i]),each=6),
+                  Data=c('Catch','Abundance','Catch length\n composition','Catch mean\n weight','F','Tagging'),
+                  Availability=NA,
+                  w=1)
+    Avail.ktch=1
+    Avail.abun=Avail.length=Avail.ca.wei=Avail.F=Avail.Tag=0
+    if(!is.null(Catch.rate.series[[i]])) Avail.abun=1
+    if(Keep.species[i]%in%Species.with.length.comp) Avail.length=1
+    if('annual.mean.size'%in%names(Species.data[[i]])) Avail.ca.wei=1
+    if(any(grepl('Fishing.mortality',names(Species.data[[i]])))) Avail.F=1
+    if(any(grepl('tag',names(Species.data[[i]])))) Avail.Tag=1
+    dd$Availability=c(Avail.ktch,Avail.abun,Avail.length,Avail.ca.wei,Avail.F,Avail.Tag)
+    Data.availability[[i]]=dd
+  }
+  Data.availability=do.call(rbind,Data.availability)%>%
+    mutate(Availability=factor(Availability,levels=0:1),
+           Data=factor(Data,levels=c('Catch','Abundance','Catch length\n composition',
+                                     'Catch mean\n weight','F','Tagging')))
+  Avail.colors=c('transparent','black')
+  names(Avail.colors)=0:1
+  Data.availability%>%
+    ggplot(aes(Data,Species,  width = w,height=w))+
+    geom_tile(aes(fill = Availability))+
+    scale_fill_manual(values=Avail.colors)+
+    theme_bw()%+replace% 
+    theme(legend.position = "none",
+          panel.background = element_rect(fill="grey95"),
+          panel.border = element_rect(colour = "grey75", fill=NA, size=1.15),
+          panel.grid.major = element_blank(),    
+          panel.grid.minor = element_blank(),    
+          axis.line = element_line(colour = "grey75"),
+          strip.background = element_rect(fill = "transparent",colour = "transparent"),
+          axis.title = element_text(size = 20),
+          axis.text = element_text(size = 13),
+          axis.text.y=element_text(hjust=0.5),
+          axis.ticks.x=element_blank(),
+          axis.ticks.y=element_blank())+
+    xlab('Time series')+ylab('')+
+    scale_y_discrete(expand = c(0, 0))+scale_x_discrete(expand = c(0, 0),position = "bottom")+
+    geom_hline(yintercept=seq(1.5,N.sp,1),color='grey75')+
+    geom_vline(xintercept=seq(1.5,5.5,1),color='grey75')
+  ggsave(paste(Rar.path,"Available time series by species.tiff",sep='/'),
+         width = 10,height = 8,compression = "lzw")
+}
 
 #---18. Catch-only assessments --------------------------------------
 #Use Catch-only methods for species with only catch and life history data?
@@ -2939,6 +3035,7 @@ if(Assessed.ktch.only.species=='Only.ktch.data')
 Catch.only.species_only.ktch=Keep.species[which(!Keep.species%in%names(compact(Catch.rate.series)))]
 Catch.only.species_only.ktch=subset(Catch.only.species_only.ktch,!Catch.only.species_only.ktch%in%Species.with.length.comp)
 
+#Execute Catch only function
 if(Do.Ktch.only) fn.source1("Apply_catch only assessments.R")  #~60 mins per species (DBSRA, CMSY & SSS, 1 scenario)
 
 #Ballpark M check for SSS
@@ -3031,23 +3128,26 @@ if(plot.bmsyK)
 }
 
 #Get Consequence and likelihoods
-Store.cons.Like_COM=list(Depletion=NULL,B.over.Bmsy=NULL)     
-DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
-for(l in 1:length(Lista.sp.outputs))  
+if (any(grepl("Table 4. Catch only_current.B.over.Bmsy",list.files(Rar.path))))
 {
-  ddis=names(Lista.sp.outputs)[l]
-  DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
-                        gather(Species,Probability,-c(Range,finyear))%>%
-                        mutate(Species=gsub(".", " ", Species, fixed=TRUE))
-  
-  DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.depletion_',ddis,'.csv',sep=''))%>%
-                        gather(Species,Probability,-c(Range,finyear))%>%
-                        mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+  Store.cons.Like_COM=list(Depletion=NULL,B.over.Bmsy=NULL)     
+  DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
+  for(l in 1:length(Lista.sp.outputs))  
+  {
+    ddis=names(Lista.sp.outputs)[l]
+    DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
+      gather(Species,Probability,-c(Range,finyear))%>%
+      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    
+    DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.depletion_',ddis,'.csv',sep=''))%>%
+      gather(Species,Probability,-c(Range,finyear))%>%
+      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+  }
+  Store.cons.Like_COM$Depletion=do.call(rbind,DD.depletion)
+  Store.cons.Like_COM$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
 }
-Store.cons.Like_COM$Depletion=do.call(rbind,DD.depletion)
-Store.cons.Like_COM$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
   
-
+#Clear log
 clear.log('Store.sens')
 clear.log('output')
 clear.log('out')
@@ -3117,27 +3217,32 @@ for(l in 1:N.sp)
 }
 m.par=do.call(rbind,m.par)
 
+  #Run JABBA
 if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes 1.3 (8 species with 8 scenarios and fit diagnostics)
 
-Store.cons.Like_JABBA=list(Depletion=NULL,B.over.Bmsy=NULL)     
-DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
-for(l in 1:length(Lista.sp.outputs))  
+  #Get Consequence and likelihoods
+if (any(grepl("Table 8. JABBA CPUE_Current.B.over.Bmsy",list.files(Rar.path))))
 {
-  ddis=names(Lista.sp.outputs)[l]
-  DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 8. JABBA CPUE_Current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
-    dplyr::select(-c(Scenario,Model))%>%
-    gather(Species,Probability,-c(Range,finyear))%>%
-    mutate(Species=gsub(".", " ", Species, fixed=TRUE))
-  
-  DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 8. JABBA CPUE_Current.depletion_',ddis,'.csv',sep=''))%>%
-    dplyr::select(-c(Scenario,Model))%>%
-    gather(Species,Probability,-c(Range,finyear))%>%
-    mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+  Store.cons.Like_JABBA=list(Depletion=NULL,B.over.Bmsy=NULL)     
+  DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
+  for(l in 1:length(Lista.sp.outputs))  
+  {
+    ddis=names(Lista.sp.outputs)[l]
+    DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 8. JABBA CPUE_Current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
+      dplyr::select(-c(Scenario,Model))%>%
+      gather(Species,Probability,-c(Range,finyear))%>%
+      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    
+    DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 8. JABBA CPUE_Current.depletion_',ddis,'.csv',sep=''))%>%
+      dplyr::select(-c(Scenario,Model))%>%
+      gather(Species,Probability,-c(Range,finyear))%>%
+      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+  }
+  Store.cons.Like_JABBA$Depletion=do.call(rbind,DD.depletion)
+  Store.cons.Like_JABBA$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)  
 }
-Store.cons.Like_JABBA$Depletion=do.call(rbind,DD.depletion)
-Store.cons.Like_JABBA$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)  
-
-
+  
+  #Clear log
 clear.log('Store.sens')
 clear.log('output')
 clear.log('F.Fmsy')
@@ -3152,8 +3257,32 @@ clear.log('dummy.store.Kobe.probs')
 clear.log('State.Space.SPM')
 
 #---25. Integrated Stock Synthesis (Age-based) Model-------------------------------------------------
+  #Run Stock Synthesis
 if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours
 
+  #Get Consequence and likelihoods 
+if (any(grepl("Table 11. Age.based_SS_current.depletion",list.files(Rar.path))))
+{
+  Store.cons.Like_Age.based=list(Depletion=NULL,B.over.Bmsy=NULL)     
+  DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
+  for(l in 1:length(Lista.sp.outputs))  
+  {
+    ddis=names(Lista.sp.outputs)[l]
+    DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 11. Age.based_SS_current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
+      dplyr::select(-c(Scenario,Model))%>%
+      gather(Species,Probability,-c(Range,finyear))%>%
+      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    
+    DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 11. Age.based_SS_current.depletion_',ddis,'.csv',sep=''))%>%
+      dplyr::select(-c(Scenario,Model))%>%
+      gather(Species,Probability,-c(Range,finyear))%>%
+      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+  }
+  Store.cons.Like_Age.based$Depletion=do.call(rbind,DD.depletion)
+  Store.cons.Like_Age.based$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)  
+}
+
+  #Clear log
 clear.log('Store.sens')
 clear.log('output')
 clear.log('F.Fmsy')
@@ -3162,7 +3291,8 @@ clear.log('fn.ktch.cpue')
 clear.log('Post')
 clear.log('dummy.store.Kobe.probs')
 
-# Create SS-DL tool input files
+
+  #Create SS-DL tool input files
 Export.SS_DL.tool.inputs=FALSE
 if(Export.SS_DL.tool.inputs)
 {
@@ -3186,6 +3316,109 @@ if(Do.bespoked) fn.source1("Integrated_size_based.R")
 
 #---27. Weight of Evidence Assessment ------
 
+#0. Stock assessment flow chart
+Ass.flow=FALSE
+if(Ass.flow)
+{
+  library(igraph)
+  Dat1 <- tibble(from = c("Shark and ray species\n interacting with\n fisheries in WA",
+                          "PSA", "PSA", "PSA",
+                          "High\n vulnerability",
+                          "COMs", "COMs", "COMs",
+                          "Abundance\n index","Abundance\n index","Size\n composition","Size\n composition"),
+                 to = c("PSA",
+                        "Low\n vulnerability", "Medium\n vulnerability", "High\n vulnerability",
+                        "COMs",
+                        "No abundance\n or\n size composition", "Abundance\n index", "Size\n composition",
+                        "JABBA","SS3","SS3","SS3.size"))
+  g = graph_from_data_frame(Dat1, directed = TRUE)
+  coords = layout_as_tree(g)
+  colnames(coords) = c("x", "y")
+  output_df = as_tibble(coords) %>%
+    mutate(step = vertex_attr(g, "name"),
+           label = gsub("\\d+$", "", step),
+           x = x*-1,
+           x=case_when(label=="Low\n vulnerability"~-1,
+                       label=="Medium\n vulnerability"~0,
+                       label=="Size\n composition"~2,
+                       label=="No abundance\n or\n size composition"~-0.5,
+                       label=="Abundance\n index"~0.85,
+                       label=="JABBA"~0.75,
+                       label=="SS"~1.625,
+                       label=="SS3.size"~2.5,
+                       TRUE~x),
+           Ass.Level = case_when(grepl("SS",label)~'5',
+                                 label=="JABBA"~'4',
+                                 label=="COMs"~'1',
+                                 TRUE~'0'),
+           label=ifelse(label=="SS3.size","SS (size only)",label))   
+  plot_nodes = output_df %>%
+    mutate(xmin = x - 0.35,
+           xmax = x + 0.35,
+           ymin = y - 0.25,
+           ymax = y + 0.25,
+           xmin=case_when(grepl(paste(c("Shark and ray","No abundance"),collapse='|'),label)~x - 0.8,
+                          grepl(paste(c("vulnerability","Abundance","composition"),collapse='|'),label)~x - 0.425,
+                          TRUE~xmin),
+           xmax=case_when(grepl(paste(c("Shark and ray","No abundance"),collapse='|'),label)~x + 0.8,
+                          grepl(paste(c("vulnerability","Abundance","composition"),collapse='|'),label)~x + 0.425,
+                          TRUE~xmax),
+           ymin=case_when(grepl("Shark and ray",label)~y - 0.4,
+                          label=="No abundance\n or\n size composition"~y - 0.4,
+                          TRUE~ymin),
+           ymax=case_when(grepl("Shark and ray",label)~y + 0.4,
+                          label=="No abundance\n or\n size composition"~y + 0.4,
+                          TRUE~ymax))
+  
+  
+  plot_edges = Dat1 %>%
+    mutate(id = row_number()) %>%
+    pivot_longer(cols = c("from", "to"),
+                 names_to = "s_e",
+                 values_to = "step") %>%
+    left_join(plot_nodes, by = "step") %>%
+    select(-c(label, Ass.Level, y, xmin, xmax)) %>%
+    mutate(y = ifelse(s_e == "from", ymin, ymax)) %>%
+    select(-c(ymin, ymax))
+  
+  N=nrow(read.csv(paste(Exprt,'Table S1_All.species.caught.by.fishery.csv',sep='/')))
+  N.COMS=N.sp
+  N.JABBA=length(unique(Store.cons.Like_JABBA$Depletion$Species))
+  N.SS=length(unique(Store.cons.Like_Age.based$Depletion$Species))
+  N.SS.size.only=N.SS-N.JABBA
+  N.SS=N.JABBA
+  plot_nodes=plot_nodes%>%
+    mutate(label=case_when(grepl('Shark and ray',label)~paste0("Shark and ray species\n interacting with\n fisheries in WA (n= ",N,')'),
+                           label=='COMs'~paste0('COMs\n (n= ',N.COMS,')'),
+                           label=='JABBA'~paste0('JABBA\n (n= ',N.JABBA,')'),
+                           label=='SS'~paste0('SS\n (n= ',N.SS,')'),
+                           label=='SS (size only)'~paste0('SS\n (n= ',N.SS.size.only,')'),
+                           TRUE~label))
+  VulScore=plot_nodes%>%
+    filter(grepl('vulnerability',label))%>%
+    mutate(y=y+.5,
+           label=ifelse(grepl('High',label),paste0('>',medium.risk),
+                        ifelse(grepl('Medium',label), paste(Low.risk,'to',medium.risk),
+                               ifelse(grepl('Low',label),paste0('<',Low.risk),
+                                      NA))))
+  ggplot() +
+    geom_rect(data = plot_nodes,mapping = aes(xmin = xmin, ymin = ymin, xmax = xmax, ymax = ymax, 
+                                              fill = Ass.Level),alpha = 0.5)  + 
+    geom_text(data = plot_nodes, mapping = aes(x = x, y = y, label = label),color = "black") + 
+    geom_path(data = plot_edges,mapping = aes(x = x, y = y, group = id),color = "grey50",
+              arrow = arrow(length = unit(0, "cm"), type = "closed"))+ 
+    geom_text(data = VulScore, mapping = aes(x = x, y = y, label = label),color = "black")+
+    labs(title = "Stock Assessment Decision Tree",
+         caption = " PSA, Productivity and Susceptibility analysis; COMs,Catch only Models\n\ JABBA, Just Another Bayesian Biomass Assessment; SS, Stock Synthesis")+
+    guides(fill=guide_legend(title="Assessment level"))+
+    theme_void()+
+    theme(legend.position = 'bottom',
+          plot.caption = element_text(hjust = 1))+
+    scale_fill_manual(values = c('0'='transparent','1'='dodgerblue4','4'='forestgreen','5'='darkorange3'),limits = c('1', '4','5'))
+  
+  ggsave(handl_OneDrive("Analyses/Population dynamics/Stock assessment flow chart.tiff"),compression = "lzw")        
+} 
+
 #1. Calculate risk for each line of evidence  
   #1.1. PSA 
 #note: only use PSA scores for species dropped by the PSA as this is the only available LoE 
@@ -3208,47 +3441,103 @@ for(s in 1:length(Risk.PSA))
 }
 Risk.PSA=do.call(rbind,Risk.PSA)
 
+#1.2 Spatial distribution of catch and effort
+Risk.Spatial=fun.risk.spatial.dist(d=data.frame(Species=c("angel sharks","copper shark","dusky shark","hammerheads","grey nurse shark",
+                                             "gummy shark","lemon shark","sandbar shark","sawsharks","shortfin mako",
+                                             "spinner shark","spurdogs","tiger shark","whiskery shark","wobbegongs"))%>%
+                        mutate(Market=case_when(Species%in%c("grey nurse shark")~'zero',
+                                                Species%in%c("spurdogs","sawsharks")~'decreasing',
+                                                Species%in%c("sandbar shark","copper shark","hammerheads",
+                                                             "spinner shark","tiger shark","wobbegongs")~'increasing',
+                                                TRUE~'stable'),
+                               Conservation=case_when(Species=='grey nurse shark'~'yes',
+                                                      TRUE~'no'),
+                               Blocks.fished=case_when(Species%in%c('grey nurse shark',"tiger shark","sandbar shark")~'decreasing',
+                                                       TRUE~'stable'),
+                               Blocks.with.catch=case_when(Species%in%c('grey nurse shark',"spurdogs","sawsharks")~'decreasing',
+                                                           Species%in%c("sandbar shark","copper shark","hammerheads",
+                                                                        "spinner shark","tiger shark","wobbegongs")~'increasing',
+                                                           TRUE~'stable'),
+                               Management_driven.effort='decreasing',
+                               Catch='decreasing'))
+
   #1.2. COMS  
 if(exists("Store.cons.Like_COM"))
 {
-  if(Choose.probability=="Depletion")   Risk.COM=fn.risk(d=Store.cons.Like_COM$Depletion,w=0.5)
-  if(Choose.probability=="B.over.Bmsy") Risk.COM=fn.risk(d=Store.cons.Like_COM$B.over.Bmsy,w=0.5)
+  if(Choose.probability=="Depletion")   Risk.COM=fn.risk(d=Store.cons.Like_COM$Depletion,w=1)
+  if(Choose.probability=="B.over.Bmsy") Risk.COM=fn.risk(d=Store.cons.Like_COM$B.over.Bmsy,w=1)
 }
 
   #1.3. JABBA
 if(exists("Store.cons.Like_JABBA"))
 {
-  if(Choose.probability=="Depletion")   Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=0.5)
-  if(Choose.probability=="B.over.Bmsy") Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=0.5)
+  if(Choose.probability=="Depletion")   Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=1)
+  if(Choose.probability=="B.over.Bmsy") Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=1)
 }
 
   #1.4. SS3
 if(exists("Store.cons.Like_Age.based"))
 {
-  if(Choose.probability=="Depletion")   Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$Depletion,w=0.5)
-  if(Choose.probability=="B.over.Bmsy") Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$B.over.Bmsy,w=0.5)
+  if(Choose.probability=="Depletion")   Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$Depletion,w=1)
+  if(Choose.probability=="B.over.Bmsy") Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$B.over.Bmsy,w=1)
 }
 
 
-#2. Determine overall final risk   #ACA: how to combine the risk from COM, JABBA, SS, spatial catch stuff...
+#2. Determine overall final risk   
+
+  #2.1 Model based risk (Reference point probability)
+Risk_Other.sp_COM=Risk.COM%>%
+                      filter(tolower(Species)%in%Lista.sp.outputs$Other.sp)
+Risk_Other.sp_JABBA=Risk.JABBA%>%
+                      filter(tolower(Species)%in%Lista.sp.outputs$Other.sp)
+Risk_Other.sp_integrated=Risk.integrated%>%
+                     filter(tolower(Species)%in%Lista.sp.outputs$Other.sp)
+
+Risk_Indicator.sp_COM=Risk.COM%>%
+                      filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp)
+Risk_Indicator.sp_JABBA=Risk.JABBA%>%
+                      filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp)
+Risk_Indicator.sp_integrated=Risk.integrated%>%
+                      filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp)
+
+  #2.2 Expert judgement consideration of all LoE      
+#note: 1. use Integrated model if available, then JABBA, then CoM
+#      2. Interpret within context of other LoEs
+#PSA only species
 Risk_Drop.species=Risk.PSA
-Risk_Other.sp=Risk.COM%>%
-                filter(tolower(Species)%in%Lista.sp.outputs$Other.sp)
-Risk_Indicator.sp=Risk.COM%>%
-                  filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp)
+
+#Non-indicator species          #ACA: how to combine COM, JABBA, SS, other LoEs?
+uni.sp.COM=unique(Risk_Other.sp_COM$Species)
+uni.sp.JABBA=unique(Risk_Other.sp_JABBA$Species)
+uni.sp.integrated=unique(Risk_Other.sp_integrated$Species)
+
+use.this.model=data.frame(Species=sort(unique(c(uni.sp.COM,uni.sp.JABBA,uni.sp.integrated))))%>%
+                            mutate(Model=case_when(Species%in%uni.sp.integrated~'integrated',
+                                          !Species%in%uni.sp.integrated & Species%in%uni.sp.JABBA~'JABBA',
+                                          TRUE~'COM'))
+Risk_Other.sp=rbind(left_join(use.this.model%>%filter(Model=='COM'),Risk_Other.sp_COM,by='Species'),
+                    left_join(use.this.model%>%filter(Model=='JABBA'),Risk_Other.sp_JABBA,by='Species'),
+                    left_join(use.this.model%>%filter(Model=='integrated'),Risk_Other.sp_integrated,by='Species'))%>%
+              arrange(Species)%>%
+              mutate(Likelihood=ifelse(Model=='COM' & Consequence==3 & Likelihood==3,2,Likelihood)) 
+
+
+#Indicator species            #ACA: how to combine COM, JABBA, SS, other LoEs?
+Risk_Indicator.sp=Risk_Indicator.sp_integrated
 
 
 #3. Plot Consequence and Likelihood and extract overall risk by species   
 Store.risk_Drop.species=fn.risk.figure(d=Risk_Drop.species, Risk.colors=RiskColors, out.plot=FALSE)
 
 Store.risk_Other.sp=fn.risk.figure(d=Risk_Other.sp, Risk.colors=RiskColors, out.plot=TRUE)
-ggsave(paste(Rar.path,"Risk_Other.sp.tiff",sep='/'),width = 12,height = 10,compression = "lzw")
+ggsave(paste(Rar.path,"Risk_Other.sp.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
 
 Store.risk_Indicator.sp=fn.risk.figure(d=Risk_Indicator.sp, Risk.colors=RiskColors, out.plot=TRUE)
-ggsave(paste(Rar.path,"Risk_Indicator.sp.tiff",sep='/'),width = 10,height = 10,compression = "lzw")
+ggsave(paste(Rar.path,"Risk_Indicator.sp.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
 
 
-#4. Display final risk for all species combined   
+#4. Display final risk for all species combined  
+  #4.1 Combined drop species
 Final.risk_Drop.species=Store.risk_Drop.species%>%
                                 group_by(Score,Risk)%>%
                                 tally()%>%
@@ -3258,293 +3547,69 @@ Final.risk_Drop.species=Store.risk_Drop.species%>%
 Final.risk_Other.sp=Store.risk_Other.sp%>%dplyr::select(Species,Score,Risk)
 Final.risk_Indicator.sp=Store.risk_Indicator.sp%>%dplyr::select(Species,Score,Risk)
 
-p=rbind(Final.risk_Drop.species,Final.risk_Other.sp,Final.risk_Indicator.sp)%>%
-  mutate(Species=factor(Species,levels=p%>%arrange(Score)%>%pull(Species)))
-
+p=rbind(Final.risk_Drop.species,Final.risk_Other.sp,Final.risk_Indicator.sp)
 p%>%
+  mutate(Species=factor(Species,levels=p%>%arrange(Score)%>%pull(Species)))%>%
   ggplot(aes(Species,Score,fill=Risk))+
   geom_bar(stat="identity")+ coord_flip()+
   theme_PA(axs.t.siz=14)+
   theme(legend.title = element_blank(),
         legend.position = 'bottom')+
   ylab('Risk score')+xlab('')+
-  scale_fill_manual(values=Risk.colors)+
+  scale_fill_manual(values=RiskColors)+
   scale_y_continuous(breaks = breaks_width(1))
-
 ggsave(paste(Rar.path,"Risk_all species together.tiff",sep='/'),width = 8,height = 10,compression = "lzw")
 
-
-#---Remove this stuff once risk stuff is done  ------------------------------------------------- 
-
-
-  #1.2. catch spatio-temporal    #ACA
-stopped.landing=c('angel sharks','sawsharks',
-                  "spurdogs","grey nurse shark")  #landings ceased/decreased due to lack of market for spurdogs, 
-                                                  # and marine heatwave for angel and sawsharks (industry consultation AMM 2022)
-                                                  #or protection for greynurse shark
-Risk.spatial.temporal.ktch=vector('list',length(Store.spatial.temporal.ktch))
-names(Risk.spatial.temporal.ktch)=names(Store.spatial.temporal.ktch)
-for(s in 1: length(Risk.spatial.temporal.ktch))
+  #4.2 Overall proportions
+add.non.interacting.species=FALSE
+p1=rbind(Store.risk_Drop.species%>%
+          dplyr::select(Species,Score,Risk),
+        Final.risk_Other.sp ,
+        Final.risk_Indicator.sp)
+if(add.non.interacting.species)
 {
-  sp.dat=Store.spatial.temporal.ktch[[s]]$prop.ktch_over.fished.bocks%>%
-    mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
-    filter(year<=(Last.yr.ktch.numeric))%>%
-    filter(year>=(Last.yr.ktch.numeric-4))%>%  #average last 5 years  
-    group_by(SNAME)%>%
-    summarise(Mean=mean(prop))%>%
-    ungroup()%>%
-    rename(Species=SNAME)%>%
-    filter(!Species%in%stopped.landing)
-  dummy=vector('list',nrow(sp.dat))
-  names(dummy)=sp.dat$Species
-  for(x in 1:length(dummy))
-  {
-    dd=sp.dat%>%filter(Species==names(dummy)[x])%>%pull(Mean)
-    if(dd==1) d=data.frame(Max.Risk.Score=c(2,0,0,0))
-    if(dd<1 & dd>=.75) d=data.frame(Max.Risk.Score=c(0,4,0,0))
-    if(dd<.75 & dd>=.5) d=data.frame(Max.Risk.Score=c(0,0,6,0))
-    if(dd<.5 & dd>=.25) d=data.frame(Max.Risk.Score=c(0,0,12,0))
-    if(dd<.25) d=data.frame(Max.Risk.Score=c(0,0,0,16))
-    dummy[[x]]=d
-  }
-  Risk.spatial.temporal.ktch[[s]]=dummy
+  All.WA.species= #missing
+  non.interacting.species=data.frame(Species=All.WA.species,
+                                     Score=2,
+                                     Risk='Negligible')%>%
+    filter(!Species%in%c(p$Species,capitalize(assessed.elsewhere)))
+  p1=rbind(p1,non.interacting.species)
 }
-
-#1.3. overall effort-management               
-Risk.effort.mangmnt=Risk.spatial.temporal.ktch
-Rel.eff.s=Effort.monthly
-Rel.eff.n=rbind(Effort.monthly.north%>%rename(Total='Hook hours')%>%dplyr::select(FINYEAR,Total),  #add 0 effort if no fishing
-                data.frame(FINYEAR=Effort.monthly$FINYEAR[which(!Effort.monthly$FINYEAR%in%Effort.monthly.north$FINYEAR)],
-                           Total=0))%>%
-                arrange(FINYEAR)
-Yr.max.eff.s=Rel.eff.s%>%filter(Total==max(Total))%>%pull(FINYEAR)
-Yr.max.eff.n=Rel.eff.n%>%filter(Total==max(Total))%>%pull(FINYEAR)
-Rel.eff.n=mean(Rel.eff.n$Total[(nrow(Rel.eff.n)-4):nrow(Rel.eff.n)])/max(Rel.eff.n$Total) #average last 5 years
-Rel.eff.s=mean(Rel.eff.s$Total[(nrow(Rel.eff.s)-4):nrow(Rel.eff.s)])/max(Rel.eff.s$Total)
-REgn=Tot.ktch%>% 
-        filter(Name%in%names(List.sp))%>%
-        group_by(Name,Region)%>%
-        summarise(Tot=sum(LIVEWT.c))
-for(s in 1:length(Risk.effort.mangmnt))
-{
-  dat=Store.spatial.temporal.ktch[[s]]$Fished.blks.Fishery
-  dat.max.n=dat%>%filter(FINYEAR==Yr.max.eff.n & Fishery=='Northern')%>%pull(Tot)
-  dat.max.s=dat%>%filter(FINYEAR==Yr.max.eff.s & Fishery=='Southern')%>%pull(Tot)
-  dat=dat%>%  
-    filter(year<=(Last.yr.ktch.numeric))%>%
-    filter(year>=(Last.yr.ktch.numeric-4))%>%  #average last 5 years  
-    group_by(Fishery)%>%
-    summarise(Mean=mean(Tot))%>%
-    ungroup
-  
-  Rel.blk.n=dat%>%filter(Fishery=='Northern')%>%pull(Mean)/dat.max.n
-  Rel.blk.s=dat%>%filter(Fishery=='Southern')%>%pull(Mean)/dat.max.s
-  
-  Eff.blk.n=Rel.eff.n*Rel.blk.n
-  Eff.blk.s=Rel.eff.s*Rel.blk.s
-  
-  dis.sp=Lista.sp.outputs[-match('additional.sp',names(Lista.sp.outputs))][[s]]
-  dummy=vector('list',length(dis.sp))
-  names(dummy)=dis.sp
-  for(x in 1:length(dummy))
-  {
-    Which.ef=REgn%>%filter(Name==names(dummy)[x])%>%pull(Region)
-    Which.ef=paste(Which.ef,collapse='-')
-    
-    if(Which.ef=='North') Which.ef=Eff.blk.n
-    if(Which.ef=='South') Which.ef=Eff.blk.s
-    if(Which.ef=='North-South') Which.ef=max(c(Eff.blk.s,Eff.blk.n))
-    
-    if(Which.ef==0) d=data.frame(Max.Risk.Score=c(2,0,0,0))
-    if(Which.ef>0 & Which.ef<=.25) d=data.frame(Max.Risk.Score=c(0,4,0,0))
-    if(Which.ef>.25 & Which.ef<=.5) d=data.frame(Max.Risk.Score=c(0,0,6,0))
-    if(Which.ef>.5 & Which.ef<=.75) d=data.frame(Max.Risk.Score=c(0,0,12,0))
-    if(Which.ef>.75) d=data.frame(Max.Risk.Score=c(0,0,0,16))
-    dummy[[x]]=d
-  }
-  Risk.effort.mangmnt[[s]]=dummy
-}
-
-#1.4. population dynamics models
-
-Risk.tab=data.frame(Consequence=paste("C",1:4,sep=""),
-                    L1=NA,L2=NA,L3=NA,L4=NA,
-                    Max.Risk.Score=NA)
-
-Risk.COM=vector('list',N.sp)
-names(Risk.COM)=names(List.sp)
-Risk.JABBA=Risk.COM
-if(Do.integrated) Risk.integrated=Risk.COM
-for(s in 1: N.sp)
-{
-  #COM
-  if(exists("Store.cons.Like_COM"))
-  {
-    Risk.COM[[s]]=fn.risk(likelihood=Store.cons.Like_COM[[s]])
-  }
-  
-  #JABBA
-  if(exists('Store.cons.Like_JABBA'))
-  {
-    Risk.JABBA[[s]]=fn.risk(likelihood=Store.cons.Like_JABBA[[s]]) 
-  }
-  
-  #Integrated model
-  if(exists('Store.cons.Like_Age.based'))
-  {
-    Risk.integrated[[s]]=fn.risk(likelihood=Store.cons.Like_Age.based[[s]])
-  }
-       
-  
-}
-
-
-#2. Integrate the risk from each line of evidence    
-
-#note: Use a weighted sum to aggregate the Risk Categories form the alternative lines of evidence
-#      Normalize each criterion by dividing by the highest value of each criterion. 
-#      Assign weights to each criteria 
-Order=c('Negligible','Low','Medium','High','Severe')
-Order <- factor(Order,ordered = TRUE,levels = Order)
-
-
-All.sp=sort(c(Drop.species,Keep.species))
-Overall.risk=vector('list',length(All.sp))
-names(Overall.risk)=All.sp
-for(s in 1:length(All.sp))
-{
-  nm=All.sp[s]
-  nm2=nm
-  if(nm=="smooth hammerhead") nm2='hammerheads'
-  iid=ifelse(nm%in%Other.species,"Other.sp",ifelse(nm%in%names(Indicator.species),"Indicator.sp","Drop.species"))  
-  iid=match(iid,names(Risk.spatial.temporal.ktch))
-  dummy=list(psa=Risk.PSA[[match(nm,names(Risk.PSA))]]$Max.Risk.Score,
-             sptemp=Risk.spatial.temporal.ktch[[iid]][[match(nm2,names(Risk.spatial.temporal.ktch[[iid]]))]]$Max.Risk.Score,
-             efman=Risk.effort.mangmnt[[iid]][[match(nm,names(Risk.effort.mangmnt[[iid]]))]]$Max.Risk.Score,
-             COM=Risk.COM[[match(nm,names(Risk.COM))]]$Max.Risk.Score,
-             JABBA=Risk.JABBA[[match(nm,names(Risk.JABBA))]]$Max.Risk.Score)
-  if(Do.integrated)dummy$integrated=Risk.integrated[[match(nm,names(Risk.integrated))]]$Max.Risk.Score
-  dummy=dummy[!sapply(dummy, is.null)]
-  NMs=names(dummy)
-  dummy=do.call(cbind,dummy)
-  colnames(dummy)=NMs
-  rownames(dummy)=paste("C",1:4,sep='')
-  
-  Overall.risk[[s]]=Integrate.LoE(Cons.Like.tab=dummy,
-                                  criteriaMinMax <- "max",
-                                  plot.data=FALSE,
-                                  LoE.weights = LoE.Weights[match(colnames(dummy),names(LoE.Weights))],
-                                  Normalised="YES")
-}
-
-
-#3. Display overall risk for each species
-LoE.col=c(psa="coral3", sptemp="grey50", efman="burlywood4",
-          COM="grey80", JABBA="grey35", integrated="black")
-LoE.names=c(psa="PSA", sptemp="Blocks fished", efman="Effort & Manag.",
-            COM="COM", JABBA="BSSPM", integrated="Int. mod.")
-if(!Do.integrated)
-{
-  LoE.col=LoE.col[-match('integrated',names(LoE.col))]
-  LoE.names=LoE.names[-match('integrated',names(LoE.names))]
-}
-All.Sp.risk.ranking=factor(unlist(lapply(Overall.risk, '[[', 'risk')),levels=levels(Order))  
-All.Sp.risk.ranking=names(sort(All.Sp.risk.ranking))
-All.Sp.risk.ranking=All.Sp.risk.ranking[!duplicated(All.Sp.risk.ranking)]
-
-
-#3.1. Other species
-Sp.risk.ranking=subset(All.Sp.risk.ranking,!All.Sp.risk.ranking%in%names(Indicator.species))
-fn.fig(paste(Rar.path,"Risk_Other.sp",sep='/'), 2000, 2400)
-par(mar=c(.5,.5,3,1),oma=c(3,13.5,.5,.1),las=1,mgp=c(1,.5,0),cex.axis=1.5,xpd=TRUE)
-layout(matrix(c(rep(1,6),rep(2,3)),ncol=3))
-
-  #3.1.1. Risk for each line of evidence
-fn.each.LoE.risk(N.sp=length(Sp.risk.ranking),CX.axis=0.95) #main plot
-for(s in 1:length(Sp.risk.ranking))
-{
-  nm=Sp.risk.ranking[s]
-  dummy=Overall.risk[[match(nm, names(Overall.risk))]]$Cons.Like.tab
-  if(ncol(dummy)==1) Adjst=0
-  if(ncol(dummy)>1) Adjst=seq(-.3,.3,length.out = ncol(dummy))
-
-  for(nn in 1:ncol(dummy))
-  {
-    segments(0,s+Adjst[nn],max(dummy[,nn]),s+Adjst[nn],
-             lwd=3.75,lend=1,col=LoE.col[match(colnames(dummy)[nn],names(LoE.col))])
-  }
-
-}
-axis(2,1:length(Sp.risk.ranking),capitalize(Sp.risk.ranking),cex.axis=.8)
-mtext("Risk score",1,cex=1.25,line=2)
-legend(-1.5,length(Sp.risk.ranking)+6,LoE.names[1:3],
-       bty='n',col=LoE.col[1:3],lty=1,lwd=3,horiz = T,cex=1.20,
-       text.width=c(0,1,2.25))
-legend(-1.5,length(Sp.risk.ranking)+4.5,LoE.names[4:length(LoE.names)],bty='n',cex=1.20,
-       col=LoE.col[4:length(LoE.col)],lty=1,lwd=3,horiz = T,text.width=c(0,1.5))
-
-  #3.1.2. Overall risk
-plot(0:1,ylim=c(0,length(Sp.risk.ranking)+1),fg='white',xaxs="i",yaxs="i",
-     col="transparent",ylab="",xlab="",xaxt='n',yaxt='n')
-for(s in 1:length(Sp.risk.ranking))
-{
-  ss=Sp.risk.ranking[s] 
-  fn.overall.risk(N=s,
-                  RISK=Overall.risk[[match(ss,names(Overall.risk))]]$risk,
-                  sp=capitalize(Sp.risk.ranking[s]),
-                  CX=.9)
-}
-axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
-
-dev.off()
-
-
-#3.2.Indicator species    
-Sp.risk.ranking=subset(All.Sp.risk.ranking,All.Sp.risk.ranking%in%names(Indicator.species))
-fn.fig(paste(Rar.path,"Risk_Indicator.sp",sep='/'), 2200, 2400)  
-
-par(mar=c(.5,.5,3,1),oma=c(3,9.5,.5,.1),las=1,mgp=c(1,.5,0),cex.axis=1.5,xpd=TRUE)
-layout(matrix(c(rep(1,6),rep(2,3)),ncol=3))
-
-  #3.2.1. Risk for each line of evidence
-fn.each.LoE.risk(N.sp=length(Sp.risk.ranking),CX.axis=1.35) #main plot
-for(s in 1:length(Sp.risk.ranking))
-{
-  nm=Sp.risk.ranking[s]
-  dummy=Overall.risk[[match(nm, names(Overall.risk))]]$Cons.Like.tab
-  if(ncol(dummy)==1) Adjst=0
-  if(ncol(dummy)>1) Adjst=seq(-.3,.3,length.out = ncol(dummy))
-  
-  for(nn in 1:ncol(dummy))
-  {
-    segments(0,s+Adjst[nn],max(dummy[,nn]),s+Adjst[nn],
-             lwd=3.75,lend=1,col=LoE.col[match(colnames(dummy)[nn],names(LoE.col))])
-  }
-  
-}
-axis(2,1:length(Sp.risk.ranking),capitalize(Sp.risk.ranking),cex.axis=1.5)
-mtext("Risk score",1,cex=1.25,line=2)
-legend(-1.5,length(Sp.risk.ranking)+1.3,LoE.names[1:3],
-       bty='n',col=LoE.col[1:3],lty=1,lwd=3,horiz = T,cex=1.25,
-       text.width=c(0,1,2.25))
-legend(-1.5,length(Sp.risk.ranking)+1.22,LoE.names[4:length(LoE.names)],bty='n',cex=1.5,
-       col=LoE.col[4:length(LoE.col)],lty=1,lwd=3,horiz = T,text.width=c(0,1.5))
-
-  #3.2.2. Overall risk
-plot(0:1,ylim=c(0,length(Sp.risk.ranking)+1),fg='white',xaxs="i",yaxs="i",
-     col="transparent",ylab="",xlab="",xaxt='n',yaxt='n')
-for(s in 1:length(Sp.risk.ranking))
-{
-  ss=Sp.risk.ranking[s] 
-  fn.overall.risk(N=s,
-                  RISK=Overall.risk[[match(ss,names(Overall.risk))]]$risk,
-                  sp=capitalize(Sp.risk.ranking[s]),
-                  CX=1.5)
-}
-axis(1,1.5,"Overall risk",cex.axis=1.75,col.ticks="white",padj=.5)
-
-dev.off()
-
+pp=p1%>%
+  arrange(Score,Risk,Species)%>%
+  mutate(id=row_number(),
+         Score1=8)
+label_colors=c(Indicator='chocolate4',Non.indicator='cadetblue4',PSA.only='black')
+label_pp <- pp%>%
+  mutate(angle=90-360*(id-0.5) /nrow(pp),
+         hjust=ifelse( angle < -90, 1, 0),
+         angle=ifelse(angle < -90, angle+180, angle),
+         Species=case_when(Species=='Australian sharpnose shark'~'Au. sharpnose shark',
+                           TRUE~Species),
+         lbl.col=case_when(Species%in%unique(Risk_Indicator.sp$Species)~'Indicator',
+                           Species%in%unique(Risk_Other.sp$Species)~'Non.indicator',
+                           TRUE~'PSA.only'))
+pp%>%
+  ggplot(aes(x=as.factor(id), y=Score1)) +  
+  geom_bar(aes(fill=Risk),stat="identity")+
+  ylim(-5,12)+
+  scale_fill_manual(values=subset(RiskColors,names(RiskColors)%in%unique(pp$Risk)))+
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        plot.margin = unit(rep(-1,4), "cm"),
+        legend.title = element_blank(),
+        legend.position = c(0.5, 0.5),
+        legend.direction='vertical',
+        legend.text = element_text(size=20)) +
+  coord_polar(start = 0)+
+  geom_text(data=label_pp, aes(x=id, y=Score1*1.1, label=Species, hjust=hjust,color=lbl.col),
+            fontface="bold",alpha=0.6, size=2.8, angle= label_pp$angle,
+            inherit.aes = FALSE )+
+  scale_color_manual(values =label_colors)+
+  guides(color = guide_none())
+ggsave(paste(Rar.path,"Risk_all species together_proportion.tiff",sep='/'),width = 8,height = 8,compression = "lzw")
 
 
 #---28. Outputs for strategic papers  ------------------------------------------------- 
