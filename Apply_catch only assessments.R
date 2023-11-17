@@ -2915,9 +2915,10 @@ for(i in 1:N.sp)
                      Weights=Wei)
     Mod.AV_F.Fmsy[[i]]=dumi$Trajectories
     
-    #MSY
+    #MSY  
     Mod.AV_MSY[[i]]=mod.average.scalar(dd=map(Catch_only, ~.x$ensemble[[i]]$MSY),   
-                                       Weights=Wei)  
+                                       Weights=Wei,
+                                       KtcH=Store.catch.MSY[[i]]%>%distinct(Year,.keep_all = T)%>%dplyr::select(Year,Catch))  
 
     
     rm(Wei)
@@ -3076,7 +3077,7 @@ if(do.F.over.Fmsy.series)
   }
 }
 
-  #18.7.5 Catch vs MSY       #ACA, get the probs from the emperical distribution and add to table!!
+  #18.7.5 Catch vs MSY       
 All.catch.MSY=do.call(rbind,compact(Store.catch.MSY))
 All.catch.MSY.species=unique(All.catch.MSY$Species)
 #figure & table (Scenario 1 only)

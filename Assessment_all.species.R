@@ -287,6 +287,7 @@ r.prob.min=1-r.prob.max
 Ensemble.weight='equal'
 tweak.BmsyK.Cortes=FALSE #update value to increase COM acceptance rate
 tweak.Final.Bio_low=FALSE #update value to increase COM acceptance rate
+n.last.catch.yrs_MSY.catch.only=5
 
   #Assessed species by catch methods
 Assessed.ktch.only.species='All'                #assess all species with catch only methods (level 1 assessment)
@@ -406,10 +407,10 @@ if(Do.bespoked)
 }
 
 #22. Weight of Evidence
-LoE.Weights=c(psa=.25,sptemp=.25,efman=.25,COM=.5,JABBA=.75,integrated=1)  
+LoE.Weights=c(Spatial=.25,COM=.5,JABBA=1,integrated=2)  
 RiskColors=c('Negligible'="cornflowerblue",
              'Low'="chartreuse3",  #olivedrab3
-             'Medium'="yellow2",
+             'Medium'="yellow1",
              'High'="orange",
              'Severe'="brown1")   #red2
 Choose.probability="B.over.Bmsy" #"Depletion"  #use B/Bmys or B/K probabilities
@@ -3128,24 +3129,43 @@ if(plot.bmsyK)
 }
 
 #Get Consequence and likelihoods
-if (any(grepl("Table 4. Catch only_current.B.over.Bmsy",list.files(Rar.path))))
+COM_use.this.for.risk='catch' #'biomass'
+if(COM_use.this.for.risk=='catch')
 {
-  Store.cons.Like_COM=list(Depletion=NULL,B.over.Bmsy=NULL)     
-  DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
-  for(l in 1:length(Lista.sp.outputs))  
+  if (any(grepl("Table 4. Catch.only_catch_vs_MSY",list.files(Rar.path))))
   {
-    ddis=names(Lista.sp.outputs)[l]
-    DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
-      gather(Species,Probability,-c(Range,finyear))%>%
-      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
-    
-    DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.depletion_',ddis,'.csv',sep=''))%>%
-      gather(Species,Probability,-c(Range,finyear))%>%
-      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    DD=vector('list',length(Lista.sp.outputs))
+    for(l in 1:length(Lista.sp.outputs))  
+    {
+      ddis=names(Lista.sp.outputs)[l]
+      DD[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_',ddis,'.csv',sep=''))%>%
+        dplyr::select(Species,P.catch.below.tar,P.between.thre.tar,P.between.lim.thre,P.catch.above.limit)
+    }
+    Store.cons.Like_COM=do.call(rbind,DD)
   }
-  Store.cons.Like_COM$Depletion=do.call(rbind,DD.depletion)
-  Store.cons.Like_COM$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
 }
+if(COM_use.this.for.risk=='biomass')
+{
+  if (any(grepl("Table 4. Catch only_current.B.over.Bmsy",list.files(Rar.path))))
+  {
+    Store.cons.Like_COM=list(Depletion=NULL,B.over.Bmsy=NULL)     
+    DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
+    for(l in 1:length(Lista.sp.outputs))  
+    {
+      ddis=names(Lista.sp.outputs)[l]
+      DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
+        gather(Species,Probability,-c(Range,finyear))%>%
+        mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+      
+      DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 4. Catch only_current.depletion_',ddis,'.csv',sep=''))%>%
+        gather(Species,Probability,-c(Range,finyear))%>%
+        mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    }
+    Store.cons.Like_COM$Depletion=do.call(rbind,DD.depletion)
+    Store.cons.Like_COM$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
+  }
+}
+
   
 #Clear log
 clear.log('Store.sens')
@@ -3440,6 +3460,7 @@ for(s in 1:length(Risk.PSA))
   rm(xxx,dummy)
 }
 Risk.PSA=do.call(rbind,Risk.PSA)
+Risk.PSA$LoE='PSA'
 
 #1.2 Spatial distribution of catch and effort
 Risk.Spatial=fun.risk.spatial.dist(d=data.frame(Species=c("angel sharks","copper shark","dusky shark","hammerheads","grey nurse shark",
@@ -3460,12 +3481,25 @@ Risk.Spatial=fun.risk.spatial.dist(d=data.frame(Species=c("angel sharks","copper
                                                            TRUE~'stable'),
                                Management_driven.effort='decreasing',
                                Catch='decreasing'))
+Risk.Spatial=Risk.Spatial%>%
+              mutate(LoE='Spatial',
+                     Species=ifelse(Species=="Hammerheads","Smooth hammerhead",Species))
+
+
 
   #1.2. COMS  
 if(exists("Store.cons.Like_COM"))
 {
-  if(Choose.probability=="Depletion")   Risk.COM=fn.risk(d=Store.cons.Like_COM$Depletion,w=1)
-  if(Choose.probability=="B.over.Bmsy") Risk.COM=fn.risk(d=Store.cons.Like_COM$B.over.Bmsy,w=1)
+  if(COM_use.this.for.risk=='catch')
+  {
+    Risk.COM=fun.risk.CoMs(d=Store.cons.Like_COM)
+  }
+  if(COM_use.this.for.risk=='biomass')
+  {
+    if(Choose.probability=="Depletion")   Risk.COM=fn.risk(d=Store.cons.Like_COM$Depletion,w=1)
+    if(Choose.probability=="B.over.Bmsy") Risk.COM=fn.risk(d=Store.cons.Like_COM$B.over.Bmsy,w=1)
+  }
+  Risk.COM$LoE='COM'
 }
 
   #1.3. JABBA
@@ -3473,6 +3507,7 @@ if(exists("Store.cons.Like_JABBA"))
 {
   if(Choose.probability=="Depletion")   Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=1)
   if(Choose.probability=="B.over.Bmsy") Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=1)
+  Risk.JABBA$LoE='JABBA'
 }
 
   #1.4. SS3
@@ -3480,60 +3515,60 @@ if(exists("Store.cons.Like_Age.based"))
 {
   if(Choose.probability=="Depletion")   Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$Depletion,w=1)
   if(Choose.probability=="B.over.Bmsy") Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$B.over.Bmsy,w=1)
+  Risk.integrated$LoE='integrated'
 }
 
 
-#2. Determine overall final risk   
+#2. Overall risk   
 
-  #2.1 Model based risk (Reference point probability)
-Risk_Other.sp_COM=Risk.COM%>%
-                      filter(tolower(Species)%in%Lista.sp.outputs$Other.sp)
-Risk_Other.sp_JABBA=Risk.JABBA%>%
-                      filter(tolower(Species)%in%Lista.sp.outputs$Other.sp)
-Risk_Other.sp_integrated=Risk.integrated%>%
-                     filter(tolower(Species)%in%Lista.sp.outputs$Other.sp)
+  #2.1. Combine all individual LoE Risks
+LOE.risks=list(PSA=Risk.PSA,Spatial=Risk.Spatial,COM=Risk.COM,JABBA=Risk.JABBA,integrated=Risk.integrated)
+Store.risks=LOE.risks
+for(r in 1:length(LOE.risks))
+{
+  Store.risks[[r]]=fn.risk.figure(d=LOE.risks[[r]], Risk.colors=RiskColors, out.plot=FALSE)%>%
+    dplyr::select(Species,LoE,Consequence,Likelihood,Risk,Score)
+}
+Store.risks=do.call(rbind,Store.risks)
+Table.risks=Store.risks%>%
+  mutate(Risk=paste0(Risk, ' (', Consequence,'x',Likelihood,')'))%>%
+  dplyr::select(-c(Consequence,Likelihood,Score))%>%
+  mutate(LoE=factor(LoE,levels=names(LOE.risks)))%>%
+  spread(LoE,Risk)%>%
+  rename(Integrated=integrated)
 
-Risk_Indicator.sp_COM=Risk.COM%>%
-                      filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp)
-Risk_Indicator.sp_JABBA=Risk.JABBA%>%
-                      filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp)
-Risk_Indicator.sp_integrated=Risk.integrated%>%
-                      filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp)
+  #2.2. Calculate and display overall risk
+Weighted.overall.risk=do.call(rbind,LOE.risks[-match('PSA',names(LOE.risks))])%>%
+  left_join(data.frame(LoE=names(LoE.Weights),
+                       LoE.weight=LoE.Weights),by='LoE')%>%
+  mutate(LoE.weight=ifelse(LoE=='PSA',1,LoE.weight))%>%
+  group_by(Species,Consequence)%>%
+  mutate(Weighted.Likelihood=weighted.mean(x=Likelihood,w=LoE.weight))%>%
+  dplyr::select(Species,LoE,Consequence,Weighted.Likelihood,Probability,w)%>%
+  rename(Likelihood=Weighted.Likelihood)%>%
+  distinct(Species,Consequence,Likelihood,w)%>%
+  mutate(Likelihood=round(Likelihood))
 
-  #2.2 Expert judgement consideration of all LoE      
-#note: 1. use Integrated model if available, then JABBA, then CoM
-#      2. Interpret within context of other LoEs
-#PSA only species
-Risk_Drop.species=Risk.PSA
+Store.risk_Drop.species=fn.risk.figure(d=LOE.risks$PSA, Risk.colors=RiskColors, out.plot=FALSE)%>%
+  dplyr::select(-LoE)
 
-#Non-indicator species          #ACA: how to combine COM, JABBA, SS, other LoEs?
-uni.sp.COM=unique(Risk_Other.sp_COM$Species)
-uni.sp.JABBA=unique(Risk_Other.sp_JABBA$Species)
-uni.sp.integrated=unique(Risk_Other.sp_integrated$Species)
-
-use.this.model=data.frame(Species=sort(unique(c(uni.sp.COM,uni.sp.JABBA,uni.sp.integrated))))%>%
-                            mutate(Model=case_when(Species%in%uni.sp.integrated~'integrated',
-                                          !Species%in%uni.sp.integrated & Species%in%uni.sp.JABBA~'JABBA',
-                                          TRUE~'COM'))
-Risk_Other.sp=rbind(left_join(use.this.model%>%filter(Model=='COM'),Risk_Other.sp_COM,by='Species'),
-                    left_join(use.this.model%>%filter(Model=='JABBA'),Risk_Other.sp_JABBA,by='Species'),
-                    left_join(use.this.model%>%filter(Model=='integrated'),Risk_Other.sp_integrated,by='Species'))%>%
-              arrange(Species)%>%
-              mutate(Likelihood=ifelse(Model=='COM' & Consequence==3 & Likelihood==3,2,Likelihood)) 
-
-
-#Indicator species            #ACA: how to combine COM, JABBA, SS, other LoEs?
-Risk_Indicator.sp=Risk_Indicator.sp_integrated
-
-
-#3. Plot Consequence and Likelihood and extract overall risk by species   
-Store.risk_Drop.species=fn.risk.figure(d=Risk_Drop.species, Risk.colors=RiskColors, out.plot=FALSE)
-
-Store.risk_Other.sp=fn.risk.figure(d=Risk_Other.sp, Risk.colors=RiskColors, out.plot=TRUE)
+Store.risk_Other.sp=fn.risk.figure(d=Weighted.overall.risk%>%filter(tolower(Species)%in%Lista.sp.outputs$Other.sp),
+                                   Risk.colors=RiskColors,
+                                   out.plot=TRUE)
 ggsave(paste(Rar.path,"Risk_Other.sp.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
 
-Store.risk_Indicator.sp=fn.risk.figure(d=Risk_Indicator.sp, Risk.colors=RiskColors, out.plot=TRUE)
+Store.risk_Indicator.sp=fn.risk.figure(d=Weighted.overall.risk%>%filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp),
+                                       Risk.colors=RiskColors,
+                                       out.plot=TRUE)
 ggsave(paste(Rar.path,"Risk_Indicator.sp.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
+
+  #2.3. Export Risk table
+Out.overall.risk=rbind(Store.risk_Drop.species,Store.risk_Other.sp,Store.risk_Indicator.sp)%>%
+  mutate(Risk.overall=paste0(Risk,' (',Consequence,'x',Likelihood,')'))%>%
+  dplyr::select(Species,Risk.overall)
+write.csv(Table.risks%>%left_join(Out.overall.risk,by='Species'),
+          paste(Rar.path,'Table 12. Risk of each LoE and Overall.csv',sep='/'),row.names=F)
+
 
 
 #4. Display final risk for all species combined  
@@ -3586,8 +3621,8 @@ label_pp <- pp%>%
          angle=ifelse(angle < -90, angle+180, angle),
          Species=case_when(Species=='Australian sharpnose shark'~'Au. sharpnose shark',
                            TRUE~Species),
-         lbl.col=case_when(Species%in%unique(Risk_Indicator.sp$Species)~'Indicator',
-                           Species%in%unique(Risk_Other.sp$Species)~'Non.indicator',
+         lbl.col=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
+                           Species%in%Store.risk_Other.sp$Species~'Non.indicator',
                            TRUE~'PSA.only'))
 pp%>%
   ggplot(aes(x=as.factor(id), y=Score1)) +  

@@ -3306,7 +3306,7 @@ mod.average=function(dd,Weights,Ref.pnt=NULL)
   }
   return(list(Trajectories=Trajectories,Probs=Probs,Probs.future=Probs.future))
 }
-mod.average.scalar=function(dd,Weights)
+mod.average.scalar=function(dd,Weights,KtcH)
 {
   NN=max(sapply(dd,nrow))
   for(w in 1:length(dd))
@@ -3318,16 +3318,43 @@ mod.average.scalar=function(dd,Weights)
               dplyr::select(Value)
     dd[[w]]=dd[[w]][sample(1:nrow(dd[[w]]),Size,replace = T),]
   }
-  dd=do.call(c,dd)
+  dd=do.call(c,dd)  
   Median=median(dd,na.rm=T)
   Lower=quantile(dd,probs=0.025,na.rm=T)
   Upper=quantile(dd,probs=0.975,na.rm=T)
   Lower.60=quantile(dd,probs=0.2,na.rm=T)
   Upper.60=quantile(dd,probs=0.8,na.rm=T)
+  Threshold=Upper.60
+  Limit=Upper
+  Target=Median
+  Catch.mean.last.n.yrs=mean(data.table::last(KtcH$Catch,n.last.catch.yrs_MSY.catch.only))
+  f=ecdf(dd) 
+  P.catch=f(Catch.mean.last.n.yrs)
+  P.below.target=f(Target)
+  P.below.threshold=f(Threshold)  
+  P.below.limit=f(Limit)
+  #Minor consequence (1): catch<tar; Moderate (2): tar<catch<thre; High (3): thre<catch<Limit; Major (4): Limit<catch
+  P.catch.below.tar=ifelse(Catch.mean.last.n.yrs<=Target,1,0)
+  P.between.thre.tar=ifelse(Target<Catch.mean.last.n.yrs & Catch.mean.last.n.yrs<=Threshold,1,0)
+  P.between.lim.thre=ifelse(Threshold<Catch.mean.last.n.yrs & Catch.mean.last.n.yrs<=Limit,1,0)
+  P.catch.above.limit=ifelse(Limit<Catch.mean.last.n.yrs,1,0)
   
+
   return(data.frame(median=Median,
                     lower.60=Lower.60,upper.60=Upper.60,
-                    lower.95=Lower,upper.95=Upper))
+                    lower.95=Lower,upper.95=Upper,
+                    Catch.mean.last.n.yrs=Catch.mean.last.n.yrs,
+                    Threshold=Threshold,
+                    Limit=Limit,
+                    Target=Target,
+                    P.catch.below.tar=P.catch.below.tar,
+                    P.between.thre.tar=P.between.thre.tar,
+                    P.between.lim.thre=P.between.lim.thre,
+                    P.catch.above.limit=P.catch.above.limit,
+                    P.catch=P.catch,
+                    P.below.target=P.below.target,
+                    P.below.threshold=P.below.threshold,
+                    P.below.limit=P.below.limit))
 }
 
 
@@ -4583,12 +4610,14 @@ fn.plot.catch.vs.MSY_combined=function(all.this.sp,this.sp,d,NM,YLAB,MSY)
     mutate(Species=capitalize(Species))%>%
     group_by(Species)%>%
     summarise(Catch.last.yr=mean(data.table::last(Catch,1)),
-              Catch.mean.last.n.yrs=mean(data.table::last(Catch,n.last.catch.yrs)),
               MSY_Lower.95=mean(ensembled.lower.95),
               MSY_Lower.60=mean(ensembled.lower.60),
               MSY_Median=mean(ensembled.median),
               MSY_Upper.60=mean(ensembled.upper.60),
               MSY_Upper.95=mean(ensembled.upper.95))
+  d1=d1%>%left_join(MSY%>%dplyr::select(-c(ensembled.median,ensembled.lower.60,
+                                           ensembled.upper.60,ensembled.lower.95,ensembled.upper.95))%>%
+                      mutate(Species=capitalize(Species)),by='Species')
   write.csv(d1,
             paste(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_',NM,'.csv',sep=''),
             row.names=F)
@@ -5036,35 +5065,30 @@ fun.risk.spatial.dist=function(d)
   risk.tab=vector('list',nrow(d))
   for(r in 1:nrow(d))
   {
-    dd=Combos%>%
-      filter(Conservation==d[r,]$Conservation & Market==d[r,]$Market &
-               Blocks.fished==d[r,]$Blocks.fished & Catch==d[r,]$Catch & 
-               Blocks.with.catch==d[r,]$Blocks.with.catch & Management_driven.effort==d[r,]$Management_driven.effort)
-    
     Like.C1=with(d[r,],
                  ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),4,
-                        ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',4,
-                               ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',4,
-                                      ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',4,
-                                             NA)))))
+                 ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',4,
+                 ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',4,
+                 ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',4,
+                 NA)))))
     Like.C2=with(d[r,],
                  ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),2,
-                        ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',2,
-                               ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',2,
-                                      ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',2,
-                                             NA)))))
+                 ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',2,
+                 ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',2,
+                 ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',2,
+                 NA)))))
     Like.C3=with(d[r,],
                  ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),1,
-                        ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',1,
-                               ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',1,
-                                      ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',1,
-                                             NA)))))
+                 ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',1,
+                 ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',1,
+                 ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',1,
+                 NA)))))
     Like.C4=with(d[r,],
                  ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),1,
-                        ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',1,
-                               ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',1,
-                                      ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',1,
-                                             NA)))))
+                 ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',1,
+                 ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',1,
+                 ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',1,
+                 NA)))))
     
     risk.tab[[r]]=data.frame(Species=d[r,]$Species,
                              Consequence=1:4,
@@ -5074,6 +5098,30 @@ fun.risk.spatial.dist=function(d)
            mutate(Probability=NA,
                   w=1,
                   Species=capitalize(Species)))
+}
+fun.risk.CoMs=function(d)
+{
+  dd=vector('list',nrow(d))
+  for(q in 1:length(dd))
+  {
+    d[q,]
+    dd[[q]]=data.frame(Species=rep(d[q,]$Species,4),
+                       Consequence=1:4,
+                       Likelihood=1,
+                       Probability=0)%>%
+      mutate(Likelihood=case_when(d[q,]$P.catch.below.tar==1 & Consequence==1~4,
+                                  d[q,]$P.between.thre.tar==1 & Consequence==2~4,
+                                  d[q,]$P.between.lim.thre==1 & Consequence==3~4,
+                                  d[q,]$P.catch.above.limit==1 & Consequence==4~4,
+                                  TRUE~Likelihood),
+             Probability=case_when(d[q,]$P.catch.below.tar==1 & Consequence==1~1,
+                                   d[q,]$P.between.thre.tar==1 & Consequence==2~1,
+                                   d[q,]$P.between.lim.thre==1 & Consequence==3~1,
+                                   d[q,]$P.catch.above.limit==1 & Consequence==4~1,
+                                   TRUE~Probability),
+             w=1)
+  }
+  return(do.call(rbind,dd))
 }
 fn.risk=function(d,w)
 {
@@ -5169,7 +5217,7 @@ fn.overall.risk=function(N,RISK,sp,CX=1.5)
 fn.risk.figure=function(d,Risk.colors,out.plot)   
 {
   d=d%>%
-    mutate(Score=Consequence*Likelihood,
+    mutate(Score=round(Consequence*Likelihood),
            Cons=case_when(Consequence==1~'Minor',
                           Consequence==2~'Moderate',
                           Consequence==3~'High',
