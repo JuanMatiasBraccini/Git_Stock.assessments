@@ -615,8 +615,9 @@ Indo_apprehensions.Stacey=data.frame(year=1975:1999,
 #note: using Total (i.e. Apprehension and Forfeitures)
 Indo_apprehensions=read_excel(fn.hndl('Indonesia_apprehensions_AFMA.xlsx'), sheet = "Sheet1")%>%
   #dplyr::select(-Apprehensions)%>%
-  #rename(Apprehensions=Total)%>%   
-  dplyr::select(c(Year,Apprehensions))%>%    
+  #rename(Apprehensions=Total)%>% 
+  rename(LF='Legislative Forfeitures')%>%
+  #dplyr::select(c(Year,Apprehensions))%>%    
   rename(year=Year)%>%
   mutate(year=as.numeric(substr(year,1,4)))
 
@@ -1833,8 +1834,8 @@ Whaler_SA=Whaler_SA[rep(1:N.SA,each=2),]%>%
 
 
 #-- 3.2.5 Indonesian illegal fishing in Australia waters             
-
-Indo_apprehensions=rbind(Indo_apprehensions.Stacey,Indo_apprehensions)
+Indo_apprehensions.AFMA=Indo_apprehensions
+Indo_apprehensions=rbind(Indo_apprehensions.Stacey,Indo_apprehensions%>%dplyr::select(year,Apprehensions))
 Missn.appr=which(is.na(Indo_apprehensions$Apprehensions))
 if(length(Missn.appr)>0)
 {
@@ -1976,6 +1977,52 @@ if(Do.recons.paper=="YES")
                                 Prop=prop_banjo_wedge_north)
 }
 
+show.this=FALSE  
+if(show.this)
+{
+  source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/ggplot.themes.R'))
+  library(ggpubr)
+  p1=Indo_apprehensions.AFMA%>%
+    dplyr::select(-Total)%>%
+    gather(Event.type,Events,-year)%>%
+    mutate(Event.type=ifelse(Event.type=='LF','Legislative forfeiture',Event.type))%>%
+    ggplot(aes(year,Events,color=Event.type))+
+    geom_line()+
+    geom_point(size=2)+
+    xlab('')+ylab('Number of events')+
+    labs(title = "Number of apprehensions of Indonesian fishing vessels in WA",
+         subtitle = '(data provided by AFMA)',
+         caption = "Apprehension: a fishing vessel is seized for fishing illegaly in Australian waters & brought into Darwin for further investigation.\n If found guilty, fishers are usually fined, repatriated & the vessel is destroyed on land.                                         \n
+       Legislative forfeiture: a fishing vessel is interdicted for fishing illegaly in Australian waters.The catch is seized & returned to the \nsea. The fishing gear is seized & disposed of in Darwin.                                                                             \n The vessel is then directed out of Australian waters but vessels can be seized & disposed of at sea.                 ")+
+    theme_PA(leg.siz=14,axs.t.siz=13,axs.T.siz=16,Ttl.siz=17,Sbt.siz=14)+
+    theme(legend.position="top",
+          legend.title=element_blank(),
+          plot.caption = element_text(hjust = 1))
+  
+  #Indo_total.annual.ktch1=Indo_total.annual.ktch #base case
+  Indo_total.annual.ktch1=Indo_total.annual.ktch1%>%mutate(Effort='Apprehensions')
+  Indo_total.annual.ktch=Indo_total.annual.ktch%>%mutate(Effort='Legislative forfeiture')
+  a=rbind(Indo_total.annual.ktch1,Indo_total.annual.ktch)%>%
+    filter(SPECIES %in% c(18022,18003,18007,19002))%>%
+    mutate(Tonnes=LIVEWT.c/1000,
+           Year=as.numeric(substr(FINYEAR,1,4)))
+  p2=a%>%
+    left_join(Species.code%>%
+                dplyr::select(CAAB_code,COMMON_NAME)%>%
+                rename(SPECIES=CAAB_code)%>%
+                filter(SPECIES%in%unique(a$SPECIES)),by='SPECIES')%>%
+    ggplot(aes(Year,Tonnes,color=Effort))+
+    geom_line(size=1.25)+
+    facet_wrap(~COMMON_NAME,scales='free')+
+    theme_PA(leg.siz=14,axs.t.siz=13,axs.T.siz=16,Ttl.siz=17,Sbt.siz=14)+
+    theme(legend.position="none")+
+    xlab('Financial year')+ylab('Total catch (tonnes)')+
+    labs(title = "Reconstructed catch")
+  
+  ggarrange(plotlist = list(p1,p2), ncol=1, common.legend = TRUE)
+  ggsave(paste(handl_OneDrive('Analyses/Reconstruction_catch_commercial/'),'illegal_Indo_IUU_effect of AFMA variable.tiff',sep=''),
+         width = 8,height = 8, dpi = 300, compression = "lzw")
+}
 
 #-- 3.2.6 Taiwanese trawl in North West Shelf  
 #get species composition from McAuley et al 2005

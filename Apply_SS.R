@@ -675,7 +675,15 @@ for(w in 1:n.SS)
                                         Scenario=Scens$Scenario[s])%>%
                                  relocate(Scenario,Par)%>%
                                 `rownames<-`( NULL )
-                                
+              F.ref.points=fn.get.f.ref.points(Report)                 
+              dummi.F=Out.estimates[[s]][1:length(F.ref.points),]
+              dummi.F[,]=NA
+              dummi.F=dummi.F%>%
+                mutate(Scenario=unique(Out.estimates[[s]]$Scenario),
+                       Par=names(F.ref.points),
+                       Value=unlist(F.ref.points))
+              Out.estimates[[s]]=rbind(Out.estimates[[s]],dummi.F)
+              
               #e. Store trajectories
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                      mods="SS3",
@@ -1520,6 +1528,14 @@ for(w in 1:n.SS)
                                          Scenario=Scens$Scenario[s])%>%
                                   relocate(Scenario,Par)%>%
                                   `rownames<-`( NULL )
+              F.ref.points=fn.get.f.ref.points(Report)                 
+              dummi.F=Out.estimates[[s]][1:length(F.ref.points),]
+              dummi.F[,]=NA
+              dummi.F=dummi.F%>%
+                mutate(Scenario=unique(Out.estimates[[s]]$Scenario),
+                       Par=names(F.ref.points),
+                       Value=unlist(F.ref.points))
+              Out.estimates[[s]]=rbind(Out.estimates[[s]],dummi.F)
                                 
               #e. Store trajectories
               dummy=fn.integrated.mod.get.timeseries(d=Report,
@@ -1766,9 +1782,9 @@ for(i in 1:N.sp)
   {
     print(paste("SS3 --- Relative biomass plot -----",Keep.species[i])) 
     a=fn.plot.timeseries(d=Age.based,
-                                   sp=Keep.species[i],
-                                   Type='Depletion',
-                                   YLAB='Relative biomass')
+                         sp=Keep.species[i],
+                         Type='Depletion',
+                         YLAB='Relative biomass')
     if(!is.null(a))
     {
       #export graph
@@ -1783,8 +1799,16 @@ for(i in 1:N.sp)
                          Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                   arrange(Scenario,Range),
                 paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                      capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_current_depletion.csv",sep=''),
+                      capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_current_depletion_probabilities.csv",sep=''),
                 row.names = F)
+      
+      #export current depletion 
+      xx=Age.based$SS$rel.biom[[i]]
+      write.csv(xx,
+                paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                      capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_depletion.csv",sep=''),
+                row.names = F)
+      
       Ref.points[[i]]=a$Ref.points
     }
   }
@@ -1800,7 +1824,7 @@ if(do.F.series)
     a=fn.plot.timeseries(d=Age.based,
                                    sp=Keep.species[i],
                                    Type='F.series',
-                                   YLAB='Fishing mortality')
+                                   YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))
     if(!is.null(a))
     {
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),

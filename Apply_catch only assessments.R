@@ -2782,7 +2782,7 @@ if(do.F.series)
       a=fn.plot.timeseries(d=Catch_only,
                            sp=Keep.species[i],
                            Type='F.series',
-                           YLAB='Fishing mortality')
+                           YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                    capitalize(Keep.species[i]),"/",AssessYr,"/Catch_only_time_series_fishing_mortality.tiff",sep=''),
              width = 5,height = 10,compression = "lzw")
@@ -3048,7 +3048,7 @@ if(do.F.series)
       print(paste("RAR ---- Fishing mortality_catch.only by model-----",names(Lista.sp.outputs)[l]))
       fn.plot.timeseries_combined_Appendix(this.sp=dis.spicis,   
                                            d=Catch_only,
-                                           YLAB="Fishing mortality (y-1)",
+                                           YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")),
                                            NM=names(Lista.sp.outputs)[l],
                                            Type="F.series",
                                            InnerMargin=InMar)

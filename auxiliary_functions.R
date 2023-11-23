@@ -4091,11 +4091,22 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
     {
       Hline=NULL 
       addKtch=FALSE
-      if(Type=='F.series') Var=d[[m]]$f.series[[id]]
+      if(Type=='F.series')
+      {
+        Hline=TRUE
+        Var=d[[m]]$f.series[[id]]
+        didi=d[[m]]$estimates[[id]]%>%
+          dplyr::select(Parameter,Scenario,Median)%>%
+          filter(Parameter%in%c('F.target','F.threshold','F.limit'))
+        dis=data.frame(Target=didi%>%filter(Parameter=='F.target')%>%pull(Median),
+                       Threshold=didi%>%filter(Parameter=='F.threshold')%>%pull(Median),
+                       Limit=didi%>%filter(Parameter=='F.limit')%>%pull(Median),
+                       Scenario=unique(didi$Scenario))
+        Var=Var%>%left_join(dis,by='Scenario')
+      }
       if(Type=='B.Bmsy')
       {
         Hline=TRUE  
-        addKtch=FALSE
         Var=d[[m]]$B.Bmsy[[id]]
         dis=data.frame(Limit=Lim.prop.bmsy,Target=Tar.prop.bmsny,Threshold=1,Scenario=unique(Var$Scenario))
         Var=Var%>%left_join(dis,by='Scenario')
@@ -4104,9 +4115,11 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
       if(Type=='F.Fmsy')
       {
         Hline=TRUE  
-        addKtch=FALSE
         Var=d[[m]]$F.Fmsy[[id]]
-        dis=data.frame(Threshold=1,Scenario=unique(Var$Scenario))
+        dis=data.frame(Target=1-(Tar.prop.bmsny-1),
+                       Threshold=1,
+                       Limit=1+Lim.prop.bmsy,
+                       Scenario=unique(Var$Scenario))
         Var=Var%>%left_join(dis,by='Scenario')
         YLAB=expression("F/F"[MSY])
       }
@@ -4180,7 +4193,22 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
     
     Hline=NULL
     addKtch=FALSE
-    if(Type=='F.series')  Var=d$f.series[id]
+    if(Type=='F.series')
+    {
+      Hline='YES'
+      Var=compact(d$f.series[id])
+      Est=compact(d$estimates[id])
+      for(q in 1:length(Var))
+      {
+        didi=Est[[q]]%>%
+          dplyr::select(Parameter,Scenario,Median)%>%
+          filter(Scenario=='S1' & Parameter%in%c('F.target','F.threshold','F.limit'))
+        Var[[q]]=Var[[q]]%>%
+          mutate(Target=didi%>%filter(Parameter=='F.target')%>%pull(Median),
+                 Threshold=didi%>%filter(Parameter=='F.threshold')%>%pull(Median),
+                 Limit=didi%>%filter(Parameter=='F.limit')%>%pull(Median))
+      }
+    }
     if(Type=='B.Bmsy')
     {
       Hline='YES'
@@ -4203,7 +4231,9 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
       for(q in 1:length(Var))
       {
         Var[[q]]=Var[[q]]%>%
-          mutate(Threshold=1)
+          mutate(Target=1-(Tar.prop.bmsny-1),
+                 Threshold=1,
+                 Limit=1+Lim.prop.bmsy)
       }
       YLAB=expression("F/F"[MSY])
     }
@@ -4671,8 +4701,8 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
   
   kobe <-dta%>%
     ggplot(aes(x, y))+    
-    scale_x_continuous(limits=c(0,Mx.B)) +
-    scale_y_continuous(limits=c(0,Mx.F))+
+    scale_x_continuous(limits=c(0,Mx.B),expand = c(0, 0)) +
+    scale_y_continuous(limits=c(0,Mx.F),expand = c(0, 0))+
     geom_rect(xmin = 1, xmax = Mx.B, ymin = 0, ymax = 1, fill = RiskColors['Low'], alpha = 0.05) +
     geom_rect(xmin = 0, xmax = 1, ymin = 1, ymax = Mx.F, fill = RiskColors['Severe'], alpha = 0.05) +
     geom_rect(xmin = 1, xmax = Mx.B, ymin = 1, ymax = Mx.F, fill = RiskColors['High'], alpha = 0.05) +
@@ -4937,7 +4967,219 @@ fn.get.Kobe.plot=function(this.sp,d,NKOL,NRW,do.probs=FALSE)
                          left = text_grob(expression(F/~F[MSY]), rot = 90,size=22))
   print(figure)
 }
-
+kobePlot_WA.Fisheries=function(f.traj,b.traj,Years,Titl,txt.col='black',YrSize=4,
+                               B.lim,F.lim,B.thr,F.thr,B.tar,F.tar)
+{
+  dta=data.frame(x=b.traj,
+                 y=f.traj,
+                 yr=Years)%>%
+    arrange(yr)
+  Mx.F=max(F.lim,max(dta$y,na.rm=T))
+  Mx.B=max(1.1,max(dta$x,na.rm=T))
+  
+  kobe <-dta%>%
+    ggplot(aes(x, y))+    
+    scale_x_continuous(limits=c(0,Mx.B),expand = c(0, 0)) +
+    scale_y_continuous(limits=c(0,Mx.F),expand = c(0, 0))+
+    geom_rect(xmin = 0, xmax = Mx.B, ymin = 0, ymax = Mx.F, fill = RiskColors['Severe'], alpha = 0.05)+
+    geom_rect(xmin = B.lim, xmax = Mx.B, ymin = 0, ymax = F.lim, fill = RiskColors['High'], alpha = 0.05)+
+    geom_rect(xmin = B.thr, xmax = Mx.B, ymin = 0, ymax = F.thr, fill = RiskColors['Medium'], alpha = 0.05)+
+    geom_rect(xmin = B.tar, xmax = Mx.B, ymin = 0, ymax = F.tar, fill = RiskColors['Low'], alpha = 0.05)
+  
+  kobe <-kobe +
+    geom_path(linetype = 2, size = 0.5,color='deepskyblue4')+
+    geom_point(size=2,color='deepskyblue4')+
+    geom_point(aes(x=dta[1,'x'],y=dta[1,'y']),size=4,shape=22,fill='white',alpha=.3)+
+    geom_point(aes(x=dta[nrow(dta),'x'],y=dta[nrow(dta),'y']),size=4,shape=25,fill='white',alpha=.3)+      
+    geom_text_repel(data=dta[1,],aes(x=x,y=y,label=yr),size=YrSize,color=txt.col)+
+    geom_text_repel(data=dta[nrow(dta),],aes(x=x,y=y,label=yr),size=YrSize,color=txt.col)+
+    xlab(expression(B/~B[0]))+ylab(expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))+
+    labs(title = Titl)+
+    theme_bw()%+replace% 
+    theme(panel.grid.minor = element_blank(),
+          axis.text = element_text(size=16),
+          axis.title = element_text(size=20),
+          plot.title = element_text(size=20,hjust=0),
+          legend.text = element_text(size=15),
+          legend.title = element_text(size=17),
+          legend.margin=margin(0,0,0,0),
+          legend.box.margin=margin(-10,0,-10,-10))
+  return(kobe)
+}
+fn.get.Kobe.plot_appendix_WA.Fisheries=function(d,sp,Scen='S1',add.sp.nm=FALSE,txt.size=6,RF=Ref.points)
+{
+  id=match(sp,Keep.species)
+  plotlist=vector('list',length(d))
+  names(plotlist)=names(d)
+  for(pp in 1:length(d))
+  {
+    B.ref.points=do.call(rbind,RF[[id]])%>%filter(Scenario==Scen)
+    
+    #JABBA
+    if('JABBA'%in%names(d)[[pp]])
+    {
+      dummy=d$JABBA$rel.biom[[id]]%>%
+        filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
+      yrs=dummy%>%pull(year)
+      B=dummy$median
+      FF=d$JABBA$f.series[[id]]%>%
+        filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
+        pull(median)
+      F.ref.points=d$JABBA$estimates[[id]]%>%
+        filter(Scenario==Scen & Parameter%in%c('F.target','F.threshold','F.limit'))
+      
+      p.plot=kobePlot_WA.Fisheries(f.traj=FF,
+                                   b.traj=B,
+                                   Years=yrs,
+                                   Titl="JABBA",
+                                   YrSize=txt.size,
+                                   B.lim=B.ref.points%>%filter(Rf.pt=='Limit')%>%pull(Value),
+                                   F.lim=F.ref.points%>%filter(Parameter=='F.limit')%>%pull(Median),
+                                   B.thr=B.ref.points%>%filter(Rf.pt=='Threshold')%>%pull(Value),
+                                   F.thr=F.ref.points%>%filter(Parameter=='F.threshold')%>%pull(Median),
+                                   B.tar=B.ref.points%>%filter(Rf.pt=='Target')%>%pull(Value),
+                                   F.tar=F.ref.points%>%filter(Parameter=='F.target')%>%pull(Median))
+      
+      
+    }
+    
+    #SS
+    if('SS'%in%names(d)[[pp]])
+    {
+      dummy=d$SS$rel.biom[[id]]%>%
+        filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
+      yrs=dummy%>%pull(year)
+      B=dummy$median
+      FF=d$SS$F.Fmsy[[id]]%>%
+        filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
+        pull(median)
+      F.ref.points=d$SS$estimates[[id]]%>%
+        filter(Scenario==Scen & Parameter%in%c('F.target','F.threshold','F.limit'))
+      
+      p.plot=kobePlot_WA.Fisheries(f.traj=FF[1:length(yrs)],
+                                   b.traj=B[1:length(yrs)],
+                                   Years=yrs,
+                                   Titl="SS",
+                                   YrSize=txt.size,
+                                   B.lim=B.ref.points%>%filter(Rf.pt=='Limit')%>%pull(Value),
+                                   F.lim=F.ref.points%>%filter(Parameter=='F.limit')%>%pull(Median),
+                                   B.thr=B.ref.points%>%filter(Rf.pt=='Threshold')%>%pull(Value),
+                                   F.thr=F.ref.points%>%filter(Parameter=='F.threshold')%>%pull(Median),
+                                   B.tar=B.ref.points%>%filter(Rf.pt=='Target')%>%pull(Value),
+                                   F.tar=F.ref.points%>%filter(Parameter=='F.target')%>%pull(Median))
+      rm(yrs,Fmsy,Bmsy,dummy)
+    }
+    
+    if(length(id)>1)
+    {
+      plotlist[[pp]]=p.plot+rremove("axis.title")
+    }else
+    {
+      plotlist[[pp]]=p.plot
+    }
+    
+  }
+  
+  if(length(plotlist)<4)
+  {
+    nKl=1
+    nRw=length(plotlist)
+  }
+  if(length(plotlist)>=4)
+  {
+    nKl=2
+    nRw=length(plotlist)/2
+  }
+  
+  figure <- ggarrange(plotlist=plotlist,
+                      ncol=nKl,nrow=nRw,common.legend = FALSE)
+  if(add.sp.nm) figure=figure+theme(plot.margin = margin(1,0,0,0, "cm"))
+  # figure=annotate_figure(figure,
+  #                        bottom = text_grob(expression(B/~B[0]), size=22),
+  #                        left = text_grob('Fishing mortality', rot = 90,size=22))
+  if(add.sp.nm) figure=annotate_figure(figure,
+                                       fig.lab=capitalize(sp),
+                                       fig.lab.pos='top.left',
+                                       fig.lab.size=24)
+  
+  print(figure)
+  return(plotlist)
+}
+fn.get.Kobe.plot_WA.Fisheries=function(this.sp,d,NKOL,NRW,RF=Ref.points)
+{
+  id=match(this.sp,names(d$rel.biom))
+  Bmsy=d$rel.biom[id]
+  Fmsy=d$f.series[id]
+  plotlist=vector('list',length(Bmsy))
+  for(x in 1:length(Bmsy))
+  {
+    dis.fmsy=Fmsy[[x]]%>%filter(year<=Last.yr.ktch.numeric)
+    dis.bmsy=Bmsy[[x]]%>%filter(year<=Last.yr.ktch.numeric)
+    if('Scenario'%in%names(dis.fmsy))
+    {
+      dis.fmsy=dis.fmsy%>%filter(Scenario=='S1')
+      dis.bmsy=dis.bmsy%>%filter(Scenario=='S1')
+    }
+    B.ref.points=do.call(rbind,RF[id][[x]])%>%filter(Scenario=='S1')
+    F.ref.points=d$estimates[id][[x]]%>%
+      filter(Scenario=='S1' & Parameter%in%c('F.target','F.threshold','F.limit'))
+    
+    dd=kobePlot_WA.Fisheries(f.traj=dis.fmsy$median,
+                             b.traj=dis.bmsy$median,
+                             Years=dis.bmsy$year,
+                             Titl=capitalize(names(Bmsy)[x]),
+                             YrSize=5,
+                             B.lim=B.ref.points%>%filter(Rf.pt=='Limit')%>%pull(Value),
+                             F.lim=F.ref.points%>%filter(Parameter=='F.limit')%>%pull(Median),
+                             B.thr=B.ref.points%>%filter(Rf.pt=='Threshold')%>%pull(Value),
+                             F.thr=F.ref.points%>%filter(Parameter=='F.threshold')%>%pull(Median),
+                             B.tar=B.ref.points%>%filter(Rf.pt=='Target')%>%pull(Value),
+                             F.tar=F.ref.points%>%filter(Parameter=='F.target')%>%pull(Median))
+    plotlist[[x]]=dd+rremove("axis.title")
+  }
+  figure <- ggarrange(plotlist=plotlist,ncol=NKOL,nrow=NRW,common.legend = FALSE)
+  figure=annotate_figure(figure,
+                         bottom = text_grob(expression(B/~B[0]), size=22),
+                         left = text_grob(expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")), rot = 90,size=22))
+  print(figure)
+}
+fn.get.f.ref.points=function(Report,propTar=Tar.prop.bmsny,propLim=Lim.prop.bmsy)
+{
+  SSB_MSY=Report$derived_quants%>%filter(Label=='SSB_MSY')%>%pull(Value)
+  
+  B.threshold=SSB_MSY
+  B.target=SSB_MSY*propTar
+  B.limit=SSB_MSY*propLim
+  
+  Equil.yield=Report$equil_yield%>%
+    distinct(SSB,.keep_all=T)%>%
+    dplyr::select(SPRloop,Iter,SSB,Tot_Catch,Fmult,F_report)%>%
+    arrange(SSB)
+  id.threshold=which.min(abs(Equil.yield$SSB - B.threshold))
+  id.target=which.min(abs(Equil.yield$SSB - B.target))
+  id.limit=which.min(abs(Equil.yield$SSB - B.limit))
+  F.threshold=Equil.yield$F_report[id.threshold]
+  #Report$derived_quants%>%filter(Label=='annF_MSY')%>%pull(Value)
+  F.target=Equil.yield$F_report[id.target]
+  F.limit=Equil.yield$F_report[id.limit]
+  
+  dd=Equil.yield[c(id.target,id.threshold,id.limit),]%>%
+    mutate(Labl=paste0(c('F[Tar]','F[Thr]','F[Lim]'),paste0(' (',round(F_report,3),')')))
+  
+  Kls=c('forestgreen','orange','red')
+  names(Kls)=dd$Labl
+  
+  Equil.yield%>%
+    ggplot(aes(SSB,Tot_Catch))+
+    geom_line()+
+    ylab('Catch (tonnes)')+xlab('Spawning stock biomass (tonnes)')+
+    theme_PA()+theme(legend.position="none")+
+    geom_text_repel(data=dd,aes(SSB,Tot_Catch,label = Labl,color=Labl),
+                    box.padding=3,size=5, parse = TRUE)+
+    scale_colour_manual(values=Kls,labels=names(Kls))
+  ggsave(paste(this.wd1,'F reference points.tiff',sep='/'),width = 6,height = 6, dpi = 300, compression = "lzw")
+  return(list(F.target=F.target,F.threshold=F.threshold,F.limit=F.limit)) 
+}
 # Store consequence-likelihood  ------------------------------------------------------
 fn.get.cons.like=function(lista,Mod.Avrg.weight=NULL)
 {
@@ -5060,44 +5302,111 @@ fn.get.cons.like=function(lista,Mod.Avrg.weight=NULL)
   return(list(Depletion=out2,B.over.Bmsy=out2.bmsy))
 }
 # Weight of Evidence assessment   ------------------------------------------------------
-fun.risk.spatial.dist=function(d)
+fun.risk.spatial.dist=function(d,Optns=c('increasing','stable','decreasing'),Mult1=.9,Mult2=.75,outpath)
 {
-  risk.tab=vector('list',nrow(d))
-  for(r in 1:nrow(d))
+  DD=expand.grid(Effort=Optns,
+                 Blocks.fished=Optns,
+                 Blocks.fished.with.catch=Optns)%>%
+    mutate(Effort.score=case_when(Effort=='increasing' ~ 3,
+                                  Effort=='stable' ~ 2,
+                                  Effort=='decreasing' ~ 1),
+           Blocks.fished.score=case_when(Blocks.fished=='increasing' ~ 3,
+                                         Blocks.fished=='stable' ~ 2,
+                                         Blocks.fished=='decreasing' ~ 1),
+           Blocks.fished.with.catch.score=case_when(Blocks.fished.with.catch=='increasing' ~ 1,
+                                                    Blocks.fished.with.catch=='stable' ~ 2,
+                                                    Blocks.fished.with.catch=='decreasing' ~ 3),
+           Score=Effort.score*Blocks.fished.score*Blocks.fished.with.catch.score,
+           Score=case_when(Score==18 & Blocks.fished.with.catch=='decreasing' & Effort=='increasing'~27*Mult2,
+                           Score==18 & Blocks.fished.with.catch=='decreasing' & Blocks.fished=='increasing'~27*Mult1,
+                           Score==12 & Blocks.fished.with.catch=='decreasing' ~18*Mult1,
+                           Score==12 & Blocks.fished.with.catch=='stable' & Blocks.fished=='increasing' ~18*Mult2,
+                           Score==9 & Blocks.fished.with.catch=='decreasing' & Blocks.fished=='increasing' ~12*0.95,
+                           Score==9 & Blocks.fished.with.catch=='decreasing' & Effort=='increasing'~12*0.85,
+                           TRUE~Score),
+           Consequence=round(rescale((4*Score)/max(Score),to=c(1,4))),
+           Likelihood=4)
+  
+  out.table=DD%>%
+    arrange(Consequence)%>%
+    mutate(across(where(is.factor), as.character))%>%
+    dplyr::select(Effort,Blocks.fished,Blocks.fished.with.catch,Consequence,Likelihood)%>%
+    mutate(Effort=capitalize(Effort),
+           Blocks.fished=capitalize(Blocks.fished),
+           Blocks.fished.with.catch=capitalize(Blocks.fished.with.catch))
+  write.csv(out.table,paste(outpath,'Spatial_LoE_Table.csv',sep='/'),row.names = F)
+  
+  out.table%>%
+    flextable()%>%
+      set_header_labels(Blocks.fished="Blocks\nfished",
+                        Blocks.fished.with.catch="Blocks fished\nwith catch")%>%
+    width(j='Blocks.fished.with.catch',width=3,unit='cm')%>%
+    align(align="left")%>% save_as_docx( path = paste(outpath,'Spatial_LoE_Table.docx',sep='/'))
+  
+  
+  risk.tab=d%>%
+    mutate(Blocks.fished.with.catch=ifelse(Market=='decreasing' | Conservation=='yes','stable',Blocks.fished.with.catch))%>%
+    dplyr::select(Species,Effort,Blocks.fished,Blocks.fished.with.catch)%>%
+    left_join(DD%>%dplyr::select(Effort,Blocks.fished,Blocks.fished.with.catch,Consequence,Likelihood),
+              by=c('Effort','Blocks.fished','Blocks.fished.with.catch'))%>%
+    dplyr::select(Species,Consequence,Likelihood)%>%
+    mutate(Probability=NA,
+           w=1,
+           Species=capitalize(Species),
+           dummy=paste(Species,Consequence,Likelihood))
+  
+  add.dummy=data.frame(Species=rep(risk.tab$Species,each=4))%>%
+    mutate(Consequence=rep(seq(1,4),nrow(risk.tab)),
+           Likelihood=rep(c(4,2,1,1),nrow(risk.tab)),
+           Probability=NA,
+           w=1,
+           dummy=paste(Species,Consequence,Likelihood))%>%
+    filter(!dummy%in%risk.tab$dummy)
+  risk.tab=rbind(risk.tab,add.dummy)%>%
+    dplyr::select(-dummy)%>%
+    arrange(Species)
+  
+  
+  OLD.way=FALSE
+  if(OLD.way)
   {
-    Like.C1=with(d[r,],
-                 ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),4,
-                 ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',4,
-                 ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',4,
-                 ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',4,
-                 NA)))))
-    Like.C2=with(d[r,],
-                 ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),2,
-                 ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',2,
-                 ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',2,
-                 ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',2,
-                 NA)))))
-    Like.C3=with(d[r,],
-                 ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),1,
-                 ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',1,
-                 ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',1,
-                 ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',1,
-                 NA)))))
-    Like.C4=with(d[r,],
-                 ifelse(Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('zero','decreasing'),1,
-                 ifelse(Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing',1,
-                 ifelse(Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing',1,
-                 ifelse(Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing',1,
-                 NA)))))
+    risk.tab=d%>%
+      mutate(Like.C1=case_when(Conservation=='yes' & Catch=='zero' & Blocks.with.catch%in%c('zero')~4,
+                               Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('decreasing')~3,
+                               Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing'~4,
+                               Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing'~4,
+                               Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing'~4,
+                               TRUE~NA_real_),
+             Like.C2=case_when(Conservation=='yes' & Catch=='zero' & Blocks.with.catch%in%c('zero')~2,
+                               Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('decreasing')~2,
+                               Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing'~2,
+                               Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing'~2,
+                               Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing'~2,
+                               TRUE~NA_real_),
+             Like.C3=case_when(Conservation=='yes' & Catch=='zero' & Blocks.with.catch%in%c('zero')~1,
+                               Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('decreasing')~1,
+                               Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing'~1,
+                               Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing'~1,
+                               Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing'~1,
+                               TRUE~NA_real_),
+             Like.C4=case_when(Conservation=='yes' & Catch=='zero' & Blocks.with.catch%in%c('zero')~1,
+                               Conservation=='yes' & Catch=='decreasing' & Blocks.with.catch%in%c('decreasing')~1,
+                               Market%in%c('zero','decreasing') & Catch=='decreasing' & Management_driven.effort=='decreasing'~1,
+                               Market=='increasing' & Catch=='decreasing' & Blocks.with.catch=='increasing' & Management_driven.effort=='decreasing'~1,
+                               Market%in%c('stable') & Catch=='decreasing' & Blocks.with.catch=='stable' & Management_driven.effort=='decreasing'~1,
+                               TRUE~NA_real_))%>%
+      dplyr::select(Species,Like.C1,Like.C2,Like.C3,Like.C4)%>%
+      gather(Consequence,Likelihood,-Species)%>%
+      mutate(Consequence=as.integer(gsub('[Like.C]','',Consequence)),
+             Probability=NA,
+             w=1,
+             Species=capitalize(Species))%>%
+      arrange(Species)
     
-    risk.tab[[r]]=data.frame(Species=d[r,]$Species,
-                             Consequence=1:4,
-                             Likelihood=c(Like.C1,Like.C2,Like.C3,Like.C4))
   }
-  return(do.call(rbind,risk.tab)%>%
-           mutate(Probability=NA,
-                  w=1,
-                  Species=capitalize(Species)))
+  
+  return(risk.tab)
+  
 }
 fun.risk.CoMs=function(d)
 {

@@ -91,6 +91,7 @@ library(tictoc)
 library(ks)
 library(ggwordcloud)
 library(grid)
+library("gg3D")
 
 clear.log <- function(x, env = globalenv()) if(exists(x, envir = env))  rm(list = x, envir = env)
 
@@ -3464,23 +3465,24 @@ Risk.PSA$LoE='PSA'
 
 #1.2 Spatial distribution of catch and effort
 Risk.Spatial=fun.risk.spatial.dist(d=data.frame(Species=c("angel sharks","copper shark","dusky shark","hammerheads","grey nurse shark",
-                                             "gummy shark","lemon shark","sandbar shark","sawsharks","shortfin mako",
-                                             "spinner shark","spurdogs","tiger shark","whiskery shark","wobbegongs"))%>%
-                        mutate(Market=case_when(Species%in%c("grey nurse shark")~'zero',
-                                                Species%in%c("spurdogs","sawsharks")~'decreasing',
-                                                Species%in%c("sandbar shark","copper shark","hammerheads",
-                                                             "spinner shark","tiger shark","wobbegongs")~'increasing',
-                                                TRUE~'stable'),
-                               Conservation=case_when(Species=='grey nurse shark'~'yes',
-                                                      TRUE~'no'),
-                               Blocks.fished=case_when(Species%in%c('grey nurse shark',"tiger shark","sandbar shark")~'decreasing',
-                                                       TRUE~'stable'),
-                               Blocks.with.catch=case_when(Species%in%c('grey nurse shark',"spurdogs","sawsharks")~'decreasing',
-                                                           Species%in%c("sandbar shark","copper shark","hammerheads",
-                                                                        "spinner shark","tiger shark","wobbegongs")~'increasing',
-                                                           TRUE~'stable'),
-                               Management_driven.effort='decreasing',
-                               Catch='decreasing'))
+                                                          "gummy shark","lemon shark","sandbar shark","sawsharks","shortfin mako",
+                                                          "spinner shark","spurdogs","tiger shark","whiskery shark","wobbegongs"))%>%
+                                     mutate(Market=case_when(Species%in%c("grey nurse shark")~'zero',
+                                                             Species%in%c("spurdogs","sawsharks")~'decreasing',
+                                                             Species%in%c("sandbar shark","copper shark","hammerheads",
+                                                                          "spinner shark","tiger shark","wobbegongs")~'increasing',
+                                                             TRUE~'stable'),
+                                            Conservation=case_when(Species=='grey nurse shark'~'yes',
+                                                                   TRUE~'no'),
+                                            Blocks.fished=case_when(Species%in%c('grey nurse shark',"tiger shark","sandbar shark")~'decreasing',
+                                                                    TRUE~'stable'),
+                                            Blocks.fished.with.catch=case_when(Species%in%c('grey nurse shark',"spurdogs","sawsharks")~'decreasing',
+                                                                               Species%in%c("sandbar shark","copper shark","hammerheads",
+                                                                                            "spinner shark","tiger shark","wobbegongs")~'increasing',
+                                                                               TRUE~'stable'),
+                                            Effort='decreasing',
+                                            Catch='decreasing'),
+                                   outpath=Rar.path)
 Risk.Spatial=Risk.Spatial%>%
               mutate(LoE='Spatial',
                      Species=ifelse(Species=="Hammerheads","Smooth hammerhead",Species))

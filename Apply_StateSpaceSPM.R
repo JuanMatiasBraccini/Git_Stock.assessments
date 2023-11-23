@@ -422,6 +422,19 @@ for(w in 1:length(State.Space.SPM))
                        Scenario=names(Store.sens)[s])%>%
                 relocate(Model,Scenario,Parameter,Lower.95)  
               Out.estimates[[s]]=d1
+              dummi.F=Out.estimates[[s]][1:3,]  
+              dummi.F[,]=NA  
+              rownames(dummi.F)=c('F.target','F.threshold','F.limit')
+              MSy=d1%>%filter(Parameter=='MSY')%>%pull(Median)
+              BMSy=d1%>%filter(Parameter=='SBmsy')%>%pull(Median)
+              dummi.F=dummi.F%>%
+                mutate(Model=unique(Out.estimates[[s]]$Model),
+                       Scenario=unique(Out.estimates[[s]]$Scenario),
+                       Parameter=rownames(dummi.F),
+                       Median=c(((MSy * (2 - Tar.prop.bmsny))/ BMSy),
+                                d1%>%filter(Parameter=='Hmsy')%>%pull(Median),
+                                (MSy * ((2 - Lim.prop.bmsy))/ BMSy)))  
+              Out.estimates[[s]]=rbind(Out.estimates[[s]],dummi.F)
               
               #Store trajectories  
               dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
@@ -1042,8 +1055,21 @@ for(w in 1:length(State.Space.SPM))
                        Model='JABBA CPUE',
                        Scenario=names(Store.sens)[s])%>%
                 relocate(Model,Scenario,Parameter,Lower.95)
-                   
               Out.estimates[[s]]=d1
+              dummi.F=Out.estimates[[s]][1:3,]  
+              dummi.F[,]=NA  
+              rownames(dummi.F)=c('F.target','F.threshold','F.limit')
+              MSy=d1%>%filter(Parameter=='MSY')%>%pull(Median)
+              BMSy=d1%>%filter(Parameter=='SBmsy')%>%pull(Median)
+              dummi.F=dummi.F%>%
+                mutate(Model=unique(Out.estimates[[s]]$Model),
+                       Scenario=unique(Out.estimates[[s]]$Scenario),
+                       Parameter=rownames(dummi.F),
+                       Median=c(((MSy * (2 - Tar.prop.bmsny))/ BMSy),
+                                d1%>%filter(Parameter=='Hmsy')%>%pull(Median),
+                                (MSy * ((2 - Lim.prop.bmsy))/ BMSy)))   
+              Out.estimates[[s]]=rbind(Out.estimates[[s]],dummi.F)
+              
               
               #Store trajectories  
               dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
@@ -1332,13 +1358,13 @@ Ref.points=vector('list',N.sp)
 names(Ref.points)=Keep.species
 for(i in 1:N.sp)
 {
-  print(paste("JABBA --- Relative biomass plot -----",Keep.species[i])) 
   a=fn.plot.timeseries(d=State.Space.SPM,
                        sp=Keep.species[i],
                        Type='Depletion',
                        YLAB='Relative biomass')
   if(!is.null(a))
   {
+    print(paste("JABBA --- Relative biomass plot -----",Keep.species[i])) 
     #export graph
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                  capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_time_series_relative_biomass.tiff",sep=''),
@@ -1351,23 +1377,31 @@ for(i in 1:N.sp)
                        Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                 arrange(Scenario,Range),
               paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                    capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_current_depletion.csv",sep=''),
+                    capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_current_depletion_probabilities.csv",sep=''),
               row.names = F)
+    
+    #export current depletion
+    xx=State.Space.SPM$JABBA$rel.biom[[i]]
+    write.csv(xx,
+              paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                    capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_depletion.csv",sep=''),
+              row.names = F)
+    
     Ref.points[[i]]=a$Ref.points$JABBA
   }
 }
-  #24.3.1.2 Fishing mortality
+  #24.3.1.2 Fishing mortality 
 if(do.F.series)
 {
   for(i in 1:N.sp)
   {
-    print(paste("JABBA --- Fishing mortality plot -----",Keep.species[i]))
     a=fn.plot.timeseries(d=State.Space.SPM,
                          sp=Keep.species[i],
                          Type='F.series',
-                         YLAB='Fishing mortality')
+                         YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))
     if(!is.null(a))
     {
+      print(paste("JABBA --- Fishing mortality plot -----",Keep.species[i]))
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                    capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_time_series_fishing_mortality.tiff",sep=''),
              width = 8,height = 12,compression = "lzw")
@@ -1379,13 +1413,13 @@ if(do.B.over.Bmsy.series)
 {
   for(i in 1:N.sp)
   {
-    print(paste("JABBA --- B over Bmsy plot -----",Keep.species[i]))
     a=fn.plot.timeseries(d=State.Space.SPM,
                          sp=Keep.species[i],
                          Type='B.Bmsy',
                          YLAB='B/Bmsy')
     if(!is.null(a))
     {
+      print(paste("JABBA --- B over Bmsy plot -----",Keep.species[i]))
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                    capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_time_series_B_Bmsy.tiff",sep=''),
              width = 8,height = 12,compression = "lzw")
@@ -1397,13 +1431,13 @@ if(do.F.over.Fmsy.series)
 {
   for(i in 1:N.sp)
   {
-    print(paste("JABBA --- F over Fmsy plot -----",Keep.species[i]))
     a=fn.plot.timeseries(d=State.Space.SPM,
-                                   sp=Keep.species[i],
-                                   Type='F.Fmsy',
-                                   YLAB='F/Fmsy')
+                         sp=Keep.species[i],
+                         Type='F.Fmsy',
+                         YLAB='F/Fmsy')
     if(!is.null(a))
     {
+      print(paste("JABBA --- F over Fmsy plot -----",Keep.species[i]))
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                    capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_time_series_F_Fmsy.tiff",sep=''),
              width = 8,height = 12,compression = "lzw")
@@ -1573,6 +1607,27 @@ if(do.F.over.Fmsy.series)
                           width = WIDt,height = 10,compression = "lzw")
   }
 }
+  #24.3.2.4 F series  
+if(do.F.series)
+{
+  #figure
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    print(paste("RAR --- F_JABBA plot S1 -----",names(Lista.sp.outputs)[l],"----- single plot")) 
+    if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
+    a=fn.plot.timeseries_combined(this.sp=Lista.sp.outputs[[l]],
+                                  d=State.Space.SPM$JABBA,
+                                  YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")),
+                                  Type="F.series",
+                                  InnerMargin=InMar,
+                                  RefPoint=NULL,
+                                  Kach=State.Space.SPM$JABBA$rel.biom)
+    WIDt=10
+    if(length(compact(State.Space.SPM$JABBA$sens.table))<=3) WIDt=7
+    if(!is.null(a))ggsave(paste(Rar.path,'/F.series_JABBA CPUE_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+                          width = WIDt,height = 10,compression = "lzw")
+  }
+}
 
   #24.3.3 Display sensitivity tests for combined species
 for(l in 1:length(Lista.sp.outputs))
@@ -1609,7 +1664,7 @@ for(l in 1:length(Lista.sp.outputs))
                     capitalize(List.sp[[i]]$Name),"/",AssessYr,"/JABBA CPUE",sep='')
       if(file.exists(this.wd))
       {
-        Scens=List.sp[[i]]$Sens.test$JABBA$Scenario #ACA
+        Scens=List.sp[[i]]$Sens.test$JABBA$Scenario 
         a=vector('list',length(Scens))
         for(s in 1:length(Scens))
         {
@@ -1681,7 +1736,46 @@ for(l in 1:length(Lista.sp.outputs))
 }
 
 
-#24.6 store Consequence and likelihood for WoE
+#24.6 Kobe plots WA.Fisheries style (Scenario 1)
+  #24.6.1 by species  
+for(i in 1:N.sp)
+{
+  if(!is.null(State.Space.SPM$JABBA$estimates[[i]]))
+  {
+    print(paste("JABBA --- Kobe plot WA Fisheries-----",Keep.species[i]))
+    fn.get.Kobe.plot_appendix_WA.Fisheries(d=State.Space.SPM,
+                                           sp=Keep.species[i])
+    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                 capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_Kobe_plot_WA_Fisheries.tiff",sep=''),
+           width = 10,height = 10, dpi = 300,compression = "lzw")
+  }
+}
+  #24.6.2 Display combined species  
+for(l in 1:length(Lista.sp.outputs))
+{
+  Nms=names(compact(State.Space.SPM$JABBA$estimates))
+  this.sp=Lista.sp.outputs[[l]]
+  this.sp=this.sp[which(this.sp%in%Nms)]
+  if(length(this.sp)>0)
+  {
+    print(paste("JABBA --- Kobe plot WA Fisheries-----",names(Lista.sp.outputs)[l]))
+    DIMS=n2mfrow(length(this.sp))
+    NKOL=DIMS[2]
+    NRW=DIMS[1]
+    if(NKOL%in%3:4) WIZ=14
+    if(NKOL==2) WIZ=11
+    if(NKOL==1) WIZ=9
+    fn.get.Kobe.plot_WA.Fisheries(this.sp,
+                                  d=State.Space.SPM$JABBA,
+                                  NKOL,
+                                  NRW)
+    ggsave(paste(Rar.path,'/Kobe_plot_JABBA CPUE_WA_Fisheries_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+           width = WIZ,height = 12,compression = "lzw")
+  }
+}
+
+
+#24.7 store Consequence and likelihood for WoE
 get.cons.like.JABBA=FALSE  #import from table instead
 if(get.cons.like.JABBA) Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 
 
