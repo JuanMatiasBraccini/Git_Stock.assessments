@@ -75,6 +75,7 @@ for(l in 1:N.sp)
   
   
     #steepness
+  h.min=round(min(store.species.steepness.S2[[l]],store.species.steepness_M.mean[[l]]$mean),3)
   h.M_mean2=round(max(Min.h.shark,store.species.steepness.S2[[l]]),3)
   h.M_mean=round(store.species.steepness_M.mean[[l]]$mean,3)
   if(NeiM%in%h_too.long.converge) h.M_mean=h.M_mean2
@@ -356,10 +357,12 @@ for(l in 1:N.sp)
   #-- 4.1 SS
   
   #4.1.1 Scenarios
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS3[1,] 
-  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,h.M.mean_low,List.sp[[l]]$Sens.test$SS$Steepness[1])
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS3[1,]%>%
+                              mutate(NSF.selectivity=NA)
+  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,h.min,List.sp[[l]]$Sens.test$SS$Steepness[1])
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
   if(NeiM%in%h_too.low)  tested.h=c(h.M_mean2,store.species.steepness_M.mean[[l]]$mean,h.M_mean2) 
+  tested.h=unique(tested.h)
   List.sp[[l]]$Sens.test$SS=do.call("rbind", replicate(length(tested.h), List.sp[[l]]$Sens.test$SS, simplify = FALSE))%>%
                               mutate(Steepness=tested.h,
                                      Scenario=paste('S',row_number(),sep=''))
@@ -370,21 +373,34 @@ for(l in 1:N.sp)
   if(!is.na(ramp.yrs$LnRo))
   {
     List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
-                                mutate(Ln_R0_init=ramp.yrs$LnRo)
+                                mutate(Ln_R0_init=ramp.yrs$LnRo,
+                                       Ln_R0_max=ramp.yrs$Ln_R0_max)
   }
     #M at age
     List.sp[[l]]$Sens.test$SS$M.at.age=rep('Mmean.mean.at.age',nrow(List.sp[[l]]$Sens.test$SS)) #use Mean M for consistency with h
 
     #Cpues
-  List.sp[[l]]$Sens.test$SS$Daily.cpues=c(rep(drop.daily.cpue,length(tested.h)-1),NA)
+    if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,length(tested.h))
+    if(evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=c(rep(drop.daily.cpue,length(tested.h)-1),NA)
   
     #Always calculate extra SD for Q or only when CV is small
   List.sp[[l]]$Sens.test$SS$extra.SD.Q='always'
   
     #Remove SSS inputs
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%dplyr::select(-c(Final.dpl,Sims))
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
+                                  mutate(Model='SS')%>%
+                                  dplyr::select(-c(Final.dpl,Sims))
   
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
+  
+    #Alternative selectivity for NSF and survey
+  if(NeiM%in%alternative.NSF.selectivity)
+  {
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+              mutate(NSF.selectivity='Logistic',
+                     Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
   
     #4.1.2 Growth
   List.sp[[l]]$Growth.CV_young=0.1  #constant CV 8.5%-10% Tremblay-Boyer et al 2019
@@ -431,12 +447,22 @@ for(l in 1:N.sp)
       p5.sel=NA 
       p6.sel=NA 
     }
+    if(NeiM%in%alternative.NSF.selectivity)
+    {
+      p1.sel_sens=Logistic_p1       
+      p2.sel_sens=Logistic_p2 
+      p3.sel_sens=NA
+      p4.sel_sens=NA 
+      p5.sel_sens=NA 
+      p6.sel_sens=NA 
+    }
     p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel       
     p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel 
     p3.sel_NSF=p3.sel_Other=p3.sel_Survey=p3.sel
     p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel 
     p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel 
     p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel 
+
       #TDGLDF
     p1.sel_TDGDLF=TDGDLF_p1
     p2.sel_TDGDLF=TDGDLF_p2
@@ -463,7 +489,24 @@ for(l in 1:N.sp)
                                            P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
                                            P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
                                            P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))
-    #retention
+    if(NeiM%in%alternative.NSF.selectivity)
+    {
+      p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel_sens       
+      p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel_sens 
+      p3.sel_NSF=p3.sel_Other=p3.sel_Survey=p3.sel_sens
+      p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel_sens 
+      p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel_sens
+      p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel_sens
+      List.sp[[l]]$SS_selectivity.sensitivity=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
+                                             P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
+                                             P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
+                                             P_3=c(p3.sel_NSF,p3.sel_Other,p3.sel_TDGDLF,p3.sel_TDGDLF,p3.sel_Survey),
+                                             P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
+                                             P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
+                                             P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))
+      
+    }
+    #retention & discard mortality
     if(any(!is.na(SS.sel.init.pars[,grepl('Ret_',names(SS.sel.init.pars))])))
     {
       xx=SS.sel.init.pars[,grepl('Ret_',names(SS.sel.init.pars))]
@@ -473,9 +516,22 @@ for(l in 1:N.sp)
                                              P_1=xx$Ret_p1,
                                              P_2=xx$Ret_p2,
                                              P_3=xx$Ret_p3,
-                                             P_4=xx$Ret_p4)
+                                             P_4=xx$Ret_p4,
+                                             P_5=xx$Ret_p5,
+                                             P_6=xx$Ret_p6,
+                                             P_7=xx$Ret_p7)
       }
         
+      yy=SS.sel.init.pars[,grepl('Disc_Fleet',names(SS.sel.init.pars))]
+      if(!is.na(yy$Disc_Fleet_L1))
+      {
+        List.sp[[l]]$SS_discard_mortality=data.frame(Fleet=xx$Ret_Fleet,
+                                                     P_1=yy$Disc_Fleet_L1,
+                                                     P_2=yy$Disc_Fleet_L2,
+                                                     P_3=yy$Disc_Fleet_L3,
+                                                     P_4=yy$Disc_Fleet_L4)
+      }
+      
     }
     
     #phases
@@ -491,6 +547,12 @@ for(l in 1:N.sp)
     {
       p1.sel=Phase_Logistic_p1       
       p2.sel=Phase_Logistic_p2 
+    }
+    if(NeiM%in%alternative.NSF.selectivity)
+    {
+      p1.sel_sens=Phase_Logistic_p1       
+      p2.sel_sens=Phase_Logistic_p2
+      p3.sel_sens=p4.sel_sens=p5.sel_sens=p6.sel_sens=NA
     }
     p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel       
     p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel 
@@ -514,6 +576,23 @@ for(l in 1:N.sp)
                                                  P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
                                                  P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))%>%
                                           replace(is.na(.), -2)
+    if(NeiM%in%alternative.NSF.selectivity)
+    {
+      p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel_sens       
+      p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel_sens
+      p3.sel_NSF=p3.sel_Other=p2.sel_Survey=p3.sel_sens
+      p4.sel_NSF=p4.sel_Other=p2.sel_Survey=p4.sel_sens
+      p5.sel_NSF=p5.sel_Other=p2.sel_Survey=p5.sel_sens
+      p6.sel_NSF=p6.sel_Other=p2.sel_Survey=p6.sel_sens
+      List.sp[[l]]$SS_selectivity.sensitivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
+                                                   P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
+                                                   P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
+                                                   P_3=c(p3.sel_NSF,p3.sel_Other,p3.sel_TDGDLF,p3.sel_TDGDLF,p3.sel_Survey),
+                                                   P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
+                                                   P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
+                                                   P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))%>%
+        replace(is.na(.), -2)
+    }
     
     #AgeSelex 
     List.sp[[l]]$age_selex_pattern=0  #0,Selectivity = 1.0 for ages 0+; 10, Selectivity = 1.0 for all ages beginning at age 1

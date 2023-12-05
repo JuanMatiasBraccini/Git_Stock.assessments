@@ -137,4 +137,35 @@ wrapper.fn=function(x,a.dn,b.dn,c.dn,d.dn,e.dn,f.dn,a.log,b.log,out.logis=TRUE)
 }
 #wrapper.fn(x=85:300,a.dn=130,b.dn=-11,c.dn=9,d.dn=8,e.dn=-999,f.dn=-999,a.log=325,b.log=20)
 #wrapper.fn(x=90:500,a.dn=150,b.dn=-1,c.dn=7,d.dn=8,e.dn=-999,f.dn=-999,a.log=325,b.log=10)
-wrapper.fn(x=80:400,a.dn=110,b.dn=-11,c.dn=5,d.dn=10,e.dn=0.000001,f.dn=1,a.log=325,b.log=20,out.logis=FALSE)
+wrapper.fn(x=40:160,a.dn=70,b.dn=-7,c.dn=6,d.dn=7,e.dn=-999,f.dn=-999,a.log=325,b.log=20,out.logis=FALSE)
+
+
+
+ret.fn=function(L,p1,p2,p3,p4,p5,p6,p7)
+{
+  #logistic retention
+  if(is.null(p5))
+  {
+    Retention=(p3/(1+exp(-(L-(p1+p4))/p2)))
+    Tit=paste0("p1=",p1," p2=",p2," p3=",p3," p4=",p4)
+  }
+  #dome-shaped retention
+  if(!is.null(p5))
+  {
+    Retention=(p3/(1+exp(-(L-(p1+p4))/p2)))*(1-(1/(1+exp(-(L-(p5+p7))/p6))))
+    Tit=paste0("p1=",p1," p2=",p2," p3=",p3," p4=",p4," p5=",p5," p6=",p6," p7=",p7)
+  }
+  plot(L,Retention,type='l',main=Tit,ylim=c(0,1))
+}
+ret.fn(L=0:200,p1=102,p2=2,p3=0.8,p4=0,p5=NULL,p6=NULL,p7=NULL)
+ret.fn(L=0:200,p1=87,p2=1,p3=1,p4=0,p5=NULL,p6=NULL,p7=NULL)
+ret.fn(L=90:400,p1=80,p2=1,p3=1,p4=0,p5=190,p6=1,p7=0)
+
+mort.fn=function(L,p1,p2,p3,p4)
+{
+  Discard.mortality=1-((1-p3)/(1+exp((-(L-(p1+p4)))/p2)))
+  Tit=paste0("p1=",p1," p2=",p2," p3=",p3," p4=",p4)
+  plot(L,Discard.mortality,type='l',main=Tit,ylim=c(0,1))
+}
+mort.fn(L=0:200,p1=20,p2=1.5,p3=.05,p4=0)  
+mort.fn(L=0:200,p1=5,p2=0,p3=.1,p4=0)  

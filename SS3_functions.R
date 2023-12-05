@@ -510,7 +510,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       lbin_vector=sort(as.numeric(gsub('f', '', names(size.comp)[grep("f",names(size.comp))])))
       dat$lbin_vector=lbin_vector
       dat$N_lbins=length(dat$lbin_vector)
-      dat$lencomp=size.comp%>%arrange(Sex,Fleet,year)
+      dat$lencomp=size.comp%>%arrange(Fleet,Sex,year)
     }
     if(!is.null(F.tagging) & !is.null(size.comp))
     {
@@ -683,11 +683,12 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$natM=natM
     ctl$MG_parms=ctl$MG_parms[-grep('NatM',rownames(ctl$MG_parms)),]
   }
+  
   #recruitment pars
   ctl$SR_function=3 # 2=Ricker; 3=std_B-H; 4=SCAA;5=Hockey; 6=B-H_flattop; 7=survival_3Parm;8=Shepard_3Parm
   ctl$SR_parms["SR_LN(R0)", c('LO','INIT','HI')]=with(Scenario,c(Ln_R0_min,Ln_R0_init,Ln_R0_max))
   ctl$SR_parms["SR_BH_steep", "INIT"]=Scenario$Steepness
-  ctl$SR_parms["SR_BH_steep", "LO"]=0.25
+  ctl$SR_parms["SR_BH_steep", "LO"]=Min.h.shark  #0.25
   if(Scenario$Model=='SS')  #estimate h with strong prior (Punt 2023)?
   {
     ctl$SR_parms["SR_BH_steep", "PHASE"]=life.history$Steepness_Phase
@@ -704,12 +705,18 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$do_recdev=1 #0=none; 1=devvector (R=F(SSB)+dev); 2=deviations (R=F(SSB)+dev); 3=deviations (R=R0*dev; dev2=R-f(SSB)); 4=like 3 with sum(dev2) adding penalty
     RecDev_Phase=life.history$RecDev_Phase
     ctl$recdev_phase=RecDev_Phase
-    if(is.null(abundance)) ctl$recdev_phase=1
-    if(is.null(abundance) & nrow(size.comp)<3)  #don't calculate rec devs is only a few years of size comp and no abundance
+     
+    if(is.null(abundance))
     {
-      ctl$do_recdev=0
-      ctl$recdev_phase=-1
+      ctl$recdev_phase=1
+      if(!is.null(size.comp)& nrow(size.comp)<3)   #don't calculate rec devs if only a few years of size comp and no abundance
+      {
+        ctl$do_recdev=0
+        ctl$recdev_phase=-1
+      }
     }
+         
+ 
     ctl$recdev_early_start=0
     ctl$max_bias_adj=0.8
     ctl$min_rec_dev=-2
@@ -725,7 +732,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       ctl$MainRdevYrFirst=min(size.comp$year) #-dat$Nages
       ctl$MainRdevYrLast=max(size.comp$year)
-      if(life.history$Name=="smooth hammerhead") ctl$MainRdevYrLast=max(abundance$Year)#to allow fitting Southern2 cpue
+     if(!is.null(abundance) & life.history$Name=="smooth hammerhead") ctl$MainRdevYrLast=max(abundance$Year)#to allow fitting Southern2 cpue
       ctl$last_early_yr_nobias_adj=ctl$MainRdevYrFirst-1
       ctl$first_yr_fullbias_adj=min(ctl$MainRdevYrLast-1,ctl$MainRdevYrFirst+5) 
     }
@@ -737,7 +744,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       ctl$first_yr_fullbias_adj=life.history$first_yr_fullbias_adj_in_MPD
       ctl$last_yr_fullbias_adj=life.history$last_yr_fullbias_adj_in_MPD
       ctl$first_recent_yr_nobias_adj=life.history$first_recent_yr_nobias_adj_in_MPD
-      if(life.history$Name=="smooth hammerhead") ctl$first_recent_yr_nobias_adj=max(abundance$Year)#to allow fitting Southern2 cpue
+      if(!is.null(abundance) & life.history$Name=="smooth hammerhead") ctl$first_recent_yr_nobias_adj=max(abundance$Year)#to allow fitting Southern2 cpue
       ctl$max_bias_adj=life.history$max_bias_adj_in_MPD
     }
   }
@@ -861,7 +868,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       {
         if(Scenario$extra.SD.Q=='always')
         {
-          Indx.small.CV=Indx.small.CV$index
+          if(is.data.frame(Indx.small.CV)) Indx.small.CV=Indx.small.CV$index
           ID.fleets.extraSD=match(Indx.small.CV,ctl$Q_options$fleet)
           ctl$Q_options$extra_se[ID.fleets.extraSD]=1
           rownames(ctl$Q_parms)=paste('fleet_',match(rownames(ctl$Q_parms),dat$fleetinfo$fleetname),sep='')
@@ -1110,32 +1117,56 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     
     #set phase to the one defined in SS_selectivity_phase
-    life.history$SS_selectivity_phase=life.history$SS_selectivity_phase%>%
-                                          filter(Fleet%in%life.history$SS_selectivity$Fleet)
-    no.length.comp=which(life.history$SS_selectivity_phase$Fleet%in%flit.no.size.comp.obs)
-    if(length(no.length.comp)>0) life.history$SS_selectivity_phase[no.length.comp,-1]=-2
-    Sel_phase=life.history$SS_selectivity_phase%>%
-                gather(P,PHASE1,-Fleet)%>%
-                mutate(dumy=paste('SizeSel',P,Fleet,sep="_"))
+    if(!is.null(size.comp))
+    {
+      life.history$SS_selectivity_phase=life.history$SS_selectivity_phase%>%
+        filter(Fleet%in%life.history$SS_selectivity$Fleet)
+      no.length.comp=which(life.history$SS_selectivity_phase$Fleet%in%flit.no.size.comp.obs)
+      if(length(no.length.comp)>0) life.history$SS_selectivity_phase[no.length.comp,-1]=-2
+      Sel_phase=life.history$SS_selectivity_phase%>%
+        gather(P,PHASE1,-Fleet)%>%
+        mutate(dumy=paste('SizeSel',P,Fleet,sep="_"))
+      
+      xx=ctl$size_selex_parms%>%
+        tibble::rownames_to_column(var = "dumy")%>%
+        left_join(Sel_phase%>%dplyr::select(PHASE1,dumy),by='dumy')%>%
+        mutate(PHASE=PHASE1)%>%
+        dplyr::select(-PHASE1)%>%
+        `row.names<-`(., NULL)%>%
+        column_to_rownames(var = "dumy")
+      ctl$size_selex_parms=xx
+      
+    }
     
-    xx=ctl$size_selex_parms%>%
-            tibble::rownames_to_column(var = "dumy")%>%
-            left_join(Sel_phase%>%dplyr::select(PHASE1,dumy),by='dumy')%>%
-            mutate(PHASE=PHASE1)%>%
-           dplyr::select(-PHASE1)%>%
-          `row.names<-`(., NULL)%>%
-           column_to_rownames(var = "dumy")
-    ctl$size_selex_parms=xx
+    #set NSF and Survey to logistic if specified in scenario
+    if(!is.na(Scenario$NSF.selectivity))
+    {
+      if(Scenario$NSF.selectivity=='Logistic')
+      {
+        ctl$size_selex_types[match(c('Northern.shark','Survey'),rownames(ctl$size_selex_types)),'Pattern']=1
+        ctl$size_selex_parms=ctl$size_selex_parms[-match(c('SizeSel_P_3_Northern.shark','SizeSel_P_4_Northern.shark',
+                                                           'SizeSel_P_5_Northern.shark','SizeSel_P_6_Northern.shark',
+                                                           'SizeSel_P_3_Survey','SizeSel_P_4_Survey',
+                                                           'SizeSel_P_5_Survey','SizeSel_P_6_Survey'),rownames(ctl$size_selex_parms)),]
+        
+      }   
+    }
+       
+
     
-    #Retention
+    #Retention and discard mortality  
     if('SS_retention'%in%names(life.history))
     {
-      xx=life.history$SS_retention
-      ctl$size_selex_types$Discard[match(xx$Fleet,rownames(ctl$size_selex_types))]=1 #0=none; 1=define_retention; 2=retention&mortality; 3=all_discarded_dead; 4=define_dome-shaped_retention
-      retention_params=ctl$size_selex_parms[grep(xx$Fleet,rownames(ctl$size_selex_parms)),]%>%
-                          mutate(PHASE=-2,
-                                 Block=0,
-                                 Block_Fxn=0)
+        #retention
+      xx=life.history$SS_retention%>%
+        select_if(~ !any(is.na(.)))
+      n.disc.pars=length(grep('P',colnames(xx)))
+      if(n.disc.pars<4) Discard_option=1 #0=none; 1= retention and all discards Dead;
+      if(n.disc.pars==4) Discard_option=2 #2= 4 retention parameters (i.e. logistic) and 4 discard mortality parameters
+      if(n.disc.pars==7) Discard_option=4 #4= 7 retention parameters (i.e. dome=shaped) and 4 discard mortality parameters
+      ctl$size_selex_types$Discard[match(xx$Fleet,rownames(ctl$size_selex_types))]=Discard_option 
+      
+      retention_params=ctl$size_selex_parms[grep(xx$Fleet,rownames(ctl$size_selex_parms)),]
       retention_params=retention_params[1:(ncol(xx)-1),]%>%
                         mutate(INIT=unlist(xx[,2:(ncol(xx))]),
                                PRIOR=INIT)
@@ -1154,10 +1185,60 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       if(length(id0)>0) up.bound[id0]=1
       if(length(id999)>0) up.bound[id999]=10
       
-      retention_params$LO=low.bound
-      retention_params$HI=up.bound
-      rownames(retention_params)=paste(paste('Retention_',xx$Fleet,sep=''),names(xx)[-1],sep='_')
-      ctl$size_selex_parms=rbind(ctl$size_selex_parms,retention_params)
+      retention_params=retention_params%>%
+                        mutate(LO=low.bound,
+                               HI=up.bound,
+                               PHASE=-2,
+                               PR_SD=99)%>%
+        replace(is.na(.), 0)
+      rownames(retention_params)=paste(paste('Retention_',names(xx)[-1],sep=''),xx$Fleet,sep='_')
+      retention_params$dumi=paste(paste(match(xx$Fleet,fleetinfo$fleetname),2,sep='_'),names(xx)[-1],sep='_')
+      
+      #discard mortality 
+      xx=life.history$SS_discard_mortality
+      discard_mortality=ctl$size_selex_parms[grep(xx$Fleet,rownames(ctl$size_selex_parms)),]
+      discard_mortality=discard_mortality[1:(ncol(xx)-1),]%>%
+        mutate(INIT=unlist(xx[,2:(ncol(xx))]),
+               PRIOR=INIT)
+      this.par=discard_mortality$INIT
+      multiplr=rep(0.1,length(this.par))
+      multiplr=ifelse(this.par<0,2,multiplr)
+      low.bound=multiplr*discard_mortality$INIT
+      id0=which(this.par==0)
+      id999=which(this.par==999)
+      if(length(id0)>0) low.bound[id0]=-1
+      if(length(id999)>0) low.bound[id999]=-10
+      low.bound=sapply(low.bound,function(x) max(0,x))
+      
+      multiplr=rep(1.5,length(this.par))
+      multiplr=ifelse(this.par<0,-2,multiplr)
+      up.bound=multiplr*discard_mortality$INIT
+      if(length(id0)>0) up.bound[id0]=1
+      if(length(id999)>0) up.bound[id999]=10
+      
+      discard_mortality=discard_mortality%>%
+        mutate(LO=low.bound,
+               HI=up.bound,
+               PHASE=-2,
+               PR_SD=99)%>%
+        replace(is.na(.), 0)
+      rownames(discard_mortality)=paste(paste('DiscMort_',names(xx)[-1],sep=''),xx$Fleet,sep='_')
+      discard_mortality$dumi=paste(paste(match(xx$Fleet,fleetinfo$fleetname),3,sep='_'),names(xx)[-1],sep='_')
+
+      
+      #combine with sel pars
+      dumiSel=ctl$size_selex_parms
+      kkk=strsplit(rownames(dumiSel), '_') 
+      dumi.f=data.frame(A=sapply(kkk, `[`, 4),
+                        B=sapply(kkk, `[`, 5))%>%
+                    mutate(B=ifelse(is.na(B),'',B),
+                           C=paste(A,B,sep='_'),
+                           D=ifelse(B=="",A,C),
+                           E=match(D,fleetinfo$fleetname))
+      dumiSel$dumi=paste(paste(paste(dumi.f$E,1,sep='_'),sapply(kkk, `[`, 2),sep='_'),sapply(kkk, `[`, 3),sep='_')
+      ctl$size_selex_parms=rbind(dumiSel,retention_params,discard_mortality)%>%
+                              arrange(dumi)%>%
+                              dplyr::select(-dumi)
     }
 
     
@@ -1586,7 +1667,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     linen <- grep("# 0=use init values in control file; 1=use ss.par", starter.file)
     starter.file[linen] <- paste0("0 # 0=use init values in control file; 1=use ss.par")
     write(starter.file, paste(dirname.R0.profile, "/starter.ss", sep=""))
-    ###############
+
     
     # Step 9. Begin Likelihood profile_R0_example.R
     

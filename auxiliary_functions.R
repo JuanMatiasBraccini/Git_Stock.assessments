@@ -627,7 +627,7 @@ fn.import.catch.data=function(KTCH.UNITS)
   sawfish=full_join(sawfish%>%dplyr::select(-SPECIES),    #set to proportion by species
                     Prop.by.sawfish.sp%>%
                       filter(FishCubeCode%in%sawfish$FishCubeCode),
-                    by='FishCubeCode')%>%
+                    by='FishCubeCode',relationship = "many-to-many")%>%
     mutate(LIVEWT.c=LIVEWT.c*Prop)%>%
     dplyr::select(-Prop)
   
@@ -4002,7 +4002,7 @@ fn.display.priors=function(d,sp,XLAB,XLIM,Strx.siz=16)
     mutate(Species=capitalize(gsub("\\..*","",Species)))
   p=dummy%>%
     ggplot(aes(x=var))+
-    geom_density(aes(color=Species),size=1.5)+
+    geom_density(aes(color=Species),linewidth=1.5)+
     facet_wrap(~Species,scales='free_y')+
     xlab(XLAB)+ylab("Density")+
     theme_PA(axs.T.siz=22,axs.t.siz=14,strx.siz=Strx.siz)+

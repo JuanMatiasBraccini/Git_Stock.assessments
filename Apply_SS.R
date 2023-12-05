@@ -124,6 +124,16 @@ for(w in 1:n.SS)
                     mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
                 }
               }
+              if(Neim%in%combine.sexes)
+              {
+                if(Neim%in%'dusky shark')
+                {
+                  d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
+                }else
+                {
+                  d.list$sex=0 
+                }
+              }
               d.list=d.list%>%
                 group_by(year,fishry,sex,size.class)%>%
                 summarise(n=sum(n))%>%
@@ -143,10 +153,16 @@ for(w in 1:n.SS)
                                mutate(size.class=missing.size.classes,
                                       n=0))
               }
-              
+              if(Neim%in%names(Indicator.species))
+              {
+                Min.size=Min.annual.obs.ktch
+              }else
+              {
+                Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+              }
               Table.n=d.list%>%group_by(year,fishry,sex)%>%
                 summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.annual.obs.ktch,10))%>%
+                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,10))%>%
                 filter(N>=Min.accepted.N)%>%
                 mutate(dummy=paste(year,fishry,sex))
               
@@ -188,9 +204,9 @@ for(w in 1:n.SS)
                   if(!'zone'%in%names(dd)) dd$zone=NA
                   dd=dd%>%
                     mutate(fishry=ifelse(Method=='GN','TDGDLF',
-                                         ifelse(Method=='LL' & zone!='SA','NSF',
-                                                ifelse(zone=='SA','Other',
-                                                       NA))),
+                                  ifelse(Method=='LL' & zone!='SA','NSF',
+                                  ifelse(zone%in%c('SA','GAB.trawl'),'Other',
+                                  NA))),
                            year=as.numeric(substr(FINYEAR,1,4)))%>%
                     group_by(year,fishry)%>%
                     summarise(Nsamp=sum(N.shots))
@@ -224,7 +240,7 @@ for(w in 1:n.SS)
                   ddummis=size.flits[1,]%>%mutate(Fleet.number=1+size.flits$Fleet.number[nrow(size.flits)],
                                                   Fleet.name="Survey")
                   rownames(ddummis)="Survey"
-                  size.flits=rbind(size.flits,ddummis)
+                  if(!'Survey'%in%size.flits$Fleet.name) size.flits=rbind(size.flits,ddummis)
                 }
                 d.list=d.list%>%
                   mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
@@ -237,6 +253,7 @@ for(w in 1:n.SS)
                   dplyr::select(-c(dummy.fleet,Fleet.number))%>%
                   arrange(Sex,Fleet,year)
                 
+                d.list.0=d.list%>%filter(Sex==0)%>%arrange(year)
                 d.list.f=d.list%>%filter(Sex==1)%>%arrange(year)  
                 d.list.m=d.list%>%filter(Sex==2)%>%arrange(year)
                 
@@ -244,16 +261,44 @@ for(w in 1:n.SS)
                 id.var.nms.f=which(!names(d.list.f)%in%vars.head)
                 id.var.nms.m=length(id.var.nms.f)+which(!names(d.list.m)%in%vars.head)
                 
+                dummy.zeros.0=d.list.0[,-match(vars.head,names(d.list.0))]
+                dummy.zeros.0[,]=0
                 dummy.zeros.f=d.list.f[,-match(vars.head,names(d.list.f))]
                 dummy.zeros.f[,]=0
                 dummy.zeros.m=d.list.m[,-match(vars.head,names(d.list.m))]
                 dummy.zeros.m[,]=0
-                dummy.Size.compo.SS.format=rbind(cbind(d.list.f,dummy.zeros.f),
-                                                 cbind(d.list.m[,match(vars.head,names(d.list.m))],
-                                                       dummy.zeros.m,
-                                                       d.list.m[,-match(vars.head,names(d.list.m))]))
-                names(dummy.Size.compo.SS.format)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format)[id.var.nms.f],sep='')
-                names(dummy.Size.compo.SS.format)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format)[id.var.nms.m],sep='')
+                
+                if(nrow(d.list.0)>0)  
+                {
+                  dummy.Size.compo.SS.format_Sex0=cbind(d.list.0,dummy.zeros.0)
+                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f],sep='')
+                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m],sep='')
+                }
+                if(nrow(d.list.f)>0)
+                {
+                  dummy.Size.compo.SS.format_Sex=rbind(cbind(d.list.f,dummy.zeros.f),
+                                                       cbind(d.list.m[,match(vars.head,names(d.list.m))],
+                                                             dummy.zeros.m,
+                                                             d.list.m[,-match(vars.head,names(d.list.m))]))
+                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f],sep='')
+                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m],sep='')
+                }  
+                if(!exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=dummy.Size.compo.SS.format_Sex
+                }
+                if(exists('dummy.Size.compo.SS.format_Sex0') & !exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=dummy.Size.compo.SS.format_Sex0
+                }
+                if(exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=rbind(dummy.Size.compo.SS.format_Sex0,dummy.Size.compo.SS.format_Sex)
+                }
+                clear.log('dummy.Size.compo.SS.format_Sex0')
+                clear.log('dummy.Size.compo.SS.format_Sex')
+                dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
+                  arrange(Fleet,year,Sex)
                 
                 min.nsamp=Min.Nsamp
                 if(!Neim%in%Indicator.species) min.nsamp=min.nsamp/2
@@ -586,7 +631,13 @@ for(w in 1:n.SS)
               NN=nrow(ktch)
               add.ct.future=ktch[1:years.futures,]
               add.ct.future$finyear=ktch$finyear[NN]+(1:years.futures)
-              lef.flits=match(Flits,colnames(add.ct.future))
+              if("Survey"%in%names(Flits))
+              {
+                lef.flits=match(Flits[-match("Survey",names(Flits))],colnames(add.ct.future))
+              }else
+              {
+                lef.flits=match(Flits,colnames(add.ct.future))
+              }
               for(lf in 1:length(lef.flits))
               {
                 add.ct.future[,lef.flits[lf]]=mean(unlist(ktch[(NN-years.futures+1):NN,lef.flits[lf]]),na.rm=T)
@@ -632,7 +683,7 @@ for(w in 1:n.SS)
               clear.log("Var.ad.factr")
               
               #b. Run SS3
-              if(Calculate.ramp.years)
+              if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
                 #tune ramp years
                 fn.run.SS(where.inputs=this.wd1,
@@ -647,6 +698,9 @@ for(w in 1:n.SS)
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
                 write.csv(out,paste(this.wd,'Ramp_years.csv',sep='/'),row.names = F)
                 
+                these.plots=c(1:7,10,11,16,26)  #biol, selectivity, timeseries,rec devs,S-R,catch,mean weight, indices, size comp
+                SS_plots(Report, plot=these.plots, png=T)
+                
                 #tune composition data
                 tune_info <- tune_comps(option = "Francis",
                                         niters_tuning = 1,
@@ -656,6 +710,7 @@ for(w in 1:n.SS)
                                         verbose = FALSE)
                 write.csv(tune_info$weights[[1]]%>%mutate(Method='Francis'),paste(this.wd,'Tuned_size_comp.csv',sep='/'),row.names = F)
                 
+                rm(ramp_years,out,tune_info)
               }
               if(!Calculate.ramp.years)
               {
@@ -711,7 +766,7 @@ for(w in 1:n.SS)
               Out.F.Fmsy[[s]]=dummy$Dat
               
               #Calculate posterior depletion   #takes 4.5 secs per nMC simulation
-              if(SS3.run=='final')
+              if(Scens$Scenario[s]=='S1' & SS3.run=='final')
               {
                 dd=fn.MC.sims(this.wd1,
                               nMC=nMCsims,
@@ -976,6 +1031,16 @@ for(w in 1:n.SS)
                     mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
                 }
               }
+              if(Neim%in%combine.sexes)
+              {
+                if(Neim%in%'dusky shark')
+                {
+                  d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
+                }else
+                {
+                  d.list$sex=0 
+                }
+              }
               d.list=d.list%>%
                 group_by(year,fishry,sex,size.class)%>%
                 summarise(n=sum(n))%>%
@@ -996,9 +1061,16 @@ for(w in 1:n.SS)
                                       n=0))
               }
               
+              if(Neim%in%names(Indicator.species))
+              {
+                Min.size=Min.annual.obs.ktch
+              }else
+              {
+                Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+              }
               Table.n=d.list%>%group_by(year,fishry,sex)%>%
                 summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.annual.obs.ktch,10))%>%
+                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,10))%>%
                 filter(N>=Min.accepted.N)%>%
                 mutate(dummy=paste(year,fishry,sex))
               
@@ -1040,9 +1112,9 @@ for(w in 1:n.SS)
                   if(!'zone'%in%names(dd)) dd$zone=NA
                   dd=dd%>%
                     mutate(fishry=ifelse(Method=='GN','TDGDLF',
-                                         ifelse(Method=='LL' & zone!='SA','NSF',
-                                                ifelse(zone=='SA','Other',
-                                                       NA))),
+                                  ifelse(Method=='LL' & zone!='SA','NSF',
+                                  ifelse(zone%in%c('SA','GAB.trawl'),'Other',
+                                  NA))),
                            year=as.numeric(substr(FINYEAR,1,4)))%>%
                     group_by(year,fishry)%>%
                     summarise(Nsamp=sum(N.shots))
@@ -1077,7 +1149,7 @@ for(w in 1:n.SS)
                   ddummis=size.flits[1,]%>%mutate(Fleet.number=1+size.flits$Fleet.number[nrow(size.flits)],
                                                   Fleet.name="Survey")
                   rownames(ddummis)="Survey"
-                  size.flits=rbind(size.flits,ddummis)
+                  if(!'Survey'%in%size.flits$Fleet.name) size.flits=rbind(size.flits,ddummis)
                 }
                 d.list=d.list%>%
                   mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
@@ -1090,6 +1162,7 @@ for(w in 1:n.SS)
                   dplyr::select(-c(dummy.fleet,Fleet.number))%>%
                   arrange(Sex,Fleet,year)
                 
+                d.list.0=d.list%>%filter(Sex==0)%>%arrange(year)
                 d.list.f=d.list%>%filter(Sex==1)%>%arrange(year)  
                 d.list.m=d.list%>%filter(Sex==2)%>%arrange(year)
                 
@@ -1097,16 +1170,44 @@ for(w in 1:n.SS)
                 id.var.nms.f=which(!names(d.list.f)%in%vars.head)
                 id.var.nms.m=length(id.var.nms.f)+which(!names(d.list.m)%in%vars.head)
                 
+                dummy.zeros.0=d.list.0[,-match(vars.head,names(d.list.0))]
+                dummy.zeros.0[,]=0 
                 dummy.zeros.f=d.list.f[,-match(vars.head,names(d.list.f))]
                 dummy.zeros.f[,]=0
                 dummy.zeros.m=d.list.m[,-match(vars.head,names(d.list.m))]
                 dummy.zeros.m[,]=0
-                dummy.Size.compo.SS.format=rbind(cbind(d.list.f,dummy.zeros.f),
-                                                 cbind(d.list.m[,match(vars.head,names(d.list.m))],
-                                                       dummy.zeros.m,
-                                                       d.list.m[,-match(vars.head,names(d.list.m))]))
-                names(dummy.Size.compo.SS.format)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format)[id.var.nms.f],sep='')
-                names(dummy.Size.compo.SS.format)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format)[id.var.nms.m],sep='')
+                
+                if(nrow(d.list.0)>0)  
+                {
+                  dummy.Size.compo.SS.format_Sex0=cbind(d.list.0,dummy.zeros.0)
+                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f],sep='')
+                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m],sep='')
+                }
+                if(nrow(d.list.f)>0)
+                {
+                  dummy.Size.compo.SS.format_Sex=rbind(cbind(d.list.f,dummy.zeros.f),
+                                                       cbind(d.list.m[,match(vars.head,names(d.list.m))],
+                                                             dummy.zeros.m,
+                                                             d.list.m[,-match(vars.head,names(d.list.m))]))
+                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f],sep='')
+                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m],sep='')
+                }  
+                if(!exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=dummy.Size.compo.SS.format_Sex
+                }
+                if(exists('dummy.Size.compo.SS.format_Sex0') & !exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=dummy.Size.compo.SS.format_Sex0
+                }
+                if(exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=rbind(dummy.Size.compo.SS.format_Sex0,dummy.Size.compo.SS.format_Sex)
+                }
+                clear.log('dummy.Size.compo.SS.format_Sex0')
+                clear.log('dummy.Size.compo.SS.format_Sex')
+                dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
+                  arrange(Fleet,year,Sex)
                 
                 min.nsamp=Min.Nsamp
                 if(!Neim%in%Indicator.species) min.nsamp=min.nsamp/2
@@ -1438,7 +1539,13 @@ for(w in 1:n.SS)
               NN=nrow(ktch)
               add.ct.future=ktch[1:years.futures,]
               add.ct.future$finyear=ktch$finyear[NN]+(1:years.futures)
-              lef.flits=match(Flits,colnames(add.ct.future))
+              if("Survey"%in%names(Flits))
+              {
+                lef.flits=match(Flits[-match("Survey",names(Flits))],colnames(add.ct.future))
+              }else
+              {
+                lef.flits=match(Flits,colnames(add.ct.future))
+              }
               for(lf in 1:length(lef.flits))
               {
                 add.ct.future[,lef.flits[lf]]=mean(unlist(ktch[(NN-years.futures+1):NN,lef.flits[lf]]),na.rm=T)
@@ -1485,7 +1592,7 @@ for(w in 1:n.SS)
               clear.log("Var.ad.factr")
               
               #b. Run SS3
-              if(Calculate.ramp.years)
+              if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
                 #tune ramp years
                 fn.run.SS(where.inputs=this.wd1,
@@ -1500,6 +1607,9 @@ for(w in 1:n.SS)
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
                 write.csv(out,paste(this.wd,'Ramp_years.csv',sep='/'),row.names = F)
                 
+                these.plots=c(1:7,10,11,16,26)  #biol, selectivity, timeseries,rec devs,S-R,catch,mean weight, indices, size comp
+                SS_plots(Report, plot=these.plots, png=T)
+                
                 #tune composition data
                 tune_info <- tune_comps(option = "Francis",
                                         niters_tuning = 1,
@@ -1509,6 +1619,7 @@ for(w in 1:n.SS)
                                         verbose = FALSE)
                 write.csv(tune_info$weights[[1]]%>%mutate(Method='Francis'),paste(this.wd,'Tuned_size_comp.csv',sep='/'),row.names = F)
                 
+                rm(ramp_years,out,tune_info)
               }
               if(!Calculate.ramp.years)
               {
@@ -1565,7 +1676,7 @@ for(w in 1:n.SS)
               
               
               #Calculate posterior depletion   #takes 4.5 secs per nMC simulation
-              if(SS3.run=='final')
+              if(Scens$Scenario[s]=='S1' & SS3.run=='final')
               {
                 dd=fn.MC.sims(this.wd1,
                               nMC=nMCsims,

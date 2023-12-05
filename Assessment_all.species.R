@@ -1,16 +1,5 @@
 # ------ Script for running stock assessments for WA sharks---- ###################
 
-#MISSING:
-#   Include ALL species in final risk scoring
-#   Double check that TwT calculation uses TL and not FL, be consistent
-#   Indicator species:
-#       Run integrated models for 4 indicator species (remove irrelevant scenario folders).
-#       Issues for integrated model:
-#           Currently assuming 1 fleet only (TDGDLF). Ok for gummy and whiskery, not OK for 
-#               dusky and sandbar (e.g. 'proportional effort for each mesh', 'selectivity')
-#           Currently starting 'proportional effort for each mesh' in 1975 but new data goes back to 1940
-#       set up SS3 model for indicator species
-#       18. Export available data: missing dusky, gummy, sandbar integrated model
 #Notes:
 #     1. The PSA filters out species from further analyses thru 'Criteria for selecting what species to assess'
 #     2. Assumption: If catches have never been >1% carrying capacity, then it's in unexploited 
@@ -330,7 +319,11 @@ Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
 SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
-combine.scallopedHH_NSF_Survey=FALSE
+combine.scallopedHH_NSF_Survey=FALSE   #combine length composition data
+combine.sexes=c("angel sharks","dusky shark","lemon shark","milk shark",
+                "scalloped hammerhead","tiger shark")  #dusky only sex combined for survey
+use.Gab.trawl=FALSE   #only 1 year of data and small sample size
+prop.min.N.accepted_other=1
 
   #SS model run arguments
 if(SS3.run=='final') Arg=''
@@ -361,6 +354,7 @@ Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analy
 Number.of.jitters=5       #Number of jitters for Jitter analysis.       MISSING: bump up to 50
 
 resample.h.greynurse=FALSE  #no need to resample h
+alternative.NSF.selectivity=c("dusky shark","sandbar shark")
 
 #21. Bespoke Integrated size-based model 
 Plus.gp.size=1.25  #add 25% to max size make sure no accumulation of survivals in last size class
@@ -930,7 +924,7 @@ for(s in 1:N.sp)
   rm(files)
 }
 
-#add size composition C. brachyurus MSF (South Australia)
+#6.1 add size composition C. brachyurus MSF (South Australia)  
 Species.data$`copper shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/SA_Cbrachyurus length data.csv'))%>%
                   mutate(DATE=as.Date(DATE,"%d/%m/%Y"),
                          Month=month(DATE),
@@ -952,11 +946,69 @@ Species.data$`copper shark`$Size_composition_Other_Observations=data.frame(
                   N.shots=30,
                   N.observations=NA)
 
-#add size composition Spotted wobbegong and Western wobbegong to Wobbegongs
+#6.2 add size composition Angel sharks (GAB Trawl)
+if(use.Gab.trawl)
+{
+  Species.data$`angel sharks`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
+    filter(Species.Csiro==37024002)%>%
+    mutate(DATE=as.Date(Start.Date,"%d/%m/%Y"),
+           Month=month(DATE),
+           year=year(DATE),
+           FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
+                          paste(year-1,substr(year,3,4),sep='-')),
+           FL=with(LH.data%>%filter(SPECIES==24900),((Species.Size)-b_FL.to.TL )/a_FL.to.TL),
+           SEX=Sex,
+           SEX=ifelse(SEX=="Male ","Male",SEX),
+           SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
+    filter(!is.na(SEX))%>%
+    filter(!is.na(year))%>%
+    dplyr::select(Month,FINYEAR,year,FL,SEX,Species.Quantity)%>% 
+    type.convert(as.is = TRUE) %>% 
+    uncount(Species.Quantity)
+  
+  Species.data$`angel sharks`$Size_composition_Other_Observations=data.frame(
+    FINYEAR=sort(unique(Species.data$`angel sharks`$Size_composition_Other$FINYEAR)),
+    Method='Trawl',
+    zone="GAB.trawl",
+    SPECIES=24900,
+    N.shots=23,
+    N.observations=NA)
+}
+
+#6.3 add size composition gummy shark (GAB Trawl)
+if(use.Gab.trawl)
+{
+  Species.data$`gummy shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
+    filter(Species.Csiro==37017001)%>%
+    mutate(DATE=as.Date(Start.Date,"%d/%m/%Y"),
+           Month=month(DATE),
+           year=year(DATE),
+           FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
+                          paste(year-1,substr(year,3,4),sep='-')),
+           FL=with(LH.data%>%filter(SPECIES==17001),((Species.Size)-b_FL.to.TL )/a_FL.to.TL),
+           SEX=Sex,
+           SEX=ifelse(SEX=="Male ","Male",SEX),
+           SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
+    filter(!is.na(SEX))%>%
+    filter(!is.na(year))%>%
+    dplyr::select(Month,FINYEAR,year,FL,SEX,Species.Quantity)%>% 
+    type.convert(as.is = TRUE) %>% 
+    uncount(Species.Quantity)
+  
+  Species.data$`gummy shark`$Size_composition_Other_Observations=data.frame(
+    FINYEAR=sort(unique(Species.data$`gummy shark`$Size_composition_Other$FINYEAR)),
+    Method='Trawl',
+    zone="GAB.trawl",
+    SPECIES=17001,
+    N.shots=17,
+    N.observations=NA)
+}
+
+#6.4 add size composition Spotted wobbegong and Western wobbegong to Wobbegongs
 other.wobbies=c('Spotted wobbegong','Western wobbegong')
 Wobbies.data=vector('list',length(other.wobbies))
 names(Wobbies.data)=other.wobbies
-  #1. bring in data
+  #6.4.1. bring in data
 for(s in 1:length(other.wobbies)) 
 {
   print(paste('Reading in data for -----',other.wobbies[s]))
@@ -984,7 +1036,7 @@ for(s in 1:length(other.wobbies))
   }
   rm(files)
 }  
-  #2. add to Wobbegongs
+  #6.4.2. add to Wobbegongs
 for(s in 1:length(other.wobbies)) 
 {
   Species.data$wobbegongs$Size_composition_Observations=rbind(Species.data$wobbegongs$Size_composition_Observations,
@@ -1009,7 +1061,7 @@ Species.data$wobbegongs$Size_composition_Observations=Species.data$wobbegongs$Si
             N.observations=sum(N.observations))%>%
   ungroup()
 
-#remove Pilbara trawl as it's not used at all
+#6.5 remove Pilbara trawl as it's not used at all
 for(i in 1:N.sp) 
 {
   if(any(grepl('Size_composition_Pilbara_Trawl',names(Species.data[[i]]))))
@@ -1018,7 +1070,7 @@ for(i in 1:N.sp)
   }
 }
 
-#remove NA sex in length composition data
+#6.6 remove NA sex in length composition data
 for(i in 1:N.sp) 
 {
   if(any(grepl('Size_composition',names(Species.data[[i]]))))
@@ -1042,7 +1094,7 @@ for(i in 1:N.sp)
   }
 }
 
-#remove NA Ages in length-age data
+#6.7 remove NA Ages in length-age data
 for(s in 1:N.sp) 
 {
   if('age_length'%in%names(Species.data[[s]]))
@@ -1061,7 +1113,7 @@ for(s in 1:N.sp)
   
 }
 
-#remove nonsense size comp from milk shark
+#6.8 remove nonsense size comp from milk shark
 Species.data$`milk shark`$Size_composition_NSF.LONGLINE=Species.data$`milk shark`$Size_composition_NSF.LONGLINE%>%
                                                           filter(FL<=80)
 Species.data$`milk shark`$Size_composition_West.7.inch.raw=Species.data$`milk shark`$Size_composition_West.7.inch.raw%>%
@@ -1069,13 +1121,13 @@ Species.data$`milk shark`$Size_composition_West.7.inch.raw=Species.data$`milk sh
 Species.data$`milk shark`$Size_composition_Survey=Species.data$`milk shark`$Size_composition_Survey%>%
   filter(FL<=80)
 
-#remove nonsense size comp from sandbar shark
+#6.9 remove nonsense size comp from sandbar shark
 Species.data$`sandbar shark`$Size_composition_NSF.LONGLINE=Species.data$`sandbar shark`$Size_composition_NSF.LONGLINE%>%
   filter(FL<=200)
 Species.data$`sandbar shark`$Size_composition_Survey=Species.data$`sandbar shark`$Size_composition_Survey%>%
   filter(FL<=200)
 
-#remove Observer cpue data (double dipping with standardised catch rates)
+#6.10 remove Observer cpue data (double dipping with standardised catch rates)
 for(s in 1:N.sp)
 {
   iid=grep('CPUE_Observer_TDGDLF',names(Species.data[[s]]))
@@ -2289,12 +2341,11 @@ fn.source1("Pin_file_and_model_arguments.r")
 
 
 #---16. Export .dat (figures and assessment input files to each species' folder) and some prelim analysis----- 
-library(r4ss)
+library(r4ss)  
 if(First.run=="YES") fn.source1("Organise data.R")
 
 #Compare empirical selectivity with observed size composition
-do.this='NO'
-if(do.this=="YES")
+if(First.run=="YES")
 {
   fn.compare.sel.size.comp=function(Title,Sel,size,FL_TL,MX)
   {
@@ -2428,7 +2479,7 @@ if(First.run=="YES")
   clear.log('fn.cpue.corr')
 }
 
-#Check if observed FL is with Lo +/- CV and FLinf +/- 
+#Check if observed FL is within Lo +/- CV and FLinf +/- 
 #remove "Size.type"
 for(i in 1:length(Species.data))
 {
@@ -2500,7 +2551,6 @@ if(First.run=="YES")
 }
 
 # Check that meanbodywt used in SS occurs ~ at peak of selectivity
-#note: SS Tiger shark model not fitting well if using meanbodywt
 if(First.run=="YES")
 {
   fn.source1("SS_selectivity functions.R")
@@ -2899,59 +2949,7 @@ write.csv(data.frame(year.current=Last.yr.ktch,
                      year.future=paste(fut.yr,substr(fut.yr+1,3,4),sep='-')),
           paste(Rar.path,'year_current_future.csv',sep='/'),row.names = FALSE)
 
-#Display available time series by species
-if(First.run=='YES')
-{
-  Data.availability=vector('list',N.sp)
-  for(i in 1:N.sp)
-  {
-    dd=data.frame(Species=rep(capitalize(names(Species.data)[i]),each=6),
-                  Data=c('Catch','Abundance','Catch length\n composition','Catch mean\n weight','F','Tagging'),
-                  Availability=NA,
-                  w=1)
-    Avail.ktch=1
-    Avail.abun=Avail.length=Avail.ca.wei=Avail.F=Avail.Tag=0
-    if(!is.null(Catch.rate.series[[i]])) Avail.abun=1
-    if(Keep.species[i]%in%Species.with.length.comp) Avail.length=1
-    if('annual.mean.size'%in%names(Species.data[[i]])) Avail.ca.wei=1
-    if(any(grepl('Fishing.mortality',names(Species.data[[i]])))) Avail.F=1
-    if(any(grepl('tag',names(Species.data[[i]])))) Avail.Tag=1
-    dd$Availability=c(Avail.ktch,Avail.abun,Avail.length,Avail.ca.wei,Avail.F,Avail.Tag)
-    Data.availability[[i]]=dd
-  }
-  Data.availability=do.call(rbind,Data.availability)%>%
-    mutate(Availability=factor(Availability,levels=0:1),
-           Data=factor(Data,levels=c('Catch','Abundance','Catch length\n composition',
-                                     'Catch mean\n weight','F','Tagging')))
-  Avail.colors=c('transparent','black')
-  names(Avail.colors)=0:1
-  Data.availability%>%
-    ggplot(aes(Data,Species,  width = w,height=w))+
-    geom_tile(aes(fill = Availability))+
-    scale_fill_manual(values=Avail.colors)+
-    theme_bw()%+replace% 
-    theme(legend.position = "none",
-          panel.background = element_rect(fill="grey95"),
-          panel.border = element_rect(colour = "grey75", fill=NA, size=1.15),
-          panel.grid.major = element_blank(),    
-          panel.grid.minor = element_blank(),    
-          axis.line = element_line(colour = "grey75"),
-          strip.background = element_rect(fill = "transparent",colour = "transparent"),
-          axis.title = element_text(size = 20),
-          axis.text = element_text(size = 13),
-          axis.text.y=element_text(hjust=0.5),
-          axis.ticks.x=element_blank(),
-          axis.ticks.y=element_blank())+
-    xlab('Time series')+ylab('')+
-    scale_y_discrete(expand = c(0, 0))+scale_x_discrete(expand = c(0, 0),position = "bottom")+
-    geom_hline(yintercept=seq(1.5,N.sp,1),color='grey75')+
-    geom_vline(xintercept=seq(1.5,5.5,1),color='grey75')
-  ggsave(paste(Rar.path,"Available time series by species.tiff",sep='/'),
-         width = 10,height = 8,compression = "lzw")
-}
-
-#---18. Catch-only assessments --------------------------------------
-#Use Catch-only methods for species with only catch and life history data?
+#Define species with size composition  
 Species.with.length.comp=vector('list',N.sp)
 for(i in 1:N.sp)
 {
@@ -3013,9 +3011,64 @@ for(i in 1:N.sp)
   }
 }
 Species.with.length.comp=c(do.call(rbind,Species.with.length.comp)) 
-not.fitting.SS3=c("pigeye shark")  #no Hessian 
+not.fitting.SS3=c("pigeye shark","lemon shark")  #no Hessian 
 Species.with.length.comp=subset(Species.with.length.comp,!Species.with.length.comp%in%not.fitting.SS3)
 write.csv(paste('1.',capitalize(Species.with.length.comp),sep=''),paste(Rar.path,'Species.with.length.comp.csv',sep='/'),row.names = F) 
+
+
+#Display available time series by species
+if(First.run=='YES')
+{
+  Data.availability=vector('list',N.sp)
+  for(i in 1:N.sp)
+  {
+    dd=data.frame(Species=rep(capitalize(names(Species.data)[i]),each=6),
+                  Data=c('Catch','Abundance','Catch length\n composition','Catch mean\n weight','F','Tagging'),
+                  Availability=NA,
+                  w=1)
+    Avail.ktch=1
+    Avail.abun=Avail.length=Avail.ca.wei=Avail.F=Avail.Tag=0
+    if(!is.null(Catch.rate.series[[i]])) Avail.abun=1
+    if(Keep.species[i]%in%Species.with.length.comp) Avail.length=1
+    if('annual.mean.size'%in%names(Species.data[[i]])) Avail.ca.wei=1
+    if(any(grepl('Fishing.mortality',names(Species.data[[i]])))) Avail.F=1
+    if(any(grepl('tag',names(Species.data[[i]])))) Avail.Tag=1
+    dd$Availability=c(Avail.ktch,Avail.abun,Avail.length,Avail.ca.wei,Avail.F,Avail.Tag)
+    Data.availability[[i]]=dd
+  }
+  Data.availability=do.call(rbind,Data.availability)%>%
+    mutate(Availability=factor(Availability,levels=0:1),
+           Data=factor(Data,levels=c('Catch','Abundance','Catch length\n composition',
+                                     'Catch mean\n weight','F','Tagging')))
+  Avail.colors=c('transparent','black')
+  names(Avail.colors)=0:1
+  Data.availability%>%
+    ggplot(aes(Data,Species,  width = w,height=w))+
+    geom_tile(aes(fill = Availability))+
+    scale_fill_manual(values=Avail.colors)+
+    theme_bw()%+replace% 
+    theme(legend.position = "none",
+          panel.background = element_rect(fill="grey95"),
+          panel.border = element_rect(colour = "grey75", fill=NA, size=1.15),
+          panel.grid.major = element_blank(),    
+          panel.grid.minor = element_blank(),    
+          axis.line = element_line(colour = "grey75"),
+          strip.background = element_rect(fill = "transparent",colour = "transparent"),
+          axis.title = element_text(size = 20),
+          axis.text = element_text(size = 13),
+          axis.text.y=element_text(hjust=0.5),
+          axis.ticks.x=element_blank(),
+          axis.ticks.y=element_blank())+
+    xlab('Time series')+ylab('')+
+    scale_y_discrete(expand = c(0, 0))+scale_x_discrete(expand = c(0, 0),position = "bottom")+
+    geom_hline(yintercept=seq(1.5,N.sp,1),color='grey75')+
+    geom_vline(xintercept=seq(1.5,5.5,1),color='grey75')
+  ggsave(paste(Rar.path,"Available time series by species.tiff",sep='/'),
+         width = 10,height = 8,compression = "lzw")
+}
+
+#---18. Catch-only assessments --------------------------------------
+#Decide if using Catch-only methods for species with only catch and life history data OR all species
 if(Assessed.ktch.only.species=='All')
 {
   Catch.only.species=Keep.species
