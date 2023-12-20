@@ -4012,6 +4012,18 @@ fn.display.priors=function(d,sp,XLAB,XLIM,Strx.siz=16)
   
   return(p)
 }
+fn.compare.dist=function(MEAN,CV,XLIM)
+{
+  Beta.pars=get_beta(MEAN,CV)
+  Gama.pars=get_gamma(MEAN,CV)
+  Log.normal.pars=c(log(MEAN),CV)
+  plot(density(rnorm(1e4,MEAN,CV)),xlim=XLIM,main=paste0('Mean=',MEAN,' CV=',CV))
+  lines(density(rbeta(1e4,Beta.pars[1], Beta.pars[2])),col=2)
+  lines(density(rgamma(1e4,Gama.pars[1], Gama.pars[2])),col=3)
+  lines(density(rlnorm(1e4,Log.normal.pars[1], Log.normal.pars[2])),col=4)
+  legend('topleft',c('normal','beta','gamma','log.normal'),lty=1,col=1:4,bty='n')
+}
+#fn.compare.dist(MEAN=0.317,CV=0.5,XLIM=c(0,1))
 make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,YLAB='',HLine)
 {
   p=da%>%

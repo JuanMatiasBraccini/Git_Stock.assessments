@@ -187,6 +187,21 @@ fn.add=function(a,YRS)
 }
 fn.see.Ktch=function(DAT,DAT.zone,YR.span,LWD,TCK)
 {
+  DAT$Total=do.call(rbind,DAT)%>%
+    mutate(FishCubeCode='Total',
+           Data.set='Total',
+           Region='Total',
+           Fishery='Total')%>%
+    group_by(SPECIES,Name,FishCubeCode,Data.set,finyear,FINYEAR,Region,Fishery)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
+  DAT.zone$Total=do.call(rbind,DAT.zone)%>%
+    mutate(FishCubeCode='Total',
+           Data.set='Total',
+           Region='Total',
+           Fishery='Total',
+           zone=NA)%>%
+    group_by(SPECIES,Name,FishCubeCode,Data.set,finyear,FINYEAR,Region,zone,Fishery)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))
   for(i in 1:length(DAT))
   {
     if(names(DAT)[i]=='Historic') names(DAT)[i]='Historical'
@@ -203,9 +218,17 @@ fn.see.Ktch=function(DAT,DAT.zone,YR.span,LWD,TCK)
            main=names(DAT)[i],col=tot.col)
     }else
     {
+      disKol=tot.col
+      disLWD=LWD*.75
+      if(names(DAT)[i]=="Total")
+      {
+        disKol='black'
+        disLWD=LWD*1.25
+      }
+        
       a=fn.add(a,YR.span)
-      plot(1:length(a$FINYEAR),a$LIVEWT.c,lwd=LWD*.75,xaxt='n',ylab="",xlab="",
-           ylim=Ylim,type='l',main=names(DAT)[i],col=tot.col)
+      plot(1:length(a$FINYEAR),a$LIVEWT.c,lwd=disLWD,xaxt='n',ylab="",xlab="",
+           ylim=Ylim,type='l',main=names(DAT)[i],col=disKol)
       if(names(DAT)[i]=="TDGDLF")
       {
       if(nrow(a.zn)>0)
@@ -1223,7 +1246,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   YR.span=sort(as.character(unique(a$FINYEAR)))
   rm(a)
   #YRS=YR.span
-  n.plots=length(catch)
+  n.plots=length(catch)+1
   WIDTH=ifelse(n.plots>5,2400,2400)
   LENGTH=ifelse(n.plots>5,2000,2400)
   fn.fig("All recons catches",WIDTH, LENGTH)

@@ -328,7 +328,9 @@ prop.min.N.accepted_other=1
   #SS model run arguments
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
+Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to set Init LnRo value so Virgin Total bimass ~ K from JABBA  
 SS3.q.an.sol=TRUE   #calculate q analytically to save up pars
+Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit
 Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation
 nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
 #MCMCsims=1e5; Thin=10; burning=1:(5*length(seq(1,MCMCsims,by=Thin))/100)   #5%  burning
@@ -1667,19 +1669,23 @@ for(r in 1:length(RESILIENCE)) RESILIENCE[[r]]=Res.fn(store.species.r_M.min[[r]]
 clear.log('Res.fn')
 
 #---11. Extract experimental selectivity at age and at size-----------------------------------------------------------------------
-#note: not used (selectivity estimated in SS3)
+#note: used as fixed selectivity parameters in SS3 to untagle selectivity from fishing mortality
 #      for species with no gillnet selectivity profile, set to closest species or family
 Sel.equivalence=data.frame(
-  Name=c("copper shark","great hammerhead","scalloped hammerhead",
-         "grey nurse shark","wobbegongs",
+  Name=c("great hammerhead","scalloped hammerhead",
+         "grey nurse shark",
+         "wobbegongs",
          "sawsharks",
+         "angel sharks",
          "lemon shark","milk shark","pigeye shark","shortfin mako","spinner shark","tiger shark",
          "spurdogs"),
-  Equivalence=c("Dusky shark",rep("Smooth hammerhead",2),
-                rep("Hexanchidae",2),
-                "Common sawshark",
+  Equivalence=c(rep("Smooth hammerhead",2),
+                "Hexanchidae",
+                "Orectolobidae",
+                "Pristiophoridae",
+                "Squatinidae",
                 rep('Carcharhinidae',6),
-                'Spikey dogfish'))
+                'Squalidae'))
 Selectivity.at.age=vector('list',N.sp)
 names(Selectivity.at.age)=Keep.species
 Selectivity.at.totalength=Selectivity.at.age
@@ -1700,11 +1706,10 @@ for(l in 1:N.sp)
       temp.wd=paste(HandL,this.sel$Equivalence,sep='')
       GN.sel.at.age=read.csv(paste(temp.wd,'/',this.sel$Equivalence,'_Gillnet.selectivity_len.age.csv',sep=''))%>%mutate(type='Family')
       GN.sel.at.totalength=read.csv(paste(temp.wd,'/',this.sel$Equivalence,'_Gillnet.selectivity.csv',sep=''))%>%mutate(type='Family')
-      
     }
     
     #2. Get combined selectivity
-    if(!"X16.5"%in%names(GN.sel.at.age))
+    if(!"X16.5"%in%names(GN.sel.at.totalength))
     {
       GN.sel.at.age=GN.sel.at.age%>%
         rename(X16.5='16.5',
@@ -1716,16 +1721,13 @@ for(l in 1:N.sp)
     GN.sel.at.age=GN.sel.at.age%>%
       mutate(Sum.sel=X16.5+X17.8,
              Sel.combined=Sum.sel/max(Sum.sel),
-             Sel.combined=Sel.combined/max(Sel.combined),
-             TL=TL.mm)  
-    
+             Sel.combined=Sel.combined/max(Sel.combined))
     Selectivity.at.age[[l]]=GN.sel.at.age[,c('TL','Age','Sel.combined','X16.5','X17.8','type')]
     
     GN.sel.at.totalength=GN.sel.at.totalength%>%
       mutate(Sum.sel=X16.5+X17.8,
              Sel.combined=Sum.sel/max(Sum.sel),
-             Sel.combined=Sel.combined/max(Sel.combined),
-             TL=TL.mm) 
+             Sel.combined=Sel.combined/max(Sel.combined)) 
     Selectivity.at.totalength[[l]]=GN.sel.at.totalength[,c('TL','Sel.combined','X16.5','X17.8','type')]
   }
 }
@@ -2405,6 +2407,17 @@ if(First.run=="YES")
                                                     slope=a_FL.to.TL),
                                    MX=10*round(TLmax/10))
         }
+        #All meshes combined
+        fn.compare.sel.size.comp(Title="All meshes combined",
+                                 Sel=data.frame(type=Selectivity.at.totalength[[l]]%>%pull(type),
+                                                TL=Selectivity.at.totalength[[l]]%>%pull(TL),
+                                                Sel=Selectivity.at.totalength[[l]]%>%
+                                                  pull(Sel.combined)),
+                                 size=do.call(rbind,TDGDLF.size.comp),
+                                 FL_TL=data.frame(inter=b_FL.to.TL,
+                                                  slope=a_FL.to.TL),
+                                 MX=10*round(TLmax/10))
+        
         dev.off()
       }
       
@@ -2415,7 +2428,7 @@ if(First.run=="YES")
       {
         pdf(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),
                   "/",AssessYr,"/1_Inputs/Visualise data","/Compare sel and obs size comp_NSF.pdf",sep=''))
-          fn.compare.sel.size.comp(Title='NSF - longline',
+          fn.compare.sel.size.comp(Title='NSF - longline (sel pars set at 50% & 95% maturity)',
                                    Sel=data.frame(type='Species',
                                                   TL=midpt,
                                                   Sel=round(1/(1+(exp(-log(19)*((midpt-TL.50.mat)/(TL.95.mat-TL.50.mat))))),3)),
@@ -2425,12 +2438,176 @@ if(First.run=="YES")
                                    MX=10*round(TLmax/10))
         dev.off()
       }
+      
+      #Other
+      Other.size.comp=Species.data[[l]][grep('Size_composition_Other',names(Species.data[[l]]))]
+      Other.size.comp=Other.size.comp[-grep("Observations",names(Other.size.comp))]
+      if(length(Other.size.comp)>0)
+      {
+        pdf(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),
+                  "/",AssessYr,"/1_Inputs/Visualise data","/Compare sel and obs size comp_Other.pdf",sep=''))
+        #All meshes combined
+        fn.compare.sel.size.comp(Title="All meshes combined",
+                                 Sel=data.frame(type=Selectivity.at.totalength[[l]]%>%pull(type),
+                                                TL=Selectivity.at.totalength[[l]]%>%pull(TL),
+                                                Sel=Selectivity.at.totalength[[l]]%>%
+                                                  pull(Sel.combined)),
+                                 size=do.call(rbind,Other.size.comp),
+                                 FL_TL=data.frame(inter=b_FL.to.TL,
+                                                  slope=a_FL.to.TL),
+                                 MX=10*round(TLmax/10))
+        dev.off()
+      }
 
       detach(List.sp[[l]])
-      print(paste('-------------Compare selectivity and observed size comp for:',List.sp[[l]]$Name))
+      print(paste('-------------Compare empirical selectivity & observed size comp ----',List.sp[[l]]$Name))
       
     }
   }
+}
+
+#Extract SS double normal parameters
+#note: do this only once and update 'SS3.selectivity_pars.csv'.
+do.this=FALSE
+if(do.this)
+{
+  fn.source1("SS_selectivity functions.R")
+  SS.double.normal.pars_empirical=vector('list',N.sp)
+  names(SS.double.normal.pars_empirical)=Keep.species
+  sumsq <- function( x, y) {sum((x-y)^2)}
+  
+  #TDGDLF   #ACA!!!!
+  ObjFunc=function(par)
+  {
+    Predicted=doubleNorm24.fn(TL,par[1],par[2],par[3],par[4],e=-999, f=-999, use_e_999=TRUE, use_f_999=TRUE)  
+    return(sumsq(x=Obs,y=Predicted))
+  }
+  for(l in 1:N.sp)
+  {
+    if(!is.null(Selectivity.at.totalength[[l]]))
+    {
+      SP=Keep.species[l]
+      print(paste('Extractiong SS_double normal sel pars for -----',SP))
+      TLmax=List.sp[[l]]$TLmax
+      if(Keep.species[l]%in%c('milk shark','sawsharks','spurdogs',
+                              'gummy shark','whiskery shark')) TLmax=TLmax*1.5
+      AA=Selectivity.at.totalength[[l]]%>%
+        filter(TL<TLmax)
+      TL=AA$TL-(TL.bins.cm/2)
+      Obs=AA$Sel.combined
+      par=c(90,-4.5,7,9)
+      if(SP=='gummy shark') par=c(130,-4.5,6,7)
+      if(grepl("hammerhead",SP)) par=c(100,-4,9,10.2)
+      if(SP=='sawsharks') par=c(160,-4.5,6,7)
+      if(SP=='whiskery shark') par=c(130,-4.5,6,7)
+      
+      Init.val=doubleNorm24.fn(TL,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE)
+      
+      plot(TL,Obs,main=SP,pch=19,ylab='Relative selectivity',xlab='TL (cm)')
+      lines(TL,Init.val,col='grey90',lwd=1)
+      
+      #size comp
+      d.list=Species.data[[l]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
+                                    names(Species.data[[l]]))]
+      if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
+      if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
+      for(x in 1:length(d.list)) d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
+      d.list=do.call(rbind,d.list)
+      d.list=d.list%>%mutate(fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
+                             Fleet=ifelse(fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
+                                          ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
+                                                 ifelse(fleet=='NSF.LONGLINE','Northern.shark',
+                                                        fleet))),
+                             TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)
+      dd=d.list%>%
+        filter(Fleet%in%c('Southern.shark_1','Southern.shark_2'))
+      if(nrow(dd)>2)
+      {
+        dd$bin=TL.bins.cm*floor(dd$TL/TL.bins.cm)
+        y=table(dd$bin)
+        y=y/max(y)
+        points(as.numeric(names(y)),y,type='h',col="forestgreen")
+        d <- density(dd$TL)
+        lines(d$x,d$y/max(d$y),col="forestgreen",lwd=2)
+      }
+      
+      nlmb <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE)
+      TL1=TL
+      Predicted=with(nlmb,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
+      lines(TL1,Predicted,col='red',lwd=2)
+      
+
+      Obs=d$y/max(d$y)
+      TL=d$x
+      nlmb_fitted_to_obs <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE) #rescale peak
+      Predicted_fitted_to_obs=with(nlmb_fitted_to_obs,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
+      lines(TL1,Predicted_fitted_to_obs,col='steelblue',lwd=2)
+      
+      
+      legend('topright',c('observed','init values','predicted','predicted_rescaled'),
+             pch=c(19,NA,NA,NA),lty=c(NA,1,1,1),lwd=3,
+             col=c('black','grey90','red','steelblue'),bty='n')
+      
+      usedis=nlmb
+      if(grepl(paste(c('gummy','spinner','smooth','mako'),collapse='|'),SP)) usedis=nlmb_fitted_to_obs
+      SS.double.normal.pars_empirical[[l]]=with(usedis,data.frame(Species=SP,
+                                                                  p1=par[1],
+                                                                  p2=par[2],
+                                                                  p3=par[3],
+                                                                  p4=par[4],
+                                                                  p5=-999,
+                                                                  p6=-999,
+                                                                  Source=unique(AA$type)))
+      rm(AA,nlmb,nlmb_fitted_to_obs)
+    }
+  }
+  write.csv(do.call(rbind,SS.double.normal.pars_empirical),
+            handl_OneDrive("Analyses/Population dynamics/SS3.selectivity_pars_empirical.csv"),
+            row.names = F)
+  
+  #NSF
+  ObjFunc=function(par)
+  {
+    Predicted=logistic1.fn(midpt, par[1],par[2])
+    return(sumsq(x=Obs,y=Predicted))
+  }
+  for(l in 1:N.sp)
+  {
+    if(!is.null(Selectivity.at.totalength[[l]]))
+    {
+      print(paste('Extractiong SS_logistic sel pars for -----',Keep.species[l]))
+      attach(List.sp[[l]])
+      if(MN.SZE=="size.at.birth") Min.size.bin=10*round((Lzero*a_FL.to.TL+b_FL.to.TL)/10)
+      if(MN.SZE==0) Min.size.bin=0
+      MaxLen= 10*round(TLmax*Plus.gp.size/10)
+      lbnd = seq(Min.size.bin,MaxLen - TL.bins.cm, TL.bins.cm)
+      ubnd = lbnd + TL.bins.cm
+      midpt = lbnd + (TL.bins.cm/2)
+      Obs=round(1/(1+(exp(-log(19)*((midpt-TL.50.mat)/(TL.95.mat-TL.50.mat))))),3)
+      par=c(TL.50.mat,4.5)
+      detach(List.sp[[l]])
+      
+      nlmb <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE)
+      Predicted=logistic1.fn(midpt,nlmb$par[1],nlmb$par[2])
+      Init.val=logistic1.fn(midpt,par[1],par[2])
+      
+      plot(midpt,Obs,main=Keep.species[l],pch=19,ylab='Relative selectivity',xlab='TL (cm)')
+      lines(midpt,Init.val,col='grey90',lwd=1)
+      lines(midpt,Predicted,col='red',lwd=2)
+      legend('topright',c('observed','init values','predicted'),pch=c(19,NA,NA),lty=c(NA,1,1),lwd=3,
+             col=c('black','grey90','red'),bty='n')
+      
+      SS.double.normal.pars_empirical[[l]]=data.frame(Species=Keep.species[l],
+                                                      p1=nlmb$par[1],
+                                                      p2=nlmb$par[2],
+                                                      Source='Set at maturity ogive')
+      rm(nlmb)
+    }
+  }
+  write.csv(do.call(rbind,SS.double.normal.pars_empirical),
+            handl_OneDrive("Analyses/Population dynamics/SS3.selectivity_pars_empirical_NSF.csv"),
+            row.names = F)
+
 }
 
 #Check if different CPUE indices show the same trend and if not biologically possible  
@@ -2502,51 +2679,56 @@ if(First.run=="YES")
 {
   for(i in 1:length(Species.data))
   {
-    print(paste("observed FL is with Lo +/- CV and FLinf --------",names(Species.data)[i]))
     if(any(grepl('Size_composition',names(Species.data[[i]]))))
     {
       d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
                                     names(Species.data[[i]]))]
-      if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
-      if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
-      for(x in 1:length(d.list)) d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
-      d.list=do.call(rbind,d.list)%>%
-                mutate(Fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
-                       Fleet=ifelse(Fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
-                             ifelse(Fleet=='TDGDLF' & year>2005,'Southern.shark_2',
-                             ifelse(Fleet=='NSF.LONGLINE','Northern.shark',
-                                    Fleet))))
-      
-      CV_young=List.sp[[i]]$Growth.CV_young
-      CV_old=List.sp[[i]]$Growth.CV_old
-      Lo=List.sp[[i]]$Lzero
-      Lo.min=Lo-(CV_young*Lo)
-      LinfF=List.sp[[i]]$Growth.F$FL_inf
-      LinfM=List.sp[[i]]$Growth.M$FL_inf
-      if(is.na(LinfM)) LinfM=LinfF
-      if(LinfF==LinfM) LinfM=base::jitter(LinfM)
-      LinfF.max=LinfF+(CV_old*LinfF)
-      LinfM.max=LinfM+(CV_old*LinfM)
-      nRows=length(unique(d.list$Fleet))
-      nCols=1
-      d.list%>%
-        filter(!is.na(SEX))%>%
-        ggplot(aes(FL,fill=SEX))+
-        geom_histogram()+
-        facet_wrap(~Fleet,nrow = nRows,scales='free_y')+
-        xlim(Lo.min,max(LinfF.max,LinfM.max))+
-        theme(legend.position="top",legend.title=element_blank())+
-        geom_vline(xintercept=Lo,color = "black",size=1.25,alpha=.7)+
-        geom_vline(xintercept=Lo.min,color = "black",alpha=.7,size=1.1,linetype = "dotted")+
-        geom_vline(xintercept=LinfF,color = "#F8766D",size=1.25)+
-        geom_vline(xintercept=LinfF.max,color = "#F8766D",size=1.1,linetype = "dotted")+
-        geom_vline(xintercept=LinfM,color = "#00BFC4",size=1.25)+
-        geom_vline(xintercept=LinfM.max,color = "#00BFC4",size=1.1,linetype = "dotted")
-      
-      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
-                   "/",AssessYr,"/1_Inputs/Visualise data","/Observed size vs Linf and Lo with CV.tiff",sep=''),
-             width = 8,height = 8, dpi = 300, compression = "lzw")
-    }
+      if(length(d.list)>0)
+      {
+        print(paste("observed TL is with Lo +/- CV and FLinf --------",names(Species.data)[i]))
+        if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
+        if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
+        for(x in 1:length(d.list)) d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
+        d.list=do.call(rbind,d.list)%>%
+          mutate(Fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
+                 Fleet=ifelse(Fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
+                              ifelse(Fleet=='TDGDLF' & year>2005,'Southern.shark_2',
+                                     ifelse(Fleet=='NSF.LONGLINE','Northern.shark',
+                                            Fleet))))
+        
+        CV_young=List.sp[[i]]$Growth.CV_young
+        CV_old=List.sp[[i]]$Growth.CV_old
+        Lo=(List.sp[[i]]$Lzero)*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL
+        Lo.min=Lo-(CV_young*Lo)
+        LinfF=(List.sp[[i]]$Growth.F$FL_inf)*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL
+        LinfM=(List.sp[[i]]$Growth.M$FL_inf)*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL
+        if(is.na(LinfM)) LinfM=LinfF
+        if(LinfF==LinfM) LinfM=base::jitter(LinfM)
+        LinfF.max=LinfF+(CV_old*LinfF)
+        LinfM.max=LinfM+(CV_old*LinfM)
+        nRows=length(unique(d.list$Fleet))
+        nCols=1
+        d.list%>%
+          mutate(TL=FL*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL)%>%
+          filter(!is.na(SEX))%>%
+          ggplot(aes(TL,fill=SEX))+
+          geom_histogram(binwidth = TL.bins.cm)+
+          facet_wrap(~Fleet,nrow = nRows,scales='free_y')+
+          xlim(Lo.min,max(LinfF.max,LinfM.max))+
+          theme(legend.position="top",legend.title=element_blank())+
+          geom_vline(xintercept=Lo,color = "black",size=1.25,alpha=.7)+
+          geom_vline(xintercept=Lo.min,color = "black",alpha=.7,size=1.1,linetype = "dotted")+
+          geom_vline(xintercept=LinfF,color = "#F8766D",size=1.25)+
+          geom_vline(xintercept=LinfF.max,color = "#F8766D",size=1.1,linetype = "dotted")+
+          geom_vline(xintercept=LinfM,color = "#00BFC4",size=1.25)+
+          geom_vline(xintercept=LinfM.max,color = "#00BFC4",size=1.1,linetype = "dotted")
+        
+        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
+                     "/",AssessYr,"/1_Inputs/Visualise data","/Observed size vs Linf and Lo with CV.tiff",sep=''),
+               width = 8,height = 8, dpi = 300, compression = "lzw")
+        
+      }
+      }
   }
 }
 
@@ -2589,7 +2771,7 @@ if(First.run=="YES")
   clear.log('fun.check.mean.weight')
 }
 
-# Compare observed size comp and assumed SS selectivity 
+# Compare observed size comp and assumed SS selectivity #ACA
 if(First.run=="YES")
 {
   fn.source1("SS_selectivity functions.R")
@@ -2604,25 +2786,33 @@ if(First.run=="YES")
       Sel.ori=SS_selectivity_init_pars%>%filter(Species==names(List.sp)[i])
       a.log=1e5
       b.log=0
+      OUT.LOGIS=FALSE
+      OUT.DOUBLE.N=TRUE
       if(all(is.na(Sel[,c('P_3', 'P_4', 'P_5', 'P_6')])))
       {
         a.log=Sel$P_1
         b.log=Sel$P_2
-        Sel[,c('P_1', 'P_2','P_3', 'P_4', 'P_5', 'P_6')]=c(0,100,-10,-10,0,0) 
+        Sel[,c('P_1', 'P_2','P_3', 'P_4', 'P_5', 'P_6')]=c(10,100,-10,-10,0,0) 
+        OUT.LOGIS=TRUE
+        OUT.DOUBLE.N=FALSE
 
       }
-      with(Sel,wrapper.fn(x=TL,a.dn=P_1,b.dn=P_2,c.dn=P_3,d.dn=P_4,e.dn=P_5,f.dn=P_6,a.log=a.log,b.log=b.log))
+      with(Sel,wrapper.fn(x=TL,a.dn=P_1,b.dn=P_2,c.dn=P_3,d.dn=P_4,e.dn=P_5,f.dn=P_6,
+                          a.log=a.log,b.log=b.log,out.logis=OUT.LOGIS,out.DN=OUT.DOUBLE.N,XLAB='TL (cm)'))
       
       dd=size.comps%>%
             filter(Fleet==Flts[x])
       if(nrow(dd)>2)
       {
-        d <- density(dd$TL,adjust = 1.25)
+        dd$bin=TL.bins.cm*floor(dd$TL/TL.bins.cm)
+        y=table(dd$bin)
+        y=y/max(y)
+        points(as.numeric(names(y)),y,type='h',col="forestgreen")
+        d <- density(dd$TL)
         lines(d$x,d$y/max(d$y),col="forestgreen",lwd=2)
       }
-
       legend('bottomleft','size composition',lwd=2,col="forestgreen",bty='n')
-      text(quantile(TL,.9),.9,Flts[x])
+      text(quantile(TL,.5),.5,Flts[x],cex=3,col='grey80')
     }
   }
   for(i in 1:length(Species.data))
@@ -2640,15 +2830,22 @@ if(First.run=="YES")
         d.list=do.call(rbind,d.list)
         d.list=d.list%>%mutate(fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
                                Fleet=ifelse(fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
-                                            ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
-                                                   ifelse(fleet=='NSF.LONGLINE','Northern.shark',
-                                                          fleet))),
+                                     ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
+                                     ifelse(fleet=='NSF.LONGLINE','Northern.shark',
+                                     fleet))),
                                TL=FL*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL)
+        
+        
+        if(MN.SZE=="size.at.birth") Min.size.bin=10*round((List.sp[[i]]$Lzero*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL)/10)
+        if(MN.SZE==0) Min.size.bin=0
+        MaxLen= 10*round(List.sp[[i]]$TLmax*Plus.gp.size/10)
+        lbnd = seq(Min.size.bin,MaxLen - TL.bins.cm, TL.bins.cm)
+        
         
         tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
                         "/",AssessYr,"/1_Inputs/Visualise data","/Observe size VS selectivity used in SS.tiff",sep=''),
              width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-        fun.compare.sel.obs.size.comp(TL=with(List.sp[[i]],seq(round(Lzero*a_FL.to.TL+b_FL.to.TL),TLmax)),
+        fun.compare.sel.obs.size.comp(TL=lbnd,
                                       Sel=List.sp[[i]]$SS_selectivity,
                                       size.comps=d.list,
                                       Flts=sort(unique(d.list$Fleet)))

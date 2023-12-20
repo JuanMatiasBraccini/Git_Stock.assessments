@@ -683,6 +683,18 @@ for(w in 1:n.SS)
               clear.log("Var.ad.factr")
               
               #b. Run SS3
+              if(Find_Init_LnRo)
+              {
+                start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
+                start$last_estimation_phase=0
+                r4ss::SS_writestarter(start, dir = this.wd1, overwrite = TRUE,verbose = FALSE)
+                fn.run.SS(where.inputs=this.wd1,
+                          where.exe=handl_OneDrive('SS3/ss_win.exe'),
+                          args="-nohess") 
+                Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)  
+                Report$timeseries%>%filter(Era=='VIRG')%>%pull(Bio_all) #JABBA K= 6800 tonnes
+                rm(Report)
+              }
               if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
                 #tune ramp years
@@ -721,7 +733,7 @@ for(w in 1:n.SS)
  
               
               #c. Bring in outputs
-              Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F,checkcor=F)
+              Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
               
               #d. Store estimates
               Estims=Report[["estimated_non_dev_parameters"]]
@@ -1592,6 +1604,18 @@ for(w in 1:n.SS)
               clear.log("Var.ad.factr")
               
               #b. Run SS3
+              if(Find_Init_LnRo)
+              {
+                start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
+                start$last_estimation_phase=0
+                r4ss::SS_writestarter(start, dir = this.wd1, overwrite = TRUE,verbose = FALSE)
+                fn.run.SS(where.inputs=this.wd1,
+                          where.exe=handl_OneDrive('SS3/ss_win.exe'),
+                          args="-nohess") 
+                Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)  
+                Report$timeseries%>%filter(Era=='VIRG')%>%pull(Bio_all) #JABBA K= 6800 tonnes
+                rm(Report)
+              }
               if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
                 #tune ramp years
@@ -1630,7 +1654,7 @@ for(w in 1:n.SS)
  
               
               #c. Bring in outputs
-              Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F,checkcor=F)
+              Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
               
               #d. Store estimates
               Estims=Report[["estimated_non_dev_parameters"]]

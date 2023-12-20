@@ -511,6 +511,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       dat$lbin_vector=lbin_vector
       dat$N_lbins=length(dat$lbin_vector)
       dat$lencomp=size.comp%>%arrange(Fleet,Sex,year)
+      dat$maximum_size=max(dat$maximum_size,max(lbin_vector))
     }
     if(!is.null(F.tagging) & !is.null(size.comp))
     {
@@ -689,11 +690,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   ctl$SR_parms["SR_LN(R0)", c('LO','INIT','HI')]=with(Scenario,c(Ln_R0_min,Ln_R0_init,Ln_R0_max))
   ctl$SR_parms["SR_BH_steep", "INIT"]=Scenario$Steepness
   ctl$SR_parms["SR_BH_steep", "LO"]=Min.h.shark  #0.25
+  if(Scenario$Steepness<Min.h.shark) ctl$SR_parms["SR_BH_steep", "LO"]=0.2
   if(Scenario$Model=='SS')  #estimate h with strong prior (Punt 2023)?
   {
     ctl$SR_parms["SR_BH_steep", "PHASE"]=life.history$Steepness_Phase
     ctl$SR_parms["SR_BH_steep", "PR_SD"]=Scenario$Steepness.sd  
     ctl$SR_parms["SR_BH_steep", "PR_type"]=1 #0, no prior; 1, symmetric beta; 2, beta; 3, lognormal; 4, lognormal with bias correction; 5, gamma; 6, normal
+    if(ctl$SR_parms["SR_BH_steep", "PR_type"]==1) ctl$SR_parms["SR_BH_steep", "PR_SD"]=0.5  #increase CV to avoid bounds
     if(is.null(abundance)) ctl$SR_parms["SR_BH_steep", "PHASE"]=-4
   }
   if(Scenario$Model=='SS') SR_sigmaR=life.history$SR_sigmaR
@@ -861,7 +864,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       #Add extra SD to Q if CV too small  
       n.indices=nrow(ctl$Q_options)
       Indx.small.CV=dat$CPUE%>%group_by(index)%>%summarise(Mean.CV=mean(CV))  
-      if(life.history$Name%in%c("spinner shark","tiger shark")) Indx.small.CV$Mean.CV=default.CV*.9 #need extra_Q for both indices to fit spinner cpue
+      if(life.history$Name%in%Extra_Q_species & !SS3.q.an.sol) Indx.small.CV$Mean.CV=default.CV*.9 #need extra_Q for to fit cpue
       Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<default.CV)%>%pull(index)
       #if(!Scenario$extra.SD.Q=='always' & n.indices>1) Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<default.CV)%>%pull(index)
       if(length(Indx.small.CV)>0)
@@ -1064,6 +1067,34 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$size_selex_parms=ctl$size_selex_parms%>%filter(!is.na(INIT))
     
     #set phases for estimable selectivities
+      #set phase to the one defined in SS_selectivity_phase
+    if(!is.null(size.comp))
+    {
+      life.history$SS_selectivity_phase=life.history$SS_selectivity_phase%>%
+        filter(Fleet%in%life.history$SS_selectivity$Fleet)
+      no.length.comp=which(life.history$SS_selectivity_phase$Fleet%in%flit.no.size.comp.obs)
+      if(length(no.length.comp)>0)
+      {
+        for(n in 1:length(no.length.comp))
+        {
+          life.history$SS_selectivity_phase[no.length.comp[n],-which(life.history$SS_selectivity_phase[no.length.comp[n],]>0)]=-2
+        }
+      }
+      
+      Sel_phase=life.history$SS_selectivity_phase%>%
+        gather(P,PHASE1,-Fleet)%>%
+        mutate(dumy=paste('SizeSel',P,Fleet,sep="_"))
+      
+      xx=ctl$size_selex_parms%>%
+        tibble::rownames_to_column(var = "dumy")%>%
+        left_join(Sel_phase%>%dplyr::select(PHASE1,dumy),by='dumy')%>%
+        mutate(PHASE=PHASE1)%>%
+        dplyr::select(-PHASE1)%>%
+        `row.names<-`(., NULL)%>%
+        column_to_rownames(var = "dumy")
+      ctl$size_selex_parms=xx
+      
+    }
     if(is.null(size.comp))ctl$size_selex_parms[,"PHASE"]=-2
     if(!is.null(size.comp))
     {
@@ -1095,8 +1126,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       ctl$size_selex_parms$PHASE[grep('P_2_Southern.shark',rownames(ctl$size_selex_parms))]=-4
     }
-    
-    #turn on Southern.shark_1 if available meanbodywt (because Southern.shark_2 mirrors Southern.shark_1) 
+      #turn on Southern.shark_1 if available meanbodywt (because Southern.shark_2 mirrors Southern.shark_1) 
     if(!is.null(meanbodywt) & !is.null(size.comp))
     {
       xx=size.comp%>%filter(Fleet%in%c(3:4))
@@ -1106,7 +1136,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         ctl$size_selex_parms[iiD,"PHASE"]=abs(ctl$size_selex_parms[iiD,"PHASE"])
         ctl$size_selex_parms[iiD,'PRIOR']=ctl$size_selex_parms[iiD,c('INIT')]
         ctl$size_selex_parms[iiD,'PR_SD']=ctl$size_selex_parms[iiD,c('INIT')]*.2
-        ctl$size_selex_parms[iiD,'PR_type']=6 #0, no prior; 1, symmetric beta; 2, beta; 3, lognormal; 4, lognormal with bias correction; 5, gamma; 6, normal
+        ctl$size_selex_parms[iiD,'PR_type']=0 #0, no prior; 1, symmetric beta; 2, beta; 3, lognormal; 4, lognormal with bias correction; 5, gamma; 6, normal
         if(life.history$Name=="tiger shark")
         {
           ctl$size_selex_parms[iiD,'PR_type']=0
@@ -1115,30 +1145,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         }
       }
     }
-    
-    #set phase to the one defined in SS_selectivity_phase
-    if(!is.null(size.comp))
-    {
-      life.history$SS_selectivity_phase=life.history$SS_selectivity_phase%>%
-        filter(Fleet%in%life.history$SS_selectivity$Fleet)
-      no.length.comp=which(life.history$SS_selectivity_phase$Fleet%in%flit.no.size.comp.obs)
-      if(length(no.length.comp)>0) life.history$SS_selectivity_phase[no.length.comp,-1]=-2
-      Sel_phase=life.history$SS_selectivity_phase%>%
-        gather(P,PHASE1,-Fleet)%>%
-        mutate(dumy=paste('SizeSel',P,Fleet,sep="_"))
-      
-      xx=ctl$size_selex_parms%>%
-        tibble::rownames_to_column(var = "dumy")%>%
-        left_join(Sel_phase%>%dplyr::select(PHASE1,dumy),by='dumy')%>%
-        mutate(PHASE=PHASE1)%>%
-        dplyr::select(-PHASE1)%>%
-        `row.names<-`(., NULL)%>%
-        column_to_rownames(var = "dumy")
-      ctl$size_selex_parms=xx
-      
-    }
-    
-    #set NSF and Survey to logistic if specified in scenario
+      #set NSF and Survey to logistic if specified in scenario
     if(!is.na(Scenario$NSF.selectivity))
     {
       if(Scenario$NSF.selectivity=='Logistic')
@@ -1151,7 +1158,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         
       }   
     }
-       
 
     
     #Retention and discard mortality  
