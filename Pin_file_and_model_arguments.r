@@ -462,7 +462,16 @@ for(l in 1:N.sp)
     p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel 
     p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel 
     p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel 
-
+  
+    if(!is.na(Other_p1))
+    {
+      p1.sel_Other=Other_p1
+      p2.sel_Other=Other_p2
+      p3.sel_Other=Other_p3
+      p4.sel_Other=Other_p4
+      p5.sel_Other=Other_p5
+      p6.sel_Other=Other_p6
+    }
       #TDGLDF
     p1.sel_TDGDLF=TDGDLF_p1
     p2.sel_TDGDLF=TDGDLF_p2
