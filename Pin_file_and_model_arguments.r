@@ -417,7 +417,7 @@ for(l in 1:N.sp)
                                   Q=log(c(fn.ji(1e-2),fn.ji(1e-2),fn.ji(1e-3),fn.ji(4e-4),fn.ji(1e-2),fn.ji(1e-3))))
 
     #4.1.3 selectivity
-  #SizeSelex
+  #4.1.3.1 SizeSelex
   #note: unknown for NSF and other fisheries so set to logistic using available size compo as a default unless otherwise
   #      double normal: p1. peak, beginning size for plateau
   #                     p2. top, width of plateau
@@ -430,66 +430,38 @@ for(l in 1:N.sp)
   
   SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
     #init values
-  attach(SS.sel.init.pars)
       #NSF, Survey and Others
-    p1.sel=NSF_p1       
-    p2.sel=NSF_p2 
-    p3.sel=NSF_p3
-    p4.sel=NSF_p4 
-    p5.sel=NSF_p5 
-    p6.sel=NSF_p6 
-    if(NSF_Alternative_sel_type=='Logistic')
-    {
-      p1.sel=Logistic_p1       
-      p2.sel=Logistic_p2 
-      p3.sel=NA
-      p4.sel=NA 
-      p5.sel=NA 
-      p6.sel=NA 
-    }
-    if(NeiM%in%alternative.NSF.selectivity)
-    {
-      p1.sel_sens=Logistic_p1       
-      p2.sel_sens=Logistic_p2 
-      p3.sel_sens=NA
-      p4.sel_sens=NA 
-      p5.sel_sens=NA 
-      p6.sel_sens=NA 
-    }
-    p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel       
+    p1.sel=SS.sel.init.pars$NSF_p1       
+    p2.sel=SS.sel.init.pars$NSF_p2 
+    p3.sel=SS.sel.init.pars$NSF_p3
+    p4.sel=SS.sel.init.pars$NSF_p4 
+    p5.sel=SS.sel.init.pars$NSF_p5 
+    p6.sel=SS.sel.init.pars$NSF_p6 
+
+    p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel       #Indo, Taiwan, survey and other fisheries set to NSF
     p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel 
     p3.sel_NSF=p3.sel_Other=p3.sel_Survey=p3.sel
     p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel 
     p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel 
     p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel 
   
-    if(!is.na(Other_p1))
+    if(!is.na(SS.sel.init.pars$Other_p1))
     {
-      p1.sel_Other=Other_p1
-      p2.sel_Other=Other_p2
-      p3.sel_Other=Other_p3
-      p4.sel_Other=Other_p4
-      p5.sel_Other=Other_p5
-      p6.sel_Other=Other_p6
+      p1.sel_Other=SS.sel.init.pars$Other_p1
+      p2.sel_Other=SS.sel.init.pars$Other_p2
+      p3.sel_Other=SS.sel.init.pars$Other_p3
+      p4.sel_Other=SS.sel.init.pars$Other_p4
+      p5.sel_Other=SS.sel.init.pars$Other_p5
+      p6.sel_Other=SS.sel.init.pars$Other_p6
     }
       #TDGLDF
-    p1.sel_TDGDLF=TDGDLF_p1
-    p2.sel_TDGDLF=TDGDLF_p2
-    p3.sel_TDGDLF=TDGDLF_p3
-    p4.sel_TDGDLF=TDGDLF_p4
-    p5.sel_TDGDLF=TDGDLF_p5
-    p6.sel_TDGDLF=TDGDLF_p6
-  detach(SS.sel.init.pars)
-  
-  if(NeiM=="tiger shark")
-  {
-    p1.sel_Other=220   #Lobster fishery targeting large sharks but not jumbos!
-    p2.sel_Other=-2.0
-    p3.sel_Other=7
-    p4.sel_Other=8.0
-    p5.sel_Other=-999
-    p6.sel_Other=-999
-  }
+    p1.sel_TDGDLF=SS.sel.init.pars$TDGDLF_p1
+    p2.sel_TDGDLF=SS.sel.init.pars$TDGDLF_p2
+    p3.sel_TDGDLF=SS.sel.init.pars$TDGDLF_p3
+    p4.sel_TDGDLF=SS.sel.init.pars$TDGDLF_p4
+    p5.sel_TDGDLF=SS.sel.init.pars$TDGDLF_p5
+    p6.sel_TDGDLF=SS.sel.init.pars$TDGDLF_p6
+
     
     List.sp[[l]]$SS_selectivity=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                            P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
@@ -498,14 +470,16 @@ for(l in 1:N.sp)
                                            P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
                                            P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
                                            P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))
-    if(NeiM%in%alternative.NSF.selectivity)
+    
+
+    if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
     {
-      p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel_sens       
-      p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel_sens 
-      p3.sel_NSF=p3.sel_Other=p3.sel_Survey=p3.sel_sens
-      p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel_sens 
-      p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel_sens
-      p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel_sens
+      p1.sel_NSF=p1.sel_Other=p1.sel_Survey=SS.sel.init.pars$Logistic_p1       
+      p2.sel_NSF=p2.sel_Other=p2.sel_Survey=SS.sel.init.pars$Logistic_p2 
+      p3.sel_NSF=p3.sel_Other=p3.sel_Survey=NA
+      p4.sel_NSF=p4.sel_Other=p4.sel_Survey=NA 
+      p5.sel_NSF=p5.sel_Other=p5.sel_Survey=NA
+      p6.sel_NSF=p6.sel_Other=p6.sel_Survey=NA
       List.sp[[l]]$SS_selectivity.sensitivity=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                              P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
                                              P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
@@ -515,6 +489,29 @@ for(l in 1:N.sp)
                                              P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))
       
     }
+    
+    if(NeiM%in%WRL.species)  
+    {
+      WRL.sel.pars=data.frame(Fleet="WRL",
+                             P_1=SS.sel.init.pars$WRL_p1,
+                             P_2=SS.sel.init.pars$WRL_p2,
+                             P_3=SS.sel.init.pars$WRL_p3,
+                             P_4=SS.sel.init.pars$WRL_p4,
+                             P_5=SS.sel.init.pars$WRL_p5,
+                             P_6=SS.sel.init.pars$WRL_p6)
+        
+      List.sp[[l]]$SS_selectivity=rbind(List.sp[[l]]$SS_selectivity%>%filter(!Fleet=='Survey'),
+                                        WRL.sel.pars,
+                                        List.sp[[l]]$SS_selectivity%>%filter(Fleet=='Survey'))
+      
+      if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
+      {
+        List.sp[[l]]$SS_selectivity.sensitivity=rbind(List.sp[[l]]$SS_selectivity.sensitivity%>%filter(!Fleet=='Survey'),
+                                                      WRL.sel.pars,
+                                                      List.sp[[l]]$SS_selectivity.sensitivity%>%filter(Fleet=='Survey'))
+      }
+    }
+    
     #retention & discard mortality
     if(any(!is.na(SS.sel.init.pars[,grepl('Ret_',names(SS.sel.init.pars))])))
     {
@@ -544,39 +541,51 @@ for(l in 1:N.sp)
     }
     
     #phases
-    attach(SS.sel.init.pars)
       #NSF, Survey and Others
-    p1.sel=Phase_NSF_p1       
-    p2.sel=Phase_NSF_p2 
-    p3.sel=Phase_NSF_p3
-    p4.sel=Phase_NSF_p4 
-    p5.sel=Phase_NSF_p5 
-    p6.sel=Phase_NSF_p6 
-    if(NSF_Alternative_sel_type=='Logistic')
+    p1.sel=SS.sel.init.pars$Phase_NSF_p1       
+    p2.sel=SS.sel.init.pars$Phase_NSF_p2 
+    p3.sel=SS.sel.init.pars$Phase_NSF_p3
+    p4.sel=SS.sel.init.pars$Phase_NSF_p4 
+    p5.sel=SS.sel.init.pars$Phase_NSF_p5 
+    p6.sel=SS.sel.init.pars$Phase_NSF_p6 
+
+    if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
     {
-      p1.sel=Phase_Logistic_p1       
-      p2.sel=Phase_Logistic_p2 
-    }
-    if(NeiM%in%alternative.NSF.selectivity)
-    {
-      p1.sel_sens=Phase_Logistic_p1       
-      p2.sel_sens=Phase_Logistic_p2
+      p1.sel_sens=SS.sel.init.pars$Phase_Logistic_p1       
+      p2.sel_sens=SS.sel.init.pars$Phase_Logistic_p2
       p3.sel_sens=p4.sel_sens=p5.sel_sens=p6.sel_sens=NA
     }
-    p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel       
-    p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel 
-    p3.sel_NSF=p3.sel_Other=p3.sel_Survey=p3.sel
-    p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel 
-    p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel 
-    p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel 
+    p1.sel_NSF=p1.sel       
+    p2.sel_NSF=p2.sel 
+    p3.sel_NSF=p3.sel
+    p4.sel_NSF=p4.sel 
+    p5.sel_NSF=p5.sel 
+    p6.sel_NSF=p6.sel
+    
+    p1.sel_Other=p1.sel_Survey=NA       
+    p2.sel_Other=p2.sel_Survey=NA 
+    p3.sel_Other=p3.sel_Survey=NA
+    p4.sel_Other=p4.sel_Survey=NA 
+    p5.sel_Other=p5.sel_Survey=NA 
+    p6.sel_Other=p6.sel_Survey=NA
+    
+    if(NeiM=="milk shark")
+    {
+      p1.sel_Survey=p1.sel_NSF
+      p2.sel_Survey=p2.sel_NSF
+      p3.sel_Survey=p3.sel_NSF
+      p4.sel_Survey=p4.sel_NSF
+      p5.sel_Survey=p5.sel_NSF
+      p6.sel_Survey=p6.sel_NSF
+    }
       #TDGLDF
-    p1.sel_TDGDLF=Phase_TDGDLF_p1
-    p2.sel_TDGDLF=Phase_TDGDLF_p2
-    p3.sel_TDGDLF=Phase_TDGDLF_p3
-    p4.sel_TDGDLF=Phase_TDGDLF_p4
-    p5.sel_TDGDLF=Phase_TDGDLF_p5
-    p6.sel_TDGDLF=Phase_TDGDLF_p6
-    detach(SS.sel.init.pars)
+    p1.sel_TDGDLF=SS.sel.init.pars$Phase_TDGDLF_p1
+    p2.sel_TDGDLF=SS.sel.init.pars$Phase_TDGDLF_p2
+    p3.sel_TDGDLF=SS.sel.init.pars$Phase_TDGDLF_p3
+    p4.sel_TDGDLF=SS.sel.init.pars$Phase_TDGDLF_p4
+    p5.sel_TDGDLF=SS.sel.init.pars$Phase_TDGDLF_p5
+    p6.sel_TDGDLF=SS.sel.init.pars$Phase_TDGDLF_p6
+    
     List.sp[[l]]$SS_selectivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                                  P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
                                                  P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
@@ -585,14 +594,15 @@ for(l in 1:N.sp)
                                                  P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
                                                  P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))%>%
                                           replace(is.na(.), -2)
-    if(NeiM%in%alternative.NSF.selectivity)
+    if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
     {
-      p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel_sens       
-      p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel_sens
-      p3.sel_NSF=p3.sel_Other=p2.sel_Survey=p3.sel_sens
-      p4.sel_NSF=p4.sel_Other=p2.sel_Survey=p4.sel_sens
-      p5.sel_NSF=p5.sel_Other=p2.sel_Survey=p5.sel_sens
-      p6.sel_NSF=p6.sel_Other=p2.sel_Survey=p6.sel_sens
+      p1.sel_NSF=p1.sel_Survey=p1.sel_sens       
+      p2.sel_NSF=p2.sel_Survey=p2.sel_sens
+      p1.sel_Other=p2.sel_Other=NA
+      p3.sel_NSF=p3.sel_Other=p3.sel_Survey=p3.sel_sens
+      p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel_sens
+      p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel_sens
+      p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel_sens
       List.sp[[l]]$SS_selectivity.sensitivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                                    P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
                                                    P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
@@ -603,7 +613,29 @@ for(l in 1:N.sp)
         replace(is.na(.), -2)
     }
     
-    #AgeSelex 
+    if(NeiM%in%WRL.species)  
+    {
+      WRL.sel.phases=data.frame(Fleet="WRL",
+                              P_1=-2,
+                              P_2=-2,
+                              P_3=-2,
+                              P_4=-2,
+                              P_5=-2,
+                              P_6=-2)
+      
+      List.sp[[l]]$SS_selectivity_phase=rbind(List.sp[[l]]$SS_selectivity_phase%>%filter(!Fleet=='Survey'),
+                                              WRL.sel.phases,
+                                              List.sp[[l]]$SS_selectivity_phase%>%filter(Fleet=='Survey'))
+      
+      if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
+      {
+        List.sp[[l]]$SS_selectivity.sensitivity_phase=rbind(List.sp[[l]]$SS_selectivity.sensitivity_phase%>%filter(!Fleet=='Survey'),
+                                                WRL.sel.phases,
+                                                List.sp[[l]]$SS_selectivity.sensitivity_phase%>%filter(Fleet=='Survey'))
+      }
+    }
+    
+    #4.1.3.2 AgeSelex 
     List.sp[[l]]$age_selex_pattern=0  #0,Selectivity = 1.0 for ages 0+; 10, Selectivity = 1.0 for all ages beginning at age 1
     if(NeiM=="spinner shark") List.sp[[l]]$age_selex_pattern=10  #to allow convergence
     

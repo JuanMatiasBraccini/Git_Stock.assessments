@@ -33,9 +33,10 @@ for(w in 1:n.SS)
           ktch=KtCh%>%
             filter(Name==Neim)%>%
             mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
-                                 ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                          'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
-                                        'Other')))%>%
+                          ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                  'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                          ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
+                          'Other'))))%>%
             group_by(SPECIES,Name,finyear,Fishry)%>%
             summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
             mutate(Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
@@ -658,7 +659,7 @@ for(w in 1:n.SS)
                 rid.of=as.numeric(unlist(str_split(Scens$Daily.cpues[s], "&")))
                 drop.dis=Abundance.SS.format%>%
                           mutate(this=grepl('TDGDLF.daily',rownames(Abundance.SS.format)) & Year%in%rid.of)
-                Abundance.SS.format=Abundance.SS.format[-which(drop.dis$this),]
+                if(any(drop.dis$this)) Abundance.SS.format=Abundance.SS.format[-which(drop.dis$this),]
               }
               
               #a. Create input files
@@ -952,9 +953,10 @@ for(w in 1:n.SS)
           ktch=KtCh%>%
             filter(Name==Neim)%>%
             mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
-                                 ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                          'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
-                                        'Other')))%>%
+                          ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                  'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                          ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
+                          'Other'))))%>%
             group_by(SPECIES,Name,finyear,Fishry)%>%
             summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
             mutate(Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
@@ -1563,8 +1565,6 @@ for(w in 1:n.SS)
                 add.ct.future[,lef.flits[lf]]=mean(unlist(ktch[(NN-years.futures+1):NN,lef.flits[lf]]),na.rm=T)
               }
             }
-
-              
             
             #Execute SS
             for(s in 1:length(Store.sens))
@@ -1579,7 +1579,7 @@ for(w in 1:n.SS)
                 rid.of=as.numeric(unlist(str_split(Scens$Daily.cpues[s], "&")))
                 drop.dis=Abundance.SS.format%>%
                   mutate(this=grepl('TDGDLF.daily',rownames(Abundance.SS.format)) & Year%in%rid.of)
-                Abundance.SS.format=Abundance.SS.format[-which(drop.dis$this),]
+                if(any(drop.dis$this)) Abundance.SS.format=Abundance.SS.format[-which(drop.dis$this),]
               }
               
               #a. Create input files
