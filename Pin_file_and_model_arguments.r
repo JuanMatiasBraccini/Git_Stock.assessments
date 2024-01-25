@@ -24,8 +24,8 @@ SS3.tune_size_comp_effective_sample=read.csv(handl_OneDrive('Analyses/Population
 Depletion.levels<- read_excel(handl_OneDrive('Analyses/Population dynamics/K_&_depletion.levels.xlsx'),sheet = "K_&_depletion.levels")
 for(i in 1:N.sp)
 {
-  G=round(store.species.G_M.min[[i]]$mean) #generation time
-  R=store.species.r_M.min[[i]]$mean        #r
+  G=round(store.species.G_M.age.invariant[[i]]$mean) #generation time
+  R=store.species.r_M.age.invariant[[i]]$mean        #r
   ktch=ktch.combined%>%
     filter(Name==Keep.species[i])%>%
     mutate(Rel.ktch=Tonnes/max(Tonnes),
@@ -75,9 +75,9 @@ for(l in 1:N.sp)
   
   
     #steepness
-  h.min=round(min(store.species.steepness.S2[[l]],store.species.steepness_M.mean[[l]]$mean),3)
+  h.min=round(min(store.species.steepness.S2[[l]],store.species.steepness_M.at.age[[l]]$mean),3)
   h.M_mean2=round(max(Min.h.shark,store.species.steepness.S2[[l]]),3)
-  h.M_mean=round(store.species.steepness_M.mean[[l]]$mean,3)
+  h.M_mean=round(store.species.steepness_M.at.age[[l]]$mean,3)
   if(NeiM%in%h_too.long.converge) h.M_mean=h.M_mean2
   h.M.mean_low=round(max(Min.h.shark,h.M_mean*.9),3)
   h.M_mean=round(max(Min.h.shark,h.M_mean),3)
@@ -111,8 +111,8 @@ for(l in 1:N.sp)
   
     #M
   #age-invariant
-  Mmean=mean(unlist(store.species.M_M.min[[l]]),na.rm=T)
-  Mmean.mean=mean(unlist(store.species.M_M.mean[[l]]),na.rm=T)
+  Mmean=mean(unlist(store.species.M_M.age.invariant[[l]]),na.rm=T)
+  Mmean.mean=mean(unlist(store.species.M_M.at.age[[l]]),na.rm=T)
   
       #increase M (based on Hoenig's maximum age) a bit to allow SS3 to fit, too low M and too high h otherwise
   if(NeiM=="lemon shark")
@@ -128,15 +128,15 @@ for(l in 1:N.sp)
     Mmean=Mmean*2
     Mmean.mean=Mmean.mean*2
   }
-  Msd=max(sd(unlist(store.species.M_M.min[[l]]),na.rm=T),.01)
+  Msd=max(sd(unlist(store.species.M_M.age.invariant[[l]]),na.rm=T),.01)
   
   #age-variant
-  M_y=apply(store.species.M_M.min[[l]],2,mean,na.rm=T)
+  M_y=apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T)
   M_x=1:length(M_y)
   loe.mod=loess(M_y~M_x)
   List.sp[[l]]$Mmean.min.at.age=predict(loe.mod)
   
-  M_y=apply(store.species.M_M.mean[[l]],2,mean,na.rm=T)
+  M_y=apply(store.species.M_M.at.age[[l]],2,mean,na.rm=T)
   M_x=1:length(M_y)
   loe.mod=loess(M_y~M_x)
   List.sp[[l]]$Mmean.mean.at.age=predict(loe.mod)
@@ -191,17 +191,17 @@ for(l in 1:N.sp)
   
   
   #2.2 CMSY scenarios
-  r.mean=store.species.r_M.min[[l]]$mean
-  r.mean2=store.species.r_M.mean[[l]]$mean
-  if(NeiM%in%c("dusky shark","sandbar shark","grey nurse shark","spurdogs"))
-  {
-    r.mean2=r.mean*0.6  #r.mean2 couldn't be estimated due to life history mis-specification so 
-                        # set at fraction of r.mean based on other species ratio
-  }
+  r.mean=store.species.r_M.age.invariant[[l]]$mean
+  r.mean2=store.species.r_M.at.age[[l]]$mean
+  # if(NeiM%in%c("dusky shark","sandbar shark","grey nurse shark","spurdogs"))
+  # {
+  #   r.mean2=r.mean*0.6  #r.mean2 couldn't be estimated due to life history mis-specification so 
+  #                       # set at fraction of r.mean based on other species ratio
+  # }
   r.mean=round(r.mean,3)
   r.mean2=round(r.mean2,3)
-  r.mean.sd=store.species.r_M.min[[l]]$sd
-  r.mean.sd2=store.species.r_M.mean[[l]]$sd
+  r.mean.sd=store.species.r_M.age.invariant[[l]]$sd
+  r.mean.sd2=store.species.r_M.at.age[[l]]$sd
   r.mean_lower=round(r.mean*.9,3)
   r.mean_upper=round(r.mean*1.2,3)
   ensims.csmy=ensims.CSMY
@@ -253,7 +253,7 @@ for(l in 1:N.sp)
                      Msd=Msd,
                      Final.dpl=mean(FINALBIO),
                      Steepness=c(h.M_mean,h.M_mean2),
-                     Steepness.sd=store.species.steepness_M.min[[l]]$sd,
+                     Steepness.sd=store.species.steepness_M.age.invariant[[l]]$sd,
                      F_ballpark=1e-3,
                      use_F_ballpark=FALSE,
                      Sims=SSS.sims,
@@ -299,7 +299,7 @@ for(l in 1:N.sp)
                      Mmean=c(rep(Mmean.mean,3),Mmean),      #using Mmean.mean as base case because h.M_mean2 is used as basecase (both using Mmean.mean)
                      Final.dpl=c(mean(FINALBIO)),
                      Steepness=c(h.M_mean,h.M_mean2,h.M.mean_low,h.M_mean),
-                     Steepness.sd=rep(store.species.steepness_M.min[[l]]$sd,4),
+                     Steepness.sd=rep(store.species.steepness_M.age.invariant[[l]]$sd,4),
                      F_ballpark=rep(1e-3,4),
                      use_F_ballpark=rep(FALSE,4),
                      Sims=rep(SSS.sims,4),
@@ -341,7 +341,7 @@ for(l in 1:N.sp)
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%filter(!is.na(Daily.cpues))
   
   
-  # 3... Dynamic catch and size model
+  # 3... Catch curve and dynamic catch and size model
   InRec=NULL
   if(NeiM=="smooth hammerhead") InRec= 15000
   if(NeiM=="spinner shark") InRec= 15000
@@ -351,6 +351,19 @@ for(l in 1:N.sp)
   if(NeiM=="whiskery shark") InRec= 300000
   List.sp[[l]]$InitRec_dynKtchSize =  InRec  
   
+  Ktch.crv.yrs=NULL
+  if(NeiM=="angel sharks") Ktch.crv.yrs='2005-06'
+  if(NeiM=="copper shark") Ktch.crv.yrs=c('2009-10','2011-12','2012-13')
+  if(NeiM=="dusky shark") Ktch.crv.yrs=c('2012-13','2020-21')
+  if(NeiM=="gummy shark") Ktch.crv.yrs='2005-06'
+  if(NeiM=="lemon shark") Ktch.crv.yrs=c('2001-02','2003-04')
+  if(NeiM=="sandbar shark") Ktch.crv.yrs=c('2000-01','2001-02','2002-03')
+  if(NeiM=="smooth hammerhead") Ktch.crv.yrs=c('1997-98','1998-99','2000-01')
+  if(NeiM=="spinner shark") Ktch.crv.yrs=c('1997-98','1998-99','2000-01')
+  if(NeiM=="spurdogs") Ktch.crv.yrs='2002-03'
+  if(NeiM=="whiskery shark") Ktch.crv.yrs=c('1997-98','1998-99','2000-01','2001-02')
+  if(NeiM=="wobbegongs") Ktch.crv.yrs=c('2000-01','2001-02','2002-03','2004-05') 
+  List.sp[[l]]$Catch.curve.years=Ktch.crv.yrs
   
   # 4... Integrated models
   
@@ -361,7 +374,7 @@ for(l in 1:N.sp)
                               mutate(NSF.selectivity=NA)
   tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,h.min,List.sp[[l]]$Sens.test$SS$Steepness[1])
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
-  if(NeiM%in%h_too.low)  tested.h=c(h.M_mean2,store.species.steepness_M.mean[[l]]$mean,h.M_mean2) 
+  if(NeiM%in%h_too.low)  tested.h=c(h.M_mean2,store.species.steepness_M.at.age[[l]]$mean,h.M_mean2) 
   tested.h=unique(tested.h)
   List.sp[[l]]$Sens.test$SS=do.call("rbind", replicate(length(tested.h), List.sp[[l]]$Sens.test$SS, simplify = FALSE))%>%
                               mutate(Steepness=tested.h,
@@ -732,8 +745,8 @@ for(l in 1:N.sp)
                                                   '.All.',List.sp[[l]]$SP,".csv",sep=""))%>%pull(x)
       
       
-      h.M.constant.low=quantile(rlnorm(1000,log(store.species.steepness.S2[[l]]),store.species.steepness_M.mean[[l]]$sd),probs = 0.2)
-      h.M.constant.up=quantile(rlnorm(1000,log(store.species.steepness.S2[[l]]),store.species.steepness_M.mean[[l]]$sd),probs = 0.8)
+      h.M.constant.low=quantile(rlnorm(1000,log(store.species.steepness.S2[[l]]),store.species.steepness_M.at.age[[l]]$sd),probs = 0.2)
+      h.M.constant.up=quantile(rlnorm(1000,log(store.species.steepness.S2[[l]]),store.species.steepness_M.at.age[[l]]$sd),probs = 0.8)
       
       
       # Species-specific input pars
@@ -758,8 +771,8 @@ for(l in 1:N.sp)
                                  
                                  #Natural mortality
                                  M_val=Mmean,          #0.27 using Hoenig set to Max age=15  (Simpfendorfer et al 2000)
-                                 M_val.low=min(apply(store.species.M_M.min[[l]],2,mean,na.rm=T)),   
-                                 M_val.high=max(apply(store.species.M_M.min[[l]],2,mean,na.rm=T)),  
+                                 M_val.low=min(apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T)),   
+                                 M_val.high=max(apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T)),  
                                  
                                  #Initial F in 1974
                                  Fo=0.03,             #yields a B1975 of 90% virgin           
@@ -822,8 +835,8 @@ for(l in 1:N.sp)
                                  
                                  #Natural mortality
                                  M_val=Mmean,          
-                                 M_val.low=min(apply(store.species.M_M.min[[l]],2,mean,na.rm=T)),   
-                                 M_val.high=max(0.283,max(apply(store.species.M_M.min[[l]],2,mean,na.rm=T))),  #0.283 Walker empirical
+                                 M_val.low=min(apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T)),   
+                                 M_val.high=max(0.283,max(apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T))),  #0.283 Walker empirical
                                  
                                  #Initial F in 1974
                                  Fo=0.05,               #This leaves B1975 at 95% unfished 
@@ -885,8 +898,8 @@ for(l in 1:N.sp)
                                  
                                  #Natural mortality
                                  M_val=Mmean,          
-                                 M_val.low=min(apply(store.species.M_M.min[[l]],2,mean,na.rm=T)),   
-                                 M_val.high=max(apply(store.species.M_M.min[[l]],2,mean,na.rm=T)),     
+                                 M_val.low=min(apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T)),   
+                                 M_val.high=max(apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T)),     
                                  
                                  #Initial F in 1974
                                  Fo=0.05,               #This leaves B1975 at 95% unfished 
@@ -951,8 +964,8 @@ for(l in 1:N.sp)
                                  
                                  #Natural mortality
                                  M_val=Mmean,          
-                                 M_val.low=min(apply(store.species.M_M.min[[l]],2,mean,na.rm=T)),   
-                                 M_val.high=max(apply(store.species.M_M.min[[l]],2,mean,na.rm=T)),    
+                                 M_val.low=min(apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T)),   
+                                 M_val.high=max(apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T)),    
                                  
                                  #Initial F in 1974
                                  Fo=0.05,               #This leaves B1975 at 95% unfished 
@@ -1276,7 +1289,7 @@ for(l in 1:N.sp)
                                Run.all.Scenarios=run.all.scenarios,
                                
                                #Number of years for future projections (use generation time)
-                               Yrs.future=round(store.species.G_M.min[[l]]$mean),  
+                               Yrs.future=round(store.species.G_M.age.invariant[[l]]$mean),  
                                
                                #Future projection scenarios
                                Run.future.proj=run.future,
@@ -1315,7 +1328,7 @@ for(l in 1:N.sp) List.sp[[l]]=List.sp[[l]][!duplicated(names(List.sp[[l]]))]
 #Get age at first maturity
 fn.age.mat.per=function(d,mat.per=0.1)
 {
-  eig=0:d$Max.age.F[2]
+  eig=0:mean(d$Max.age.F)
   TLo=d$Lzero*d$a_FL.to.TL+d$b_FL.to.TL
   TL=TLo+(d$Growth.F$FL_inf*d$a_FL.to.TL+d$b_FL.to.TL-TLo)*(1-exp(-d$Growth.F$k*eig))
   Maturity=1/(1+exp(-log(19)*((TL-d$TL.50.mat)/(d$TL.95.mat-d$TL.50.mat))))

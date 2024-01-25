@@ -1,8 +1,24 @@
+#notes: single-area, two-sexes, size-structured integrated model fitted to catch and size composition
+#       Selectivity is assumed to be known.
+#       Uncertainty derived from resampling variance-cov matrix  
+#       Only applicable to species with representative size comp samples and a history of exploitation.
+
+
 sourceCpp(handl_OneDrive("/Analyses/Population dynamics/Other people's code/Alex dynamic catch & size/DynamicCatchLenModfunctions.cpp"))
 
-#25.1 TDGDLF size composition
-Size.Catch.only_TDGDLF=vector('list',N.sp)
-names(Size.Catch.only_TDGDLF)=Keep.species
+# Function for nlmb (which can only have one input, i.e. parameter list)
+ObjFunc <- function(params)
+{
+  res=ObjectiveFunc_cpp(params, nYears, nLen_SimYrs, Len_SimYr, ObsLenCompVec1, ObsLenCompVec2, ObsLenCompVec3, 
+                        ObsAnnCatch, MaxAge, nLenCl, midpt, LTM_Fem, LTM_Mal, WtAtLen, FemMatAtLen, RecLenDist, Init_F, 
+                        PropFemAtBirth, SelAtLength, NatMort_mean, NatMort_sd, Steepness_mean, Steepness_sd,
+                        lnSigmaR)
+  return(res)
+}
+
+#1. TDGDLF size composition
+Dynamic_catch_size.comp_TDGDLF=vector('list',N.sp)
+names(Dynamic_catch_size.comp_TDGDLF)=Keep.species
 system.time({for(l in 1: N.sp)  
 {
   # Calculate F
@@ -78,7 +94,7 @@ system.time({for(l in 1: N.sp)
       #2. Fit model and derive quantities of interest
       
       #Fixed input pars
-      lnSigmaR = 0.2 # specifying fairly low value here (as might be assumed for sharks)
+      lnSigmaR = 0.1 # specifying fairly low value here (as might be assumed for sharks)
       Init_F = 0.001 # Currently specified parameter
       SDGrowthRec = c(20, 20) # sd for initial size distns. for female and male recruits
       CVLenAtAge = c(0.1, 0.1)
@@ -122,19 +138,36 @@ system.time({for(l in 1: N.sp)
       SelL50 = c(NA, NA)
       SelL95 = c(NA, NA)
       
-      SelAtLength=Selectivity.at.totalength[[l]]%>%               
-        mutate(TL=TL)%>%
-        filter( TL%in%midpt)%>%
-        pull(Sel.combined)
+      # SelAtLength=Selectivity.at.totalength[[l]]%>%               
+      #   mutate(TL=TL)%>%
+      #   filter( TL%in%midpt)%>%
+      #   pull(Sel.combined)
+      SelAtLength=with(List.sp[[l]]$SS_selectivity%>%filter(Fleet=='Southern.shark_1'),doubleNorm24.fn(midpt,a=P_1,
+                                      b=P_2, c=P_3, d=P_4, e=P_5, f=P_6,use_e_999=FALSE, use_f_999=FALSE))
       Selectivity <- t(data.frame(FemSelectivity=SelAtLength,
                                   MalSelectivity=SelAtLength)) # selectivity inputted as matrix (F, M)
-      #SS.sel=doubleNorm24.fn(lbnd,a=80,b=-13, c=12.752700, d=8, e=-999, f=-999,use_e_999=FALSE, use_f_999=FALSE)
       
-      #Total catch
-      Katch=ktch.combined%>%
-        filter(Name==names(Size.Catch.only_TDGDLF)[l])%>%
-        ungroup()%>%
-        dplyr::select(finyear,Tonnes)
+      
+      #Catch
+      used.ktch='fishery'
+        #total
+      if(used.ktch=='Total')
+      {
+        Katch=ktch.combined%>%
+          filter(Name==names(Dynamic_catch_size.comp_TDGDLF)[l])%>%
+          ungroup()%>%
+          dplyr::select(finyear,Tonnes)
+      }
+        #TDGLDF only
+      if(used.ktch=='fishery')
+      {
+        Katch=KtCh%>%
+          filter(FishCubeCode%in%c("Discards_TDGDLF","JASDGDL","WCDGDL","Historic"))%>%
+          filter(Name==names(Dynamic_catch_size.comp_TDGDLF)[l])%>%
+          group_by(finyear)%>%
+          summarise(Tonnes=sum(LIVEWT.c))%>%
+          ungroup()
+      }
       ObsAnnCatch=Katch$Tonnes
       nYears=length(ObsAnnCatch)
       
@@ -200,17 +233,7 @@ system.time({for(l in 1: N.sp)
       Steepness = min(max(Steepness_mean*exp(rnorm(1, 0,Steepness_sd)),0.2),1)
       params = c(log(InitRec),log(NatMort),log(Steepness),lnRecDev) # Estimated 
       names(params)=c("ln_R0", "ln_M","ln_h","lnRecDev")
-      
-      # Create function for nlmb (which can only have one input, i.e. parameter list)
-      ObjFunc <- function(params)
-      {
-        res=ObjectiveFunc_cpp(params, nYears, nLen_SimYrs, Len_SimYr, ObsLenCompVec1, ObsLenCompVec2, ObsLenCompVec3, 
-                              ObsAnnCatch, MaxAge, nLenCl, midpt, LTM_Fem, LTM_Mal, WtAtLen, FemMatAtLen, RecLenDist, Init_F, 
-                              PropFemAtBirth, SelAtLength, NatMort_mean, NatMort_sd, Steepness_mean, Steepness_sd,
-                              lnSigmaR)
-        return(res)
-      }
-      ObjFunc(params)
+      #ObjFunc(params)  
       
       # Fit model (twice)
       InitTime = Sys.time()
@@ -277,7 +300,7 @@ system.time({for(l in 1: N.sp)
       dev.off()
       
       
-      # Calculate quantities of interest   #Move all this to #25 below
+      # Calculate quantities of interest   
       BiomEst = data.frame(matrix(nrow=nsims,ncol=nYears))  #female breeding biomass
       colnames(BiomEst) = 1:nYears
       FMortEst = BiomEst       #fishing mortality
@@ -316,9 +339,13 @@ system.time({for(l in 1: N.sp)
       
       
       #Store quantities
-      Size.Catch.only_TDGDLF[[l]]=list(Estimates=Estimates,
+      Dynamic_catch_size.comp_TDGDLF[[l]]=list(Estimates=Estimates,
                                        rel.biom=rel.biom,
                                        FMort=FMort)
+      
+      plot(rel.biom$year,rel.biom$median,ylim=c(0,max(rel.biom$upper.95)))
+      lines(rel.biom$year,rel.biom$lower.95)
+      lines(rel.biom$year,rel.biom$upper.95)
       
       rm(dummy,RecLenDist,LTM_Fem,LTM_Mal,WtAtLen,FemMatAtLen,SelAtLength,
          params,sims,nlmb,res,BiomEst,FMortEst,RelBiomEst,

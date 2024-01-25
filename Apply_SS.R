@@ -663,24 +663,28 @@ for(w in 1:n.SS)
               }
               
               #a. Create input files
-              fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
-                           new.path=this.wd1,
-                           Scenario=Scens[s,]%>%
-                                      mutate(Model='SS'),
-                           Catch=ktch,
-                           life.history=Life.history,
-                           depletion.yr=NULL,
-                           fleets=names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],
-                           fleetinfo=flitinfo,
-                           abundance=Abundance.SS.format,   
-                           size.comp=Size.compo.SS.format,
-                           meanbodywt=meanbodywt.SS.format,
-                           F.tagging=F.SS.format,
-                           cond.age.len=Cond.age.len.SS.format,
-                           MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
-                           Lamdas=Lamdas.SS.lambdas,
-                           Var.adjust.factor=Var.ad.factr,
-                           Future.project=add.ct.future)
+              if(create.SS.inputs)
+              {
+                fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
+                             new.path=this.wd1,
+                             Scenario=Scens[s,]%>%
+                               mutate(Model='SS'),
+                             Catch=ktch,
+                             life.history=Life.history,
+                             depletion.yr=NULL,
+                             fleets=names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],
+                             fleetinfo=flitinfo,
+                             abundance=Abundance.SS.format,   
+                             size.comp=Size.compo.SS.format,
+                             meanbodywt=meanbodywt.SS.format,
+                             F.tagging=F.SS.format,
+                             cond.age.len=Cond.age.len.SS.format,
+                             MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
+                             Lamdas=Lamdas.SS.lambdas,
+                             Var.adjust.factor=Var.ad.factr,
+                             Future.project=add.ct.future)
+              }
+
               clear.log("Var.ad.factr")
               
               #b. Run SS3
@@ -1583,24 +1587,28 @@ for(w in 1:n.SS)
               }
               
               #a. Create input files
-              fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
-                           new.path=this.wd1,
-                           Scenario=Scens[s,]%>%
-                                      mutate(Model='SS'),
-                           Catch=ktch,
-                           life.history=Life.history,
-                           depletion.yr=NULL,
-                           fleets=names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],
-                           fleetinfo=flitinfo,
-                           abundance=Abundance.SS.format,   
-                           size.comp=Size.compo.SS.format,
-                           meanbodywt=meanbodywt.SS.format,
-                           F.tagging=F.SS.format,
-                           cond.age.len=Cond.age.len.SS.format,
-                           MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
-                           Lamdas=Lamdas.SS.lambdas,
-                           Var.adjust.factor=Var.ad.factr,
-                           Future.project=add.ct.future)
+              if(create.SS.inputs)
+              {
+                fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
+                             new.path=this.wd1,
+                             Scenario=Scens[s,]%>%
+                               mutate(Model='SS'),
+                             Catch=ktch,
+                             life.history=Life.history,
+                             depletion.yr=NULL,
+                             fleets=names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],
+                             fleetinfo=flitinfo,
+                             abundance=Abundance.SS.format,   
+                             size.comp=Size.compo.SS.format,
+                             meanbodywt=meanbodywt.SS.format,
+                             F.tagging=F.SS.format,
+                             cond.age.len=Cond.age.len.SS.format,
+                             MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
+                             Lamdas=Lamdas.SS.lambdas,
+                             Var.adjust.factor=Var.ad.factr,
+                             Future.project=add.ct.future)
+                }
+
               clear.log("Var.ad.factr")
               
               #b. Run SS3

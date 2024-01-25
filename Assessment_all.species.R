@@ -109,33 +109,38 @@ fn.source1("auxiliary_functions.r")
 fn.source1("SS3_functions.R")
 fn.extract.dat=function(STRING,Files) grep(paste(STRING,collapse="|"), Files, value=TRUE)
 
-#---1. DEFINE GLOBALS----- 
-
 Send.email.to="matias.braccini@dpird.wa.gov.au"   #send email when model run finalised
 #Send.email.to="braccinimatias@gmail.com.au"  #IT firewall doesn't allow sending to gmail :(
 
-#1. Control which assessment method to implement
+#---1. DEFINE GLOBALS----- 
+
+#1.New assessment
+New.assessment="NO"
+#New.assessment="YES"   #set to 'YES' the first time a new assessment is run to set up folders, etc
+
+#2. Control what to implement
+  # turn on/off assessment method
 Do.Ktch.only=FALSE
-Do.StateSpaceSPM=TRUE
+Simplified.scenarios=TRUE  #only 1 base case scenario per catch-only method
+Do.StateSpaceSPM=FALSE
 Do.integrated=TRUE  #SS3
 Do.bespoked=FALSE   #bespoked size-based
 do.Andre.model=FALSE
+Do.Spatio.temporal.catch.effort=FALSE
 Do.Changes.in.observed.size=FALSE
 Do.Changes.in.reported.size=FALSE
-do.Size.based.Catch.curve=FALSE  #superseded by dynamic catch-only and size model
-do.Dynamic.catch.size.comp=FALSE #not applicable due to poor contrast in available size comp
+do.Size.based.Catch.curve=FALSE  
+do.Dynamic.catch.size.comp=FALSE #superseded by length-only SS3 and stil not implemented properly by Alex
 Do.sim.Test="NO" #do simulation testing of size-based model?
 
-do.F.series=TRUE   #plot these time series
+  # outputs
+do.F.series=TRUE   #output Fishing mortalitiy time series
 do.B.over.Bmsy.series=TRUE
 do.F.over.Fmsy.series=TRUE
 
-Simplified.scenarios=TRUE  #only 1 base case scenario pero catch-only method
 
-
-#2. Year of assessment and catches
-Year.of.assessment=2022
-AssessYr=Year.of.assessment
+#3. Assessment dimensions
+Year.of.assessment=AssessYr=2022
 Last.yr.ktch="2021-22"
 Last.yr.ktch.numeric=as.numeric(substr(Last.yr.ktch,1,4))
   #future projections
@@ -145,10 +150,6 @@ n.last.catch.yrs=5 #number of recent years used to calculate future catch
 catches.futures="constant.last.n.yrs"
 #catches.futures='upper.limit.catch.range'  #catch ranges are only available for indicator species
 future.color="brown4"
-
-#3.New assessment
-New.assessment="NO"
-#New.assessment="YES"   #set to 'YES' the first time a new assessment is run
 
 
 #4. Model run
@@ -327,7 +328,7 @@ prop.min.N.accepted_other=1
 WRL.species=c("copper shark","dusky shark","shortfin mako",
               "smooth hammerhead","spinner shark","tiger shark") #species for WRL is a separate fleet
 alternative.NSF.selectivity=c("dusky shark","great hammerhead","lemon shark","pigeye shark",
-                              "sandbar shark","scalloped hammerhead","tiger shark")
+                              "sandbar shark","scalloped hammerhead","smooth hammerhead","tiger shark")
 resample.h.greynurse=FALSE  #no need to resample h
 
 
@@ -1194,22 +1195,16 @@ for(l in 1:N.sp)
                            r.prior="USER",                    #demography
                            r.prior2=NA,                       #demography uniform
                            a_FL.to.TL=LH$a_FL.to.TL,          # FL to TL
-                           b_FL.to.TL=LH$b_FL.to.TL
-  )              
+                           b_FL.to.TL=LH$b_FL.to.TL)              
   
+  #Calculate tmax and reset Max Age to mean
+  List.sp[[l]]$tmax=with(List.sp[[l]],((1/Growth.F$k)*log((Growth.F$FL_inf-Lzero)/( (1-0.99)*Growth.F$FL_inf)))) #theoretical lifespan (Cortes & Taylor 2023)
+  Max_Age=List.sp[[l]]$Max.age.F[1]
+  Max_Age_max=List.sp[[l]]$Max.age.F[2]
+  if(is.na(Max_Age_max)) Max_Age_max=round(Max_Age*Max.Age.up.Scaler)
+  List.sp[[l]]$Max.age.F=rep(ceiling(mean(c(Max_Age,Max_Age_max))),2)
 }
 
-  #To avoid inconsistencies, set Max Age to max value 
-for(l in 1:N.sp)
-{
-  tmax=with(List.sp[[l]],((1/Growth.F$k)*log((Growth.F$FL_inf-Lzero)/( (1-0.99)*Growth.F$FL_inf)))) #theoretical lifespan (Cortes & Taylor 2023)
-  Max_Age_max=List.sp[[l]]$Max.age.F[2]
-  if(is.na(Max_Age_max)) List.sp[[l]]$Max.age.F[2]=round(List.sp[[l]]$Max.age.F[1]*Max.Age.up.Scaler)  
-  List.sp[[l]]$tmax=tmax
-  #List.sp[[l]]$Max.age.F[2]=max(tmax,List.sp[[l]]$Max.age.F[2])
-  List.sp[[l]]$Max.age.F[1]=List.sp[[l]]$Max.age.F[2]
-}
-  
   #If no 'to' information, calculate by fitting 3 par vonB to 2 par vonB
 L=function(to) LINF*(1-exp(-K*(age-to)))
 sumsq <- function( x, y) {sum((x-y)^2)}
@@ -1318,10 +1313,10 @@ if(!is.null(additional.sp))
 
 #---9. Calculate r prior -----  
   #calculate prior
-store.species.r_M.min=vector('list',N.sp)
-names(store.species.r_M.min)=Keep.species
-store.species.M_M.min=store.species.G_M.min=store.species.r_M.min
-store.species.r_M.mean=store.species.M_M.mean=store.species.G_M.mean=store.species.r_M.min
+store.species.r_M.age.invariant=vector('list',N.sp)
+names(store.species.r_M.age.invariant)=Keep.species
+store.species.M_M.age.invariant=store.species.G_M.age.invariant=store.species.r_M.age.invariant
+store.species.r_M.at.age=store.species.M_M.at.age=store.species.G_M.at.age=store.species.r_M.age.invariant
 if(do.r.prior)  #0.008 sec per iteration per species
 {
   set.seed(1234)
@@ -1341,30 +1336,35 @@ if(do.r.prior)  #0.008 sec per iteration per species
     #if(names(List.sp)[l]%in%c("grey nurse shark","sandbar shark")) linear.fec="NO"
     
     #Get r prior
-    M.averaging<<-"min" #'min' yields rmax, Cortes pers com
+      #Age invariant M
+    what.M<<-'age.invariant'
+    M.averaging<<-"min" # if using multiple methods with equal weight, 'min' yields rmax, Cortes pers com
     GET.all.Ms=TRUE
-    r.prior.dist_M.min=with(List.sp[[l]],fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
+    r.prior.dist_M.age.invariant=with(List.sp[[l]],fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
                                                          K.sd=Growth.F$k.sd,LINF.sd=Growth.F$FL_inf.sd*a_FL.to.TL+b_FL.to.TL,k.Linf.cor,
                                                          Amax=Max.age.F,
                                                          MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle,
                                                          BWT=BwT,AWT=AwT,LO=Lzero*a_FL.to.TL+b_FL.to.TL)) #size vars as TL
-    
+      #Mortality at age
+    what.M<<-'at.age'
     M.averaging<<-"mean"
     GET.all.Ms=FALSE
-    mean.donotwork=c("grey nurse shark","spurdogs") #when M.average='mean', endless loop due to 
-    # low fecundity (greynurse & spurdogs) or high mortality (due to k for sandbar)
+    mean.donotwork=NULL
+    #mean.donotwork=c("grey nurse shark","spurdogs") #when M.average='mean', endless loop due to 
+                                                # low fecundity (greynurse & spurdogs)
+                                                # or high mortality (due to k for sandbar)
     if(!Keep.species[l]%in%mean.donotwork)  
     {
-      r.prior.dist_M.mean=with(List.sp[[l]],fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
+      r.prior.dist_M.at.age=with(List.sp[[l]],fun.rprior.dist(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
                                                             K.sd=Growth.F$k.sd,LINF.sd=Growth.F$FL_inf.sd*a_FL.to.TL+b_FL.to.TL,k.Linf.cor,
                                                             Amax=Max.age.F,
                                                             MAT=unlist(Age.50.mat),FecunditY=Fecundity,Cycle=Breed.cycle,
                                                             BWT=BwT,AWT=AwT,LO=Lzero*a_FL.to.TL+b_FL.to.TL)) #size vars as TL
     }
-    #r.prior.dist_M.mean=within(r.prior.dist_M.mean, rm(nat.mort.sim))
-    if(Keep.species[l]%in%mean.donotwork) r.prior.dist_M.mean=r.prior.dist_M.min
+    if(Keep.species[l]%in%mean.donotwork) r.prior.dist_M.at.age=r.prior.dist_M.age.invariant
     
-    store.species.r[[l]]=list(r.prior.dist_M.min=r.prior.dist_M.min,r.prior.dist_M.mean=r.prior.dist_M.mean)
+    store.species.r[[l]]=list(r.prior.dist_M.age.invariant=r.prior.dist_M.age.invariant,
+                              r.prior.dist_M.at.age=r.prior.dist_M.at.age)
   }
   toc()    
   clear.log('fun.rprior.dist')
@@ -1372,9 +1372,9 @@ if(do.r.prior)  #0.008 sec per iteration per species
   if("plyr"%in%.packages()) detach("package:plyr", unload=TRUE)
   
   #Extract quantities
-  store.species.r_M.min=lapply(store.species.r, function(x) x[[1]])
-  store.species.r_M.mean=lapply(store.species.r, function(x) x[[2]])
-  names(store.species.r_M.min)=names(store.species.r_M.mean)=Keep.species
+  store.species.r_M.age.invariant=lapply(store.species.r, function(x) x[[1]])
+  store.species.r_M.at.age=lapply(store.species.r, function(x) x[[2]])
+  names(store.species.r_M.age.invariant)=names(store.species.r_M.at.age)=Keep.species
   for(l in 1:N.sp)  
   {
     print(paste("extract r prior ","--",List.sp[[l]]$Name))
@@ -1386,8 +1386,8 @@ if(do.r.prior)  #0.008 sec per iteration per species
     setwd(PATH)
     
     #export life history parameter distributions
-    Nms=names(store.species.r_M.min[[l]]$Input.pars[[1]])
-    LH.d=matrix(unlist(list.flatten(store.species.r_M.min[[l]]$Input.pars)),nrow=List.sp[[l]]$NsimSS,ncol=length(Nms),byrow = T)
+    Nms=names(store.species.r_M.age.invariant[[l]]$Input.pars[[1]])
+    LH.d=matrix(unlist(list.flatten(store.species.r_M.age.invariant[[l]]$Input.pars)),nrow=List.sp[[l]]$NsimSS,ncol=length(Nms),byrow = T)
     colnames(LH.d)=Nms
     LH.d%>%
       data.frame%>%
@@ -1409,20 +1409,20 @@ if(do.r.prior)  #0.008 sec per iteration per species
     rm(LH.d)
     
     #export r
-    write.csv(with(store.species.r_M.min[[l]],data.frame(shape=shape,rate=rate,mean=mean,sd=sd)),'r.prior_M.min.csv',row.names = F)
-    write.csv(with(store.species.r_M.mean[[l]],data.frame(shape=shape,rate=rate,mean=mean,sd=sd)),'r.prior_M.mean.csv',row.names = F)
+    write.csv(with(store.species.r_M.age.invariant[[l]],data.frame(shape=shape,rate=rate,mean=mean,sd=sd)),'r.prior_M.age.invariant.csv',row.names = F)
+    write.csv(with(store.species.r_M.at.age[[l]],data.frame(shape=shape,rate=rate,mean=mean,sd=sd)),'r.prior_M.at.age.csv',row.names = F)
     
     #export G
-    out.G_M.min=with(store.species.r_M.min[[l]],data.frame(mean=mean(G),sd=sd(G)))
-    write.csv(out.G_M.min,'G.prior_M.min.csv',row.names = F)
-    store.species.G_M.min[[l]]=out.G_M.min
+    out.G_M.age.invariant=with(store.species.r_M.age.invariant[[l]],data.frame(mean=mean(G),sd=sd(G)))
+    write.csv(out.G_M.age.invariant,'G.prior_M.age.invariant.csv',row.names = F)
+    store.species.G_M.age.invariant[[l]]=out.G_M.age.invariant
     
-    out.G_M.mean=with(store.species.r_M.mean[[l]],data.frame(mean=mean(G),sd=sd(G)))
-    write.csv(out.G_M.mean,'G.prior_M.mean.csv',row.names = F)
-    store.species.G_M.mean[[l]]=out.G_M.mean
+    out.G_M.at.age=with(store.species.r_M.at.age[[l]],data.frame(mean=mean(G),sd=sd(G)))
+    write.csv(out.G_M.at.age,'G.prior_M.at.age.csv',row.names = F)
+    store.species.G_M.at.age[[l]]=out.G_M.at.age
     
     #export M
-    out.M=store.species.r_M.min[[l]]$M
+    out.M=store.species.r_M.age.invariant[[l]]$M
     n.dim=max(unlist(lapply(out.M,length)))
     for(ss in 1:length(out.M))
     {
@@ -1433,10 +1433,10 @@ if(do.r.prior)  #0.008 sec per iteration per species
     }
     out.M=do.call(rbind,out.M)
     names(out.M)=0:(n.dim-1)
-    store.species.M_M.min[[l]]=out.M
-    write.csv(out.M,"M_M.min.csv",row.names=FALSE)
+    store.species.M_M.age.invariant[[l]]=out.M
+    write.csv(out.M,"M_M.age.invariant.csv",row.names=FALSE)
     
-    out.M=store.species.r_M.mean[[l]]$M
+    out.M=store.species.r_M.at.age[[l]]$M
     n.dim=max(unlist(lapply(out.M,length)))
     for(ss in 1:length(out.M))
     {
@@ -1447,14 +1447,14 @@ if(do.r.prior)  #0.008 sec per iteration per species
     }
     out.M=do.call(rbind,out.M)
     names(out.M)=0:(n.dim-1)
-    store.species.M_M.mean[[l]]=out.M
-    write.csv(out.M,"M_M.mean.csv",row.names=FALSE)
+    store.species.M_M.at.age[[l]]=out.M
+    write.csv(out.M,"M_M.at.age.csv",row.names=FALSE)
   }
 
   #Plot each M estimator 
   for(l in 1:N.sp)
   {
-    store.species.r_M.min[[l]]$nat.mort.sim%>%
+    store.species.r_M.age.invariant[[l]]$nat.mort.sim%>%
       ggplot(aes(x=Age, y=M.mean,color=Method))+
       geom_point()+
       geom_errorbar(aes(ymin=M.mean-M.sd, ymax=M.mean+M.sd))+
@@ -1470,36 +1470,38 @@ if(do.r.prior)  #0.008 sec per iteration per species
   
   
   #Compare Min and Mean Natural mortality
-  for(l in 1:N.sp)
+  if(exists('store.species.M_M.min'))
   {
-    sd=apply(store.species.M_M.min[[l]],2,sd,na.rm=T)
-    MN=colMeans(store.species.M_M.min[[l]],na.rm=T)
-    M_x=1:length(MN)
-    loe.mod=loess(MN~M_x)
-    MN=predict(loe.mod)
-    
-    sd_mean=apply(store.species.M_M.mean[[l]],2,sd,na.rm=T)
-    MN_mean=colMeans(store.species.M_M.mean[[l]],na.rm=T)
-    M_x=1:length(MN_mean)
-    loe.mod=loess(MN_mean~M_x)
-    MN_mean=predict(loe.mod)
-    
-    
-    fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(List.sp[[l]]$Name),"/",AssessYr,"/demography/M_min.vs.mean",sep=''),2400,2000) 
-    
-    plot(MN,ylim=c(0,max(MN_mean)*1.1),main=Keep.species[l],
-         ylab='M (+/- SD)',xlab='Age',pch=19)
-    lines(MN-sd)
-    lines(MN+sd)
-    points(MN_mean,pch=19,col=2)
-    lines(MN_mean-sd_mean,col=2)
-    lines(MN_mean+sd_mean,col=2)
-    legend('topright',c('Min','Mean'),pch=19,col=1:2,bty='n')
-    dev.off()
-    
+    for(l in 1:N.sp)
+    {
+      sd=apply(store.species.M_M.age.invariant[[l]],2,sd,na.rm=T)
+      MN=colMeans(store.species.M_M.age.invariant[[l]],na.rm=T)
+      M_x=1:length(MN)
+      loe.mod=loess(MN~M_x)
+      MN=predict(loe.mod)
+      
+      sd_mean=apply(store.species.M_M.at.age[[l]],2,sd,na.rm=T)
+      MN_mean=colMeans(store.species.M_M.at.age[[l]],na.rm=T)
+      M_x=1:length(MN_mean)
+      loe.mod=loess(MN_mean~M_x)
+      MN_mean=predict(loe.mod)
+      
+      
+      fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                   capitalize(List.sp[[l]]$Name),"/",AssessYr,"/demography/M_min.vs.mean",sep=''),2400,2000) 
+      
+      plot(MN,ylim=c(0,max(MN_mean)*1.1),main=Keep.species[l],
+           ylab='M (+/- SD)',xlab='Age',pch=19)
+      lines(MN-sd)
+      lines(MN+sd)
+      points(MN_mean,pch=19,col=2)
+      lines(MN_mean-sd_mean,col=2)
+      lines(MN_mean+sd_mean,col=2)
+      legend('topright',c('Min','Mean'),pch=19,col=1:2,bty='n')
+      dev.off()
+      
+    }
   }
-  
   rm(store.species.r)
 }
 
@@ -1509,13 +1511,13 @@ if(!do.r.prior)
   {
     hndl.dummy=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
                      AssessYr,"/demography",sep='')
-    store.species.r_M.min[[l]]=read.csv(paste(hndl.dummy,"/r.prior_M.min.csv",sep=''))
-    store.species.G_M.min[[l]]=read.csv(paste(hndl.dummy,"/G.prior_M.min.csv",sep=''))
-    store.species.M_M.min[[l]]=read.csv(paste(hndl.dummy,"/M_M.min.csv",sep=''))
+    store.species.r_M.age.invariant[[l]]=read.csv(paste(hndl.dummy,"/r.prior_M.age.invariant.csv",sep=''))
+    store.species.G_M.age.invariant[[l]]=read.csv(paste(hndl.dummy,"/G.prior_M.age.invariant.csv",sep=''))
+    store.species.M_M.age.invariant[[l]]=read.csv(paste(hndl.dummy,"/M_M.age.invariant.csv",sep=''))
     
-    store.species.r_M.mean[[l]]=read.csv(paste(hndl.dummy,"/r.prior_M.mean.csv",sep=''))
-    store.species.G_M.mean[[l]]=read.csv(paste(hndl.dummy,"/G.prior_M.mean.csv",sep=''))
-    store.species.M_M.mean[[l]]=read.csv(paste(hndl.dummy,"/M_M.mean.csv",sep=''))
+    store.species.r_M.at.age[[l]]=read.csv(paste(hndl.dummy,"/r.prior_M.at.age.csv",sep=''))
+    store.species.G_M.at.age[[l]]=read.csv(paste(hndl.dummy,"/G.prior_M.at.age.csv",sep=''))
+    store.species.M_M.at.age[[l]]=read.csv(paste(hndl.dummy,"/M_M.at.age.csv",sep=''))
     
     rm(hndl.dummy)
   }
@@ -1526,11 +1528,17 @@ if(!do.r.prior)
 for(l in 1:length(Lista.sp.outputs))
 {
   STXSIZ=16
-  if(names(Lista.sp.outputs)[l]=="Other.sp") STXSIZ=13
-  fn.display.priors(d=store.species.r_M.min,
+  Xmax=0.6
+  if(names(Lista.sp.outputs)[l]=="Other.sp")
+  {
+    STXSIZ=13
+    Xmax=0.96
+  }
+    
+  fn.display.priors(d=store.species.r_M.age.invariant,
                     sp=Lista.sp.outputs[[l]],
                     XLAB=expression(paste(plain("Maximum intrinsic rate of increase (years") ^ plain("-1"),")",sep="")),
-                    XLIM=c(0,NA),
+                    XLIM=c(0,Xmax),
                     Strx.siz=STXSIZ)
   ggsave(paste(Rar.path,'/Prior_r_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
          width = 12,height = 10,compression = "lzw")
@@ -1543,11 +1551,11 @@ Omit.these=c("Great hammerhead","Scalloped hammerhead","Smooth hammerhead",
 if(do.r.prior)
 {
 
-  CompR=data.frame(Name=names(store.species.r_M.min),r=NA,M=NA)
+  CompR=data.frame(Name=names(store.species.r_M.age.invariant),r=NA,M=NA)
   for(l in 1:N.sp)
   {
-    CompR$r[l]=store.species.r_M.min[[l]]$mean
-    CompR$M[l]=mean(unlist(store.species.M_M.min[[l]]),na.rm=T)
+    CompR$r[l]=store.species.r_M.age.invariant[[l]]$mean
+    CompR$M[l]=mean(unlist(store.species.M_M.age.invariant[[l]]),na.rm=T)
   }
   COL=rgb(.1,.2,.8,alpha=.45)
   CompR=CompR%>%
@@ -1670,7 +1678,7 @@ if(compare.FishLife)
 #---10. Assign Resilience -----------------------------------------------------------------------
 RESILIENCE=vector('list',N.sp)
 names(RESILIENCE)=names(List.sp)
-for(r in 1:length(RESILIENCE)) RESILIENCE[[r]]=Res.fn(store.species.r_M.min[[r]]$mean,Def="Haddon")
+for(r in 1:length(RESILIENCE)) RESILIENCE[[r]]=Res.fn(store.species.r_M.age.invariant[[r]]$mean,Def="Haddon")
 clear.log('Res.fn')
 
 #---11. Extract experimental selectivity at age and at size-----------------------------------------------------------------------
@@ -2039,15 +2047,15 @@ for(l in 1:N.sp)
 
 #---13. Calculate Steepness ----------------------------------------------------------------------- 
   #calculate prior
-store.species.steepness_M.mean=vector('list',N.sp)
-names(store.species.steepness_M.mean)=Keep.species
-store.species.alpha_M.min=store.species.alpha_M.mean=store.species.steepness_M.min=store.species.steepness_M.mean
+store.species.steepness_M.at.age=vector('list',N.sp)
+names(store.species.steepness_M.at.age)=Keep.species
+store.species.alpha_M.age.invariant=store.species.alpha_M.at.age=store.species.steepness_M.age.invariant=store.species.steepness_M.at.age
 if(do.steepness)   #0.005 sec per iteration per species
 {
   store.species.h=vector('list',N.sp)
   names(store.species.h)=Keep.species
   tic()
-  for(l in 1:N.sp)
+  for(l in 1:N.sp) 
   {
     print(paste('Steepness calculation -------------',Keep.species[l]))  
     SEL=Selectivity.at.age[[l]]$Sel.combined  #selectivity not used in h calculation as F.mult =0 so set to dummy if sel not available
@@ -2065,9 +2073,12 @@ if(do.steepness)   #0.005 sec per iteration per species
     
     GET.all.Ms=FALSE
     
+      #M at age
     M.averaging<<-"mean"   #'min' yields too high h values for all species
-    if(names(List.sp)[l]%in%c("milk shark")) M.averaging<<-"min"  #way too high M if using average
-    steepNs_M.mean=with(List.sp[[l]],fun.steepness(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
+    #if(names(List.sp)[l]%in%c("milk shark")) M.averaging<<-"min"  #way too high M if using average
+    what.M<<-'at.age'
+    if(names(List.sp)[l]%in%c("narrow sawfish")) what.M<<-'age.invariant'
+    steepNs_M.at.age=with(List.sp[[l]],fun.steepness(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
                                                    Linf.sd=Growth.F$FL_inf.sd*a_FL.to.TL+b_FL.to.TL,k.sd=Growth.F$k.sd,
                                                    first.age=0,sel.age=SEL,F.mult=0,
                                                    Amax=Max.age.F,MAT=unlist(Age.50.mat),
@@ -2075,9 +2086,10 @@ if(do.steepness)   #0.005 sec per iteration per species
                                                    sexratio=0.5,spawn.time = 0,
                                                    AWT=AwT,BWT=BwT,LO=Lzero*a_FL.to.TL+b_FL.to.TL,
                                                    Resamp=RESAMP,simsout=SSS.sims))
-    
-    M.averaging<<-"min"
-    steepNs_M.min=with(List.sp[[l]],fun.steepness(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
+      # Age invariant M
+    #M.averaging<<-"min"
+    what.M<<-'age.invariant'
+    steepNs_M.age.invariant=with(List.sp[[l]],fun.steepness(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
                                                   Linf.sd=Growth.F$FL_inf.sd*a_FL.to.TL+b_FL.to.TL,k.sd=Growth.F$k.sd,
                                                   first.age=0,sel.age=SEL,F.mult=0,
                                                   Amax=Max.age.F,MAT=unlist(Age.50.mat),
@@ -2086,7 +2098,7 @@ if(do.steepness)   #0.005 sec per iteration per species
                                                   AWT=AwT,BWT=BwT,LO=Lzero*a_FL.to.TL+b_FL.to.TL,
                                                   Resamp=RESAMP,simsout=SSS.sims))
     rm(RESAMP,M.averaging,linear.fec)
-    store.species.h[[l]]=list(steepNs_M.mean=steepNs_M.mean,steepNs_M.min=steepNs_M.min)
+    store.species.h[[l]]=list(steepNs_M.at.age=steepNs_M.at.age,steepNs_M.age.invariant=steepNs_M.age.invariant)
   }
   toc() 
 
@@ -2094,9 +2106,9 @@ if(do.steepness)   #0.005 sec per iteration per species
   clear.log('Alpha.Brooks')
   
   #Extract quantities
-  steepNs_M.mean=lapply(store.species.h, function(x) x[[1]])
-  steepNs_M.min=lapply(store.species.h, function(x) x[[2]])
-  names(steepNs_M.mean)=names(steepNs_M.min)=Keep.species
+  steepNs_M.at.age=lapply(store.species.h, function(x) x[[1]])
+  steepNs_M.age.invariant=lapply(store.species.h, function(x) x[[2]])
+  names(steepNs_M.at.age)=names(steepNs_M.age.invariant)=Keep.species
   for(l in 1:N.sp)
   {
     print(paste("extract steepness value ","--",List.sp[[l]]$Name))
@@ -2106,12 +2118,12 @@ if(do.steepness)   #0.005 sec per iteration per species
     setwd(PATH)
     
     #export h, alpha and M
-    steepNs=steepNs_M.mean[[l]]
+    steepNs=steepNs_M.at.age[[l]]
     out.h=with(steepNs,data.frame(mean=mean,sd=sd))
-    write.csv(out.h,'h.prior_M.mean.csv',row.names = F) 
-    store.species.steepness_M.mean[[l]]=out.h
-    write.csv(steepNs$Alpha,'Alpha_M.mean.csv',row.names = F) 
-    store.species.alpha_M.mean[[l]]=steepNs$Alpha
+    write.csv(out.h,'h.prior_M.at.age.csv',row.names = F) 
+    store.species.steepness_M.at.age[[l]]=out.h
+    write.csv(steepNs$Alpha,'Alpha_M.at.age.csv',row.names = F) 
+    store.species.alpha_M.at.age[[l]]=steepNs$Alpha
     out.M=steepNs$M
     n.dim=max(unlist(lapply(out.M,length)))
     for(ss in 1:length(out.M))
@@ -2123,15 +2135,15 @@ if(do.steepness)   #0.005 sec per iteration per species
     }
     out.M=do.call(rbind,out.M)
     names(out.M)=0:(n.dim-1)
-    write.csv(out.M,"M_M.mean.csv",row.names=FALSE)
-    write.csv(steepNs$Runs,"Life.history_M.mean.csv",row.names=FALSE)
+    write.csv(out.M,"M_M.at.age.csv",row.names=FALSE)
+    write.csv(steepNs$Runs,"Life.history_M.at.age.csv",row.names=FALSE)
     
-    steepNs=steepNs_M.min[[l]]
+    steepNs=steepNs_M.age.invariant[[l]]
     out.h=with(steepNs,data.frame(mean=mean,sd=sd))
-    write.csv(out.h,'h.prior_M.min.csv',row.names = F) 
-    store.species.steepness_M.min[[l]]=out.h
-    write.csv(steepNs$Alpha,'Alpha_M.min.csv',row.names = F) 
-    store.species.alpha_M.min[[l]]=steepNs$Alpha
+    write.csv(out.h,'h.prior_M.age.invariant.csv',row.names = F) 
+    store.species.steepness_M.age.invariant[[l]]=out.h
+    write.csv(steepNs$Alpha,'Alpha_M.age.invariant.csv',row.names = F) 
+    store.species.alpha_M.age.invariant[[l]]=steepNs$Alpha
     out.M=steepNs$M
     n.dim=max(unlist(lapply(out.M,length)))
     for(ss in 1:length(out.M))
@@ -2143,8 +2155,8 @@ if(do.steepness)   #0.005 sec per iteration per species
     }
     out.M=do.call(rbind,out.M)
     names(out.M)=0:(n.dim-1)
-    write.csv(out.M,"M_M.min.csv",row.names=FALSE)
-    write.csv(steepNs$Runs,"Life.history_M.min.csv",row.names=FALSE)
+    write.csv(out.M,"M_M.age.invariant.csv",row.names=FALSE)
+    write.csv(steepNs$Runs,"Life.history_M.age.invariant.csv",row.names=FALSE)
     
     rm(steepNs,out.M)
     
@@ -2152,36 +2164,35 @@ if(do.steepness)   #0.005 sec per iteration per species
   
   rm(store.species.h)
 }
-
-
 if(!do.steepness)
 {
   for(l in 1: N.sp)
   {
-    store.species.steepness_M.mean[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
-                                                AssessYr,"/steepness/h.prior_M.mean.csv",sep=''))
-    store.species.alpha_M.mean[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
-                                            AssessYr,"/steepness/Alpha_M.mean.csv",sep=''))
+    store.species.steepness_M.at.age[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
+                                                AssessYr,"/steepness/h.prior_M.at.age.csv",sep=''))
+    store.species.alpha_M.at.age[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
+                                            AssessYr,"/steepness/Alpha_M.at.age.csv",sep=''))
     
-    store.species.steepness_M.min[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
-                                                       AssessYr,"/steepness/h.prior_M.min.csv",sep=''))
-    store.species.alpha_M.min[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
-                                                   AssessYr,"/steepness/Alpha_M.min.csv",sep=''))
+    store.species.steepness_M.age.invariant[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
+                                                       AssessYr,"/steepness/h.prior_M.age.invariant.csv",sep=''))
+    store.species.alpha_M.age.invariant[[l]]=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",
+                                                   AssessYr,"/steepness/Alpha_M.age.invariant.csv",sep=''))
   }
 }
 
-
   #compare steepness and r
+h_too.high=c("great hammerhead","scalloped hammerhead","smooth hammerhead","tiger shark",
+             "dusky shark","lemon shark","zebra shark") 
+h_too.low=c("whiskery shark","milk shark") 
+h_too.long.converge=NULL
 if(do.steepness)
 {
-  Omit.these.h=c("Great hammerhead","Scalloped hammerhead","Smooth hammerhead","Tiger shark",
-                 "Dwarf sawfish","Freshwater sawfish","Gummy shark",
-                 'Green sawfish',"Wobbegongs","Spinner shark")
-  CompR=data.frame(Name=names(store.species.steepness_M.mean),
-                   h=unlist(sapply(store.species.steepness_M.mean, `[`, 1)),
-                   h.sd=unlist(sapply(store.species.steepness_M.mean, `[`, 2)),
-                   r=unlist(sapply(store.species.r_M.min, `[`, 3)),
-                   r.sd=unlist(sapply(store.species.r_M.min, `[`, 4)))
+  Omit.these.h=capitalize(c(h_too.high,h_too.low))
+  CompR=data.frame(Name=names(store.species.steepness_M.at.age),
+                   h=unlist(sapply(store.species.steepness_M.at.age, `[`, 1)),
+                   h.sd=unlist(sapply(store.species.steepness_M.at.age, `[`, 2)),
+                   r=unlist(sapply(store.species.r_M.age.invariant, `[`, 3)),
+                   r.sd=unlist(sapply(store.species.r_M.age.invariant, `[`, 4)))
   rownames(CompR)=NULL
   COL=rgb(.1,.2,.8,alpha=.45)
   CompR=CompR%>%
@@ -2222,26 +2233,33 @@ if(do.steepness)
 
 #Recalculate steepness for species with too high/low h using linear model of r on h
 #note: some h values deemed too high (following E Cortes discussion); some deemed too low (life history mispecificaton)
-#       SEDAR sandbar h=0.3; SEDAR dusky h [0.25;0.35]
+Dusky.Sedar=mean(c(0.25,0.35))  #SEDAR 21, they also obtained too high h estimates (page 30)
+Sandbar.Sedar=mean(c(0.25,0.4)) #SEDAR 21
+ScallopedHH.Sedar=mean(c(0.69,0.71,0.67))
+SmoothHH.Sedar=0.78
+GreatHH.Sedar=0.71
+store.species.steepness_M.at.age$`dusky shark`$mean=Dusky.Sedar
+store.species.steepness_M.at.age$`sandbar shark`$mean=Sandbar.Sedar
+
 Mod.Pred=read.csv(handl_OneDrive('Analyses/Population dynamics/Steepness_vs_r_coeff.csv'))
 
-store.species.steepness.S2=fn.get.stuff.from.list(store.species.steepness_M.mean,"mean")
-h_too.long.converge=c("green sawfish","wobbegongs") #SSS for greens and wobbies taking too long to converge with original h
-h_too.high=c("great hammerhead","scalloped hammerhead","smooth hammerhead","tiger shark",
-             h_too.long.converge) 
-h_too.low=c("spurdogs","sandbar shark")  
+store.species.steepness.S2=fn.get.stuff.from.list(store.species.steepness_M.at.age,"mean")   
 dis.sp.h=c(h_too.high,h_too.low)
 if("dwarf sawfish" %in% Keep.species) dis.sp.h=c(dis.sp.h,"dwarf sawfish","freshwater sawfish")
 for(s in 1:length(dis.sp.h))
 {
   set.seed(1234)
-  id=match(dis.sp.h[s],names(store.species.steepness_M.mean))
-  new.h=store.species.r_M.min[[id]]$mean*Mod.Pred$slope+Mod.Pred$intercept
+  id=match(dis.sp.h[s],names(store.species.steepness_M.at.age))
+  new.h=store.species.r_M.age.invariant[[id]]$mean*Mod.Pred$slope+Mod.Pred$intercept
   store.species.steepness.S2[[id]]=rnorm(1,new.h,new.h/100)
 }
-store.species.steepness_M.mean$spurdogs$sd=store.species.steepness_M.min$spurdogs$sd/2 #M.mean yielded NA as life history results in h<0.2
+store.species.steepness_M.at.age$spurdogs$sd=store.species.steepness_M.age.invariant$spurdogs$sd/2 #M.mean yielded NA as life history results in h<0.2
 #store.species.steepness.S2$`lemon shark`=0.3 #decrease to allow SS3 to fit, too low M and too high h otherwise
 
+store.species.steepness_M.at.age$`whiskery shark`$mean=store.species.steepness.S2$`whiskery shark`
+store.species.steepness_M.at.age$`milk shark`$mean=store.species.steepness.S2$`milk shark`
+store.species.steepness.S2$`dusky shark`=Dusky.Sedar
+store.species.steepness.S2$spurdogs=Min.h.shark
 #display h2 priors
 fn.display.steepness=function(d,d.h2,sp,XLAB,XLIM)
 {
@@ -2267,11 +2285,11 @@ if(do.steepness)
 {
   for(l in 1:length(Lista.sp.outputs))
   {
-    fn.display.steepness(d=store.species.steepness_M.mean,
+    fn.display.steepness(d=store.species.steepness_M.at.age,
                          d.h2=store.species.steepness.S2,
                          sp=Lista.sp.outputs[[l]],
                          XLAB="Steepness (h)",
-                         XLIM=c(0.2,NA))
+                         XLIM=c(0.2,1))
     ggsave(paste(Rar.path,'/Prior_steepness_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = 12,height = 10,compression = "lzw")
   }
@@ -2284,7 +2302,7 @@ do.this=FALSE
 if(do.this)
 {
   A=vector('list',N.sp)
-  for(l in 1:N.sp)A[[l]]=data.frame(Species=Keep.species[l],r=store.species.r_M.min[[l]]$mean,h=store.species.steepness.S2[[l]])
+  for(l in 1:N.sp)A[[l]]=data.frame(Species=Keep.species[l],r=store.species.r_M.age.invariant[[l]]$mean,h=store.species.steepness.S2[[l]])
   do.call(rbind,A)%>%
     ggplot(aes(r,h, label =Species))+
     geom_point()+geom_text_repel(segment.colour='black',col='black',box.padding = 0.5)
@@ -2303,23 +2321,23 @@ Cortes.Brooks.2018=function(alpha)  #source: Cortes & Brooks 2018
 }
 Fmsy.M.scaler=vector('list',N.sp)
 names(Fmsy.M.scaler)=Keep.species
-for(l in 1:N.sp) Fmsy.M.scaler[[l]]=Cortes.Brooks.2018(alpha=median(unlist(store.species.alpha_M.mean[[l]])))
+for(l in 1:N.sp) Fmsy.M.scaler[[l]]=Cortes.Brooks.2018(alpha=median(unlist(store.species.alpha_M.at.age[[l]])))
 for(l in 1:length(dis.sp.h)) #reset dis.sp.h consistently with h resetting
 {
   s=match(dis.sp.h[l],names(Fmsy.M.scaler))
   Fmsy.M.scaler[[s]]=0.5
 }
 
-clear.log('store.species.alpha_M.mean')
-clear.log('store.species.alpha_M.min')
+clear.log('store.species.alpha_M.at.age')
+clear.log('store.species.alpha_M.age.invariant')
 
 #1. Species-specific proxy to Bmsy.K based on Cortes et al 2012
 R=function(r,G) 0.633-0.187*log(r*G) 
-BmsyK.species=data.frame(Species=names(store.species.r_M.min),r=NA,G=NA)
+BmsyK.species=data.frame(Species=names(store.species.r_M.age.invariant),r=NA,G=NA)
 for(l in 1:N.sp)
 {
-  BmsyK.species$r[l]=store.species.r_M.min[[l]]$mean
-  BmsyK.species$G[l]=store.species.G_M.min[[l]]$mean
+  BmsyK.species$r[l]=store.species.r_M.age.invariant[[l]]$mean
+  BmsyK.species$G[l]=store.species.G_M.age.invariant[[l]]$mean
 }
 BmsyK.species=BmsyK.species%>%
   mutate(BmsyK=R(r,G),
@@ -2944,7 +2962,7 @@ if(First.run=="YES")
                      AREA="Western Australia",
                      WD=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(Neim),
                               "/",AssessYr,"/1_Inputs/Visualise data",sep=''),
-                     R=store.species.r_M.min[[l]]$mean)
+                     R=store.species.r_M.age.invariant[[l]]$mean)
       }
     }
     print(paste("Displaying CPUE correlation for -----",names(Catch.rate.series)[l]))
@@ -3644,7 +3662,6 @@ if(COM_use.this.for.risk=='biomass')
     Store.cons.Like_COM$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
   }
 }
-
   
 #Clear log
 clear.log('Store.sens')
@@ -3663,7 +3680,7 @@ clear.log('mod.average')
 clear.log('dummy.store.Kobe.probs')
 
 #---19. Spatio-temporal catch and effort. Reported TDGLF and NSF ----   
-fn.source1('TDGLF and NSF spatio-temporal catch and effort.r')
+if(Do.Spatio.temporal.catch.effort) fn.source1('TDGLF and NSF spatio-temporal catch and effort.r')
 
 
 #---20. Changes in observed mean length ----
@@ -3676,25 +3693,13 @@ clear.log('Logbook')
 clear.log('Logbook.sp')
 
 
-#---22. Dynamic catch and size composition with dome-shaped selectivity --------------------------------------
-#note: single-area, two-sexes, size-structured integrated model fitted to catch and size composition
-#       Selectivity is assumed to be known.
-#       Uncertainty derived from resampling variance-cov matrix  
-#       Only applicable to non-indicator species with representative size comp samples.
-#       For indicator species, use integrated model.
-#       Not used due to poor contrast in available size composition and uncertain growth parameters
-if(do.Dynamic.catch.size.comp) fn.source1("Dynamic.catch.size.comp.r")
+#---22. Catch curve with dome-shaped selectivity --------------------------------------
+if(do.Size.based.Catch.curve) fn.source1("Length.catch.curve.r") #ACA
 
-
-#---23. Catch curve with dome-shaped selectivity --------------------------------------
-#note: superseded by Dynamic catch and size composition with dome-shaped selectivity
-if(do.Size.based.Catch.curve) fn.source1("Size.based.Catch.curve.r")
-clear.log('fun.get.prop.zero.plus.wght')
-clear.log('fn.plt.mn.ktch.wght')
-clear.log('fun.get.prop.zero.plus.length')
-clear.log('fun.change.mean.len')
-clear.log('recruit.cpiui')
-
+#---23. Dynamic catch and size composition with dome-shaped selectivity --------------------------------------
+#note: not used due to Cpp implementation issues
+if(do.Dynamic.catch.size.comp) fn.source1("Dynamic.catch.size.comp.r") 
+clear.log('ObjFunc')
 
 #---24. JABBA Surplus production model -------------------------------------------------
 #note: Only fitting to 'indicator and 'other species' with representative abundance time series 
@@ -3757,6 +3762,7 @@ clear.log('State.Space.SPM')
 
 #---25. Integrated Stock Synthesis (Age-based) Model-------------------------------------------------
   #Run Stock Synthesis
+create.SS.inputs=TRUE #set to FALSE once happy with input files
 if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours
 
   #Get Consequence and likelihoods 
