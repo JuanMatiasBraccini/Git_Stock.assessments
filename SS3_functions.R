@@ -557,7 +557,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     if(is.null(cond.age.len))
     {
-      dat$agebin_vector=seq(0,dat$Nages-1)
+      dat$agebin_vector=seq(First.Age,dat$Nages)
     }
     if(!is.null(cond.age.len))  
     {

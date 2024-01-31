@@ -75,7 +75,7 @@ for(l in 1:N.sp)
   
   
     #steepness
-  h.min=round(min(store.species.steepness.S2[[l]],store.species.steepness_M.at.age[[l]]$mean),3)
+  h.min=max(Min.h.shark,round(min(store.species.steepness.S2[[l]],store.species.steepness_M.at.age[[l]]$mean),3))
   h.M_mean2=round(max(Min.h.shark,store.species.steepness.S2[[l]]),3)
   h.M_mean=round(store.species.steepness_M.at.age[[l]]$mean,3)
   if(NeiM%in%h_too.long.converge) h.M_mean=h.M_mean2
@@ -374,7 +374,6 @@ for(l in 1:N.sp)
                               mutate(NSF.selectivity=NA)
   tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,h.min,List.sp[[l]]$Sens.test$SS$Steepness[1])
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
-  if(NeiM%in%h_too.low)  tested.h=c(h.M_mean2,store.species.steepness_M.at.age[[l]]$mean,h.M_mean2) 
   tested.h=unique(tested.h)
   List.sp[[l]]$Sens.test$SS=do.call("rbind", replicate(length(tested.h), List.sp[[l]]$Sens.test$SS, simplify = FALSE))%>%
                               mutate(Steepness=tested.h,

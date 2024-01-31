@@ -4012,6 +4012,119 @@ fn.display.priors=function(d,sp,XLAB,XLIM,Strx.siz=16)
   
   return(p)
 }
+fn.display.prior.sensitivity=function(d,d2,sp,XLAB,Strx.siz=16,Scen1,Scen2)
+{
+  dummy=lapply(d[sp],function(x) rnorm(1e4,x$mean,x$sd))
+  dummy=lapply(dummy,function(x)data.frame(var=x))
+  
+  dummy1=lapply(d2[sp],function(x) rnorm(1e4,x$mean,x$sd))
+  dummy1=lapply(dummy1,function(x)data.frame(var=x))
+  
+  dummy=do.call(rbind,dummy)%>%
+    tibble::rownames_to_column(var='Species')%>%
+    mutate(Species=capitalize(gsub("\\..*","",Species)),
+           Scenario=Scen1)
+  
+  dummy1=do.call(rbind,dummy1)%>%
+    tibble::rownames_to_column(var='Species')%>%
+    mutate(Species=capitalize(gsub("\\..*","",Species)),
+           Scenario=Scen2)
+  ddd=rbind(dummy,dummy1)
+  p=ddd%>%
+    ggplot(aes(x=var))+
+    geom_density(aes(color=Scenario),linewidth=1.5)+
+    facet_wrap(~Species,scales='free')+
+    xlab(XLAB)+ylab("Density")+
+    theme_PA(axs.T.siz=22,axs.t.siz=14,strx.siz=Strx.siz)+
+    theme(legend.position = "top",
+          legend.title=element_blank(),
+          plot.title =element_text(size=17))
+  print(p)
+  return(ddd%>%group_by(Species,Scenario)%>%summarise(Mean=mean(var))%>%spread(Scenario,Mean))
+}
+fn.display.steepness=function(d,sp,XLAB,XLIM)
+{
+  MinH=Min.h.shark
+  MinH=0.2
+  dummy=lapply(d[sp],function(x) rtruncnorm(1e4,a=MinH, b=Max.h.shark,mean=x$mean,sd=max(x$sd,0.01)))
+  dummy=lapply(dummy,function(x)data.frame(var=x))
+  dummy=do.call(rbind,dummy)%>%
+    tibble::rownames_to_column(var='Species')%>%
+    mutate(Species=capitalize(gsub("\\..*","",Species)))
+  p=dummy%>%
+    ggplot(aes(x=var))+
+    geom_density(aes(color=Species),size=1.5)+
+    facet_wrap(~Species,scales='free_y')+
+    xlab(XLAB)+ylab("Density")+
+    theme_PA(axs.T.siz=22,axs.t.siz=14,strx.siz=16)+
+    theme(legend.position = "none",
+          plot.title =element_text(size=17))+
+    scale_x_continuous(limits = XLIM)
+  
+  return(p)
+}
+fn.display.steepness.sensitivity=function(d,d1,d2,sp,XLAB,Strx.siz=16,Scen1,Scen2,Scen3)
+{
+  for(z in 1:length(d))
+  {
+    d[[z]]$mean=d[[z]]
+    d[[z]]$sd=d1[[z]]$sd
+  }
+  MinH=Min.h.shark
+  MinH=0.2
+  dummy=lapply(d[sp],function(x) rtruncnorm(1e4,a=MinH, b=Max.h.shark,mean=x$mean,sd=max(x$sd,0.01)))
+  dummy=lapply(dummy,function(x)data.frame(var=x))
+  
+  dummy1=lapply(d1[sp],function(x) rtruncnorm(1e4,a=MinH, b=Max.h.shark,mean=x$mean,sd=max(x$sd,0.01)))
+  dummy1=lapply(dummy1,function(x)data.frame(var=x))
+  
+  dummy2=lapply(d2[sp],function(x) rtruncnorm(1e4,a=MinH, b=Max.h.shark,mean=x$mean,sd=max(x$sd,0.01)))
+  dummy2=lapply(dummy2,function(x)data.frame(var=x))
+  
+  
+  dummy=do.call(rbind,dummy)%>%
+    tibble::rownames_to_column(var='Species')%>%
+    mutate(Species=capitalize(gsub("\\..*","",Species)),
+           Scenario=Scen1)
+  
+  dummy1=do.call(rbind,dummy1)%>%
+    tibble::rownames_to_column(var='Species')%>%
+    mutate(Species=capitalize(gsub("\\..*","",Species)),
+           Scenario=Scen2)
+  
+  dummy2=do.call(rbind,dummy2)%>%
+    tibble::rownames_to_column(var='Species')%>%
+    mutate(Species=capitalize(gsub("\\..*","",Species)),
+           Scenario=Scen3)
+  
+  ddd=rbind(dummy,dummy1,dummy2)
+  dA=rbind(data.frame(V=unlist(lapply(d[sp],function(x) x$mean)))%>%
+             rownames_to_column(var = "Species")%>%
+             mutate(Scenario="steepness S2"),
+           data.frame(V=unlist(lapply(d1[sp],function(x) x$mean)))%>%
+             rownames_to_column(var = "Species")%>%
+             mutate(Scenario="M at age"),
+           data.frame(V=unlist(lapply(d2[sp],function(x) x$mean)))%>%
+             rownames_to_column(var = "Species")%>%
+             mutate(Scenario="M invariant"))%>%
+    mutate(Species=capitalize(Species))
+  
+  p=ddd%>%
+    ggplot(aes(x=var))+
+    geom_density(aes(color=Scenario),linewidth=1.5)+
+    facet_wrap(~Species,scales='free')+
+    xlab(XLAB)+ylab("Density")+
+    theme_PA(axs.T.siz=22,axs.t.siz=14,strx.siz=Strx.siz)+
+    theme(legend.position = "top",
+          legend.title=element_blank(),
+          plot.title =element_text(size=17))+
+    geom_vline(data=dA,aes(xintercept = V,color=Scenario))+
+    geom_text(data = dA,mapping = aes(x = V, y = -Inf, label = round(V,2)),hjust=-0.1,vjust= 0,angle = 90)
+  print(p)
+  return(ddd%>%group_by(Species,Scenario)%>%summarise(Mean=mean(var))%>%spread(Scenario,Mean))
+}
+
+
 fn.compare.dist=function(MEAN,CV,XLIM)
 {
   Beta.pars=get_beta(MEAN,CV)
