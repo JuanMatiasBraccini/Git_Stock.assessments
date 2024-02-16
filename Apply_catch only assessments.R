@@ -340,7 +340,6 @@ for(w in 1:length(Catch_only))
             #ktch=rbind(ktch,add.ct.future)
           }
         }
-
         
         year=ktch$finyear
         catch=ktch$Tonnes
@@ -374,9 +373,7 @@ for(w in 1:length(Catch_only))
           }else
           {
             Mn=max(min(Scens$r[s],Max.r.value),Min.r.value)  #some life history pars yield unrealistically high r
-            r.range=quantile(rnorm(1e3,
-                                   mean=Mn,
-                                   sd=Scens$r.sd[s]),
+            r.range=quantile(rnorm(1e3,mean=Mn,sd=Scens$r.sd[s]),
                              probs=c(Scens$r.prob.min[s],Scens$r.prob.max[s]))
 
             k.range=c(Scens$Klow[s],Scens$Kup[s])
@@ -384,12 +381,24 @@ for(w in 1:length(Catch_only))
             Bf.low=List.sp[[i]]$FINALBIO[1]
             Bf.hi=List.sp[[i]]$FINALBIO[2]
             
-            #need to modify bound a bit to allow enough combos (i.e. convergence)
-            if(names(dummy.store)[i]%in%c("milk shark","narrow sawfish","snaggletooth","zebra shark")) r.range[1]=0.1
-            if(names(dummy.store)[i]%in%c("pigeye shark","smooth hammerhead")) k.range[2]=k.range[1]*3
-            if(names(dummy.store)[i]%in%c("pigeye shark","sandbar shark")) r.range[2]=r.range[2]*1.2
-            if(names(dummy.store)[i]%in%c("zebra shark")) r.range[2]=min(r.range[2],Scens$r[s]*1.1)
-            
+            #need to modify bound to allow enough combos (i.e. convergence)
+            if(modify.r_k_bounds.for.convergence)
+            {
+              #k
+              if(names(dummy.store)[i]%in%c("lemon shark"))
+              {
+                k.range[1]=k.range[1]*2
+                k.range[2]=k.range[2]*4
+              }
+
+              #r
+              if(names(dummy.store)[i]%in%c("narrow sawfish","snaggletooth","weasel shark"))
+              {
+                r.range[1]=r.range[1]*.5
+              }
+             }
+
+            #define minimum and maximum biologically possible
             r.range[1]=max(r.range[1],Min.r.value)  #minimum level of recruitment
             r.range[2]=min(r.range[2],Max.r.value)  #maximum level biological possible
             
@@ -1008,7 +1017,7 @@ for(w in 1:length(Catch_only))
   #5. SSS-MC assessment (Cope (2013))   
   # summary of method: https://github.com/shcaba/SSS
   #note: this was parallelised to improve computation time
-  if(names(Catch_only)[w]=="SSS")     #parallelised: 3.2 secs per iteration-species-scenario (otherwise 12 secs)
+  if(names(Catch_only)[w]=="SSS")     #parallelised: 6 secs per iteration-species-scenario (otherwise 12 secs)
   {
     if(do.parallel.SSS)
     {
@@ -1164,7 +1173,7 @@ for(w in 1:length(Catch_only))
                         args='-nohess')  #no Hessian estimation as uncertainty generated thru MC procedure
               
               #4. Bring in outputs
-              Report[[n]]=SS_output(this.wd1,covar=F,forecast=F,readwt=F,checkcor=F)
+              Report[[n]]=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
               #ss.std=read.table(paste(this.wd1,'ss.std',sep='/')) https://vlab.noaa.gov/web/stock-synthesis/public-forums/-/message_boards/view_message/11664630
               Report[[n]]$Final.dpl=data.frame(Distribuion=c('Prior','Posterior'),
                                                Value=c(Scenario$Final.dpl,Report[[n]]$current_depletion),
@@ -1225,6 +1234,7 @@ for(w in 1:length(Catch_only))
                           Lower.95=quantile(Value,probs=0.025),
                           Upper.95=quantile(Value,probs=0.975))%>%
                 dplyr::select(Par,Median,Lower.95,Upper.95,Scenario)%>%
+                rename(Parameter=Par)%>%
                 ungroup()
               add.MSY=do.call(rbind,fn.get.stuff.from.list(Report,"derived_quants"))%>%
                 filter(grepl('Dead_Catch_MSY',Label))%>%
@@ -1237,6 +1247,7 @@ for(w in 1:length(Catch_only))
                           Lower.95=quantile(Value,probs=0.025),
                           Upper.95=quantile(Value,probs=0.975))%>%
                 dplyr::select(Par,Median,Lower.95,Upper.95,Scenario)%>%
+                rename(Parameter=Par)%>%
                 ungroup()
               Out.estimates[[s]]=rbind(Out.estimates[[s]],add.MSY)
               
@@ -1567,8 +1578,6 @@ for(w in 1:length(Catch_only))
               #ktch=rbind(ktch,add.ct.future)
             }
           }
-
-          
           
           #random LH samples
           LH.sim=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),
@@ -1674,7 +1683,7 @@ for(w in 1:length(Catch_only))
                         args='-nohess')  #no Hessian estimation as uncertainty generated thru MC procedure
               
               #4. Bring in outputs
-              Report[[n]]=SS_output(this.wd1,covar=F,forecast=F,readwt=F,checkcor=F)
+              Report[[n]]=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
               #ss.std=read.table(paste(this.wd1,'ss.std',sep='/')) https://vlab.noaa.gov/web/stock-synthesis/public-forums/-/message_boards/view_message/11664630
               Report[[n]]$Final.dpl=data.frame(Distribuion=c('Prior','Posterior'),
                                                Value=c(Scenario$Final.dpl,Report[[n]]$current_depletion),
@@ -1766,12 +1775,14 @@ for(w in 1:length(Catch_only))
               #Store estimates (recalculate with retained runs)
               Estims=do.call(rbind,fn.get.stuff.from.list(Report,"estimated_non_dev_parameters"))
               Out.estimates[[s]]=Estims%>%
-                mutate(Par=gsub('[0-9]+', '', rownames(Estims)))%>%
-                group_by(Par)%>%
-                summarise(Median=median(Value),
-                          Lower.95=quantile(Value,probs=0.025),
-                          Upper.95=quantile(Value,probs=0.975))%>%
-                dplyr::select(Par,Median,Lower.95,Upper.95)
+                                  mutate(Par=gsub('[0-9]+', '', rownames(Estims)))%>%
+                                  group_by(Par)%>%
+                                  summarise(Median=median(Value),
+                                            Lower.95=quantile(Value,probs=0.025),
+                                            Upper.95=quantile(Value,probs=0.975))%>%
+                                  dplyr::select(Par,Median,Lower.95,Upper.95)%>%
+                                  rename(Parameter=Par)%>%
+                                  mutate(Scenario=Scens$Scenario[s])
               
               add.MSY=do.call(rbind,fn.get.stuff.from.list(Report,"derived_quants"))%>%
                 filter(grepl('Dead_Catch_MSY',Label))%>%
@@ -1783,7 +1794,9 @@ for(w in 1:length(Catch_only))
                 summarise(Median=median(Value),
                           Lower.95=quantile(Value,probs=0.025),
                           Upper.95=quantile(Value,probs=0.975))%>%
-                dplyr::select(Par,Median,Lower.95,Upper.95)   
+                dplyr::select(Par,Median,Lower.95,Upper.95)%>%
+                rename(Parameter=Par)%>%
+                mutate(Scenario=Scens$Scenario[s])   
               Out.estimates[[s]]=rbind(Out.estimates[[s]],add.MSY)
               
               #Store Scenarios
@@ -2063,8 +2076,8 @@ send.email(TO=Send.email.to,
 #18.2. COM weighted average  
   #18.2.1. get COM weights
 #r groups
-All.rs=do.call(rbind,store.species.r_M.min)
-r.list=All.rs$mean
+All.rs=do.call(rbind,fn.get.stuff.from.list(store.species.r_M.age.invariant,'mean'))
+r.list=All.rs[,1]
 names(r.list)=1:N.sp
 r.groups=list(low=c(min(r.list),quantile(r.list,0.2499)),
               medium=c(quantile(r.list,0.25),quantile(r.list,0.7499)),
@@ -2512,7 +2525,7 @@ if(do.ensemble.simulations)   #56 sec per iteration under do.full.sims=FALSE (it
       
       
       #3. Bring in outputs
-      Report[[n]]=SS_output(this.wd1,covar=F,forecast=F,readwt=F,checkcor=F)
+      Report[[n]]=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
       #ss.std=read.table(paste(this.wd1,'ss.std',sep='/')) https://vlab.noaa.gov/web/stock-synthesis/public-forums/-/message_boards/view_message/11664630
      }
     
@@ -2771,7 +2784,7 @@ for(i in 1:N.sp)
   }
 }
 
-  #18.5.2 Fishing mortality
+  #18.5.2 Fishing mortality 
 if(do.F.series)
 {
   for(i in 1:N.sp)
@@ -3036,7 +3049,7 @@ if(do.B.over.Bmsy.series)
 }
 
   #18.7.3 Fishing mortality 
-#figure (Scenario 1 only)
+    #figure (Scenario 1 only)
 if(do.F.series)
 {
   for(l in 1:length(Lista.sp.outputs))
@@ -3057,7 +3070,7 @@ if(do.F.series)
 }
 
   #18.7.4 F over Fmsy   
-  #figure  (Scenario 1 only)
+    #figure  (Scenario 1 only)
 if(do.F.over.Fmsy.series)
 {
   for(l in 1:length(Lista.sp.outputs))
@@ -3080,7 +3093,7 @@ if(do.F.over.Fmsy.series)
   #18.7.5 Catch vs MSY       
 All.catch.MSY=do.call(rbind,compact(Store.catch.MSY))
 All.catch.MSY.species=unique(All.catch.MSY$Species)
-#figure & table (Scenario 1 only)
+    #figure & table (Scenario 1 only)
 for(l in 1:length(Lista.sp.outputs))
 {
   if(length(Lista.sp.outputs[[l]])>8) InMar=.65 else InMar=.5
@@ -3219,7 +3232,6 @@ if(do.B.over.Bmsy.series)
     }
   }
 }
-
 
   #18.8.3 F over Fmsy   
 if(do.F.over.Fmsy.series)
@@ -3416,6 +3428,7 @@ for(l in 1:length(Lista.sp.outputs))
 
 
 #18.11 MSY estimates by Lista.sp.outputs (Scenario 1)   
+  #18.11.1 Extract MSY
 get.MSY.estimates=FALSE  #redundant, MSY output in #18.4
 if(get.MSY.estimates)
 {
@@ -3434,7 +3447,72 @@ if(get.MSY.estimates)
               row.names = F)
   }
 }
+  #18.11.2 Extract number of individuals in the population for the estimated K and MSY
+#note: assume equilibrium conditions at no fishing
+if(!"L3Assess" %in% (.packages())) library(L3Assess)
+dis.w=match(c("DBSRA", "CMSY"),names(Catch_only))
+LenInc=TL.bins.cm
+for(i in 1: length(Lista.sp.outputs))
+{
+  dis.spicis=Lista.sp.outputs[[i]][which(Lista.sp.outputs[[i]]%in%Catch.only.species)]
+  if(length(dis.spicis)>0)
+  {
+    ddd=vector('list',length(dis.w))
+    for(w in dis.w)
+    {
+      dummy=Catch_only[[w]]$estimates
+      dummy=dummy[match(Lista.sp.outputs[[i]],names(dummy))]
+      ddd[[w]]=do.call(rbind,dummy)%>%
+                rownames_to_column(var = "Species")%>%
+                mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
+                relocate(Species)%>%
+                filter(Scenario=='S1'& Parameter%in%c('MSY','K'))
+    }
+    ddd=do.call(rbind,ddd)%>%
+      group_by(Species,Parameter)%>%
+      summarise(Median=mean(Median))%>%
+      spread(Parameter,Median)
+    nn=unique(ddd$Species)
+    kk=vector('list',length(nn))
+    for(n in 1:length(nn))
+    {
+      x=ddd%>%filter(Species==nn[n])
+      l=match(tolower(x$Species),names(List.sp))
+      MaxAge = ceiling(mean(List.sp[[l]]$Max.age.F))
+      NatMort = List.sp[[l]]$Sens.test$SS3$Mmean[1]
+      MaxLen = 10*round(List.sp[[l]]$TLmax/10)
+      min.TL=with(List.sp[[l]],Lzero*a_FL.to.TL+b_FL.to.TL)
+      FishMort=1e-6
+      Linf = c(List.sp[[l]]$Growth.F$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
+               List.sp[[l]]$Growth.M$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL) #total length in cm for females and males   
+      vbK = c(List.sp[[l]]$Growth.F$k,List.sp[[l]]$Growth.M$k)          # k for females and males
+      GrowthParams = data.frame(Linf=Linf, vbK=vbK)
+      CVSizeAtAge = rep(with(List.sp[[l]],mean(c(Growth.CV_young,Growth.CV_old))),2)  
 
+      lbnd = seq(0,MaxLen - LenInc, LenInc)
+      ubnd = lbnd + LenInc
+      midpt = lbnd + (LenInc/2)
+      
+      Res=SimLenAndAgeFreqData(SampleSize=5000, MaxAge, TimeStep=1, NatMort, FishMort, MaxLen, 
+                               LenInc, MLL=NA, SelectivityType=1,
+                               SelParams=c(NA,NA), RetenParams=c(NA,NA), SelectivityVec=rep(1,length(midpt)),
+                               DiscMort=0, GrowthCurveType=1, GrowthParams, RefnceAges=NA, CVSizeAtAge)
+      TW=List.sp[[l]]$AwT*midpt^List.sp[[l]]$BwT
+      aidis=which(midpt>=min.TL)
+      TW=TW[aidis]
+      Equil.N=Res$ObsRetCatchFreqAtLen
+      Equil.N=Equil.N[aidis]
+      Equil.N=Equil.N/sum(Equil.N)
+      N.individuals=sum(Equil.N*x$K*1000/TW)
+      kk[[n]]=x%>%mutate(N.individuals_population=N.individuals)
+    }
+    
+    write.csv(do.call(rbind,kk),paste(Rar.path,paste('Table 3. Catch only_estimates_Number of individuals','_',
+                                       names(Lista.sp.outputs)[i],'.csv',sep=''),sep='/'),row.names = F)
+    
+
+  }
+}
 
 #18.12 Store Consequence and likelihood for WoE 
 get.cons.like.COM=FALSE  #import from table instead

@@ -50,7 +50,7 @@ for(w in 1:length(State.Space.SPM))
 {
   # JABBA (Winker et al 2018)   
   #summary of method: https://github.com/jabbamodel/JABBA
-  if(names(State.Space.SPM)[w]=="JABBA")  #113 sec per species-scenario
+  if(names(State.Space.SPM)[w]=="JABBA")  #0.002 secs per species-scenario-simulation
   {
     if(do.parallel.JABBA)
     {
@@ -79,7 +79,8 @@ for(w in 1:length(State.Space.SPM))
             arrange(Year)%>%
             data.frame
           if(Neim=='milk shark') ktch$Total[1:10]=1 #convergence issues with first 10 years for milk shark, but catch is 0 anyways
-          #future catches
+            
+            #future catches
           outktch=ktch$Total
           add.ct.future=NULL
           if('State.Space.SPM'%in%future.models)
@@ -93,7 +94,6 @@ for(w in 1:length(State.Space.SPM))
               outktch=c(outktch,add.ct.future$Total)
             }
           }
-
           
           
           #CPUE series
@@ -687,7 +687,6 @@ for(w in 1:length(State.Space.SPM))
       rm(out.species)
       
     }
-    
     if(!do.parallel.JABBA)
     {
       dummy.store=vector('list',N.sp)     
@@ -1203,7 +1202,6 @@ for(w in 1:length(State.Space.SPM))
                                  sd=Store.sens[[s]]$output$settings$K.pr[2],
                                  low=Scens$Klow[s],
                                  up=Scens$Kup[s]) 
-              
               if(show.psi)
               {
                 dummy.prior$psi=list(dist=stuff$PsiDist,
@@ -1211,7 +1209,6 @@ for(w in 1:length(State.Space.SPM))
                                      sd=stuff$Psiprior[2])
                 if(dummy.prior$psi$dist=='lnorm') dummy.prior$psi$mean=log(dummy.prior$psi$mean)
               }
-              
               dummy.prior$m=list(dist="lnorm",    
                                  mean=log(m.par%>%filter(Species==Neim)%>%pull(m)),
                                  sd=input$shape.CV)
@@ -1445,7 +1442,7 @@ if(do.F.over.Fmsy.series)
   }
 }
 
-  #24.3.2 Display Scenario 1 for combined species
+  #24.3.2 Display Scenario 1 for combined species 
 #24.3.2.1 Relative biomass (i.e. Depletion) 
   #figure
 for(l in 1:length(Lista.sp.outputs))
@@ -1744,7 +1741,8 @@ for(i in 1:N.sp)
   {
     print(paste("JABBA --- Kobe plot WA Fisheries-----",Keep.species[i]))
     fn.get.Kobe.plot_appendix_WA.Fisheries(d=State.Space.SPM,
-                                           sp=Keep.species[i])
+                                           sp=Keep.species[i],
+                                           RF=Ref.points)
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                  capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_Kobe_plot_WA_Fisheries.tiff",sep=''),
            width = 10,height = 10, dpi = 300,compression = "lzw")
@@ -1768,14 +1766,30 @@ for(l in 1:length(Lista.sp.outputs))
     fn.get.Kobe.plot_WA.Fisheries(this.sp,
                                   d=State.Space.SPM$JABBA,
                                   NKOL,
-                                  NRW)
+                                  NRW,
+                                  RF=Ref.points)
     ggsave(paste(Rar.path,'/Kobe_plot_JABBA CPUE_WA_Fisheries_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = WIZ,height = 12,compression = "lzw")
   }
 }
 
+#24.7 Kobe plots SAFS style (Scenario 1)
+  #24.7.1 by species  
+for(i in 1:N.sp)
+{
+  if(!is.null(State.Space.SPM$JABBA$estimates[[i]]))
+  {
+    print(paste("JABBA --- Kobe plot WA Fisheries-----",Keep.species[i]))
+    fn.get.Kobe.plot_appendix_SAFS(d=State.Space.SPM,
+                                   sp=Keep.species[i],
+                                   RF=Ref.points)
+    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                 capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_Kobe_plot_SAFS.tiff",sep=''),
+           width = 10,height = 10, dpi = 300,compression = "lzw")
+  }
+}
 
-#24.7 store Consequence and likelihood for WoE
+#24.8 store Consequence and likelihood for WoE
 get.cons.like.JABBA=FALSE  #import from table instead
 if(get.cons.like.JABBA) Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 
 

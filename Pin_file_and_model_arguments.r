@@ -81,7 +81,9 @@ for(l in 1:N.sp)
   if(NeiM%in%h_too.long.converge) h.M_mean=h.M_mean2
   h.M.mean_low=round(max(Min.h.shark,h.M_mean*.9),3)
   h.M_mean=round(max(Min.h.shark,h.M_mean),3)
-  
+  h.sd=round(store.species.steepness_M.at.age[[l]]$sd,3)
+  if(NeiM=='shortfin mako') h.M_mean=h.M_mean2=0.3 #to improve SS convergence  
+    
     #Effective sample size (Francis method as default)
   List.sp[[l]]$tuned_size_comp=NULL
   tuned_size_comp=SS3.tune_size_comp_effective_sample%>%
@@ -110,36 +112,35 @@ for(l in 1:N.sp)
 
   
     #M
-  #age-invariant
+      #age-invariant
   Mmean=mean(unlist(store.species.M_M.age.invariant[[l]]),na.rm=T)
   Mmean.mean=mean(unlist(store.species.M_M.at.age[[l]]),na.rm=T)
   
       #increase M (based on Hoenig's maximum age) a bit to allow SS3 to fit, too low M and too high h otherwise
-  if(NeiM=="lemon shark")
+  if(externally.increase.M)
   {
-    Mmean=0.154   
-    Mmean.mean=Mmean.mean*1.5
-  }
-  if(NeiM=="grey nurse shark") Mmean.mean=0.102
-  if(NeiM=="spurdogs") Mmean.mean=0.149
-  if(NeiM=="sawsharks") Mmean.mean=0.18
-  if(NeiM%in%c("grey nurse shark","shortfin mako"))
-  {
-    Mmean=Mmean*2
-    Mmean.mean=Mmean.mean*2
+    if(NeiM=="lemon shark")
+    {
+      Mmean=0.154   
+      Mmean.mean=Mmean.mean*1.5
+    }
+    if(NeiM=="grey nurse shark") Mmean.mean=0.102
+    if(NeiM=="spurdogs") Mmean.mean=0.149
+    if(NeiM=="sawsharks") Mmean.mean=0.18
+    if(NeiM%in%c("grey nurse shark","shortfin mako"))
+    {
+      Mmean=Mmean*2
+      Mmean.mean=Mmean.mean*2
+    }
   }
   Msd=max(sd(unlist(store.species.M_M.age.invariant[[l]]),na.rm=T),.01)
   
-  #age-variant
-  M_y=apply(store.species.M_M.age.invariant[[l]],2,mean,na.rm=T)
-  M_x=1:length(M_y)
-  loe.mod=loess(M_y~M_x)
-  List.sp[[l]]$Mmean.min.at.age=predict(loe.mod)
-  
-  M_y=apply(store.species.M_M.at.age[[l]],2,mean,na.rm=T)
-  M_x=1:length(M_y)
-  loe.mod=loess(M_y~M_x)
-  List.sp[[l]]$Mmean.mean.at.age=predict(loe.mod)
+    #age-variant
+  M_y=apply(store.species.M_M.at.age[[l]],2,mean,na.rm=T)  
+  aidi=List.sp[[l]]$Max.age.F[1]
+  aidi.to=(List.sp[[l]]$Max.age.F[1]+1):List.sp[[l]]$Max.age.F[2]
+  M_y[aidi.to]=M_y[aidi]
+  List.sp[[l]]$Mmean.mean.at.age=M_y
   if(Use.SEDAR.M)
   {
     if(NeiM=="sandbar shark")
@@ -147,7 +148,6 @@ for(l in 1:N.sp)
       #Age-dependent M methods yield very high M given new k of 0.12 so set to the one use in SEDAR 54
       List.sp[[l]]$Mmean.mean.at.age=c(rep(0.1604,6),0.1578,rep(0.1168,length(8:length(List.sp[[l]]$Mmean.mean.at.age))))
     }
-    
     if(NeiM=="dusky shark")
     {
       List.sp[[l]]$Mmean.mean.at.age=c(rep(0.104,5),0.098,0.092,0.088,0.084,0.08,0.077,0.074,
@@ -155,7 +155,6 @@ for(l in 1:N.sp)
                                        0.058,0.057,0.056,0.055,0.054,0.053,0.052,0.052,0.051,
                                        rep(0.048,length(31:length(List.sp[[l]]$Mmean.mean.at.age))))
     }
-    
   }
 
   
@@ -167,7 +166,7 @@ for(l in 1:N.sp)
   List.sp[[l]]$FINALBIO=FINALBIO
   List.sp[[l]]$Do.sim.test=Do.sim.Test  #simulation test Catch-MSY for small and large catches
   bmsyK=0.5   #Schaefer
-  if(NeiM=="lemon shark") bmsyK=0.45    #to improve convergence of DBSRA
+  #if(NeiM=="lemon shark") bmsyK=0.45    #to improve convergence of DBSRA
   BmsyK.Cortes=BmsyK.species%>%filter(Species==names(List.sp)[l])%>%pull(BmsyK)
   if(tweak.BmsyK.Cortes)
   {
@@ -189,7 +188,6 @@ for(l in 1:N.sp)
   fmsy.m=0.41                 # Zhou et al 2012 fmsy/M=0.41 for chondrichthyans
   fmsy.m2=Fmsy.M.scaler[[l]]  #Cortes & Brooks 2018
   
-  
   #2.2 CMSY scenarios
   r.mean=store.species.r_M.age.invariant[[l]]$mean
   r.mean2=store.species.r_M.at.age[[l]]$mean
@@ -202,13 +200,13 @@ for(l in 1:N.sp)
   r.mean2=round(r.mean2,3)
   r.mean.sd=store.species.r_M.age.invariant[[l]]$sd
   r.mean.sd2=store.species.r_M.at.age[[l]]$sd
+  names(r.mean)=names(r.mean2)=names(r.mean.sd)=names(r.mean.sd2)=NULL
   r.mean_lower=round(r.mean*.9,3)
   r.mean_upper=round(r.mean*1.2,3)
   ensims.csmy=ensims.CSMY
   Kup.spcfik=Kup
   Klow.spcfik=Klow
   Proc.error.cmsy=Proc.Error.1
-
 
   #2.3 JABBA - catch only scenarios
   r.CV.multiplier=1
@@ -219,27 +217,27 @@ for(l in 1:N.sp)
   if(Simplified.scenarios)
   {
     List.sp[[l]]$Sens.test=list(
-      DBSRA=data.frame(Scenario=paste("S",1,sep=''),
+      DBSRA=data.frame(Scenario=paste("S",1:2,sep=''),
                        Sims=ensims, 
                        AgeMat=AgeMat,
-                       Mmean=Mmean,
+                       Mmean=c(Mmean,Mmean.mean),
                        Msd=Msd,
                        Klow=Klow,
                        Kup=Kup.spcfik,
                        fmsy.m=fmsy.m,    
                        bmsyk=BmsyK.Cortes),    
-      CMSY=data.frame(Scenario=paste("S",1,sep=''),
+      CMSY=data.frame(Scenario=paste("S",1:2,sep=''),
                       Sims=ensims.csmy, 
-                      r=r.mean,
+                      r=c(r.mean,r.mean2),
                       r.sd=r.mean.sd,
                       r.prob.min=r.prob.min,  
                       r.prob.max=r.prob.max,
                       Klow=Klow.spcfik,
                       Kup=Kup.spcfik,
                       Proc.error=Proc.Error),
-      JABBA_catch.only=data.frame(Scenario=paste("S",1:1,sep=''),
+      JABBA_catch.only=data.frame(Scenario=paste("S",1:2,sep=''),
                                   Sims=ensims.JABBA,
-                                  r=r.mean,
+                                  r=c(r.mean,r.mean2),
                                   r.sd=r.mean.sd,
                                   r.CV.multiplier=r.CV.multiplier,
                                   K.mean=mean(c(Klow.spcfik,Kup.spcfik)), 
@@ -253,7 +251,7 @@ for(l in 1:N.sp)
                      Msd=Msd,
                      Final.dpl=mean(FINALBIO),
                      Steepness=c(h.M_mean,h.M_mean2),
-                     Steepness.sd=store.species.steepness_M.age.invariant[[l]]$sd,
+                     Steepness.sd=h.sd,
                      F_ballpark=1e-3,
                      use_F_ballpark=FALSE,
                      Sims=SSS.sims,
@@ -311,8 +309,7 @@ for(l in 1:N.sp)
   #2.5 JABBA - cpue scenarios
   List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA_catch.only[1,]%>%
                                         mutate(Proc.error=Proc.Error.cpue)   
-  tested.r=c(r.mean,r.mean_lower,r.mean_upper,rep(r.mean,5))
-  #tested.r=rep(r.mean,4)
+  tested.r=c(r.mean,r.mean2,rep(r.mean,5))
   List.sp[[l]]$Sens.test$JABBA=do.call("rbind", replicate(length(tested.r), List.sp[[l]]$Sens.test$JABBA, simplify = FALSE))%>%
                                   mutate(r=tested.r,
                                          Scenario=paste('S',row_number(),sep=''),
@@ -325,20 +322,20 @@ for(l in 1:N.sp)
   List.sp[[l]]$Sens.test$JABBA$K.CV[5]=NA
   List.sp[[l]]$Sens.test$JABBA$Klow[5]=Klow.spcfik
   List.sp[[l]]$Sens.test$JABBA$Kup[5]=Kup.spcfik
-  List.sp[[l]]$Sens.test$JABBA$Daily.cpues=c(rep(drop.daily.cpue,length(tested.r)-1),NA)
+  List.sp[[l]]$Sens.test$JABBA$Daily.cpues=c(rep(drop.daily.cpue,2),NA,rep(drop.daily.cpue,4))
   if(NeiM%in%c("gummy shark","whiskery shark")) List.sp[[l]]$Sens.test$JABBA$K.mean=6000  #improve K mean as very wide range used for catch only
   if(NeiM=="tiger shark") List.sp[[l]]$Sens.test$JABBA$K.mean=9000
   if(NeiM=="smooth hammerhead") List.sp[[l]]$Sens.test$JABBA$K.mean=1500
   List.sp[[l]]$Sens.test$JABBA$use.these.abundances=NA
-  List.sp[[l]]$Sens.test$JABBA$model.type=c(rep("Pella_m",nrow(List.sp[[l]]$Sens.test$JABBA)-3),"Schaefer", "Fox","Pella_m")
+  List.sp[[l]]$Sens.test$JABBA$model.type=c(rep("Pella_m",nrow(List.sp[[l]]$Sens.test$JABBA)-2),"Schaefer", "Fox")
   if(NeiM%in%c("dusky shark","sandbar shark"))
   {
     List.sp[[l]]$Sens.test$JABBA$use.these.abundances=c('Survey') # Due to selectivity, TDGDLF catches small juveniles not spawning stock "Survey_TDGDLF.monthly"
-    List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%   #redundant scenario
+    List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%   #redundant scenario as daily cpue not used
                                     filter(!is.na(Daily.cpues))
-    List.sp[[l]]$Sens.test$JABBA$model.type=c(rep("Pella_m",nrow(List.sp[[l]]$Sens.test$JABBA)-2),"Schaefer", "Fox") 
   }
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%filter(!is.na(Daily.cpues))
+  List.sp[[l]]$Sens.test$JABBA$Scenario=paste0('S',1:nrow(List.sp[[l]]$Sens.test$JABBA))
   
   
   # 3... Catch curve and dynamic catch and size model
@@ -350,19 +347,22 @@ for(l in 1:N.sp)
   if(NeiM=="gummy shark") InRec= 200000
   if(NeiM=="whiskery shark") InRec= 300000
   List.sp[[l]]$InitRec_dynKtchSize =  InRec  
-  
+  List.sp[[l]]$estim.logis.sel.catch.curve=FALSE
+  if(NeiM%in%c("milk shark")) List.sp[[l]]$estim.logis.sel.catch.curve=TRUE
   Ktch.crv.yrs=NULL
-  if(NeiM=="angel sharks") Ktch.crv.yrs='2005-06'
-  if(NeiM=="copper shark") Ktch.crv.yrs=c('2009-10','2011-12','2012-13')
-  if(NeiM=="dusky shark") Ktch.crv.yrs=c('2012-13','2020-21')
-  if(NeiM=="gummy shark") Ktch.crv.yrs='2005-06'
-  if(NeiM=="lemon shark") Ktch.crv.yrs=c('2001-02','2003-04')
-  if(NeiM=="sandbar shark") Ktch.crv.yrs=c('2000-01','2001-02','2002-03')
-  if(NeiM=="smooth hammerhead") Ktch.crv.yrs=c('1997-98','1998-99','2000-01')
-  if(NeiM=="spinner shark") Ktch.crv.yrs=c('1997-98','1998-99','2000-01')
-  if(NeiM=="spurdogs") Ktch.crv.yrs='2002-03'
-  if(NeiM=="whiskery shark") Ktch.crv.yrs=c('1997-98','1998-99','2000-01','2001-02')
-  if(NeiM=="wobbegongs") Ktch.crv.yrs=c('2000-01','2001-02','2002-03','2004-05') 
+  if(NeiM=="angel sharks") Ktch.crv.yrs=list('2005-06')
+  if(NeiM=="copper shark") Ktch.crv.yrs=list(c('2011-12','2012-13')) 
+  if(NeiM=="dusky shark") Ktch.crv.yrs=list(c("1993-94","1994-95"),c("2012-13","2013-14"))
+  if(NeiM=="gummy shark") Ktch.crv.yrs=list(c("2001-02", "2004-05", "2005-06", "2003-07"),"2020-21")
+  if(NeiM%in%c("lemon shark","milk shark","pigeye shark")) Ktch.crv.yrs=list(c('2000-01','2001-02','2003-04'))
+  if(NeiM=="sandbar shark") Ktch.crv.yrs=list(c('1996-97','1997-98','1998-99'),c('20012-13','2020-21'))
+  if(NeiM=="sawsharks") Ktch.crv.yrs=list(c('1995-96','1998-99'))
+  if(NeiM=="smooth hammerhead") Ktch.crv.yrs=list(c('1994-95','1995-96','1996-97','1997-98','1998-99'))
+  if(NeiM=="spinner shark") Ktch.crv.yrs=list(c('1994-95','1995-96','1996-97','1997-98','1998-99'))
+  if(NeiM=="spurdogs") Ktch.crv.yrs=list(c('2000-01','2002-03'))
+  if(NeiM=="tiger shark") Ktch.crv.yrs=list(c('2000-01','2001-02','2002-03','2003-04'))
+  if(NeiM=="whiskery shark") Ktch.crv.yrs=list(c('2020-21'))
+  if(NeiM=="wobbegongs") Ktch.crv.yrs=list(c('2004-05')) 
   List.sp[[l]]$Catch.curve.years=Ktch.crv.yrs
   
   # 4... Integrated models
@@ -388,12 +388,17 @@ for(l in 1:N.sp)
                                 mutate(Ln_R0_init=ramp.yrs$LnRo,
                                        Ln_R0_max=ramp.yrs$Ln_R0_max)
   }
-    #M at age
-    List.sp[[l]]$Sens.test$SS$M.at.age=rep('Mmean.mean.at.age',nrow(List.sp[[l]]$Sens.test$SS)) #use Mean M for consistency with h
-
+   #M at age  
+  N.rowSS=nrow(List.sp[[l]]$Sens.test$SS)
+  List.sp[[l]]$Sens.test$SS$M.at.age=rep('Mmean.mean.at.age',N.rowSS) #use Mean M for consistency with h
+  List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,
+                                  List.sp[[l]]$Sens.test$SS[1,]%>%
+                                    mutate(M.at.age="constant",Scenario=paste0('S',N.rowSS+1)))
+  
     #Cpues
-    if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,length(tested.h))
-    if(evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=c(rep(drop.daily.cpue,length(tested.h)-1),NA)
+  N.rowSS=nrow(List.sp[[l]]$Sens.test$SS)
+  if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,N.rowSS)
+  if(evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=c(rep(drop.daily.cpue,N.rowSS-1),NA)
   
     #Always calculate extra SD for Q or only when CV is small
   List.sp[[l]]$Sens.test$SS$extra.SD.Q='always'
@@ -415,11 +420,10 @@ for(l in 1:N.sp)
   }
   
     #4.1.2 Growth
-  List.sp[[l]]$Growth.CV_young=0.1  #constant CV 8.5%-10% Tremblay-Boyer et al 2019
-  List.sp[[l]]$Growth.CV_old=0.1
-  if(NeiM%in%c("milk shark","wobbegongs")) List.sp[[l]]$Growth.CV_old=0.15  #widen the CV to allow observed max sizes be within Linf + CV
+  List.sp[[l]]$Growth.CV_young=0.08  #constant CV 8.5%-10% Tremblay-Boyer et al 2019; 22% Sandbar Sedar; 15% Dogfish SS; 27% BigSkate SS
+  List.sp[[l]]$Growth.CV_old=0.1    #12% Sandbar Sedar
+  #if(NeiM%in%c("milk shark","wobbegongs")) List.sp[[l]]$Growth.CV_old=0.15  #widen the CV to allow observed max sizes be within Linf + CV
   List.sp[[l]]$SS3.estim.growth.pars=FALSE
-  #if(NeiM%in%c("milk shark")) List.sp[[l]]$SS3.estim.growth.pars=TRUE
   List.sp[[l]]$compress.tail=FALSE  #compress the size distribution tail into plus group. 
     
     #Qs (in log space)

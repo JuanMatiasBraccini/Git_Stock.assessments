@@ -116,22 +116,31 @@ Send.email.to="matias.braccini@dpird.wa.gov.au"   #send email when model run fin
 
 #1.New assessment
 New.assessment="NO"
-#New.assessment="YES"   #set to 'YES' the first time a new assessment is run to set up folders, etc
+#New.assessment="YES"   #set to 'YES' a new assessment is run for the first time
 
 #2. Control what to implement
-  # turn on/off assessment method
+  # turn on/off assessment method as appropriate
+#Level 1
 Do.Ktch.only=FALSE
-Simplified.scenarios=TRUE  #only 1 base case scenario per catch-only method
-Do.StateSpaceSPM=FALSE
-Do.integrated=TRUE  #SS3
-Do.bespoked=FALSE   #bespoked size-based
-do.Andre.model=FALSE
+Simplified.scenarios=TRUE  #simplified version of COM sensitivity tests
+
+#Other lines of evidence
 Do.Spatio.temporal.catch.effort=FALSE
 Do.Changes.in.observed.size=FALSE
 Do.Changes.in.reported.size=FALSE
+
+#Level 3
 do.Size.based.Catch.curve=FALSE  
-do.Dynamic.catch.size.comp=FALSE #superseded by length-only SS3 and stil not implemented properly by Alex
-Do.sim.Test="NO" #do simulation testing of size-based model?
+do.Dynamic.catch.size.comp=FALSE #superseded by length-only SS3 (also, not yet implemented properly)
+
+#Level 4
+Do.StateSpaceSPM=FALSE
+
+#Level 5
+Do.integrated=TRUE  #integrated SS3
+Do.bespoked=FALSE   #bespoked integrated size-based
+Do.sim.Test="NO" #do simulation testing bespoked size-based model
+do.Andre.model=FALSE
 
   # outputs
 do.F.series=TRUE   #output Fishing mortalitiy time series
@@ -144,7 +153,7 @@ Year.of.assessment=AssessYr=2022
 Last.yr.ktch="2021-22"
 Last.yr.ktch.numeric=as.numeric(substr(Last.yr.ktch,1,4))
   #future projections
-future.models=c('SS')   #c('Catch_only','State.Space.SPM','SS')
+future.models=c('State.Space.SPM','SS')   #c('Catch_only','State.Space.SPM','SS')
 years.futures=5  #number of years to project
 n.last.catch.yrs=5 #number of recent years used to calculate future catch
 catches.futures="constant.last.n.yrs"
@@ -181,7 +190,7 @@ if(KTCH.UNITS=="KGS") unitS=1000
 if(KTCH.UNITS=="TONNES") unitS=1
 
 
-#9. Criteria for selecting what species to assess quantitatively
+#9. Catch criteria for selecting what species to assess quantitatively
 Min.yrs=5
 if(KTCH.UNITS=="KGS") Min.ktch=5000 
 if(KTCH.UNITS=="TONNES") Min.ktch=5
@@ -234,8 +243,9 @@ First.Age=1        #start at 1 rather than 0 as M estimators yield unrealistical
 Max.Age.up.Scaler=1.3  #scaler of Max maximum age for species with only one record. 1.3 is mean across those species with a range
 Max.r.value=.55 # Max r. .44 for blue shark (Cortes 2016); .51 for Scyliorhinus canicula (Cortes 2002)
 Min.r.value=.025
-reset.max.Age=FALSE  #reset max Age to mean of max age and tmax
+reset.max.Age=FALSE  #set max Age to mean of max.age and max age.max
 fill.NA.Max.Age.Max=TRUE  #fill in NA max.Age.max with Max.Age.up.Scaler 
+externally.increase.M=FALSE   #increase M in pin_file to all SS to converge
 Dusky.Sedar=mean(c(0.25,0.35))  #SEDAR 21, they also obtained too high h estimates (page 30)
 Sandbar.Sedar=mean(c(0.25,0.4)) #SEDAR 21
 ScallopedHH.Sedar=mean(c(0.69,0.71,0.67))
@@ -252,7 +262,7 @@ Demo.published.values=data.frame(Species=c("angel sharks","copper shark","grey n
                         Reference=rep('Cortes 2016',17))
 
 test.Sedar=TRUE     #consider Dusky and Sandbar h estiamtes used in SEDAR
-Use.SEDAR.M=reset.to.Sedar   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
+Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
 
 #16. Stock recruitment
 Max.h.shark=.8   #mean of h for blue shark (ICCAT 2023 assessment; Cortes 2016, Kai & Fujinami 2018).
@@ -292,20 +302,25 @@ Proc.Error.1=1e-2
 SSS_criteria.delta.fin.dep=0.01
 K_min=2000 #Min value of max K range in tonnes (based on overall catch ranges and K estimates)
 r.prob.max=0.9999   #quantile probs for defining r range for CMSY
-r.prob.min=1-r.prob.max
+r.prob.min=1e-3
 #Ensemble.weight='weighted'  #define if doing weighted or unweighted model average
 Ensemble.weight='equal'
 tweak.BmsyK.Cortes=FALSE #update value to increase COM acceptance rate
 tweak.Final.Bio_low=FALSE #update value to increase COM acceptance rate
 n.last.catch.yrs_MSY.catch.only=5
+modify.r_k_bounds.for.convergence=TRUE   #modify the range or f and k used in CMSY for some species to allow enough combos
 
   #Assessed species by catch methods
 Assessed.ktch.only.species='All'                #assess all species with catch only methods (level 1 assessment)
 #Assessed.ktch.only.species='Only.ktch.data'   #assess species with only catch data
 display.only.catch.only.sp=FALSE               #just display catch and MSY for species with only catch
 
+#19. Catch curves
+Init.F.Ktch.cur=0.2
+Other.to.NSF=c("milk shark","pigeye shark","tiger shark","scalloped hammerhead")  #species for which 'other' is main fleet but no length comp 
+Other.to.TDGDLF=c('sawsharks')
 
-#19. State space Surplus Production Models
+#20. State space Surplus Production Models
 state.space.SPM='JABBA'
 do.parallel.JABBA=TRUE #do JABBA in parallel or not (set to FALSE)
 use.auxiliary.effort=FALSE  #using effort as auxiliary data yielded very high RMSE and poor fits to effort
@@ -324,7 +339,7 @@ k.cv=2                #Carrying capacity CV (Winker et al 2018 School shark)
 PEELS=5               #number of years to peel for hindcasting and retrospective   
 evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
 
-#20. Integrated age-based model 
+#21. Integrated age-based model 
 Integrated.age.based='SS'
 SS3.run='test'  # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, etc)
 Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
@@ -345,10 +360,13 @@ combine.sexes=c("angel sharks","dusky shark","lemon shark","milk shark",
 use.Gab.trawl=TRUE   #only 1 year of data and small sample size
 prop.min.N.accepted_other=1
 WRL.species=c("copper shark","dusky shark","shortfin mako",
-              "smooth hammerhead","spinner shark","tiger shark") #species for WRL is a separate fleet
+              "smooth hammerhead","spinner shark","tiger shark") #set WRL as a separate fleet
 alternative.NSF.selectivity=c("dusky shark","great hammerhead","lemon shark","pigeye shark",
                               "sandbar shark","scalloped hammerhead","smooth hammerhead","tiger shark")
 resample.h.greynurse=FALSE  #no need to resample h
+no.empirical.sel.main.fleet=c("angel sharks","copper shark","sawsharks","lemon shark","pigeye shark",
+                              "scalloped hammerhead","tiger shark") #no empirical Selectivity for main fleet or 
+                                  # too small a sample size so don't do Catch curve or SS assessment
 
 
   #SS model run arguments
@@ -382,7 +400,7 @@ Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analy
 Number.of.jitters=5       #Number of jitters for Jitter analysis.       MISSING: bump up to 50
 
 
-#21. Bespoke Integrated size-based model 
+#22. Bespoke Integrated size-based model 
 Plus.gp.size=1.25  #add 25% to max size make sure no accumulation of survivals in last size class
 if(Do.bespoked)
 {
@@ -427,7 +445,7 @@ if(Do.bespoked)
   
 }
 
-#22. Weight of Evidence
+#23. Weight of Evidence
 LoE.Weights=c(Spatial=.25,COM=.5,JABBA=1,integrated=2)  
 RiskColors=c('Negligible'="cornflowerblue",
              'Low'="chartreuse3",  #olivedrab3
@@ -440,10 +458,10 @@ Like.ranges=list(L1=c(0,0.0499999),
                  L3=c(0.20001,0.5),
                  L4=c(0.50001,1))
 
-#23. Average ratio L50:L95 for species with no L95 estimates
+#24. Average ratio L50:L95 for species with no L95 estimates
 average.prop.L95_L50=mean(c(135.4/154.5,225/262,210/240,113/138,175/198,281/328,113/139,125/136,113/138))
 
-#24. Define if using effort 
+#25. Define if using effort 
 add.effort="NO"    
 What.Effort="km.gn.hours"  #What effort to display?
 #What.Effort="km.gn.days" 
@@ -739,9 +757,15 @@ Wei.range=merge(Wei.range,Wei.range.names,by="Sname",all.x=T)
 Logbook=read.csv(handl_OneDrive("Analyses/Catch and effort/Logbook.data.mean.weight.csv"))
 
 
-#---3. Life history and selectivity data ------------------------------------------------------  
+#---3. Life history, selectivity data and proportion of meshes used for TDGDLF --------------------  
 LH.data=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv'))
 SS_selectivity_init_pars=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.selectivity_pars.csv'))
+mesh.prop.effort=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.csv'))%>%mutate(Zone='Combined')
+mesh.prop.effort.West=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.West.csv'))%>%mutate(Zone='West')
+mesh.prop.effort.Zone1=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.Zone1.csv'))%>%mutate(Zone='Zone1')
+mesh.prop.effort.Zone2=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.Zone2.csv'))%>%mutate(Zone='Zone2')
+mesh.prop.effort=rbind(mesh.prop.effort,mesh.prop.effort.West,mesh.prop.effort.Zone1,mesh.prop.effort.Zone2)
+rm(mesh.prop.effort.West,mesh.prop.effort.Zone1,mesh.prop.effort.Zone2)
 
 #---4. PSA (which species to assess quantitatively) -----------------------------------------------  
 #note: run a PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
@@ -950,7 +974,7 @@ for(s in 1:N.sp)
   rm(files)
 }
 
-#6.1 add size composition C. brachyurus MSF (South Australia, pelagic longline)  
+  #6.1 add size composition C. brachyurus MSF (South Australia, pelagic longline)  
 Species.data$`copper shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/SA_Cbrachyurus length data.csv'))%>%
                   mutate(DATE=as.Date(DATE,"%d/%m/%Y"),
                          Month=month(DATE),
@@ -972,7 +996,7 @@ Species.data$`copper shark`$Size_composition_Other_Observations=data.frame(
                   N.shots=30,
                   N.observations=NA)
 
-#6.2 add size composition Angel sharks (GAB Trawl)
+  #6.2 add size composition Angel sharks (GAB Trawl)
 if(use.Gab.trawl)
 {
   Species.data$`angel sharks`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
@@ -1001,7 +1025,7 @@ if(use.Gab.trawl)
     N.observations=NA)
 }
 
-#6.3 add size composition gummy shark (GAB Trawl)
+  #6.3 add size composition gummy shark (GAB Trawl)
 add.gummy.gab=FALSE
 if(use.Gab.trawl & add.gummy.gab)
 {
@@ -1031,11 +1055,11 @@ if(use.Gab.trawl & add.gummy.gab)
     N.observations=NA)
 }
 
-#6.4 add size composition Spotted wobbegong and Western wobbegong to Wobbegongs
+  #6.4 add size composition Spotted wobbegong and Western wobbegong to Wobbegongs
 other.wobbies=c('Spotted wobbegong','Western wobbegong')
 Wobbies.data=vector('list',length(other.wobbies))
 names(Wobbies.data)=other.wobbies
-  #6.4.1. bring in data
+    #6.4.1. bring in data
 for(s in 1:length(other.wobbies)) 
 {
   print(paste('Reading in data for -----',other.wobbies[s]))
@@ -1063,7 +1087,7 @@ for(s in 1:length(other.wobbies))
   }
   rm(files)
 }  
-  #6.4.2. add to Wobbegongs
+    #6.4.2. add to Wobbegongs
 for(s in 1:length(other.wobbies)) 
 {
   Species.data$wobbegongs$Size_composition_Observations=rbind(Species.data$wobbegongs$Size_composition_Observations,
@@ -1088,7 +1112,7 @@ Species.data$wobbegongs$Size_composition_Observations=Species.data$wobbegongs$Si
             N.observations=sum(N.observations))%>%
   ungroup()
 
-#6.5 remove Pilbara trawl as it's not used at all
+  #6.5 remove Pilbara trawl as it's not used at all
 for(i in 1:N.sp) 
 {
   if(any(grepl('Size_composition_Pilbara_Trawl',names(Species.data[[i]]))))
@@ -1097,7 +1121,7 @@ for(i in 1:N.sp)
   }
 }
 
-#6.6 remove NA sex in length composition data
+  #6.6 remove NA sex in length composition data
 for(i in 1:N.sp) 
 {
   if(any(grepl('Size_composition',names(Species.data[[i]]))))
@@ -1121,7 +1145,30 @@ for(i in 1:N.sp)
   }
 }
 
-#6.7 remove NA Ages in length-age data
+  #6.7 remove nonsense length comp
+nems=c('Size_composition_dropline','Size_composition_NSF.LONGLINE',
+       'Size_composition_Survey','Size_composition_Other',
+       'Size_composition_West.6.5.inch.raw','Size_composition_West.7.inch.raw',
+       'Size_composition_Zone1.6.5.inch.raw','Size_composition_Zone1.7.inch.raw',
+       'Size_composition_Zone2.6.5.inch.raw','Size_composition_Zone2.7.inch.raw')
+for(i in 1:N.sp) 
+{
+  LH=LH.data%>%filter(SPECIES==List.sp[[i]]$Species)
+  Max.TL=LH$Max.TL
+  Max.FL=(Max.TL-LH$b_FL.to.TL)/LH$a_FL.to.TL
+  Min.FL=LH$LF_o
+  for(z in 1:length(nems))
+  {
+    if(nems[z]%in%names(Species.data[[i]]))
+    {
+      Species.data[[i]][[nems[z]]]=Species.data[[i]][[nems[z]]]%>%
+                                        filter(FL<=Max.FL)%>%
+                                        filter(FL>=Min.FL)
+    }
+  }
+}
+
+  #6.8 remove NA Ages in length-age data
 for(s in 1:N.sp) 
 {
   if('age_length'%in%names(Species.data[[s]]))
@@ -1140,27 +1187,30 @@ for(s in 1:N.sp)
   
 }
 
-#6.8 remove nonsense size comp from milk shark
-Species.data$`milk shark`$Size_composition_NSF.LONGLINE=Species.data$`milk shark`$Size_composition_NSF.LONGLINE%>%
-                                                          filter(FL<=80)
-Species.data$`milk shark`$Size_composition_West.7.inch.raw=Species.data$`milk shark`$Size_composition_West.7.inch.raw%>%
-  filter(FL<=80)
-Species.data$`milk shark`$Size_composition_Survey=Species.data$`milk shark`$Size_composition_Survey%>%
-  filter(FL<=80)
-
-#6.9 remove nonsense size comp from sandbar shark
-Species.data$`sandbar shark`$Size_composition_NSF.LONGLINE=Species.data$`sandbar shark`$Size_composition_NSF.LONGLINE%>%
-  filter(FL<=200)
-Species.data$`sandbar shark`$Size_composition_Survey=Species.data$`sandbar shark`$Size_composition_Survey%>%
-  filter(FL<=200)
-
-#6.10 remove Observer cpue data (double dipping with standardised catch rates)
+  #6.9 remove Observer cpue data (double dipping with standardised catch rates)
 for(s in 1:N.sp)
 {
   iid=grep('CPUE_Observer_TDGDLF',names(Species.data[[s]]))
   if(length(iid)>0) Species.data[[s]]=Species.data[[s]][-iid]
 }
 
+  #6.10 Look at growth Cvs
+Growth.CVs=vector('list',N.sp)
+names(Growth.CVs)=Keep.species
+for(i in 1:N.sp)
+{
+  if('age_length'%in% names(Species.data[[i]]))
+  {
+    Di=Species.data[[i]]$age_length
+    Agess=sort(unique(Di$Age))
+    siVis=Agess
+    for(a in 1:length(Agess))
+    {
+      siVis[a]=sd(Di%>%filter(Age==Agess[a])%>%pull(FL))/mean(Di%>%filter(Age==Agess[a])%>%pull(FL))
+    }
+    Growth.CVs[[i]]=data.frame(Age=Agess,CV=siVis)
+  }
+}
 
 #---7. Create list of life history parameter inputs -----
   #set up list
@@ -1635,6 +1685,17 @@ if(do.r.prior)
            width = 12,height = 10,compression = "lzw")
     write.csv(out,paste(Rar.path,'/Prior_r_',names(Lista.sp.outputs)[l],'_M.at.age_vs_Constant.M.csv',sep=''),row.names=F)
   }
+  
+  pdf(handl_OneDrive('Analyses/Population dynamics/M_constant_VS_at.age_store_M.pdf'))
+  smart.par(N.sp,c(1,1.5,1,1),c(1,1,1,1),c(3, 1, 0))
+  for(x in 1:N.sp)
+  {
+    id=match(Keep.species[x],names(store.species.M_M.at.age))
+    plot(unlist(store.species.M_M.at.age[[id]][1,]),ylim=c(0,0.8),xaxt='n',main=Keep.species[x],xlab='Length',ylab="M")
+    for(q in 1:nrow(store.species.M_M.at.age[[id]]))lines(unlist(store.species.M_M.at.age[[id]][q,]))
+    for(q in 1:nrow(store.species.M_M.at.age[[id]]))lines(unlist(store.species.M_M.age.invariant[[id]][q,]),col=2)
+  }
+  dev.off()
 }
 
 
@@ -2269,7 +2330,7 @@ if(!do.steepness)
 }
 
   #compare steepness and r   
-h_too.high=c("great hammerhead","tiger shark","smooth hammerhead","whiskery shark")
+h_too.high=c("great hammerhead","tiger shark","smooth hammerhead","whiskery shark","zebra shark")
 h_too.low=c('sawsharks','green sawfish','milk shark') 
 h_too.long.converge=NULL
 Omit.these.h=capitalize(c(h_too.high,h_too.low))
@@ -2452,7 +2513,7 @@ for(l in 1:N.sp) #get shape parameter of production models based on Cortes et al
   BmsyK.species$m[l]=x$minimum 
 }
 
-#---15. Export .pin files and define modelling arguments  -----
+#---15. Export .pin files and define modelling arguments  ----- 
 #note: For integrated model, all pars calculated in log space.
 #       ln_RZERO is in 1,000 individuals so do 10 times the largest catch divided by 
 #       average weight and divided by 1,000. Best units to work in are 1,000 individuals for 
@@ -3310,6 +3371,73 @@ if(First.run=="YES")
   
 }
 
+#Define species with size composition  
+Species.with.length.comp=vector('list',N.sp)
+for(i in 1:N.sp)
+{
+  if(any(grepl('Size_composition',names(Species.data[[i]]))))
+  {
+    d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
+                                  names(Species.data[[i]]))]
+    if(length(d.list)>0)
+    {
+      if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
+      if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
+      Life.history=List.sp[[i]]
+      for(s in 1:length(d.list))
+      {
+        d.list[[s]]=d.list[[s]]%>%
+          filter(FL>=Life.history$Lzero)%>%
+          mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
+                               ifelse(grepl("Survey",names(d.list)[s]),'Survey',
+                                      ifelse(grepl("Other",names(d.list)[s]),'Other',
+                                             'TDGDLF'))),
+                 year=as.numeric(substr(FINYEAR,1,4)),
+                 TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
+                 size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+          filter(TL<=with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))%>%
+          dplyr::rename(sex=SEX)%>%
+          filter(!is.na(sex))%>%
+          group_by(year,fishry,sex,size.class)%>%
+          summarise(n=n())%>%
+          ungroup()
+        
+      }
+      d.list <- d.list[!is.na(d.list)]
+      d.list=do.call(rbind,d.list)%>%
+        group_by(year,fishry,sex,size.class)%>%
+        summarise(n=sum(n))%>%
+        ungroup()%>%
+        filter(!is.na(year))
+      MAXX=max(d.list$size.class)
+      Tab.si.kl=table(d.list$size.class)
+      if(sum(Tab.si.kl[(length(Tab.si.kl)-1):length(Tab.si.kl)])/sum(Tab.si.kl)>.05) MAXX=MAXX*1.2
+      MAXX=min(MAXX,30*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/30))
+      size.classes=seq(min(d.list$size.class),MAXX,by=TL.bins.cm)
+      missing.size.classes=size.classes[which(!size.classes%in%unique(d.list$size.class))]
+      if(fill.in.zeros & length(missing.size.classes)>0)
+      {
+        d.list=rbind(d.list,d.list[1:length(missing.size.classes),]%>%
+                       mutate(size.class=missing.size.classes,
+                              n=0))
+      }
+      Table.n=d.list%>%group_by(year,fishry,sex)%>%
+        summarise(N=sum(n))%>%
+        mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.annual.obs.ktch,10))%>%
+        filter(N>=Min.accepted.N)%>%
+        mutate(dummy=paste(year,fishry,sex))
+      
+      if(nrow(Table.n)>0) Species.with.length.comp[[i]]=Keep.species[i]
+      rm(Life.history)
+    }
+  }
+}
+Species.with.length.comp=c(do.call(rbind,Species.with.length.comp)) 
+#not.fitting.SS3=c("pigeye shark","lemon shark")  #no Hessian 
+#Species.with.length.comp=subset(Species.with.length.comp,!Species.with.length.comp%in%not.fitting.SS3)
+write.csv(paste('1.',capitalize(Species.with.length.comp),sep=''),paste(Rar.path,'Species.with.length.comp.csv',sep='/'),row.names = F) 
+
+
 #---17. Display catches by fishery,life history & available time series ----
 Tot.ktch=KtCh %>%      
   mutate(
@@ -3385,13 +3513,46 @@ if(First.run=="YES")
     filter(Name%in%Keep.species)%>%
     group_by(finyear,Type,Name)%>%
     summarise(LIVEWT.c=sum(LIVEWT.c,na.rm = T))%>%
+    mutate(Name=capitalize(Name))%>%
     ggplot(aes(finyear,LIVEWT.c,color=Type))+
     geom_point()+geom_line()+
     facet_wrap(~Name,scales='free_y')+
+    theme_PA()+
     theme(legend.position = 'top',
           legend.title=element_blank())+
-    ylab('Tonnes')
-  ggsave(paste(Rar.path,'/Catch_assessed_species.tiff',sep=''),width = 8,height = 8,compression = "lzw")
+    xlab('Financial year')+ylab('Catch (tonnes)')
+  ggsave(paste(Rar.path,'/Catch_assessed_species.tiff',sep=''),width = 10,height = 8,compression = "lzw")
+
+  #Display species with length comp and available selectivity by fleet  
+  Export.table.sels.man.fleet=vector('list',N.sp)
+  for(i in 1:N.sp)
+  {
+    if(Keep.species[i]%in%Species.with.length.comp)
+    {
+      dis.sel=SS_selectivity_init_pars%>%filter(Species==Keep.species[i])
+      xx=Tot.ktch%>%
+            filter(Name%in%Keep.species[i])%>%
+            group_by(Type,Name)%>%
+            summarise(LIVEWT.c=sum(LIVEWT.c,na.rm = T))%>%
+            arrange_(~ desc(LIVEWT.c))%>%
+        ungroup()%>%
+        mutate(Percent=LIVEWT.c/sum(LIVEWT.c),
+               CumPercent=cumsum(Percent))%>%
+        filter(CumPercent<=.9)%>%
+        mutate(Type=as.character(Type),
+               Type=case_when(Type%in%c('NSF','Indonesia','Taiwan')~'NSF',
+                              Type=='TDGDLF'~'TDGDLF',
+                              Type=='WRL'~'WRL',
+                              TRUE  ~ "Other"))
+      
+      ppp=dis.sel%>%dplyr::select(paste0("Source_",xx$Type))%>%
+        gather(Type,Selectivity)%>%
+        mutate(Type=sub('.*_', '',Type))
+      Export.table.sels.man.fleet[[i]]=xx%>%left_join(ppp,by='Type')
+    }
+  }
+  write.csv(do.call(rbind,compact(Export.table.sels.man.fleet)),
+            paste(Rar.path,'Table_selectivities for main fleets.csv',sep='/'),row.names = F)  
 }
 
 
@@ -3408,7 +3569,7 @@ if(First.run=="YES")
   {
     print(paste('Displaying biology for ------', names(List.sp)[l]))
     with(List.sp[[l]],{
-      eig=0:Max.age.F[2]
+      eig=First.Age:Max.age.F[2]
       lengz=Lzero:TLmax
       TLo=Lzero*a_FL.to.TL+b_FL.to.TL
       plt=vector('list',length=5)
@@ -3425,7 +3586,7 @@ if(First.run=="YES")
         geom_hline(yintercept=TLmax, linetype="dashed",alpha=0.5)+
         annotate("text", x = 1.1, y = TLo*.8,parse = T, label = as.character(L0))+
         geom_hline(yintercept=TLo, linetype="dashed",alpha=0.5)+
-        annotate("text", x = mean(Max.age.F)-2, y = 0,parse = T, label = as.character(Amx),color='darkorange4')+
+        annotate("text", x = mean(Max.age.F), y = 0,parse = T, label = as.character(Amx),color='darkorange4')+
         geom_vline(xintercept=Max.age.F[1], linetype="dashed",alpha=0.5,color='darkorange4')+
         geom_vline(xintercept=Max.age.F[2], linetype="dashed",alpha=0.5,color='darkorange4')+
         annotate("text", x = mean(Age.50.mat), y = 0, parse = T, label = as.character(A50),col='chartreuse4')+
@@ -3487,73 +3648,6 @@ fut.yr=as.numeric(substr(Last.yr.ktch,1,4))+years.futures
 write.csv(data.frame(year.current=Last.yr.ktch,
                      year.future=paste(fut.yr,substr(fut.yr+1,3,4),sep='-')),
           paste(Rar.path,'year_current_future.csv',sep='/'),row.names = FALSE)
-
-#Define species with size composition  
-Species.with.length.comp=vector('list',N.sp)
-for(i in 1:N.sp)
-{
-  if(any(grepl('Size_composition',names(Species.data[[i]]))))
-  {
-    d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
-                                  names(Species.data[[i]]))]
-    if(length(d.list)>0)
-    {
-      if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
-      if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
-      Life.history=List.sp[[i]]
-      for(s in 1:length(d.list))
-      {
-        d.list[[s]]=d.list[[s]]%>%
-          filter(FL>=Life.history$Lzero)%>%
-          mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
-                               ifelse(grepl("Survey",names(d.list)[s]),'Survey',
-                                      ifelse(grepl("Other",names(d.list)[s]),'Other',
-                                             'TDGDLF'))),
-                 year=as.numeric(substr(FINYEAR,1,4)),
-                 TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
-                 size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
-          filter(TL<=with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))%>%
-          dplyr::rename(sex=SEX)%>%
-          filter(!is.na(sex))%>%
-          group_by(year,fishry,sex,size.class)%>%
-          summarise(n=n())%>%
-          ungroup()
-        
-      }
-      d.list <- d.list[!is.na(d.list)]
-      d.list=do.call(rbind,d.list)%>%
-        group_by(year,fishry,sex,size.class)%>%
-        summarise(n=sum(n))%>%
-        ungroup()%>%
-        filter(!is.na(year))
-      MAXX=max(d.list$size.class)
-      Tab.si.kl=table(d.list$size.class)
-      if(sum(Tab.si.kl[(length(Tab.si.kl)-1):length(Tab.si.kl)])/sum(Tab.si.kl)>.05) MAXX=MAXX*1.2
-      MAXX=min(MAXX,30*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/30))
-      size.classes=seq(min(d.list$size.class),MAXX,by=TL.bins.cm)
-      missing.size.classes=size.classes[which(!size.classes%in%unique(d.list$size.class))]
-      if(fill.in.zeros & length(missing.size.classes)>0)
-      {
-        d.list=rbind(d.list,d.list[1:length(missing.size.classes),]%>%
-                       mutate(size.class=missing.size.classes,
-                              n=0))
-      }
-      Table.n=d.list%>%group_by(year,fishry,sex)%>%
-        summarise(N=sum(n))%>%
-        mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.annual.obs.ktch,10))%>%
-        filter(N>=Min.accepted.N)%>%
-        mutate(dummy=paste(year,fishry,sex))
-      
-      if(nrow(Table.n)>0) Species.with.length.comp[[i]]=Keep.species[i]
-      rm(Life.history)
-    }
-  }
-}
-Species.with.length.comp=c(do.call(rbind,Species.with.length.comp)) 
-#not.fitting.SS3=c("pigeye shark","lemon shark")  #no Hessian 
-#Species.with.length.comp=subset(Species.with.length.comp,!Species.with.length.comp%in%not.fitting.SS3)
-write.csv(paste('1.',capitalize(Species.with.length.comp),sep=''),paste(Rar.path,'Species.with.length.comp.csv',sep='/'),row.names = F) 
-
 
 #Display available time series by species
 if(First.run=='YES')
@@ -3629,7 +3723,7 @@ if(Assessed.ktch.only.species=='Only.ktch.data')
 Catch.only.species_only.ktch=Keep.species[which(!Keep.species%in%names(compact(Catch.rate.series)))]
 Catch.only.species_only.ktch=subset(Catch.only.species_only.ktch,!Catch.only.species_only.ktch%in%Species.with.length.comp)
 
-#Execute Catch only function
+#Execute Catch only function  
 if(Do.Ktch.only) fn.source1("Apply_catch only assessments.R")  #~60 mins per species (DBSRA, CMSY & SSS, 1 scenario)
 
 #Ballpark M check for SSS
@@ -3790,7 +3884,9 @@ clear.log('Logbook.sp')
 
 
 #---22. Catch curve with dome-shaped selectivity --------------------------------------
-if(do.Size.based.Catch.curve) fn.source1("Length.catch.curve.r") #ACA
+#note: identify relevant fishery per species and a good sampling period (i.e. fishery with highest catch and length
+#       composition from exploited period to be able to determine F) and combine 2/3 years.
+if(do.Size.based.Catch.curve) fn.source1("Length.catch.curve.r") 
 
 #---23. Dynamic catch and size composition with dome-shaped selectivity --------------------------------------
 #note: not used due to Cpp implementation issues

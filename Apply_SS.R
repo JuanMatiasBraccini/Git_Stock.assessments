@@ -21,7 +21,7 @@ for(w in 1:n.SS)
       {
         Neim=Keep.species[i]
         
-        if(!is.null(Catch.rate.series[[i]]) | Neim%in%Species.with.length.comp)
+        if((!is.null(Catch.rate.series[[i]]) | Neim%in%Species.with.length.comp) & !(Neim%in%no.empirical.sel.main.fleet))
         {
           this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
                         capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
@@ -945,7 +945,7 @@ for(w in 1:n.SS)
       {
         Neim=names(dummy.store)[i]
         
-        if(!is.null(Catch.rate.series[[i]]) | Neim%in%Species.with.length.comp)
+        if((!is.null(Catch.rate.series[[i]]) | Neim%in%Species.with.length.comp) & !(Neim%in%no.empirical.sel.main.fleet))
         {
           this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
                         capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')

@@ -724,13 +724,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       M.age.fem=life.history$Mmean.mean.at.age
       M.age.male=life.history$Mmean.mean.at.age
     }
-    if(Scenario$M.at.age=="Mmean.min.at.age")
+    if(Scenario$M.at.age=="constant") 
     {
-      M.age.fem=life.history$Mmean.min.at.age
-      M.age.male=life.history$Mmean.min.at.age
+      M.age.fem=rep(Scenario$Mmean,max(List.sp[[l]]$Max.age.F)) 
+      M.age.male=rep(Scenario$Mmean,max(List.sp[[l]]$Max.age.F))
     }
     natM=data.frame(matrix(c(M.age.fem,M.age.male),nrow=2,byrow = T))
-    colnames(natM)=paste('Age',0:unique(life.history$Max.age.F),sep='_')
+    colnames(natM)=paste('Age',First.Age:max(life.history$Max.age.F),sep='_')
     ctl$natM=natM
     ctl$MG_parms=ctl$MG_parms[-grep('NatM',rownames(ctl$MG_parms)),]
   }
