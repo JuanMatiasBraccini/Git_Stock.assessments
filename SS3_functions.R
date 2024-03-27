@@ -351,10 +351,11 @@ fn.create.SS_DL_tool_inputs=function(Life.history,CACH,this.wd,Neim,InputData,Kt
 }
 # Create SS input files ------------------------------------------------------
 fn.get.in.betwee=function(x,PATRN="_") str_before_nth(str_after_nth(x, PATRN, 1), PATRN, 2)
-fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.yr,
-                      fleets=NULL,fleetinfo=NULL,abundance=NULL,size.comp=NULL,meanbodywt=NULL,
+fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.yr,fleets=NULL,
+                      fleetinfo=NULL,abundance=NULL,size.comp=NULL,age.comp=NULL,meanbodywt=NULL,
                       F.tagging=NULL,cond.age.len=NULL,MeanSize.at.Age.obs=NULL,Lamdas=NULL,
-                      RecDev_Phase=-3,SR_sigmaR=0.2,Var.adjust.factor=NULL,Future.project=NULL)
+                      RecDev_Phase=-3,SR_sigmaR=0.2,Var.adjust.factor=NULL,Future.project=NULL,
+                      first.age=0)
 {
   # 1.Copy templates
   copy_SS_inputs(dir.old = Templates, dir.new = new.path,overwrite = TRUE,verbose=FALSE)
@@ -384,8 +385,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   #population size classes
   dat$binwidth=TL.bins.cm
   dat$minimum_size=10*floor(0.95*with(life.history,Lzero*a_FL.to.TL+b_FL.to.TL)/10)
-  #dat$maximum_size=10*ceiling(1.01*with(life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
-  dat$maximum_size=30*ceiling(with(life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/30)
+  dat$maximum_size=10*ceiling(1.01*with(life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
+  #dat$maximum_size=30*ceiling(with(life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/30)
   
   styr=min(Catch$finyear)
   endyr=max(Catch$finyear)
@@ -547,7 +548,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                                      fleetname)))%>%
       filter(fleetname%in%dis.flits)
     rownames(ddumy)=ddumy$fleetname
-    dat$age_info=ddumy%>%dplyr::select(-fleetname)
+    if(!is.null(cond.age.len))  dat$age_info=ddumy%>%dplyr::select(-fleetname)
     
     if(!is.null(F.tagging))
     {
@@ -557,7 +558,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     if(is.null(cond.age.len))
     {
-      dat$agebin_vector=seq(First.Age,dat$Nages)
+      dat$agebin_vector=seq(first.age,dat$Nages)
     }
     if(!is.null(cond.age.len))  
     {
@@ -721,16 +722,16 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$natM_type=3 #0=1Parm; 1=N_breakpoints; 2=Lorenzen; 3=agespecific; 4=agespec_withseasinterpolate
     if(Scenario$M.at.age=="Mmean.mean.at.age")
     {
-      M.age.fem=life.history$Mmean.mean.at.age
-      M.age.male=life.history$Mmean.mean.at.age
+      M.age.fem=life.history$Mmean.mean.at.age[1:length(ageError)]
+      M.age.male=life.history$Mmean.mean.at.age[1:length(ageError)]
     }
     if(Scenario$M.at.age=="constant") 
     {
-      M.age.fem=rep(Scenario$Mmean,max(List.sp[[l]]$Max.age.F)) 
-      M.age.male=rep(Scenario$Mmean,max(List.sp[[l]]$Max.age.F))
+      M.age.fem=rep(Scenario$Mmean,length(1:length(ageError))) 
+      M.age.male=rep(Scenario$Mmean,length(1:length(ageError)))
     }
     natM=data.frame(matrix(c(M.age.fem,M.age.male),nrow=2,byrow = T))
-    colnames(natM)=paste('Age',First.Age:max(life.history$Max.age.F),sep='_')
+    colnames(natM)=paste('Age',first.age:max(life.history$Max.age.F),sep='_')
     ctl$natM=natM
     ctl$MG_parms=ctl$MG_parms[-grep('NatM',rownames(ctl$MG_parms)),]
   }
@@ -762,13 +763,20 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(is.null(abundance))
     {
       ctl$recdev_phase=1
-      if(!is.null(size.comp)& nrow(size.comp)<3)   #don't calculate rec devs if only a few years of size comp and no abundance
+      if(is.null(size.comp))
       {
-        ctl$do_recdev=0
-        ctl$recdev_phase=-1
+           ctl$do_recdev=0
+           ctl$recdev_phase=-1
+      }
+      if(!is.null(size.comp))   #don't calculate rec devs if only a few years of size comp and no abundance
+      {
+        if(nrow(size.comp)<3)
+        {
+          ctl$do_recdev=0
+          ctl$recdev_phase=-1
+        }
       }
     }
-         
  
     ctl$recdev_early_start=0
     ctl$max_bias_adj=0.8
@@ -912,29 +920,27 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       ctl$Q_parms[,"PHASE"]=2
       
       #Add extra SD to Q if CV too small  
+      Difalcivi=default.CV
+      if(Scenario$extra.SD.Q=='YES') Difalcivi=1
       n.indices=nrow(ctl$Q_options)
       Indx.small.CV=dat$CPUE%>%group_by(index)%>%summarise(Mean.CV=mean(CV))  
-      if(life.history$Name%in%Extra_Q_species & !SS3.q.an.sol) Indx.small.CV$Mean.CV=default.CV*.9 #need extra_Q for to fit cpue
-      Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<default.CV)%>%pull(index)
-      #if(!Scenario$extra.SD.Q=='always' & n.indices>1) Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<default.CV)%>%pull(index)
+      if(life.history$Name%in%Extra_Q_species & !SS3.q.an.sol) Indx.small.CV$Mean.CV=Difalcivi*.9 #need extra_Q for to fit cpue
+      Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<Difalcivi)%>%pull(index)
       if(length(Indx.small.CV)>0)
       {
-        if(Scenario$extra.SD.Q=='always')
-        {
-          if(is.data.frame(Indx.small.CV)) Indx.small.CV=Indx.small.CV$index
-          ID.fleets.extraSD=match(Indx.small.CV,ctl$Q_options$fleet)
-          ctl$Q_options$extra_se[ID.fleets.extraSD]=1
-          rownames(ctl$Q_parms)=paste('fleet_',match(rownames(ctl$Q_parms),dat$fleetinfo$fleetname),sep='')
-          Q_parms_estraSD=ctl$Q_parms[ID.fleets.extraSD,]%>%
-            mutate(LO=0,
-                   HI=1,
-                   INIT=0.3,
-                   PRIOR=0.3,
-                   PHASE=3)
-          rownames(Q_parms_estraSD)=paste(rownames(Q_parms_estraSD),"_Q_extraSD",sep='')
-          ctl$Q_parms=rbind(ctl$Q_parms,Q_parms_estraSD)
-          ctl$Q_parms=ctl$Q_parms[order(rownames(ctl$Q_parms)),]
-        }
+        if(is.data.frame(Indx.small.CV)) Indx.small.CV=Indx.small.CV$index
+        ID.fleets.extraSD=match(Indx.small.CV,ctl$Q_options$fleet)
+        ctl$Q_options$extra_se[ID.fleets.extraSD]=1
+        rownames(ctl$Q_parms)=paste('fleet_',match(rownames(ctl$Q_parms),dat$fleetinfo$fleetname),sep='')
+        Q_parms_estraSD=ctl$Q_parms[ID.fleets.extraSD,]%>%
+          mutate(LO=0,
+                 HI=1,
+                 INIT=0.3,
+                 PRIOR=0.3,
+                 PHASE=3)
+        rownames(Q_parms_estraSD)=paste(rownames(Q_parms_estraSD),"_Q_extraSD",sep='')
+        ctl$Q_parms=rbind(ctl$Q_parms,Q_parms_estraSD)
+        ctl$Q_parms=ctl$Q_parms[order(rownames(ctl$Q_parms)),]
       }
       
       
@@ -987,7 +993,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     
     #select if using sensitivity selectivity
-    if(!is.na(Scenario$NSF.selectivity) & Scenario$NSF.selectivity=='Logistic')
+    if(!is.na(Scenario$NSF.selectivity))
     {
       life.history$SS_selectivity=life.history$SS_selectivity.sensitivity
       life.history$SS_selectivity_phase=life.history$SS_selectivity.sensitivity_phase
@@ -1022,17 +1028,21 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                              Fleet=dat$CPUEinfo[match('WRL',rownames(dat$CPUEinfo)),'Fleet'])
       row.names(dumi.lbster)='WRL'
       ddumy=rbind(ddumy,dumi.lbster,ddumy.sel)%>%
-            arrange(Fleet)  #here, issues with fleets order
+            arrange(Fleet)  
       
-      ddummy=dat$len_info[1,]
-      rownames(ddummy)='WRL'
-      if("Survey"%in%rownames(dat$len_info))
+      if(!is.null(dat$len_info))
       {
-        dat$len_info=rbind(dat$len_info[-match("Survey",rownames(dat$len_info)),],ddummy,dat$len_info[match("Survey",rownames(dat$len_info)),])
-      }else
-      {
-        dat$len_info=rbind(dat$len_info,ddummy)
+        ddummy=dat$len_info[1,] 
+        rownames(ddummy)='WRL'
+        if("Survey"%in%rownames(dat$len_info))
+        {
+          dat$len_info=rbind(dat$len_info[-match("Survey",rownames(dat$len_info)),],ddummy,dat$len_info[match("Survey",rownames(dat$len_info)),])
+        }else
+        {
+          dat$len_info=rbind(dat$len_info,ddummy)
+        }
       }
+
       ddummy=dat$age_info[1,]
       rownames(ddummy)='WRL'
       if("Survey"%in%rownames(dat$age_info))
@@ -1043,7 +1053,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         dat$age_info=rbind(dat$age_info,ddummy)
       }
       
-      dat$len_info=dat$len_info[match(rownames(dat$CPUEinfo),rownames(dat$len_info)),]
+      if(!is.null(dat$len_info)) dat$len_info=dat$len_info[match(rownames(dat$CPUEinfo),rownames(dat$len_info)),]
       dat$age_info=dat$age_info[match(rownames(dat$CPUEinfo),rownames(dat$age_info)),]
     }
     if(life.history$Name=="sawsharks")
@@ -1187,7 +1197,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     
     #set phases for estimable selectivities  
       #set phase to the one defined in SS_selectivity_phase
-    if(!is.null(size.comp))
+    if(!is.null(size.comp))  
     {
       flit.size.comp.obs=sort(unique(dat$lencomp$Fleet))
       flit.no.size.comp.obs=fleetinfo%>%filter(!fleetname%in%rownames(dat$len_info)[flit.size.comp.obs])%>%pull(fleetname)
@@ -1195,6 +1205,10 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       life.history$SS_selectivity_phase=life.history$SS_selectivity_phase%>%
                       filter(Fleet%in%life.history$SS_selectivity$Fleet)
       no.length.comp=which(life.history$SS_selectivity_phase$Fleet%in%flit.no.size.comp.obs) 
+      # if(match('Survey',fleetinfo$fleetname)%in%unique(size.comp$Fleet))
+      # {
+      #   life.history$SS_selectivity_phase[life.history$SS_selectivity_phase$Fleet=='Survey',c('P_1','P_2')]=c(2,3)
+      # }
       if(length(no.length.comp)>0)
       {
         for(n in 1:length(no.length.comp))
@@ -1501,6 +1515,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   start$ctlfile='control.ctl'
   
   #3.4. forecast file 
+  index.F=grep('F.series',dat$fleetinfo$fleetname)
+  if(length(index.F)>0)
+  {
+    add.future.f.series=Future.project[ncol(Future.project)]
+    add.future.f.series[,]=0
+    colnames(add.future.f.series)=index.F
+    Future.project=cbind(Future.project,add.future.f.series)
+  }
+  
   fore$benchmarks=1 # 0 = skip; 1 = calc F_spr,F_btgt & F_msy
   fore$MSY=2 #1 = set to F(SPR); 2= calc F(MSY); 3 = set to F(Btgt); 4 = set to F(endyr) 
   fore$SPRtarget=0.6
@@ -1552,6 +1575,14 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
 
   
   # 4.Export updated templates
+  
+  #age composition 
+  if(is.null(age.comp))
+  {
+    dat$N_agebins=0
+    dat=dat[-match(c("agebin_vector","N_ageerror_definitions","ageerror"),names(dat))]
+  }
+  
   r4ss::SS_writestarter(start, dir = new.path, overwrite = TRUE,verbose = FALSE)
   r4ss::SS_writedat(dat, outfile = file.path(new.path, start$datfile), overwrite = TRUE, verbose = FALSE)
   r4ss::SS_writectl(ctl, outfile = file.path(new.path, start$ctlfile), overwrite = TRUE, verbose = FALSE)

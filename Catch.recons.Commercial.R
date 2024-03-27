@@ -111,6 +111,8 @@ PCM=data.frame(Group=c("Sawfish","Sawsharks","Wobbegongs","Mackerel","Greynurse"
              GN=sapply(GN,function(x)min(x*Inc.AVM,1)),
              LL=sapply(LL,function(x)min(x*Inc.AVM,1)))
 
+  #Feitosa et al
+Feitosa.longline=read.csv(handl_OneDrive('Data/Feitosa_longline_avm_prm.csv'))
 
 
 # 2 -------------------DATA SECTION------------------------------------

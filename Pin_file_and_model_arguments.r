@@ -15,13 +15,9 @@ if(Do.bespoked)
   MOv.par.phz=c("log_p11","log_p22","log_p21","log_p33")
 }
 
-#Recruitment inputs
-SS3.Rrecruitment.inputs=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Rrecruitment.inputs.csv'))
-SS3.tune_size_comp_effective_sample=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample.csv'))
 
 #Final depletion
 #note: modify depletion levels for species with negligible catches in recent years (based on generation time and r)
-Depletion.levels<- read_excel(handl_OneDrive('Analyses/Population dynamics/K_&_depletion.levels.xlsx'),sheet = "K_&_depletion.levels")
 for(i in 1:N.sp)
 {
   G=round(store.species.G_M.age.invariant[[i]]$mean) #generation time
@@ -353,15 +349,15 @@ for(l in 1:N.sp)
   if(NeiM=="angel sharks") Ktch.crv.yrs=list('2005-06')
   if(NeiM=="copper shark") Ktch.crv.yrs=list(c('2011-12','2012-13')) 
   if(NeiM=="dusky shark") Ktch.crv.yrs=list(c("1993-94","1994-95"),c("2012-13","2013-14"))
-  if(NeiM=="gummy shark") Ktch.crv.yrs=list(c("2001-02", "2004-05", "2005-06", "2003-07"),"2020-21")
+  if(NeiM=="gummy shark") Ktch.crv.yrs=list(c("2001-02", "2004-05", "2005-06"),"2020-21")
   if(NeiM%in%c("lemon shark","milk shark","pigeye shark")) Ktch.crv.yrs=list(c('2000-01','2001-02','2003-04'))
-  if(NeiM=="sandbar shark") Ktch.crv.yrs=list(c('1996-97','1997-98','1998-99'),c('20012-13','2020-21'))
+  if(NeiM=="sandbar shark") Ktch.crv.yrs=list(c('1996-97','1997-98','1998-99'),c('2012-13','2020-21'))
   if(NeiM=="sawsharks") Ktch.crv.yrs=list(c('1995-96','1998-99'))
-  if(NeiM=="smooth hammerhead") Ktch.crv.yrs=list(c('1994-95','1995-96','1996-97','1997-98','1998-99'))
-  if(NeiM=="spinner shark") Ktch.crv.yrs=list(c('1994-95','1995-96','1996-97','1997-98','1998-99'))
+  if(NeiM=="smooth hammerhead") Ktch.crv.yrs=list(c('1994-95'),c('2004-05'))
+  if(NeiM=="spinner shark") Ktch.crv.yrs=list(c('1994-95'),c('2000-01'))
   if(NeiM=="spurdogs") Ktch.crv.yrs=list(c('2000-01','2002-03'))
   if(NeiM=="tiger shark") Ktch.crv.yrs=list(c('2000-01','2001-02','2002-03','2003-04'))
-  if(NeiM=="whiskery shark") Ktch.crv.yrs=list(c('2020-21'))
+  if(NeiM=="whiskery shark") Ktch.crv.yrs=list(c('1994-95'),c('2020-21'))
   if(NeiM=="wobbegongs") Ktch.crv.yrs=list(c('2004-05')) 
   List.sp[[l]]$Catch.curve.years=Ktch.crv.yrs
   
@@ -401,7 +397,7 @@ for(l in 1:N.sp)
   if(evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=c(rep(drop.daily.cpue,N.rowSS-1),NA)
   
     #Always calculate extra SD for Q or only when CV is small
-  List.sp[[l]]$Sens.test$SS$extra.SD.Q='always'
+  List.sp[[l]]$Sens.test$SS$extra.SD.Q='NO' #set to 'YES' if not calculating Francis CVs otherwise if using both it blows it
   
     #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
@@ -411,10 +407,11 @@ for(l in 1:N.sp)
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
   
     #Alternative selectivity for NSF and survey
+  SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
   if(NeiM%in%alternative.NSF.selectivity)
   {
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
-              mutate(NSF.selectivity='Logistic',
+              mutate(NSF.selectivity=SS.sel.init.pars$Alternative_sel_type,
                      Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
@@ -444,7 +441,6 @@ for(l in 1:N.sp)
   #       logistic: p1. inflection
   #                 p2. 95% width (>0)
   
-  SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
     #init values
       #NSF, Survey and Others
     p1.sel=SS.sel.init.pars$NSF_p1       
@@ -488,14 +484,14 @@ for(l in 1:N.sp)
                                            P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))
     
 
-    if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
+    if(NeiM%in%alternative.NSF.selectivity)
     {
-      p1.sel_NSF=p1.sel_Other=p1.sel_Survey=SS.sel.init.pars$Logistic_p1       
-      p2.sel_NSF=p2.sel_Other=p2.sel_Survey=SS.sel.init.pars$Logistic_p2 
-      p3.sel_NSF=p3.sel_Other=p3.sel_Survey=NA
-      p4.sel_NSF=p4.sel_Other=p4.sel_Survey=NA 
-      p5.sel_NSF=p5.sel_Other=p5.sel_Survey=NA
-      p6.sel_NSF=p6.sel_Other=p6.sel_Survey=NA
+      p1.sel_NSF=p1.sel_Other=p1.sel_Survey=SS.sel.init.pars$Alternative_p1       
+      p2.sel_NSF=p2.sel_Other=p2.sel_Survey=SS.sel.init.pars$Alternative_p2 
+      p3.sel_NSF=p3.sel_Other=p3.sel_Survey=SS.sel.init.pars$Alternative_p3
+      p4.sel_NSF=p4.sel_Other=p4.sel_Survey=SS.sel.init.pars$Alternative_p4 
+      p5.sel_NSF=p5.sel_Other=p5.sel_Survey=SS.sel.init.pars$Alternative_p5
+      p6.sel_NSF=p6.sel_Other=p6.sel_Survey=SS.sel.init.pars$Alternative_p6
       List.sp[[l]]$SS_selectivity.sensitivity=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                              P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
                                              P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
@@ -520,7 +516,7 @@ for(l in 1:N.sp)
                                         WRL.sel.pars,
                                         List.sp[[l]]$SS_selectivity%>%filter(Fleet=='Survey'))
       
-      if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
+      if(NeiM%in%alternative.NSF.selectivity)
       {
         List.sp[[l]]$SS_selectivity.sensitivity=rbind(List.sp[[l]]$SS_selectivity.sensitivity%>%filter(!Fleet=='Survey'),
                                                       WRL.sel.pars,
@@ -565,11 +561,14 @@ for(l in 1:N.sp)
     p5.sel=SS.sel.init.pars$Phase_NSF_p5 
     p6.sel=SS.sel.init.pars$Phase_NSF_p6 
 
-    if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
+    if(NeiM%in%alternative.NSF.selectivity)
     {
-      p1.sel_sens=SS.sel.init.pars$Phase_Logistic_p1       
-      p2.sel_sens=SS.sel.init.pars$Phase_Logistic_p2
-      p3.sel_sens=p4.sel_sens=p5.sel_sens=p6.sel_sens=NA
+      p1.sel_sens=SS.sel.init.pars$Phase_Alternative_p1       
+      p2.sel_sens=SS.sel.init.pars$Phase_Alternative_p2
+      p3.sel_sens=SS.sel.init.pars$Phase_Alternative_p3
+      p4.sel_sens=SS.sel.init.pars$Phase_Alternative_p4
+      p5.sel_sens=SS.sel.init.pars$Phase_Alternative_p5
+      p6.sel_sens=SS.sel.init.pars$Phase_Alternative_p6
     }
     p1.sel_NSF=p1.sel       
     p2.sel_NSF=p2.sel 
@@ -578,8 +577,10 @@ for(l in 1:N.sp)
     p5.sel_NSF=p5.sel 
     p6.sel_NSF=p6.sel
     
-    p1.sel_Other=p1.sel_Survey=NA       
-    p2.sel_Other=p2.sel_Survey=NA 
+    p1.sel_Survey=SS.sel.init.pars$Phase_NSF_p1
+    p2.sel_Survey=SS.sel.init.pars$Phase_NSF_p2
+    p1.sel_Other=NA       
+    p2.sel_Other=NA 
     p3.sel_Other=p3.sel_Survey=NA
     p4.sel_Other=p4.sel_Survey=NA 
     p5.sel_Other=p5.sel_Survey=NA 
@@ -610,7 +611,7 @@ for(l in 1:N.sp)
                                                  P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
                                                  P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))%>%
                                           replace(is.na(.), -2)
-    if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
+    if(NeiM%in%alternative.NSF.selectivity)
     {
       p1.sel_NSF=p1.sel_Survey=p1.sel_sens       
       p2.sel_NSF=p2.sel_Survey=p2.sel_sens
@@ -643,7 +644,7 @@ for(l in 1:N.sp)
                                               WRL.sel.phases,
                                               List.sp[[l]]$SS_selectivity_phase%>%filter(Fleet=='Survey'))
       
-      if(NeiM%in%alternative.NSF.selectivity & SS.sel.init.pars$Alternative_sel_type=='Logistic')
+      if(NeiM%in%alternative.NSF.selectivity)
       {
         List.sp[[l]]$SS_selectivity.sensitivity_phase=rbind(List.sp[[l]]$SS_selectivity.sensitivity_phase%>%filter(!Fleet=='Survey'),
                                                 WRL.sel.phases,
@@ -661,11 +662,11 @@ for(l in 1:N.sp)
   # 10=recrdev; 11=parm_prior; 12=parm_dev; 13=CrashPen; 14=Morphcomp; 15=Tag-comp; 16=Tag-negbin; 17=F_ballpark; 18=initEQregime
   
   SS.lambdas=NULL
-  if(NeiM%in%c("sandbar shark"))
+  if(NeiM%in%c("dusky shark","sandbar shark"))
   {
     SS.lambdas=data.frame(like_comp=1,
-                          fleet=5,
-                          value=2)
+                          fleet='Survey',
+                          value=5)
   }
   List.sp[[l]]$SS_lambdas=SS.lambdas
   

@@ -90,9 +90,9 @@ for(w in 1:n.SS)
                 d.list[[s]]=d.list[[s]]%>%
                   filter(FL>=Life.history$Lzero)%>%
                   mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
-                                       ifelse(grepl("Survey",names(d.list)[s]),'Survey',
-                                              ifelse(grepl("Other",names(d.list)[s]),'Other',
-                                                     'TDGDLF'))),
+                                ifelse(grepl("Survey",names(d.list)[s]),'Survey',
+                                ifelse(grepl("Other",names(d.list)[s]),'Other',
+                                'TDGDLF'))),
                          year=as.numeric(substr(FINYEAR,1,4)),
                          TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
                          size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
@@ -104,7 +104,7 @@ for(w in 1:n.SS)
                   ungroup()
                 
                 #add extra bins for smooth fit to size comps
-                Maximum_size=10*ceiling(1.01*with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
+                Maximum_size=10*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
                 Mx.size=max(d.list[[s]]$size.class)
                 extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
                 if(length(extra.bins))
@@ -117,13 +117,10 @@ for(w in 1:n.SS)
               }
               d.list <- d.list[!is.na(d.list)]
               d.list=do.call(rbind,d.list)   
-              if(combine.scallopedHH_NSF_Survey) #assume same sel NSF and survey so combined to increase sample size
+              if(Neim%in%combine_NSF_Survey) #assume same sel NSF and survey so combined to increase sample size
               {
-                if(Neim%in%c("scalloped hammerhead"))  
-                {
-                  d.list=d.list%>%
-                    mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
-                }
+                d.list=d.list%>%
+                  mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
               }
               if(Neim%in%combine.sexes)
               {
@@ -163,7 +160,7 @@ for(w in 1:n.SS)
               }
               Table.n=d.list%>%group_by(year,fishry,sex)%>%
                 summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,10))%>%
+                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,Min.annual.obs.ktch_survey))%>%
                 filter(N>=Min.accepted.N)%>%
                 mutate(dummy=paste(year,fishry,sex))
               
@@ -622,6 +619,10 @@ for(w in 1:n.SS)
             
             #Likelihood lambdas
             Lamdas.SS.lambdas=Life.history$SS_lambdas
+            if(!is.null(Lamdas.SS.lambdas))
+            {
+              Lamdas.SS.lambdas$fleet=match(Lamdas.SS.lambdas$fleet,flitinfo$fleetname)
+            }
             
             #rename fleets following SS nomenclature
             names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))
@@ -1028,7 +1029,7 @@ for(w in 1:n.SS)
                   ungroup()
                 
                 #add extra bins for smooth fit to size comps
-                Maximum_size=10*ceiling(1.01*with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
+                Maximum_size=10*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
                 Mx.size=max(d.list[[s]]$size.class)
                 extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
                 if(length(extra.bins))
@@ -1041,13 +1042,10 @@ for(w in 1:n.SS)
               }
               d.list <- d.list[!is.na(d.list)]
               d.list=do.call(rbind,d.list)   
-              if(combine.scallopedHH_NSF_Survey) #assume same sel NSF and survey so combined to increase sample size
+              if(Neim%in%combine_NSF_Survey) #assume same sel NSF and survey so combined to increase sample size
               {
-                if(Neim%in%c("scalloped hammerhead"))  
-                {
-                  d.list=d.list%>%
-                    mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
-                }
+                d.list=d.list%>%
+                  mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
               }
               if(Neim%in%combine.sexes)
               {
@@ -1088,7 +1086,7 @@ for(w in 1:n.SS)
               }
               Table.n=d.list%>%group_by(year,fishry,sex)%>%
                 summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,10))%>%
+                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,Min.annual.obs.ktch_survey))%>%
                 filter(N>=Min.accepted.N)%>%
                 mutate(dummy=paste(year,fishry,sex))
               
@@ -1547,6 +1545,10 @@ for(w in 1:n.SS)
             
             #Likelihood lambdas
             Lamdas.SS.lambdas=Life.history$SS_lambdas
+            if(!is.null(Lamdas.SS.lambdas))
+            {
+              Lamdas.SS.lambdas$fleet=match(Lamdas.SS.lambdas$fleet,flitinfo$fleetname)
+            }
             
             #rename fleets following SS nomenclature
             names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))

@@ -121,12 +121,16 @@ for(l in 1: N.sp)
     {
       dd=str_before_first(str_after_nth(names(iid)[x],"_",2), coll(".inch"))
       iid[[x]]=iid[[x]]%>%
-        mutate(Zone=str_before_first(dd, coll(".")),  #Aca
+        mutate(Zone=str_before_first(dd, coll(".")),  
                Mesh=str_after_first(dd, coll(".")))
     }
     dummy=do.call(rbind,iid)%>%
       filter(year<=as.numeric(substr(Last.yr.ktch,1,4)))
-    Min.sample.size=Min.annual.obs.ktch
+    
+    Min.sample.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+    if(Neim%in%names(Indicator.species)) Min.sample.size=Min.annual.obs.ktch*0.5
+    if(Neim=="sandbar shark") Min.sample.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+      
     N.min=dummy%>%
       group_by(FINYEAR)%>%
       tally()%>%
@@ -158,13 +162,23 @@ for(l in 1: N.sp)
       if(out.fleet=="TDGDLF") SS.flit='Southern.shark_1'
       if(out.fleet=="NSF") SS.flit='Northern.shark'
       if(out.fleet=="Other") SS.flit='Other'
-      SelectivityVec_full=with(List.sp[[l]]$SS_selectivity%>%filter(Fleet==SS.flit),doubleNorm24.fn(midpt,a=P_1,
-                                      b=P_2, c=P_3, d=P_4, e=P_5, f=P_6,use_e_999=FALSE, use_f_999=FALSE))
+      
+      dis.Sel=List.sp[[l]]$SS_selectivity%>%filter(Fleet==SS.flit)
+      if(!is.na(dis.Sel$P_3))
+      {
+        SelectivityVec_full=with(dis.Sel,doubleNorm24.fn(midpt,a=P_1,b=P_2, c=P_3, d=P_4, e=P_5, f=P_6,use_e_999=FALSE, use_f_999=FALSE))
+      }
+      if(is.na(dis.Sel$P_3))
+      {
+        SelectivityVec_full=with(dis.Sel,logistic1.fn(midpt,a=P_1,b=P_2))
+      }
       SelectivityVec=SelectivityVec_full
       SelectivityVec[which(lbnd<min.TL)]=1e-20
+      
       Linf = c(List.sp[[l]]$Growth.F$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
                List.sp[[l]]$Growth.M$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL) #total length in cm for females and males   
       vbK = c(List.sp[[l]]$Growth.F$k,List.sp[[l]]$Growth.M$k)          # k for females and males
+      tzero = List.sp[[l]]$Growth.F$to
       CVSizeAtAge = rep(with(List.sp[[l]],mean(c(Growth.CV_young,Growth.CV_old))),2)  
       #CVSizeAtAge=c(0.08,0.08)
       GrowthParams = data.frame(Linf=Linf, vbK=vbK)
@@ -184,7 +198,7 @@ for(l in 1: N.sp)
         geom_bar(stat="identity")+
         facet_wrap(~FINYEAR,scales='free_y')+
         geom_point(data=data.frame(midpt=midpt,SelectivityVec=SelectivityVec),
-                  aes(midpt,SelectivityVec),color='red',linewidth=1.25)+
+                  aes(midpt,SelectivityVec),color='red')+
         xlab("Total length (cm)")+ylab("")+
         theme(legend.position="none",
               legend.title = element_blank(),
@@ -343,9 +357,9 @@ for(l in 1: N.sp)
         FittedRes$SelectivityVec=SelectivityVec
         
         F.estims[[g]]=FittedRes
-        if(FittedRes$ParamEst[1,1]>0)
+        if(FittedRes$ParamEst[1,1]>0 & !FittedRes$ParamEst[1,2]==0)
         {
-          pdf(paste0(this.wd,"/CatchCurve_RetCatch_Mortality_",Catch.curve.years[[g]],".pdf"))
+          pdf(paste0(this.wd,"/CatchCurve_RetCatch_Mortality_",paste(Catch.curve.years[[g]],collapse='_'),".pdf"))
           PlotLengthBasedCatchCurve_RetCatch(params, DistnType, MLL, SelectivityType, ObsRetCatchFreqAtLen, lbnd, ubnd, midpt,
                                              SelectivityVec, PropReleased, ObsDiscCatchFreqAtLen, DiscMort, GrowthCurveType, GrowthParams,
                                              RefnceAges, MaxAge, NatMort, TimeStep, MainLabel=NA,
@@ -356,7 +370,6 @@ for(l in 1: N.sp)
                                               PropReleased, ObsDiscCatchFreqAtLen, DiscMort, GrowthCurveType, GrowthParams, RefnceAges,
                                               MaxAge, NatMort, TimeStep, xmax=NA, xint=NA, ymax=NA, yint=NA, FittedRes)
           dev.off()
-          
         }
         rm(dummy1,ObsCatchFreqAtLen,FittedRes)
       }
@@ -380,7 +393,7 @@ FinalSex_L50 <- NA # Logistic sex change relationship parameters (inflection poi
 FinalSex_L95 <- NA # Logistic sex change relationship parameters (95% of max probability)
 SRrel_Type <- 1 # 1 = Beverton-Holt, 2=Ricker
 RefPointPlotOpt <- 2 # 0=don't plot, 1=plot defaults, 2=plot BMSY ref points
-nReps = 10 # for final run, needs to be much larger, e.g. 200 or 500
+nReps = 20 # 200 or 500
 
 YPR=vector('list',N.sp)
 names(YPR)=Keep.species
@@ -393,10 +406,11 @@ for(l in 1:N.sp)
   {
     this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
                   capitalize(Neim),"/",AssessYr,"/Catch curve and per recruit",sep='')
-    print(paste("Yield per Recruit for --",Neim,'--',out.fleet,'fishery'))
     
     #identify fishery with most catch 
     out.fleet=Length.catch.curve[[l]][[1]]$out.fleet
+    
+    print(paste("Yield per Recruit for --",Neim,'--',out.fleet,'fishery'))
     
     #life history parameters
     MaxModelAge=Length.catch.curve[[l]][[1]]$MaxAge
@@ -467,9 +481,15 @@ for(l in 1:N.sp)
                                     FinalSex_L95, mat_L50, mat_L95, EstMatAtLen, sel_L50, sel_L95, EstGearSelAtLen, ret_Pmax,
                                     ret_L50, ret_L95, EstRetenAtLen, DiscMort, Steepness, SRrel_Type, NatMort, Current_F, Output_Opt)
         
+        Res$F_lim=Res$FishMort[which.min(abs(Res$Eq_FemRelSpBiomResults - Res$BMSY_Lim))]
+        Res$F_tar=Res$FishMort[which.min(abs(Res$Eq_FemRelSpBiomResults - Res$BMSY_Targ))]
         
         # explore various per recruit outputs
         pdf(paste0(this.wd,"/CatchCurve_RetCatch_Mortality_",names(Length.catch.curve[[l]])[g],".pdf"))
+        
+        plot(Res$FishMort, Res$Eq_CatchResults)
+        abline(v=Res$F_MSY)
+        abline(v=Res$FishMort[which.min(abs(Res$Eq_FemRelSpBiomResults - Res$BMSY_Thresh))],col=2) #another way of searching for Fmsy
         
         PlotOpt <- 0 # 0=all plots, 1=len at-age, 2=wt at length, 3=fem mat/sel/ret at length, 4=mal mat/sel/ret at length,
         # 5=fem F at length, 6=mal F at length, 7=fem rel surv, 8=mal rel surv, 9=fem biom at age, 10=fem biom at age,
@@ -507,6 +527,9 @@ for(l in 1:N.sp)
                                         EstRetenAtAge, DiscMort, Steepness, Steepness_sd, SRrel_Type, NatMort, NatMort_sd,
                                         Current_F, Current_F_sd, PlotOpt, RefPointPlotOpt, FittedRes, nReps, MainLabel=NA,
                                         xaxis_lab=NA, yaxis_lab=NA, xmax=NA, xint=NA, ymax=NA, yint=NA)
+        
+        PlotPerRecruit_RiskMatrix_RelBiom(RefPointOpt=0, FittedRes, nReps=10)
+        
         dev.off()
         
         dumi[[g]]=list(Res=Res,FittedRes=FittedRes)
@@ -519,8 +542,10 @@ for(l in 1:N.sp)
 }
 toc()
 
-#2. Export table of results
+#---Generate outputs --------------------------------------
+#1. Export table of results
 Store.per.recruit.results=vector('list',N.sp)
+names(Store.per.recruit.results)=Keep.species
 for(l in 1:N.sp)
 {
   Neim=Keep.species[l]
@@ -532,9 +557,9 @@ for(l in 1:N.sp)
       Fs=unlist(Length.catch.curve[[l]][[g]]$ParamEst[1,])
       names(Fs)=c('F','F_Low','F_Upp')
       dd[[g]]=data.frame(value=c(Fs,
-                                 unlist(YPR[[l]][[g]]$Res[c('BMSY_Targ','BMSY_Thresh','BMSY_Lim','F_MSY','Eq_FemRelSpBiom')]), 
+                                 unlist(YPR[[l]][[g]]$Res[c('BMSY_Targ','BMSY_Thresh','BMSY_Lim','F_tar','F_MSY','F_lim','Eq_FemRelSpBiom')]), 
                                  unlist(YPR[[l]][[g]]$FittedRes$'ResSummary_with_err')))%>%
-        add_rownames(var='Parameter')%>%
+        tibble::rownames_to_column(var='Parameter')%>%
         mutate(Year=names(Length.catch.curve[[l]])[g])%>%
         spread(Parameter,value)%>%
         mutate(Species=names(Length.catch.curve)[l])
@@ -542,9 +567,43 @@ for(l in 1:N.sp)
     Store.per.recruit.results[[l]]=do.call(rbind,dd)
   }
 }
+Out.table=do.call(rbind,Store.per.recruit.results)%>%
+  relocate(Species)%>%
+  rename(Period=Year)%>%
+  adorn_rounding(digits = 3, rounding = "half up")
+write.csv(Out.table,paste0(Rar.path,'/Table_Catch.curve_YPR.csv'),row.names = F)
 
-write.csv(do.call(rbind,Store.per.recruit.results)%>%
-            relocate(Species)%>%
-            rename(Period=Year)%>%
-            mutate(across(where(is.numeric), round, 2)),
-          paste0(Rar.path,'/Table_Catch.curve_YPR.csv'),row.names = F)
+#2. By species group
+for(l in 1:length(Lista.sp.outputs))
+{
+  d=Out.table%>%
+    filter(Species%in%Lista.sp.outputs[[l]])%>%
+    mutate(Species=capitalize(Species))%>%
+    dplyr::select(Species,Period,Fem_LowEquilSB,Fem_EquilSB,Fem_UppEquilSB,
+                  BMSY_Lim,BMSY_Thresh,BMSY_Targ,F_Low,F,F_Upp,F_lim,F_MSY,F_tar)%>%
+    mutate(Period=paste(sub("\\-.*", "", Period),'to',sub('.*-', '', Period)))
+  NKoL=2
+  if(length(unique(d$Species))<4) NKoL=1
+  d%>%
+    ggplot(aes(Fem_EquilSB,F))+
+    geom_hline(aes(yintercept=F_tar),color=col.Target, size=.5)+
+    geom_hline(aes(yintercept=F_MSY),color=col.Threshold, size=.5)+
+    geom_hline(aes(yintercept=F_lim),color=col.Limit, size=.5)+
+    geom_vline(aes(xintercept=BMSY_Targ),color=col.Target, size=.5)+
+    geom_vline(aes(xintercept=BMSY_Thresh),color=col.Threshold, size=.5)+
+    geom_vline(aes(xintercept=BMSY_Lim),color=col.Limit, size=.5)+
+    geom_point(size=5)+
+    geom_errorbarh(aes(xmin = Fem_LowEquilSB,xmax = Fem_UppEquilSB),linewidth=.1,position=position_dodge(.9))+
+    geom_errorbar(aes(ymin=F_Low, ymax=F_Upp),width=.1,position=position_dodge(.9))+
+    facet_wrap(~Species,ncol = NKoL)+xlim(0,1)+
+    theme_PA(strx.siz=14,axs.T.siz=16)+
+    xlab('Relative female equilibrium breeding biomass')+
+    ylab('Fishing mortality')+
+    theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=1))+
+    geom_text_repel(aes(label = Period),size = 5,col='steelblue')
+  if(NKoL==2) DIMS=9
+  if(NKoL==1) DIMS=6
+  ggsave(paste(Rar.path,'/YPR_catch.curve_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+         width = DIMS,height = 9,compression = "lzw")
+}
+

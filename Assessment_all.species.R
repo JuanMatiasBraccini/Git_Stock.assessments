@@ -81,6 +81,8 @@ library(ks)
 library(ggwordcloud)
 library(grid)
 library("gg3D")
+library(ggridges)
+library(janitor)
 
 clear.log <- function(x, env = globalenv()) if(exists(x, envir = env))  rm(list = x, envir = env)
 
@@ -199,14 +201,15 @@ if(KTCH.UNITS=="TONNES") Min.ktch=5
 #10. CPUEs
 Min.cpue.yrs=5 #minimum number of years in abundance index
 drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not
+
+#define species for which cpue is not considered to be indexing abundance
 survey_not.representative=c("scalloped hammerhead","great hammerhead",
-                            "lemon shark","pigeye shark") #Very few individuals (typically <5 per trip)  
-                                                          # caught and CVs are huge.
-NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF was dropped from assessment due to convergence issues
+                            "lemon shark","pigeye shark") #few individuals caught (<5 per trip) and huge CVs 
+NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue not used to convergence issues
                           "lemon shark","pigeye shark","tiger shark",
                          "dusky shark" ,"sandbar shark")
-tdgdlf_not.representative="smooth hammerhead"       #catch rates are for hammerheads
-other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event, not distribution core
+tdgdlf_not.representative="smooth hammerhead"       #catch rates are for 'hammerheads'
+other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not distribution core
 drop.daily.cpue='2007&2008'  #drop 2007 & 2008 from TDGDLF daily cpue (consistently higher cpues across all species due to likely effort reporting bias)
 
 
@@ -216,9 +219,11 @@ MN.SZE=0    # initial bin size
 TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
-Min.annual.obs.ktch=50 #Minimum number of annual observations for using size composition data
-Min.Nsamp=10   #Minimum number of trips for catch mean weight or size composition
-fill.in.zeros=TRUE  #add missing size classes with all 0s
+Min.annual.obs.ktch=150 #Minimum number of annual observations for using length composition data
+Min.annual.obs.ktch_survey=30
+prop.min.N.accepted_other=0.5
+Min.Nsamp=10   #Minimum number of trips for catch mean weight or length composition
+fill.in.zeros=TRUE  #add missing length classes with all 0s
   
 
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
@@ -252,6 +257,8 @@ ScallopedHH.Sedar=mean(c(0.69,0.71,0.67))
 SmoothHH.Sedar=0.78
 GreatHH.Sedar=0.71
 Mako.ICCAT=0.345
+
+#publish demographic parameters
 Demo.published.values=data.frame(Species=c("angel sharks","copper shark","grey nurse shark","gummy shark","lemon shark",
                                   "spinner shark","spurdogs","tiger shark","whiskery shark","spiny dogfish",'blue shark',
                                   "dusky shark","great hammerhead","sandbar shark","scalloped hammerhead",
@@ -261,8 +268,9 @@ Demo.published.values=data.frame(Species=c("angel sharks","copper shark","grey n
                         h=c(rep(NA,11),Dusky.Sedar,GreatHH.Sedar,Sandbar.Sedar,ScallopedHH.Sedar,Mako.ICCAT,SmoothHH.Sedar),
                         Reference=rep('Cortes 2016',17))
 
-test.Sedar=TRUE     #consider Dusky and Sandbar h estiamtes used in SEDAR
+test.Sedar=TRUE     #consider Dusky and Sandbar h estimates used in SEDAR
 Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
+
 
 #16. Stock recruitment
 Max.h.shark=.8   #mean of h for blue shark (ICCAT 2023 assessment; Cortes 2016, Kai & Fujinami 2018).
@@ -280,7 +288,9 @@ Lim.prop.bmsy=0.5    #    source: Haddon et al 2014. 'Technical Reviews of Forma
 #SPR.thre=0.3   #Punt 2000 Extinction of marine renewable resources: a demographic analysis. 
 #SPR.tar=0.4    #   Population Ecology 42, 
 Minimum.acceptable.blim=0.2  #Blim should be the max(Minimum.acceptable.blim,Lim.prop.bmsy*Biomass.threshold)
-
+col.Target='forestgreen'
+col.Threshold='orange'
+col.Limit='red'
 
 #18. Catch-only Models
 do.ensemble.simulations=FALSE
@@ -315,10 +325,14 @@ Assessed.ktch.only.species='All'                #assess all species with catch o
 #Assessed.ktch.only.species='Only.ktch.data'   #assess species with only catch data
 display.only.catch.only.sp=FALSE               #just display catch and MSY for species with only catch
 
+
 #19. Catch curves
 Init.F.Ktch.cur=0.2
-Other.to.NSF=c("milk shark","pigeye shark","tiger shark","scalloped hammerhead")  #species for which 'other' is main fleet but no length comp 
+
+#species for which 'other' fleet is main fleet but no length comp available 
+Other.to.NSF=c("milk shark","pigeye shark","tiger shark","scalloped hammerhead")  
 Other.to.TDGDLF=c('sawsharks')
+
 
 #20. State space Surplus Production Models
 state.space.SPM='JABBA'
@@ -339,9 +353,11 @@ k.cv=2                #Carrying capacity CV (Winker et al 2018 School shark)
 PEELS=5               #number of years to peel for hindcasting and retrospective   
 evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
 
+
 #21. Integrated age-based model 
 Integrated.age.based='SS'
-SS3.run='test'  # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, etc)
+SS3.run='test'              # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, etc)
+create.SS.inputs=TRUE       #set to FALSE once happy with input files
 Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
@@ -349,31 +365,44 @@ do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
 Mean.Size.at.age.species=NULL   #  Mean.Size.at.age.species=c("gummy shark","whiskery shark" )
                                 # Not implemented. Wrong SS3 format. May be applicable to gummy and 
                                 # whiskery (only for these species length-@-age data collected from gillnet fishery)
-
-
 SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
-combine.scallopedHH_NSF_Survey=FALSE   #combine length composition data
+combine_NSF_Survey=NULL   #combine length composition data to estimate logistic selectivity
+# combine_NSF_Survey=c("dusky shark","great hammerhead","lemon shark","milk shark",
+#                      "pigeye shark","sandbar shark","scalloped hammerhead","tiger shark")
 combine.sexes=c("angel sharks","dusky shark","lemon shark","milk shark",
                 "scalloped hammerhead","tiger shark")  #dusky only sex combined for survey
-use.Gab.trawl=TRUE   #only 1 year of data and small sample size
-prop.min.N.accepted_other=1
-WRL.species=c("copper shark","dusky shark","shortfin mako",
-              "smooth hammerhead","spinner shark","tiger shark") #set WRL as a separate fleet
-alternative.NSF.selectivity=c("dusky shark","great hammerhead","lemon shark","pigeye shark",
-                              "sandbar shark","scalloped hammerhead","smooth hammerhead","tiger shark")
-resample.h.greynurse=FALSE  #no need to resample h
-no.empirical.sel.main.fleet=c("angel sharks","copper shark","sawsharks","lemon shark","pigeye shark",
-                              "scalloped hammerhead","tiger shark") #no empirical Selectivity for main fleet or 
-                                  # too small a sample size so don't do Catch curve or SS assessment
+use.Gab.trawl=TRUE   #1 year of data
+add.gummy.gab=FALSE
 
+Extract.SS.parameters=FALSE  #extract SS3 selectivity pars
+
+#set WRL as a separate fleet for these species
+WRL.species=c("copper shark","dusky shark","shortfin mako",
+              "smooth hammerhead","spinner shark","tiger shark") 
+
+#sensitivity for NSF logistic selectivity for these species
+alternative.NSF.selectivity=NULL
+#alternative.NSF.selectivity=c("dusky shark","great hammerhead","lemon shark","pigeye shark",
+#                              "sandbar shark","scalloped hammerhead","smooth hammerhead","tiger shark")
+
+#no empirical Selectivity for main fleet or length comp sample size is too small
+#  so cannot implement any length-based assessment (Catch curve, SS3, etc)
+no.empirical.sel.main.fleet=c(GAB.main="angel sharks",SA_MSF.main="copper shark",
+                              Indo.main_low.n.NSF="great hammerhead",
+                              NSF.main_low.n.NSF="lemon shark",NSF.main_low.n.NSF="pigeye shark",
+                              GAB.main="sawsharks",Multispecies.no.sel="spurdogs",
+                              Taiwan.main_low.n.NSF="scalloped hammerhead",WRL.main="tiger shark",
+                              Multispecies.no.sel="wobbegongs") 
+
+resample.h.greynurse=FALSE  #no need to resample h
 
   #SS model run arguments
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
 Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to set Init LnRo value so Virgin Total bimass ~ K from JABBA  
-SS3.q.an.sol=TRUE   #calculate q analytically to save up pars
+SS3.q.an.sol=TRUE   #calculate q analytically to save up pars, set to FALSE otherwise
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit
 Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation
 nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
@@ -757,15 +786,22 @@ Wei.range=merge(Wei.range,Wei.range.names,by="Sname",all.x=T)
 Logbook=read.csv(handl_OneDrive("Analyses/Catch and effort/Logbook.data.mean.weight.csv"))
 
 
-#---3. Life history, selectivity data and proportion of meshes used for TDGDLF --------------------  
+#---3. Life history, selectivity, TDGDLF mesh proportions, recruitment and depletion  data--------------------  
 LH.data=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv'))
+
 SS_selectivity_init_pars=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.selectivity_pars.csv'))
+
 mesh.prop.effort=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.csv'))%>%mutate(Zone='Combined')
 mesh.prop.effort.West=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.West.csv'))%>%mutate(Zone='West')
 mesh.prop.effort.Zone1=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.Zone1.csv'))%>%mutate(Zone='Zone1')
 mesh.prop.effort.Zone2=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.Zone2.csv'))%>%mutate(Zone='Zone2')
 mesh.prop.effort=rbind(mesh.prop.effort,mesh.prop.effort.West,mesh.prop.effort.Zone1,mesh.prop.effort.Zone2)
 rm(mesh.prop.effort.West,mesh.prop.effort.Zone1,mesh.prop.effort.Zone2)
+
+SS3.Rrecruitment.inputs=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Rrecruitment.inputs.csv'))
+SS3.tune_size_comp_effective_sample=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample.csv'))
+
+Depletion.levels<- read_excel(handl_OneDrive('Analyses/Population dynamics/K_&_depletion.levels.xlsx'),sheet = "K_&_depletion.levels")
 
 #---4. PSA (which species to assess quantitatively) -----------------------------------------------  
 #note: run a PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)
@@ -1026,7 +1062,6 @@ if(use.Gab.trawl)
 }
 
   #6.3 add size composition gummy shark (GAB Trawl)
-add.gummy.gab=FALSE
 if(use.Gab.trawl & add.gummy.gab)
 {
   Species.data$`gummy shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
@@ -1112,7 +1147,7 @@ Species.data$wobbegongs$Size_composition_Observations=Species.data$wobbegongs$Si
             N.observations=sum(N.observations))%>%
   ungroup()
 
-  #6.5 remove Pilbara trawl as it's not used at all
+  #6.5 remove Pilbara trawl length comp as it's not used at all
 for(i in 1:N.sp) 
 {
   if(any(grepl('Size_composition_Pilbara_Trawl',names(Species.data[[i]]))))
@@ -1145,7 +1180,7 @@ for(i in 1:N.sp)
   }
 }
 
-  #6.7 remove nonsense length comp
+  #6.7 remove nonsense length comp values
 nems=c('Size_composition_dropline','Size_composition_NSF.LONGLINE',
        'Size_composition_Survey','Size_composition_Other',
        'Size_composition_West.6.5.inch.raw','Size_composition_West.7.inch.raw',
@@ -1721,7 +1756,7 @@ if(do.r.prior)
     geom_point(shape = 21, size = 5,fill=COL) + 
     geom_smooth(method = "lm", data = CompR%>%filter(!Name%in%Omit.these),
                 se = F, fullrange = TRUE,colour="red")+
-    stat_poly_eq(aes(label =  paste(stat(eq.label),stat(adj.rr.label),stat(p.value.label),
+    stat_poly_eq(aes(label =  paste(after_stat(eq.label),after_stat(adj.rr.label),after_stat(p.value.label),
                                     sep = "*\", \"*")),
                  formula = my_formula, parse = TRUE,
                  label.y = "top", label.x = "right", size = 4)+
@@ -1730,7 +1765,7 @@ if(do.r.prior)
     theme_PA(axs.T.siz=14,axs.t.siz=12)+
     theme(panel.background = element_blank(),
           axis.line = element_line(colour = "black"),
-          panel.border = element_rect(colour = "black", fill=NA, size=1))
+          panel.border = element_rect(colour = "black", fill=NA, linewidth=1))
   p
   ggsave(handl_OneDrive('Analyses/Population dynamics/M_vs_r.tiff'), 
          width = 8,height = 6, dpi = 300, compression = "lzw")
@@ -1835,8 +1870,8 @@ for(r in 1:length(RESILIENCE)) RESILIENCE[[r]]=Res.fn(store.species.r_M.age.inva
 clear.log('Res.fn')
 
 #---11. Extract experimental selectivity at age and at size-----------------------------------------------------------------------
-#note: used as fixed selectivity parameters in SS3 to untagle selectivity from fishing mortality
-#      for species with no gillnet selectivity profile, set to closest species or family
+#note: For gillnet (dome-shape) sel., fix selectivity parameters in SS3 to untangle selectivity from fishing mortality.
+#      For species with no gillnet sel. profile, set to closest species or family
 Sel.equivalence=data.frame(
   Name=c("great hammerhead","scalloped hammerhead",
          "grey nurse shark",
@@ -2368,7 +2403,7 @@ if(do.steepness)
     theme_PA(axs.T.siz=14,axs.t.siz=12)+
     theme(panel.background = element_blank(),
           axis.line = element_line(colour = "black"),
-          panel.border = element_rect(colour = "black", fill=NA, size=1))+
+          panel.border = element_rect(colour = "black", fill=NA, linewidth=1))+
     ylim(0,1)+
     geom_errorbar(aes(ymin=h-h.sd, ymax=h+h.sd),colour=COL)+
     geom_errorbarh(aes(xmin=r-r.sd, xmax=r+r.sd),colour=COL)
@@ -2648,345 +2683,8 @@ if(First.run=="YES")
 
 #Extract SS parameters 
 #note: do this only once and update 'SS3.selectivity_pars.csv'.
-do.this=FALSE
-if(do.this)
-{
-  fn.source1("SS_selectivity functions.R")
-  sumsq <- function( x, y) {sum((x-y)^2)}
-  
-  #TDGDLF  
-  SS.double.normal.pars_empirical=vector('list',N.sp)
-  names(SS.double.normal.pars_empirical)=Keep.species
-  ObjFunc=function(par)
-  {
-    Predicted=doubleNorm24.fn(TL,par[1],par[2],par[3],par[4],e=-999, f=-999, use_e_999=TRUE, use_f_999=TRUE)  
-    return(sumsq(x=Obs,y=Predicted))
-  }
-  for(l in 1:N.sp)
-  {
-    if(!is.null(Selectivity.at.totalength[[l]]) & any(grepl(paste(c('West','Zone'),collapse='|'),names(Species.data[[l]]))))
-    {
-      SP=Keep.species[l]
-      print(paste('Extractiong SS_double normal sel pars for -----',SP))
-      TLmax=List.sp[[l]]$TLmax
-      if(Keep.species[l]%in%c('milk shark','sawsharks','spurdogs',
-                              'gummy shark','whiskery shark')) TLmax=TLmax*1.5
-      AA=Selectivity.at.totalength[[l]]%>%
-        filter(TL<TLmax)
-      TL=AA$TL-(TL.bins.cm/2)
-      Obs=AA$Sel.combined
-      par=c(90,-4.5,7,9)
-      if(SP=='angel sharks') par=c(65,-4.5,5.5,7)
-      if(SP=='copper shark') par=c(110,-2.5,6,8)
-      if(SP=='dusky shark') par=c(90,-4.5,5.2,5.2)
-      if(SP=='gummy shark') par=c(130,-4.5,6,7)
-      if(grepl("hammerhead",SP)) par=c(100,-4,9,10.2)
-      if(SP=='sawsharks') par=c(100,-4.5,6,7)
-      if(SP=='whiskery shark') par=c(130,-4.5,6,7)
-      
-      Init.val=doubleNorm24.fn(TL,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE)
-      
-      d.list=Species.data[[l]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
-                                    names(Species.data[[l]]))]
-      if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
-      if(any(grepl('Other',names(d.list)))) d.list=d.list[-grep('Other',names(d.list))]
-      if(any(grepl('NSF',names(d.list)))) d.list=d.list[-grep('NSF',names(d.list))]
-      if(any(grepl('Survey',names(d.list)))) d.list=d.list[-grep('Survey',names(d.list))]
-      if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
-      for(x in 1:length(d.list)) d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
-      d.list=do.call(rbind,d.list)
-      d.list=d.list%>%
-        mutate(Region=Fleet,
-               fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
-               Fleet=ifelse(fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
-                            ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
-                                   ifelse(fleet=='NSF.LONGLINE','Northern.shark',
-                                          fleet))),
-               TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)
-      dd=d.list%>%
-        filter(Fleet%in%c('Southern.shark_1','Southern.shark_2'))
-      dd1=dd
+if(Extract.SS.parameters) fn.source1('Re fit SS3 selectivity.R')
 
-      #display size and selectivity
-      fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(List.sp[[l]]$Name),"/",AssessYr,
-                   "/1_Inputs/Visualise data/Estimated SS3 selectivity",sep=''),2000,2000)  
-      plot(TL,Obs,main=SP,pch=19,ylab='Relative selectivity',xlab='TL (cm)')
-      lines(TL,Init.val,col='red',lwd=1)
-      if(SP=='copper shark')dd=dd%>%filter(Region=='Zone2.7')
-      if(SP=='scalloped hammerhead') dd=dd%>%filter(Region%in%c('West.6.5','West.7'))
-      if(nrow(dd)>2)
-      {
-        dd$bin=TL.bins.cm*floor(dd$TL/TL.bins.cm)
-        y=table(dd$bin)
-        y=y/max(y)
-        points(as.numeric(names(y)),y,type='h',col="green")
-        d <- density(dd$TL)
-       #  lines(d$x,d$y/max(d$y),col="forestgreen",lwd=2)
-      }
-      nlmb <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE)
-      if(SP=='gummy shark')nlmb$par[1]=112
-      if(SP=='spurdogs')nlmb$par[1]=56
-      TL1=TL
-      Predicted=with(nlmb,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
-      lines(TL1,Predicted,col='black',lwd=3)
-      Obs=d$y/max(d$y)
-      TL=d$x
-      if(SP=='great hammerhead') par=c(300,-1,10,10)
-      
-      #rescale peak
-      nlmb_fitted_to_obs <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE) 
-      if(SP=='great hammerhead')nlmb_fitted_to_obs$par[3:4]=9 
-      if(SP=='milk shark')nlmb_fitted_to_obs$par[2:4]=c(-9,4.5,4.5) 
-      Predicted_fitted_to_obs=with(nlmb_fitted_to_obs,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
-      lines(TL1,Predicted_fitted_to_obs,col='forestgreen',lwd=3)
-      legend('topright',c('empirical sel','init values','predicted SS3',
-                          'predicted SS3_rescaled','observed lengths'),
-             pch=c(19,NA,NA,NA,NA),lty=c(NA,1,1,1,1),lwd=3,
-             col=c('black','red','black','forestgreen',"green"),bty='n')
-      dev.off()
-      
-      #display size comp by region
-      pp=dd1%>%
-        mutate(bin=TL.bins.cm*floor(TL/TL.bins.cm),
-               Mesh=sub("^[^.]+.","",Region),
-               Region=sub("\\..*", "", Region))%>%
-        group_by(Region,bin,Mesh)%>%
-        tally()%>%
-        ggplot(aes(bin,n,color=Region))+
-        geom_line()+
-        facet_wrap(~Mesh,ncol=1)+xlab('TL (cm)')
-      print(pp)  
-      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(List.sp[[l]]$Name),"/",AssessYr,
-                   "/1_Inputs/Visualise data/Estimated SS3 selectivity_length comps region.tiff",sep=''),
-             width = 8,height = 8, dpi = 300, compression = "lzw")
-      dev.off()
-      
-      
-      #store SS3 sel pars for use in assessment
-      usedis=nlmb
-      SS3.par.calculation='SS3 pars fitted to empirical selectivity'
-      rescaled.species=c('great hammerhead','scalloped hammerhead','copper shark',
-                         'grey nurse shark','milk shark','shortfin mako','sawsharks',
-                         'spinner shark','tiger shark','wobbegongs')
-      if(SP%in%rescaled.species)
-      {
-        usedis=nlmb_fitted_to_obs
-        SS3.par.calculation='SS3 pars fitted to empirical selectivity rescaled to length comp'
-      }
-      SS.double.normal.pars_empirical[[l]]=with(usedis,data.frame(Species=SP,
-                                                                  p1=par[1],
-                                                                  p2=par[2],
-                                                                  p3=par[3],
-                                                                  p4=par[4],
-                                                                  p5=-999,
-                                                                  p6=-999,
-                                                                  Source=unique(AA$type),
-                                                                  SS3.par.calculation=SS3.par.calculation))
-      rm(AA,nlmb,nlmb_fitted_to_obs,dd,dd1,usedis)
-    }
-  }
-  write.csv(do.call(rbind,SS.double.normal.pars_empirical),
-            handl_OneDrive("Analyses/Population dynamics/SS3.selectivity_pars_empirical.csv"),
-            row.names = F)
-  
-  #NSF
-  SS.logistic.pars_empirical=vector('list',N.sp)  
-  names(SS.logistic.pars_empirical)=Keep.species
-  ObjFunc=function(par)
-  {
-    Predicted=logistic1.fn(midpt, par[1],par[2])
-    return(sumsq(x=Obs,y=Predicted))
-  }
-  for(l in 1:N.sp)
-  {
-    if(!is.null(Selectivity.at.totalength[[l]]))
-    {
-      print(paste('Extractiong SS_logistic sel pars for -----',Keep.species[l]))
-      attach(List.sp[[l]])
-      if(MN.SZE=="size.at.birth") Min.size.bin=10*round((Lzero*a_FL.to.TL+b_FL.to.TL)/10)
-      if(MN.SZE==0) Min.size.bin=0
-      MaxLen= 10*round(TLmax*Plus.gp.size/10)
-      lbnd = seq(Min.size.bin,MaxLen - TL.bins.cm, TL.bins.cm)
-      ubnd = lbnd + TL.bins.cm
-      midpt = lbnd + (TL.bins.cm/2)
-      Obs=round(1/(1+(exp(-log(19)*((midpt-TL.50.mat)/(TL.95.mat-TL.50.mat))))),3)
-      par2=20
-      par=c(TL.50.mat,par2)
-      detach(List.sp[[l]])
-      
-      nlmb <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE)
-      Predicted=logistic1.fn(midpt,nlmb$par[1],nlmb$par[2])
-      Init.val=logistic1.fn(midpt,par[1],par[2])
-      
-      fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(List.sp[[l]]$Name),"/",AssessYr,
-                   "/1_Inputs/Visualise data/Estimated SS3 selectivity_NSF",sep=''),2000,2000)  
-      plot(midpt,Obs,main=Keep.species[l],pch=19,ylab='Relative selectivity',xlab='TL (cm)')
-      lines(midpt,Init.val,col='grey90',lwd=1)
-      lines(midpt,Predicted,col='red',lwd=2)
-      legend('topright',c('observed','init values','predicted'),pch=c(19,NA,NA),lty=c(NA,1,1),lwd=3,
-             col=c('black','grey90','red'),bty='n')
-      dev.off()
-      
-      SS.logistic.pars_empirical[[l]]=data.frame(Species=Keep.species[l],
-                                                      p1=nlmb$par[1],
-                                                      p2=nlmb$par[2],
-                                                      Source='Set at maturity ogive')
-      rm(nlmb)
-    }
-  }
-  write.csv(do.call(rbind,SS.logistic.pars_empirical),
-            handl_OneDrive("Analyses/Population dynamics/SS3.selectivity_pars_empirical_NSF.csv"),
-            row.names = F)
-  
-  #Other   
-  SS.double.normal.pars_empirical_Other=vector('list',N.sp)
-  names(SS.double.normal.pars_empirical_Other)=Keep.species
-  ObjFunc=function(par)
-  {
-    Predicted=doubleNorm24.fn(TL,par[1],par[2],par[3],par[4],e=-999, f=-999, use_e_999=TRUE, use_f_999=TRUE)  
-    return(sumsq(x=Obs,y=Predicted))
-  }
-  for(l in 1:N.sp)
-  {
-    if(!is.null(Selectivity.at.totalength[[l]]) & any(grepl(paste(c('Other'),collapse='|'),names(Species.data[[l]]))))
-    {
-      SP=Keep.species[l]
-      print(paste('Extractiong SS_double normal sel pars Other for -----',SP))
-      TLmax=List.sp[[l]]$TLmax
-      if(Keep.species[l]%in%c('milk shark','sawsharks','spurdogs',
-                              'gummy shark','whiskery shark')) TLmax=TLmax*1.5
-      AA=Selectivity.at.totalength[[l]]%>%
-        filter(TL<TLmax)
-      TL=AA$TL-(TL.bins.cm/2)
-      Obs=AA$Sel.combined
-      par=c(90,-4.5,7,9)
-      if(SP=='angel sharks') par=c(65,-4.5,5.5,7)
-      if(SP=='copper shark') par=c(110,-2.5,6,8)
-      
-      
-      fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(List.sp[[l]]$Name),"/",AssessYr,
-                   "/1_Inputs/Visualise data/Estimated SS3 selectivity_Other",sep=''),2000,2000)  
-      
-      Init.val=doubleNorm24.fn(TL,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE)
-      
-      plot(TL,Obs,main=SP,pch=19,ylab='Relative selectivity',xlab='TL (cm)')
-      lines(TL,Init.val,col='red',lwd=1)
-      
-      #size comp
-      d.list=Species.data[[l]][grep("Size_composition_Other",names(Species.data[[l]]))]
-      if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
-      for(x in 1:length(d.list)) d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
-      d.list=do.call(rbind,d.list)
-      dd=d.list%>%mutate(fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
-                         Fleet=ifelse(fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
-                                      ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
-                                             ifelse(fleet=='NSF.LONGLINE','Northern.shark',
-                                                    fleet))),
-                         TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)
-      
-      if(nrow(dd)>2)
-      {
-        dd$bin=TL.bins.cm*floor(dd$TL/TL.bins.cm)
-        y=table(dd$bin)
-        y=y/max(y)
-        points(as.numeric(names(y)),y,type='h',col="green")
-        d <- density(dd$TL)
-        #  lines(d$x,d$y/max(d$y),col="forestgreen",lwd=2)
-      }
-      
-      nlmb <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE)
-      TL1=TL
-      Predicted=with(nlmb,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
-      lines(TL1,Predicted,col='black',lwd=3)
-      
-      Obs=d$y/max(d$y)
-      TL=d$x
-      nlmb_fitted_to_obs <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE) #rescale peak
-      if(SP=='copper shark') nlmb_fitted_to_obs$par[c(2,4)]=c(-25,8.5)
-      Predicted_fitted_to_obs=with(nlmb_fitted_to_obs,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
-      lines(TL1,Predicted_fitted_to_obs,col='forestgreen',lwd=3)
-      
-      
-      legend('topright',c('empirical sel','init values','predicted SS3',
-                          'predicted SS3_rescaled','length comps'),
-             pch=c(19,NA,NA,NA,NA),lty=c(NA,1,1,1,1),lwd=3,
-             col=c('black','red','black','forestgreen',"green"),bty='n')
-      dev.off()
-      
-      usedis=nlmb
-      SS3.par.calculation='SS3 pars fitted to empirical selectivity'
-      if(grepl(paste(c('copper','angel'),collapse='|'),SP))
-      {
-        usedis=nlmb_fitted_to_obs
-        SS3.par.calculation='SS3 pars fitted to empirical selectivity rescaled to length comp'
-      }
-
-      SS.double.normal.pars_empirical_Other[[l]]=with(usedis,data.frame(Species=SP,
-                                                                        p1=par[1],
-                                                                        p2=par[2],
-                                                                        p3=par[3],
-                                                                        p4=par[4],
-                                                                        p5=-999,
-                                                                        p6=-999,
-                                                                        Source=unique(AA$type),
-                                                                        SS3.par.calculation=SS3.par.calculation))
-      rm(AA,nlmb,nlmb_fitted_to_obs)
-    }
-    if(Keep.species[l]=='sawsharks')
-    {
-      SP=Keep.species[l]
-      print(paste('Extractiong SS_double normal sel pars Other for -----',SP))
-      
-       fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(List.sp[[l]]$Name),"/",AssessYr,
-                   "/1_Inputs/Visualise data/Estimated SS3 selectivity_Other",sep=''),2000,2000)  
-      
-      dummi=data.frame(TL=sort(runif(1e3,103*.6,129*1.4)),
-                       Obs=rep(1,1e3))%>%
-        mutate(Obs=case_when(TL >= 103*.9 & TL < 103~ .9,
-                             TL >= 103*.8 & TL < 103*.9~ .75,
-                             TL >= 103*.7 & TL < 103*.8~ .5,
-                             TL < 103*.7 ~ .01,
-                             TL > 129*1.3 ~ .01,
-                             TL >= 129*1.2 & TL <= 129*1.3~ .5,
-                             TL >= 129*1.1 & TL < 129*1.2 ~ .75,
-                             TL >= 129 & TL < 129*1.1~ .9,
-                             TRUE~Obs))
-        
-      TL=dummi$TL
-      Obs=dummi$Obs
-      par=c(115,-2,8,8)
-      Init.val=doubleNorm24.fn(TL,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE)
-      
-      plot(TL,Obs,main=SP,pch=19,ylab='Relative selectivity',xlab='TL (cm)')
-      lines(TL,Init.val,col='red',lwd=1)
-      nlmb <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE)
-      TL1=TL
-      Predicted=with(nlmb,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
-      lines(TL1,Predicted,col='black',lwd=3)
-      dev.off()
-      
-      SS.double.normal.pars_empirical_Other[[l]]=with(nlmb,data.frame(Species=SP,
-                                                                        p1=par[1],
-                                                                        p2=par[2],
-                                                                        p3=par[3],
-                                                                        p4=par[4],
-                                                                        p5=-999,
-                                                                        p6=-999,
-                                                                        Source="Koopman",
-                                                                      SS3.par.calculation='SS3 pars fitted to size range'))
-      
-    }
-  }
-  write.csv(do.call(rbind,SS.double.normal.pars_empirical_Other),
-            handl_OneDrive("Analyses/Population dynamics/SS3.selectivity_pars_empirical_Other.csv"),
-            row.names = F)
-
-}
 
 # Compare observed size comp and assumed SS selectivity 
 if(First.run=="YES")
@@ -3379,6 +3077,14 @@ for(i in 1:N.sp)
   {
     d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
                                   names(Species.data[[i]]))]
+    if(names(Species.data)[i]%in%names(Indicator.species))
+    {
+      Min.size=Min.annual.obs.ktch
+    }else
+    {
+      Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+    }
+    
     if(length(d.list)>0)
     {
       if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
@@ -3423,7 +3129,7 @@ for(i in 1:N.sp)
       }
       Table.n=d.list%>%group_by(year,fishry,sex)%>%
         summarise(N=sum(n))%>%
-        mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.annual.obs.ktch,10))%>%
+        mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,10))%>%
         filter(N>=Min.accepted.N)%>%
         mutate(dummy=paste(year,fishry,sex))
       
@@ -3700,6 +3406,157 @@ if(First.run=='YES')
          width = 10,height = 8,compression = "lzw")
 }
 
+#Display available length composition and selectivity for main fleet
+do.dis=FALSE
+if(do.dis)
+{
+  Klfunc <- colorRampPalette(c("yellow", "red"))
+  pdf(handl_OneDrive("Analyses/Population dynamics/Length.comps_main_fleet.pdf"))
+  for(l in 1:N.sp)
+  {
+    this.fleet=Katch%>%filter(Name==Keep.species[l])
+    this.size.comp=this.fleet%>%pull(this.size.comp)
+    this.fleet=this.fleet%>%pull(FishCubeCode)
+    iid=Species.data[[l]][fn.extract.dat(this.size.comp,names(Species.data[[l]]))]
+    iid=iid[fn.extract.dat('Size_composition',names(iid))]
+    if(any(grepl('Observations',names(iid)))) iid=iid[-grep('Observations',names(iid))]
+    if(any(grepl('Table',names(iid)))) iid=iid[-grep('Table',names(iid))]
+    if(length(iid)>0)
+    {
+      for(x in 1:length(iid))
+      {
+        dd=str_before_first(str_after_nth(names(iid)[x],"_",2), coll(".inch"))
+        iid[[x]]=iid[[x]]%>%
+          mutate(Zone=str_before_first(dd, coll(".")),  
+                 Mesh=str_after_first(dd, coll(".")))
+      }
+      dummy=do.call(rbind,iid)%>%
+        filter(year<=as.numeric(substr(Last.yr.ktch,1,4)))
+      dummy=dummy%>%
+        mutate(TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)
+      if(this.size.comp%in%c("West","Zone") & unique(Selectivity.at.totalength[[l]]$type)=='Species')
+      {
+        SS.flit='Southern.shark_1'
+        MaxLen = 10*round(List.sp[[l]]$TLmax/10)
+        min.TL=with(List.sp[[l]],Lzero*a_FL.to.TL+b_FL.to.TL)
+        lbnd = seq(0,MaxLen - LenInc, LenInc)
+        ubnd = lbnd + LenInc
+        midpt = lbnd + (LenInc/2)
+        SelectivityVec_full=with(List.sp[[l]]$SS_selectivity%>%filter(Fleet==SS.flit),doubleNorm24.fn(midpt,a=P_1,
+                                                                                                      b=P_2, c=P_3, d=P_4, e=P_5, f=P_6,use_e_999=FALSE, use_f_999=FALSE))
+      }else
+      {
+        SelectivityVec_full=NA
+      }
+      if(any(is.na(dummy$Zone)))
+      {
+        N.min=dummy%>%
+          group_by(FINYEAR)%>%
+          tally()
+        p1=dummy%>%
+          mutate(bin=LenInc*floor(TL/LenInc)+LenInc/2)%>%
+          group_by(FINYEAR,bin)%>%
+          tally()%>%
+          group_by(FINYEAR)%>%
+          mutate(n1=n/max(n, na.rm=TRUE))%>%
+          left_join(N.min%>%rename(N=n)%>%dplyr::select(FINYEAR,N),by='FINYEAR')%>%
+          mutate(FINYEAR=paste0(FINYEAR," (n=",N,")"))%>%
+          ggplot(aes(bin,n1))+
+          geom_bar(stat="identity")+
+          facet_wrap(~FINYEAR,scales='free_y')+
+          ggtitle(paste(this.fleet,Keep.species[l],sep=' --- '))+
+          xlab("Total length (cm)")+ylab("")
+        Strip.Size=12
+      }
+      if(!any(is.na(dummy$Zone)))
+      {
+        Min.N=Min.annual.obs.ktch*prop.min.N.accepted_other
+        if(Keep.species[l]%in%names(Indicator.species)) Min.N=Min.annual.obs.ktch*.5
+        
+        N.min=dummy%>% 
+          group_by(FINYEAR,Zone,Mesh)%>%
+          tally()
+        p1=dummy%>%
+          mutate(bin=LenInc*floor(TL/LenInc)+LenInc/2)%>%
+          group_by(FINYEAR,Zone,Mesh,bin)%>%
+          tally()%>%
+          group_by(FINYEAR,Zone,Mesh)%>%
+          mutate(n1=n/max(n, na.rm=TRUE))%>%
+          left_join(N.min%>%rename(N=n)%>%dplyr::select(FINYEAR,Zone,Mesh,N),by=c('FINYEAR','Zone','Mesh'))%>%
+          mutate(FINYEAR=paste0(FINYEAR," (n=",N,")"),
+                 Mesh.zone=paste0(Zone,"_",Mesh))%>%
+          filter(N>=Min.N)
+        N.cols=length(unique(p1$FINYEAR))
+        if(nrow(p1)>0)
+        {
+          p1=p1%>%
+            ggplot(aes(bin,n1,color=FINYEAR))+
+            geom_line(linewidth=1.05)+
+            facet_wrap(~Mesh.zone,scales='free_y')+
+            scale_color_manual(values=Klfunc(N.cols))
+          if(any(!is.na(SelectivityVec_full)))
+          {
+            p1=p1+
+              geom_point(data=data.frame(midpt=midpt,SelectivityVec=SelectivityVec_full),
+                         aes(midpt,SelectivityVec),color='blue')
+            
+          }
+          
+          p1=p1+
+            ggtitle(paste(this.fleet,Keep.species[l],sep=' --- '))+
+            xlab("Total length (cm)")+ylab("")+
+            theme(legend.position="bottom",
+                  legend.title = element_blank(),
+                  legend.text=element_text(size=8),
+                  strip.text.x = element_text(size = Strip.Size),
+                  axis.text=element_text(size=10),
+                  axis.title=element_text(size=12))
+          
+        }else
+        {
+          p1=ggplot() + theme_void()+ ggtitle(paste(this.fleet,'--',Keep.species[l],' (length comp sample size <',Min.annual.obs.ktch,')',sep=' '))
+        }
+
+        Strip.Size=12
+        
+
+        dd=dummy%>%
+          mutate(bin=LenInc*floor(TL/LenInc)+LenInc/2)%>%
+          group_by(FINYEAR,Zone,Mesh,bin)%>%
+          tally()%>%
+          group_by(FINYEAR,Zone,Mesh)%>%
+          mutate(n1=n/max(n, na.rm=TRUE))%>%
+          left_join(N.min%>%rename(N=n)%>%dplyr::select(FINYEAR,Zone,Mesh,N),by=c('FINYEAR','Zone','Mesh'))%>%
+          mutate(Yr.Mesh.zone=paste0(FINYEAR,Zone,Mesh),
+                 Mesh.zone=paste0(Zone,"_",Mesh))%>%
+          filter(N>=Min.N)
+        
+        p2=dummy%>%
+          mutate(Yr.Mesh.zone=paste0(FINYEAR,Zone,Mesh),
+                 yr.zone=paste(FINYEAR,Zone))%>%
+          filter(Yr.Mesh.zone%in%unique(dd$Yr.Mesh.zone))%>%
+          ggplot() +
+          geom_density_ridges(aes(x = TL, y = yr.zone,fill = Mesh),scale = 1.5,jittered_points = TRUE,
+                              position = position_points_jitter(width = 0.05, height = 0),
+                              point_shape = '|', point_size = 3, point_alpha = 1,alpha = 0.7, rel_min_height = 0.01) +
+          theme(legend.position = "top")
+      }
+     }
+    if(length(iid)==0 | this.size.comp=="no length comp data") 
+    {
+      p1=ggplot() + theme_void()+ ggtitle(paste(this.fleet,Keep.species[l],sep=' --- ')) 
+    }
+    print(p1)
+    rm(p1)
+    if(exists('p2'))
+    {
+      print(p2)
+      rm(p2)
+    }
+  }
+  dev.off()
+}
+
 #---18. Catch-only assessments --------------------------------------
 #Decide if using Catch-only methods for species with only catch and life history data OR all species
 if(Assessed.ktch.only.species=='All')
@@ -3884,13 +3741,13 @@ clear.log('Logbook.sp')
 
 
 #---22. Catch curve with dome-shaped selectivity --------------------------------------
-#note: identify relevant fishery per species and a good sampling period (i.e. fishery with highest catch and length
+#note: for each species, identify main fishery and a good sampling period (i.e. fishery with highest catch and length
 #       composition from exploited period to be able to determine F) and combine 2/3 years.
-if(do.Size.based.Catch.curve) fn.source1("Length.catch.curve.r") 
+if(do.Size.based.Catch.curve) fn.source1("Apply_Length.catch.curve.r") 
 
 #---23. Dynamic catch and size composition with dome-shaped selectivity --------------------------------------
 #note: not used due to Cpp implementation issues
-if(do.Dynamic.catch.size.comp) fn.source1("Dynamic.catch.size.comp.r") 
+if(do.Dynamic.catch.size.comp) fn.source1("Apply_Dynamic.catch.size.comp.r") 
 clear.log('ObjFunc')
 
 #---24. JABBA Surplus production model -------------------------------------------------
@@ -3954,7 +3811,6 @@ clear.log('State.Space.SPM')
 
 #---25. Integrated Stock Synthesis (Age-based) Model-------------------------------------------------
   #Run Stock Synthesis
-create.SS.inputs=TRUE #set to FALSE once happy with input files
 if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours
 
   #Get Consequence and likelihoods 

@@ -3885,7 +3885,6 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
   }
   
 }
-
 add.probs.integrated.asympt.error=function(DAT,B.threshold) #Reference points probability based on asymptotic error 
 {
   B.target=Tar.prop.bmsny*B.threshold
@@ -4000,7 +3999,6 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen)
   }
   
 }
-
 fn.display.priors=function(d,sp,XLAB,XLIM,Strx.siz=16)
 {
   dummy=lapply(d[sp],function(x) rnorm(1e4,x$mean,x$sd))
@@ -4131,8 +4129,6 @@ fn.display.steepness.sensitivity=function(d,d1,d2,sp,XLAB,Strx.siz=16,Scen1,Scen
   print(p)
   return(ddd%>%group_by(Species,Scenario)%>%summarise(Mean=mean(var))%>%spread(Scenario,Mean))
 }
-
-
 fn.compare.dist=function(MEAN,CV,XLIM)
 {
   Beta.pars=get_beta(MEAN,CV)
@@ -4162,9 +4158,9 @@ make_plot <- function(da,nfacets,AXST,AXSt,STRs,InrMarg,dropTitl,addKtch,YLAB=''
   if(any(!is.na(da$upper.50))) p=p+geom_ribbon(aes(ymin = lower.50, ymax = upper.50), alpha = 0.1)
   if(!is.null(HLine))
   {
-    if('Target'%in%names(da)) p=p+geom_hline(data=da,aes(yintercept=unique(Target)),color='forestgreen', size=1.05)
-    p=p+geom_hline(data=da,aes(yintercept=unique(Threshold)),color='orange', size=1.05)
-    if('Limit'%in%names(da)) p=p+geom_hline(data=da,aes(yintercept=unique(Limit)),color='red', size=1.05)
+    if('Target'%in%names(da)) p=p+geom_hline(data=da,aes(yintercept=unique(Target)),color=col.Target, size=1.05)
+    p=p+geom_hline(data=da,aes(yintercept=unique(Threshold)),color=col.Threshold, size=1.05)
+    if('Limit'%in%names(da)) p=p+geom_hline(data=da,aes(yintercept=unique(Limit)),color=col.Limit, size=1.05)
   }
   if(!addKtch) p=p+scale_y_continuous(limits = c(0, NA))
   if(addKtch)
@@ -4613,9 +4609,9 @@ fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,
       theme(legend.position = 'top',
             legend.title = element_blank())+
       ylab('')+xlab('')+
-      geom_hline(aes(yintercept=Limit), size=1.05,alpha=0.35,color='red')+
-      geom_hline(aes(yintercept=Threshold), size=1.05,alpha=0.35,color='orange')+
-      geom_hline(aes(yintercept=Target), size=1.05,alpha=0.35,color='forestgreen')
+      geom_hline(aes(yintercept=Limit), size=1.05,alpha=0.35,color=col.Limit)+
+      geom_hline(aes(yintercept=Threshold), size=1.05,alpha=0.35,color=col.Threshold)+
+      geom_hline(aes(yintercept=Target), size=1.05,alpha=0.35,color=col.Target)
     figure=annotate_figure(figure,
                            bottom = text_grob('Financial year',size=26,vjust =-0.15),
                            left = text_grob("Relative biomass",size=26,rot = 90,vjust=0.8)) +
@@ -5434,7 +5430,7 @@ fn.get.f.ref.points=function(Report,propTar=Tar.prop.bmsny,propLim=Lim.prop.bmsy
   dd=Equil.yield[c(id.target,id.threshold,id.limit),]%>%
     mutate(Labl=paste0(c('F[Tar]','F[Thr]','F[Lim]'),paste0(' (',round(F_report,3),')')))
   
-  Kls=c('forestgreen','orange','red')
+  Kls=c(col.Target,col.Threshold,col.Limit)
   names(Kls)=dd$Labl
   
   Equil.yield%>%
