@@ -372,7 +372,7 @@ combine_NSF_Survey=NULL   #combine length composition data to estimate logistic 
 # combine_NSF_Survey=c("dusky shark","great hammerhead","lemon shark","milk shark",
 #                      "pigeye shark","sandbar shark","scalloped hammerhead","tiger shark")
 combine.sexes=c("angel sharks","dusky shark","lemon shark","milk shark",
-                "scalloped hammerhead","tiger shark")  #dusky only sex combined for survey
+                "scalloped hammerhead","tiger shark","smooth hammerhead")  #dusky only sex combined for survey, smooth HH only for Daily TDGDLF
 use.Gab.trawl=TRUE   #1 year of data
 add.gummy.gab=FALSE
 

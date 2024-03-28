@@ -1164,34 +1164,41 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       names(this.par)=life.history$SS_selectivity$Fleet
       names(this.par)=str_remove_all(names(this.par), '_')
       this.par=subset(this.par,!is.na(this.par))
-
-      ctl$size_selex_parms[iid,"INIT"]=this.par[match(gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms[iid,]), paste(c("SizeSel_", pis[px], '_'), collapse = "|"))),names(this.par))]
-      
-      multiplr=rep(0.1,length(this.par))
-      multiplr=ifelse(this.par<0,2,multiplr)
-      low.bound=multiplr*ctl$size_selex_parms[iid,"INIT"]
-      if(pis[px]=="P_1")
+      if(length(this.par)>0)
       {
-        bump=1.1 #1.25
-        low.bound=sapply(low.bound, function(x) max(dat$minimum_size*bump,x))
-        if(!is.null(size.comp))
+        ctl$size_selex_parms[iid,"INIT"]=this.par[match(gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms[iid,]), paste(c("SizeSel_", pis[px], '_'), collapse = "|"))),names(this.par))]
+        
+        multiplr=rep(0.1,length(this.par))
+        multiplr=ifelse(this.par<0,2,multiplr)
+        low.bound=multiplr*ctl$size_selex_parms[iid,"INIT"]
+        if(pis[px]=="P_1")
         {
-          low.bound=sapply(low.bound, function(x) max(min(dat$lbin_vector),x))
-          if(life.history$Name=="tiger shark") low.bound=min(dat$lbin_vector) 
+          bump=1.1 #1.25
+          low.bound=sapply(low.bound, function(x) max(dat$minimum_size*bump,x))
+          if(!is.null(size.comp))
+          {
+            low.bound=sapply(low.bound, function(x) max(min(dat$lbin_vector),x))
+            if(life.history$Name=="tiger shark") low.bound=min(dat$lbin_vector) 
+          }
+          
+        }
+        ctl$size_selex_parms[iid,"LO"]=low.bound
+        
+        multiplr=rep(2,length(this.par))
+        multiplr=ifelse(this.par<0,-2,multiplr)
+        up.bound=multiplr*ctl$size_selex_parms[iid,"INIT"]
+        if(pis[px]=="P_1")
+        {
+          up.bound=sapply(up.bound, function(x) min(dat$maximum_size*.975,x))
         }
         
-      }
-      ctl$size_selex_parms[iid,"LO"]=low.bound
-      
-      multiplr=rep(2,length(this.par))
-      multiplr=ifelse(this.par<0,-2,multiplr)
-      up.bound=multiplr*ctl$size_selex_parms[iid,"INIT"]
-      if(pis[px]=="P_1")
+        ctl$size_selex_parms[iid,"HI"]=up.bound
+      }else
       {
-        up.bound=sapply(up.bound, function(x) min(dat$maximum_size*.975,x))
+        ctl$size_selex_parms[iid,]=NA
       }
-      
-      ctl$size_selex_parms[iid,"HI"]=up.bound
+
+     
     }
     ctl$size_selex_parms=ctl$size_selex_parms%>%filter(!is.na(INIT))
     

@@ -666,7 +666,7 @@ for(l in 1:N.sp)
   {
     SS.lambdas=data.frame(like_comp=1,
                           fleet='Survey',
-                          value=5)
+                          value=2)
   }
   List.sp[[l]]$SS_lambdas=SS.lambdas
   

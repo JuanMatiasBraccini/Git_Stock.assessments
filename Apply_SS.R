@@ -127,6 +127,10 @@ for(w in 1:n.SS)
                 if(Neim%in%'dusky shark')
                 {
                   d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
+                }
+                if(Neim%in%'smooth hammerhead')
+                {
+                  d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF",0,sex))
                 }else
                 {
                   d.list$sex=0 
@@ -1052,6 +1056,10 @@ for(w in 1:n.SS)
                 if(Neim%in%'dusky shark')
                 {
                   d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
+                }
+                if(Neim%in%'smooth hammerhead')
+                {
+                  d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF",0,sex))
                 }else
                 {
                   d.list$sex=0 
