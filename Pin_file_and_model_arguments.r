@@ -390,11 +390,18 @@ for(l in 1:N.sp)
   List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,
                                   List.sp[[l]]$Sens.test$SS[1,]%>%
                                     mutate(M.at.age="constant",Scenario=paste0('S',N.rowSS+1)))
+    #Use length composition in likelihood?
+  List.sp[[l]]$drop.length.comp=FALSE
+  if(NeiM%in%drop.len.comp.like) List.sp[[l]]$drop.length.comp=TRUE
   
     #Cpues
   N.rowSS=nrow(List.sp[[l]]$Sens.test$SS)
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,N.rowSS)
   if(evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=c(rep(drop.daily.cpue,N.rowSS-1),NA)
+  
+    #Use cpue in likelihood?
+  List.sp[[l]]$drop.cpue=FALSE
+  if(NeiM%in%c("spinner shark"))  List.sp[[l]]$drop.cpue=TRUE
   
     #Always calculate extra SD for Q or only when CV is small
   List.sp[[l]]$Sens.test$SS$extra.SD.Q='NO' #set to 'YES' if not calculating Francis CVs otherwise if using both it blows it
@@ -474,9 +481,11 @@ for(l in 1:N.sp)
     p5.sel_TDGDLF=SS.sel.init.pars$TDGDLF_p5
     p6.sel_TDGDLF=SS.sel.init.pars$TDGDLF_p6
 
+    p1.sel_TDGDLF2=p1.sel_TDGDLF
+    if(NeiM=="spinner shark") p1.sel_TDGDLF2=110
     
     List.sp[[l]]$SS_selectivity=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
-                                           P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
+                                           P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF2,p1.sel_Survey),
                                            P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
                                            P_3=c(p3.sel_NSF,p3.sel_Other,p3.sel_TDGDLF,p3.sel_TDGDLF,p3.sel_Survey),
                                            P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
@@ -552,6 +561,29 @@ for(l in 1:N.sp)
       
     }
     
+    #Male offsets
+    if(any(!is.na(SS.sel.init.pars[,grepl('Offset_',names(SS.sel.init.pars))])))
+    {
+      xx=SS.sel.init.pars[,grepl('Offset_',names(SS.sel.init.pars))]
+      if(!is.na(xx$Offset_p1))
+      {
+        List.sp[[l]]$SS_offset_selectivity=expand.grid(Fleet=str_split_1(xx$Offset_fleet, ','),
+                                                      P_1=xx$Offset_p1,
+                                                      P_3=xx$Offset_p3,
+                                                      P_4=xx$Offset_p4,
+                                                      Final=xx$Offset_Final,
+                                                      Scale=xx$Offset_Scale)
+        
+        List.sp[[l]]$SS_offset_selectivity_phase=expand.grid(Fleet=str_split_1(xx$Offset_fleet, ','),
+                                                             P_1=xx$Phase_Offset_p1,
+                                                             P_3=xx$Phase_Offset_p3,
+                                                             P_4=xx$Phase_Offset_p4,
+                                                             Final=xx$Phase_Offset_Final,
+                                                             Scale=xx$Phase_Offset_Scale)
+      }
+    }
+    
+
     #phases
       #NSF, Survey and Others
     p1.sel=SS.sel.init.pars$Phase_NSF_p1       
@@ -603,9 +635,18 @@ for(l in 1:N.sp)
     p5.sel_TDGDLF=SS.sel.init.pars$Phase_TDGDLF_p5
     p6.sel_TDGDLF=SS.sel.init.pars$Phase_TDGDLF_p6
     
+    p1.sel_TDGDLF2=p1.sel_TDGDLF
+    p2.sel_TDGDLF2=p2.sel_TDGDLF
+    if(NeiM=="spinner shark")
+    {
+      p1.sel_TDGDLF2=2
+      p2.sel_TDGDLF2=3
+    }
+      
+    
     List.sp[[l]]$SS_selectivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
-                                                 P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF,p1.sel_Survey),
-                                                 P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
+                                                 P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF2,p1.sel_Survey),
+                                                 P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF2,p2.sel_Survey),
                                                  P_3=c(p3.sel_NSF,p3.sel_Other,p3.sel_TDGDLF,p3.sel_TDGDLF,p3.sel_Survey),
                                                  P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
                                                  P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
@@ -652,6 +693,11 @@ for(l in 1:N.sp)
       }
     }
     
+    #turn on Southern2 if meanbodywt
+    List.sp[[l]]$fit.Southern.shark_2.to.meanbodywt=FALSE
+    if(NeiM=="spinner shark") List.sp[[l]]$fit.Southern.shark_2.to.meanbodywt=TRUE
+    
+    
     #4.1.3.2 AgeSelex 
     List.sp[[l]]$age_selex_pattern=0  #0,Selectivity = 1.0 for ages 0+; 10, Selectivity = 1.0 for all ages beginning at age 1
     if(NeiM=="spinner shark") List.sp[[l]]$age_selex_pattern=10  #to allow convergence
@@ -662,7 +708,7 @@ for(l in 1:N.sp)
   # 10=recrdev; 11=parm_prior; 12=parm_dev; 13=CrashPen; 14=Morphcomp; 15=Tag-comp; 16=Tag-negbin; 17=F_ballpark; 18=initEQregime
   
   SS.lambdas=NULL
-  if(NeiM%in%c("dusky shark","sandbar shark"))
+  if(NeiM%in%survey.like.weight)
   {
     SS.lambdas=data.frame(like_comp=1,
                           fleet='Survey',
@@ -670,6 +716,7 @@ for(l in 1:N.sp)
   }
   List.sp[[l]]$SS_lambdas=SS.lambdas
   
+
   #4.1.5 Recruitment pars
   #note: Rec Devs needed for model convergence for smooth hh, spinners; and for other species needed for improved cpue fit
   if(is.na(ramp.yrs$RecDev_Phase)) List.sp[[l]]$RecDev_Phase=-3 

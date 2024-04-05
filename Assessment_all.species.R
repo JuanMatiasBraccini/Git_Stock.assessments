@@ -205,9 +205,8 @@ drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not
 #define species for which cpue is not considered to be indexing abundance
 survey_not.representative=c("scalloped hammerhead","great hammerhead",
                             "lemon shark","pigeye shark") #few individuals caught (<5 per trip) and huge CVs 
-NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue not used to convergence issues
-                          "lemon shark","pigeye shark","tiger shark",
-                         "dusky shark" ,"sandbar shark")
+NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue not used as unlikely to be representative
+                          "lemon shark","pigeye shark","tiger shark")
 tdgdlf_not.representative="smooth hammerhead"       #catch rates are for 'hammerheads'
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not distribution core
 drop.daily.cpue='2007&2008'  #drop 2007 & 2008 from TDGDLF daily cpue (consistently higher cpues across all species due to likely effort reporting bias)
@@ -294,9 +293,9 @@ col.Limit='red'
 
 #18. Catch-only Models
 do.ensemble.simulations=FALSE
+catch.only=c('DBSRA','CMSY','SSS')      # define model types used
 do.OCOM=FALSE
 do.Catch.JABBA=FALSE   #redundant, same results as CMSY
-catch.only=c('DBSRA','CMSY','SSS')
 if(do.OCOM) catch.only=c(catch.only,'OCOM')
 if(do.Catch.JABBA) catch.only=c(catch.only,'JABBA')
 CMSY.method="Haddon"    # Select which CMSY method to use. Haddon's datalowSA
@@ -335,9 +334,9 @@ Other.to.TDGDLF=c('sawsharks')
 
 
 #20. State space Surplus Production Models
-state.space.SPM='JABBA'
-do.parallel.JABBA=TRUE #do JABBA in parallel or not (set to FALSE)
-use.auxiliary.effort=FALSE  #using effort as auxiliary data yielded very high RMSE and poor fits to effort
+state.space.SPM='JABBA'     # define model types used
+do.parallel.JABBA=TRUE      # do JABBA in parallel or not (set to FALSE)
+use.auxiliary.effort=FALSE  # using effort as auxiliary data yielded very high RMSE and poor fits to effort
 Rdist = "lnorm"
 KDIST="lnorm"  
 PsiDist='beta'
@@ -355,9 +354,9 @@ evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
 
 
 #21. Integrated age-based model 
-Integrated.age.based='SS'
-SS3.run='test'              # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, etc)
-create.SS.inputs=TRUE       #set to FALSE once happy with input files
+Integrated.age.based='SS'   # define model types used
+SS3.run='test'              # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, MCMC, etc)
+create.SS.inputs=TRUE       #set to FALSE once happy with SS input files and only need to run the model
 Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
@@ -371,8 +370,14 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
 combine_NSF_Survey=NULL   #combine length composition data to estimate logistic selectivity
 # combine_NSF_Survey=c("dusky shark","great hammerhead","lemon shark","milk shark",
 #                      "pigeye shark","sandbar shark","scalloped hammerhead","tiger shark")
-combine.sexes=c("angel sharks","dusky shark","lemon shark","milk shark",
-                "scalloped hammerhead","tiger shark","smooth hammerhead")  #dusky only sex combined for survey, smooth HH only for Daily TDGDLF
+combine.sexes.tdgdlf=c("smooth hammerhead","spinner shark")
+combine.sexes.survey=c("dusky shark") 
+combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,
+                "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
+drop.len.comp.like=NULL
+#drop.len.comp.like=c("dusky shark")
+survey.like.weight=c("dusky shark")
+#survey.like.weight=c("dusky shark","sandbar shark")
 use.Gab.trawl=TRUE   #1 year of data
 add.gummy.gab=FALSE
 
@@ -401,7 +406,7 @@ resample.h.greynurse=FALSE  #no need to resample h
   #SS model run arguments
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
-Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to set Init LnRo value so Virgin Total bimass ~ K from JABBA  
+Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
 SS3.q.an.sol=TRUE   #calculate q analytically to save up pars, set to FALSE otherwise
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit
 Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation

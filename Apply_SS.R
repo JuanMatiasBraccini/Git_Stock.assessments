@@ -88,7 +88,7 @@ for(w in 1:n.SS)
               for(s in 1:length(d.list))
               {
                 d.list[[s]]=d.list[[s]]%>%
-                  filter(FL>=Life.history$Lzero)%>%
+                  filter(FL>=Life.history$Lzero*1.05)%>%
                   mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
                                 ifelse(grepl("Survey",names(d.list)[s]),'Survey',
                                 ifelse(grepl("Other",names(d.list)[s]),'Other',
@@ -124,11 +124,11 @@ for(w in 1:n.SS)
               }
               if(Neim%in%combine.sexes)
               {
-                if(Neim%in%'dusky shark')
+                if(Neim%in%combine.sexes.survey)
                 {
                   d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
                 }
-                if(Neim%in%'smooth hammerhead')
+                if(Neim%in%combine.sexes.tdgdlf)
                 {
                   d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF",0,sex))
                 }else
@@ -427,6 +427,7 @@ for(w in 1:n.SS)
             clear.log("Var.ad.factr_meanbodywt")  
             clear.log("Var.ad.factr_cpue")
           }
+
           
           #Add size comp effective sample size bias adjustment    
           #note: a Value of 0 means no effect
@@ -448,7 +449,8 @@ for(w in 1:n.SS)
               filter(year<=max(ktch$finyear))%>%
               dplyr::select(-Finyear)%>%
               left_join(Flits.and.survey,by=c('Fleet'='Fleet.name'))%>%
-              mutate(fleet=Fleet.number)%>%
+              mutate(fleet=Fleet.number,
+                     CV=0.05)%>%
               dplyr::select(-c(Fleet.number,Fleet))%>%
               relocate(year,month,fleet,Mean,CV)%>%
               arrange(year)
@@ -667,6 +669,10 @@ for(w in 1:n.SS)
                 if(any(drop.dis$this)) Abundance.SS.format=Abundance.SS.format[-which(drop.dis$this),]
               }
               
+              #use cpue or length comp in likelihood?
+              if(Life.history$drop.length.comp) Size.compo.SS.format=NULL
+              if(Life.history$drop.cpue) Abundance.SS.format=NULL
+              
               #a. Create input files
               if(create.SS.inputs)
               {
@@ -693,7 +699,8 @@ for(w in 1:n.SS)
               clear.log("Var.ad.factr")
               
               #b. Run SS3
-              if(Find_Init_LnRo)
+                #run this first time fitting model to define LnRo init value
+              if(Find_Init_LnRo)  
               {
                 start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
                 start$last_estimation_phase=0
@@ -705,6 +712,7 @@ for(w in 1:n.SS)
                 Report$timeseries%>%filter(Era=='VIRG')%>%pull(Bio_all) #JABBA K= 6800 tonnes
                 rm(Report)
               }
+                #run this to tune model and calculate RAMP years
               if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
                 #tune ramp years
@@ -734,6 +742,7 @@ for(w in 1:n.SS)
                 
                 rm(ramp_years,out,tune_info)
               }
+                #run this to estimate parameters
               if(!Calculate.ramp.years)
               {
                 fn.run.SS(where.inputs=this.wd1,
@@ -1017,7 +1026,7 @@ for(w in 1:n.SS)
               for(s in 1:length(d.list))
               {
                 d.list[[s]]=d.list[[s]]%>%
-                  filter(FL>=Life.history$Lzero)%>%
+                  filter(FL>=Life.history$Lzero*1.05)%>%
                   mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
                                        ifelse(grepl("Survey",names(d.list)[s]),'Survey',
                                               ifelse(grepl("Other",names(d.list)[s]),'Other',
@@ -1053,11 +1062,11 @@ for(w in 1:n.SS)
               }
               if(Neim%in%combine.sexes)
               {
-                if(Neim%in%'dusky shark')
+                if(Neim%in%combine.sexes.survey)
                 {
                   d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
                 }
-                if(Neim%in%'smooth hammerhead')
+                if(Neim%in%combine.sexes.tdgdlf)
                 {
                   d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF",0,sex))
                 }else
@@ -1258,8 +1267,7 @@ for(w in 1:n.SS)
                 filter(Fleet%in%Fleet.more.one.year.obs)
             }
           }
-          
-          
+
           #3. meanbodywt
           meanbodywt.SS.format=NULL
           if(any(grepl('annual.mean.size',names(Species.data[[i]]))))
@@ -1357,6 +1365,7 @@ for(w in 1:n.SS)
             clear.log("Var.ad.factr_meanbodywt")  
             clear.log("Var.ad.factr_cpue")
           }
+
           
           #Add size comp effective sample size bias adjustment    
           #note: a Value of 0 means no effect
@@ -1378,7 +1387,8 @@ for(w in 1:n.SS)
               filter(year<=max(ktch$finyear))%>%
               dplyr::select(-Finyear)%>%
               left_join(Flits.and.survey,by=c('Fleet'='Fleet.name'))%>%
-              mutate(fleet=Fleet.number)%>%
+              mutate(fleet=Fleet.number,
+                     CV=0.05)%>%
               dplyr::select(-c(Fleet.number,Fleet))%>%
               relocate(year,month,fleet,Mean,CV)%>%
               arrange(year)
@@ -1596,6 +1606,10 @@ for(w in 1:n.SS)
                 if(any(drop.dis$this)) Abundance.SS.format=Abundance.SS.format[-which(drop.dis$this),]
               }
               
+              #use cpue or length comp in likelihood?
+              if(Life.history$drop.length.comp) Size.compo.SS.format=NULL
+              if(Life.history$drop.cpue) Abundance.SS.format=NULL
+              
               #a. Create input files
               if(create.SS.inputs)
               {
@@ -1622,6 +1636,7 @@ for(w in 1:n.SS)
               clear.log("Var.ad.factr")
               
               #b. Run SS3
+                #run this first time fitting model to define LnRo init value
               if(Find_Init_LnRo)
               {
                 start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
@@ -1634,6 +1649,7 @@ for(w in 1:n.SS)
                 Report$timeseries%>%filter(Era=='VIRG')%>%pull(Bio_all) #JABBA K= 6800 tonnes
                 rm(Report)
               }
+                #run this to tune model and calculate RAMP years
               if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
                 #tune ramp years
@@ -1663,6 +1679,7 @@ for(w in 1:n.SS)
                 
                 rm(ramp_years,out,tune_info)
               }
+                #run this to estimate parameters
               if(!Calculate.ramp.years)
               {
                 fn.run.SS(where.inputs=this.wd1,
