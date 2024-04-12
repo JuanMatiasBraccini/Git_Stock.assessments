@@ -206,8 +206,10 @@ drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not
 survey_not.representative=c("scalloped hammerhead","great hammerhead",
                             "lemon shark","pigeye shark") #few individuals caught (<5 per trip) and huge CVs 
 NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue not used as unlikely to be representative
-                          "lemon shark","pigeye shark","tiger shark")
+                          "lemon shark","pigeye shark","tiger shark",
+                         "dusky shark","sandbar shark")
 tdgdlf_not.representative="smooth hammerhead"       #catch rates are for 'hammerheads'
+tdgdlf_monthly_not.representative="sandbar shark"   #increasing cpue with increasing catch and very jumpy  
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not distribution core
 drop.daily.cpue='2007&2008'  #drop 2007 & 2008 from TDGDLF daily cpue (consistently higher cpues across all species due to likely effort reporting bias)
 
@@ -371,14 +373,14 @@ combine_NSF_Survey=NULL   #combine length composition data to estimate logistic 
 # combine_NSF_Survey=c("dusky shark","great hammerhead","lemon shark","milk shark",
 #                      "pigeye shark","sandbar shark","scalloped hammerhead","tiger shark")
 combine.sexes.tdgdlf=c("smooth hammerhead","spinner shark")
+combine.sexes.tdgdlf.daily=NULL #c("sandbar shark")
 combine.sexes.survey=c("dusky shark") 
-combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,
+combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
-drop.len.comp.like=NULL
-#drop.len.comp.like=c("dusky shark")
-survey.like.weight=c("dusky shark")
-#survey.like.weight=c("dusky shark","sandbar shark")
-use.Gab.trawl=TRUE   #1 year of data
+fit.to.mean.weight.Southern2=c("spinner shark","sandbar shark","dusky shark")   #get model to fit mean weight despite no length comp
+drop.len.comp.like=NULL    #c("dusky shark")
+survey.like.weight=NULL  #c("dusky shark","sandbar shark")
+use.Gab.trawl=TRUE   #note that this has only 1 year of data
 add.gummy.gab=FALSE
 
 Extract.SS.parameters=FALSE  #extract SS3 selectivity pars
@@ -394,11 +396,15 @@ alternative.NSF.selectivity=NULL
 
 #no empirical Selectivity for main fleet or length comp sample size is too small
 #  so cannot implement any length-based assessment (Catch curve, SS3, etc)
-no.empirical.sel.main.fleet=c(GAB.main="angel sharks",SA_MSF.main="copper shark",
+no.empirical.sel.main.fleet=c(GAB.main="angel sharks",
+                              SA_MSF.main="copper shark",
                               Indo.main_low.n.NSF="great hammerhead",
-                              NSF.main_low.n.NSF="lemon shark",NSF.main_low.n.NSF="pigeye shark",
-                              GAB.main="sawsharks",Multispecies.no.sel="spurdogs",
-                              Taiwan.main_low.n.NSF="scalloped hammerhead",WRL.main="tiger shark",
+                              NSF.main_low.n.NSF="lemon shark",
+                              NSF.main_low.n.NSF="pigeye shark",
+                              GAB.main="sawsharks",
+                              Multispecies.no.sel="spurdogs",
+                              Taiwan.main_low.n.NSF="scalloped hammerhead",
+                              WRL.main="tiger shark",
                               Multispecies.no.sel="wobbegongs") 
 
 resample.h.greynurse=FALSE  #no need to resample h
@@ -3148,6 +3154,38 @@ Species.with.length.comp=c(do.call(rbind,Species.with.length.comp))
 #Species.with.length.comp=subset(Species.with.length.comp,!Species.with.length.comp%in%not.fitting.SS3)
 write.csv(paste('1.',capitalize(Species.with.length.comp),sep=''),paste(Rar.path,'Species.with.length.comp.csv',sep='/'),row.names = F) 
 
+#Display total catch VS cpue
+if(First.run=="YES")
+{
+  for(x in 1:N.sp)
+  {
+    Neim=Keep.species[x]
+    CPUE=compact(Catch.rate.series[[x]])
+    if(!is.null(CPUE))
+    {
+      DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
+      if(length(DROP)>0)CPUE=CPUE[-DROP]
+      for(p in 1:length(CPUE)) CPUE[[p]]=CPUE[[p]]%>%mutate(Mean.st=Mean/max(Mean,na.rm=T),UP.CI=UP.CI/max(Mean,na.rm=T),LOW.CI=LOW.CI/max(Mean,na.rm=T))%>%
+          dplyr::select(yr.f,Mean.st,UP.CI,LOW.CI)%>%
+          mutate(fleet=names(CPUE)[p])
+      CPUE=do.call(rbind,CPUE)%>%rename(Year=yr.f)
+      Tot=KtCh%>%
+        filter(Name==Neim)%>%
+        group_by(finyear)%>%
+        summarise(Total=sum(LIVEWT.c))%>%
+        ungroup()%>%
+        mutate(Total=max(CPUE$UP.CI,na.rm=T)*(Total/max(Total)))
+      
+      CPUE%>%
+        ggplot(aes(Year,Mean.st,color=fleet))+geom_point(size=2)+geom_errorbar(aes(x=Year,ymin=LOW.CI,ymax=UP.CI),alpha=0.5)+geom_line()+
+        geom_line(data=Tot,aes(finyear,Total),linewidth=3,color='black',alpha=0.2)+
+        theme_PA()+theme(legend.position = 'top')
+      HandL=handl_OneDrive("Analyses/Population dynamics/1.")
+      DiR=paste(HandL,capitalize(Keep.species[x]),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
+      ggsave(paste(DiR,'Total catch VS cpue.tiff',sep='/'), width = 8,height = 6, dpi = 300, compression = "lzw")
+    }
+  }
+}
 
 #---17. Display catches by fishery,life history & available time series ----
 Tot.ktch=KtCh %>%      

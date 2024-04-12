@@ -632,7 +632,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   ctl$Comments[2]=dat$Comments[3]
   
   #block patterns    
-  if(!life.history$Nblock_Patterns==0 & !is.null(abundance))
+  #if(!life.history$Nblock_Patterns==0 & !is.null(abundance))
+  if(!life.history$Nblock_Patterns==0)
   {
     ctl$N_Block_Designs=life.history$Nblock_Patterns
     ctl$blocks_per_pattern=life.history$blocks_per_pattern
@@ -1107,12 +1108,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     rownames(ctl$size_selex_parms)=paste(added.bit,row_nm_size_selex_parms,sep="_")
     
     #turn on Southern.shark_2 if size compo data OR if meanbodywt and specified in life.history
-    if(!is.null(size.comp))
+    if(!is.null(size.comp) | isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt))
     {
-      Tab.size.comp.dat=with(dat$lencomp,table(Fleet))
-      names(Tab.size.comp.dat)=fleetinfo$fleetname[as.numeric(names(Tab.size.comp.dat))]
-      nn.Southern.shark_2=subset(Tab.size.comp.dat,names(Tab.size.comp.dat)=="Southern.shark_2")
-      if(length(nn.Southern.shark_2)>0 | (!is.null(meanbodywt) & isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt)) )
+      if(!is.null(size.comp))
+      {
+        Tab.size.comp.dat=with(dat$lencomp,table(Fleet))
+        names(Tab.size.comp.dat)=fleetinfo$fleetname[as.numeric(names(Tab.size.comp.dat))]
+        nn.Southern.shark_2=subset(Tab.size.comp.dat,names(Tab.size.comp.dat)=="Southern.shark_2")
+      }
+       if(length(nn.Southern.shark_2)>0 | (!is.null(meanbodywt) & isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt)) )
       {
         ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_2",]=ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_1",]
         add.Southern.shark_2.pars=ctl$size_selex_parms[grepl('Southern.shark_1',rownames(ctl$size_selex_parms)),]
@@ -1175,14 +1179,14 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         low.bound=multiplr*ctl$size_selex_parms[iid,"INIT"]
         if(pis[px]=="P_1")
         {
-          bump=1.1 #1.25
+          bump=1.05 #1.25
           low.bound=sapply(low.bound, function(x) max(dat$minimum_size*bump,x))
           if(!is.null(size.comp))
           {
-            low.bound=sapply(low.bound, function(x) max(min(dat$lbin_vector),x))
+            #low.bound=sapply(low.bound, function(x) max(min(dat$lbin_vector),x))  
             if(life.history$Name=="tiger shark") low.bound=min(dat$lbin_vector) 
           }
-          low.bound=max(low.bound,max(seq(dat$minimum_size,(dat$minimum_size+2*TL.bins.cm),by=TL.bins.cm)))
+          #low.bound=min(low.bound,mean(seq(dat$minimum_size,(dat$minimum_size+1*TL.bins.cm),by=TL.bins.cm)))
         }
         ctl$size_selex_parms[iid,"LO"]=low.bound 
         
@@ -1253,6 +1257,12 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         }
       }
     }
+    if(isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt) & !is.null(meanbodywt))
+    {
+      id.South2=match(paste('SizeSel',colnames(life.history$SS_selectivity_phase)[-1],'Southern.shark_2',sep='_'),rownames(ctl$size_selex_parms))
+      ctl$size_selex_parms[id.South2,'PHASE']=unlist(life.history$SS_selectivity_phase%>%filter(Fleet=='Southern.shark_2')%>%dplyr::select(-Fleet))
+      
+    }
     # if(any(is.null(abundance) | life.history$Name=="spinner shark"))   #fixed most sel pars if no abundance (SS-CL)  
     # {
     #   if(life.history$Name=="spinner shark")
@@ -1268,8 +1278,9 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       #turn on Southern.shark_1 if available meanbodywt (because Southern.shark_2 mirrors Southern.shark_1) 
     if(!is.null(meanbodywt) & !is.null(size.comp))
     {
-      xx=size.comp%>%filter(Fleet%in%c(3:4))
-      if(nrow(xx)==0)   #only need to turn of if there is no size comp for Southern.shark_1 or Southern.shark_2
+      
+      xx=size.comp%>%filter(Fleet%in%grep('Southern.shark',fleetinfo$fleetname))
+      if(nrow(xx)==0)   #only need to turn off if there is no size comp for Southern.shark_1 or Southern.shark_2
       {
         iiD=grepl('P_1_Southern.shark_1',rownames(ctl$size_selex_parms))
         ctl$size_selex_parms[iiD,"PHASE"]=abs(ctl$size_selex_parms[iiD,"PHASE"])
@@ -1397,7 +1408,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         select_if(~ !any(is.na(.)))
       ctl$size_selex_types$Male[match(xx$Fleet,rownames(ctl$size_selex_types))]=3
       
-      xx.min=xx%>%mutate(P_1=-50,P_3=-5,P_4=-5,P_5=-5,P_6=0.5)
+      xx.min=xx%>%mutate(P_1=-50,P_3=-5,P_4=-5,P_5=-5,P_6=0)
       xx.max=xx%>%mutate(P_1=50,P_3=5,P_4=5,P_5=5,P_6=1.5)
 
       id.offset.patrn=grep(pattern = paste(unique(xx$Fleet),collapse="|"), x = rownames(ctl$size_selex_parms))
@@ -1472,6 +1483,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     #   rownames(F.age.sel.pat)=F.fleet
     #   ctl$age_selex_types=rbind(ctl$age_selex_types,F.age.sel.pat)
     # }  
+    
+    #Block pattern - time changing selectivity
+    if(!life.history$Nblock_Patterns==0 & ctl$time_vary_auto_generation[5]==0)
+    {
+      dis.blok=match(paste('SizeSel',names(life.history$SizeSelex_Block),life.history$Sel.Block.fleet,sep='_'),rownames(ctl$size_selex_parms))
+      ctl$size_selex_parms$Block[dis.blok]=life.history$SizeSelex_Block  #ACA
+    }
   }
   if(Scenario$Model=='SSS')  #SSS assumes selectivity = maturity
   {

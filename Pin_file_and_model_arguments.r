@@ -482,13 +482,24 @@ for(l in 1:N.sp)
     p6.sel_TDGDLF=SS.sel.init.pars$TDGDLF_p6
 
     p1.sel_TDGDLF2=p1.sel_TDGDLF
+    p2.sel_TDGDLF2=p2.sel_TDGDLF
+    p3.sel_TDGDLF2=p3.sel_TDGDLF
+    p4.sel_TDGDLF2=p4.sel_TDGDLF
     if(NeiM=="spinner shark") p1.sel_TDGDLF2=110
+    if(NeiM=="sandbar shark")
+    {
+      p1.sel_Survey=175
+      # p2.sel_TDGDLF2=-13.5
+      # p3.sel_TDGDLF2=5.46
+      # p4.sel_TDGDLF2=4.08
+    }
+      
     
     List.sp[[l]]$SS_selectivity=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                            P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF2,p1.sel_Survey),
-                                           P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF,p2.sel_Survey),
-                                           P_3=c(p3.sel_NSF,p3.sel_Other,p3.sel_TDGDLF,p3.sel_TDGDLF,p3.sel_Survey),
-                                           P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
+                                           P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF2,p2.sel_Survey),
+                                           P_3=c(p3.sel_NSF,p3.sel_Other,p3.sel_TDGDLF,p3.sel_TDGDLF2,p3.sel_Survey),
+                                           P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF2,p4.sel_Survey),
                                            P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
                                            P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))
     
@@ -571,19 +582,33 @@ for(l in 1:N.sp)
                                                       P_1=xx$Offset_p1,
                                                       P_3=xx$Offset_p3,
                                                       P_4=xx$Offset_p4,
-                                                      Final=xx$Offset_Final,
-                                                      Scale=xx$Offset_Scale)
+                                                      P_5=xx$Offset_p5,
+                                                      P_6=xx$Offset_p6)
         
         List.sp[[l]]$SS_offset_selectivity_phase=expand.grid(Fleet=str_split_1(xx$Offset_fleet, ','),
                                                              P_1=xx$Phase_Offset_p1,
                                                              P_3=xx$Phase_Offset_p3,
                                                              P_4=xx$Phase_Offset_p4,
-                                                             Final=xx$Phase_Offset_Final,
-                                                             Scale=xx$Phase_Offset_Scale)
+                                                             P_5=xx$Phase_Offset_p5,
+                                                             P_6=xx$Phase_Offset_p6)
       }
     }
     
-
+    #block pattern for time changing selectivity for Monthly TDGDLF
+    List.sp[[l]]$Nblock_Patterns=0
+    List.sp[[l]]$autogen=rep(1,5)
+    
+    if(NeiM=="sandbar shark")
+    {
+      List.sp[[l]]$Nblock_Patterns=1
+      List.sp[[l]]$blocks_per_pattern=2       
+      List.sp[[l]]$block_pattern_begin_end=list(c(1994,1999),c(2000,2005)) 
+      List.sp[[l]]$autogen=c(1,1,1,1,0) #1st biology, 2nd SR, 3rd Q, 4th reserved, 5th selex
+      List.sp[[l]]$SizeSelex_Block=c(P_1=1,P_2=0,P_3=1,P_4=1,P_5=0,P_6=0) #params with negative _L0 not accepted
+      List.sp[[l]]$Sel.Block.fleet='Southern.shark_1'
+    }
+    
+    
     #phases
       #NSF, Survey and Others
     p1.sel=SS.sel.init.pars$Phase_NSF_p1       
@@ -611,10 +636,12 @@ for(l in 1:N.sp)
     
     p1.sel_Survey=SS.sel.init.pars$Phase_NSF_p1
     p2.sel_Survey=SS.sel.init.pars$Phase_NSF_p2
+    p3.sel_Survey=SS.sel.init.pars$Phase_NSF_p3
+    p4.sel_Survey=SS.sel.init.pars$Phase_NSF_p4
     p1.sel_Other=NA       
     p2.sel_Other=NA 
-    p3.sel_Other=p3.sel_Survey=NA
-    p4.sel_Other=p4.sel_Survey=NA 
+    p3.sel_Other=NA
+    p4.sel_Other=NA 
     p5.sel_Other=p5.sel_Survey=NA 
     p6.sel_Other=p6.sel_Survey=NA
     
@@ -637,11 +664,8 @@ for(l in 1:N.sp)
     
     p1.sel_TDGDLF2=p1.sel_TDGDLF
     p2.sel_TDGDLF2=p2.sel_TDGDLF
-    if(NeiM=="spinner shark")
-    {
-      p1.sel_TDGDLF2=2
-      p2.sel_TDGDLF2=3
-    }
+    if(NeiM%in%fit.to.mean.weight.Southern2)  p1.sel_TDGDLF2=2
+    if(NeiM=='spinner shark')  p2.sel_TDGDLF2=3
       
     
     List.sp[[l]]$SS_selectivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
@@ -694,9 +718,9 @@ for(l in 1:N.sp)
     }
     
     #turn on Southern2 if meanbodywt
-    List.sp[[l]]$fit.Southern.shark_2.to.meanbodywt=FALSE
-    if(NeiM=="spinner shark") List.sp[[l]]$fit.Southern.shark_2.to.meanbodywt=TRUE
-    
+    fit_SS.to.mean.weight=FALSE
+    if(NeiM%in%fit.to.mean.weight.Southern2) fit_SS.to.mean.weight=TRUE
+    List.sp[[l]]$fit.Southern.shark_2.to.meanbodywt=fit_SS.to.mean.weight
     
     #4.1.3.2 AgeSelex 
     List.sp[[l]]$age_selex_pattern=0  #0,Selectivity = 1.0 for ages 0+; 10, Selectivity = 1.0 for all ages beginning at age 1
@@ -754,19 +778,16 @@ for(l in 1:N.sp)
     List.sp[[l]]$Yr_q_change=1982   #last year before targeting practices changed (Simpfendorfer 2000)
     List.sp[[l]]$Yr_q_change_transition=1981:1983  #Disregard 80-83 as transitional years (Braccini et al 2021)
     List.sp[[l]]$Yr_q_daily=2006
-  }else
-  {
-    List.sp[[l]]$Nblock_Patterns=0
-    List.sp[[l]]$autogen=rep(1,5)
   }
-  
   if(NeiM=="gummy shark")
   {
     if(Gummy.q.periods==2)
     {
+      List.sp[[l]]$Nblock_Patterns=1
       List.sp[[l]]$blocks_per_pattern=2
       List.sp[[l]]$block_pattern_begin_end=list(c(1975,2000),c(2001,2005)) #targeting, not targeting periods?
       List.sp[[l]]$Yr_second_q=2001:2005    #second monthly q due to increase in cpue and catch unaccounted by cpue stand.
+      List.sp[[l]]$autogen=c(1,1,0,1,1) #1st biology, 2nd SR, 3rd Q, 4th reserved, 5th selex
     }
     
     

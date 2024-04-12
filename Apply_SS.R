@@ -131,7 +131,12 @@ for(w in 1:n.SS)
                 if(Neim%in%combine.sexes.tdgdlf)
                 {
                   d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF",0,sex))
-                }else
+                }
+                if(Neim%in%combine.sexes.tdgdlf.daily)
+                {
+                  d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF" & year>2005,0,sex))
+                }
+                if(!Neim%in%c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily))
                 {
                   d.list$sex=0 
                 }
@@ -379,6 +384,7 @@ for(w in 1:n.SS)
             if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
             if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
             if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
+            if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
             
             #reset very low CVs
             #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
@@ -615,7 +621,7 @@ for(w in 1:n.SS)
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
-            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
+            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
               Out.F.Fmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
@@ -754,7 +760,7 @@ for(w in 1:n.SS)
               #c. Bring in outputs
               Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
               
-              #d. Store estimates
+              #d. Store estimates and likelihoods
               Estims=Report[["estimated_non_dev_parameters"]]
               Out.estimates[[s]]=Estims%>%
                                  mutate(Par=rownames(Estims),
@@ -769,7 +775,13 @@ for(w in 1:n.SS)
                        Par=names(F.ref.points),
                        Value=unlist(F.ref.points))
               Out.estimates[[s]]=rbind(Out.estimates[[s]],dummi.F)
-              
+              Likelihoods=Report[["likelihoods_used"]]
+              Out.likelihoods[[s]]=Likelihoods%>%
+                                      mutate(Likelihood=rownames(Likelihoods),
+                                             Scenario=Scens$Scenario[s])%>%
+                                      relocate(Scenario,Likelihood)%>%
+                                      `rownames<-`( NULL )
+                                    
               #e. Store trajectories
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                      mods="SS3",
@@ -893,10 +905,12 @@ for(w in 1:n.SS)
                         dummy.store.B.Bmsy=do.call(rbind,Out.B.Bmsy),
                         dummy.store.F.Fmsy=do.call(rbind,Out.F.Fmsy),
                         dummy.store.Kobe.probs=Out.Kobe.probs,  
-                        dummy.store.estimates=do.call(rbind,Out.estimates)))
+                        dummy.store.estimates=do.call(rbind,Out.estimates),
+                        dummy.store.likelihoods=do.call(rbind,Out.likelihoods)  
+                        ))
             
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
-               Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs)
+               Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods)  
           }
         }
       }
@@ -910,6 +924,7 @@ for(w in 1:n.SS)
       Age.based[[w]]$B.Bmsy=fn.get.and.name(LISTA=out.species,x='dummy.store.B.Bmsy')
       Age.based[[w]]$F.Fmsy=fn.get.and.name(LISTA=out.species,x='dummy.store.F.Fmsy')
       Age.based[[w]]$Kobe.probs=fn.get.and.name(LISTA=out.species,x='dummy.store.Kobe.probs')
+      Age.based[[w]]$likelihoods=fn.get.and.name(LISTA=out.species,x='dummy.store.likelihoods')
       
       #plot overall figure with estimates and scenarios
       for(i in 1:N.sp)
@@ -951,7 +966,7 @@ for(w in 1:n.SS)
     {
       dummy.store=vector('list',N.sp)
       names(dummy.store)=Keep.species
-      dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
+      dummy.store.estimates=dummy.store.likelihoods=dummy.store.rel.biom=dummy.store.probs.rel.biom=
         dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
         dummy.store.sens.table=dummy.store.ensemble=dummy.store
       
@@ -1069,7 +1084,12 @@ for(w in 1:n.SS)
                 if(Neim%in%combine.sexes.tdgdlf)
                 {
                   d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF",0,sex))
-                }else
+                }
+                if(Neim%in%combine.sexes.tdgdlf.daily)
+                {
+                  d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF" & year>2005,0,sex))
+                }
+                if(!Neim%in%c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily))
                 {
                   d.list$sex=0 
                 }
@@ -1318,6 +1338,7 @@ for(w in 1:n.SS)
             if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
             if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
             if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
+            if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
             
             #reset very low CVs
             #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
@@ -1553,7 +1574,7 @@ for(w in 1:n.SS)
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
-            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
+            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
               Out.F.Fmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
@@ -1706,6 +1727,12 @@ for(w in 1:n.SS)
                        Par=names(F.ref.points),
                        Value=unlist(F.ref.points))
               Out.estimates[[s]]=rbind(Out.estimates[[s]],dummi.F)
+              Likelihoods=Report[["likelihoods_used"]]
+              Out.likelihoods[[s]]=Likelihoods%>%
+                                      mutate(Likelihood=rownames(Likelihoods),
+                                             Scenario=Scens$Scenario[s])%>%
+                                      relocate(Scenario,Likelihood)%>%
+                                     `rownames<-`( NULL )
                                 
               #e. Store trajectories
               dummy=fn.integrated.mod.get.timeseries(d=Report,
@@ -1811,9 +1838,10 @@ for(w in 1:n.SS)
             dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
             dummy.store.Kobe.probs[[i]]=Out.Kobe.probs  
             dummy.store.estimates[[i]]=do.call(rbind,Out.estimates)
+            dummy.store.likelihoods[[i]]=do.call(rbind,Out.likelihoods)
             
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
-               Out.B.Bmsy,Out.F.Fmsy,Out.estimates)
+               Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods)
             
             #plot overall figure with estimates and scenarios
             yrS=dummy.store.rel.biom[[i]]%>%filter(Scenario=='S1')%>%pull(year)
@@ -1845,11 +1873,12 @@ for(w in 1:n.SS)
       Age.based[[w]]$B.Bmsy=dummy.store.B.Bmsy
       Age.based[[w]]$F.Fmsy=dummy.store.F.Fmsy
       Age.based[[w]]$Kobe.probs=dummy.store.Kobe.probs
+      Age.based[[w]]$likelihoods=dummy.store.likelihoods
       
       
       rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,
          dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,
-         dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.Kobe.probs)
+         dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.Kobe.probs,dummy.store.likelihoods)
       
     }
   }
@@ -1914,11 +1943,12 @@ for(l in 1: length(Lista.sp.outputs))
   }
 }
 
-#25.2 Table of parameter estimates by species, scenario and method
+#25.2 Table of parameter estimates and likelihoods by species, scenario and method
 for(l in 1: length(Lista.sp.outputs))
 {
   for(w in 1:length(Age.based))
   {
+    #Parameter estimates
     dummy=Age.based[[w]]$estimates
     dummy=dummy[match(Lista.sp.outputs[[l]],names(dummy))]
     dummy=compact(dummy)
@@ -1934,6 +1964,21 @@ for(l in 1: length(Lista.sp.outputs))
                 row.names = F)
     }
     
+    #Likelihoods
+    dummy=Age.based[[w]]$likelihoods
+    dummy=dummy[match(Lista.sp.outputs[[l]],names(dummy))]
+    dummy=compact(dummy)
+    if(length(dummy)>0)
+    {
+      dummy=do.call(rbind,dummy)%>%
+        rownames_to_column(var = "Species")%>%
+        mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
+        relocate(Species)
+      write.csv(dummy,paste(Rar.path,paste('Table 10. Age.based_',
+                                           names(Age.based)[w],'_likelihoods_',
+                                           names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
+                row.names = F)
+    }
   }
 }
 
