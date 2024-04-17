@@ -258,6 +258,7 @@ ScallopedHH.Sedar=mean(c(0.69,0.71,0.67))
 SmoothHH.Sedar=0.78
 GreatHH.Sedar=0.71
 Mako.ICCAT=0.345
+species.too.high.M1=c("gummy shark","whiskery shark")  #Dureuil yields way too high M at 1 age for this so use upper Max Age
 
 #publish demographic parameters
 Demo.published.values=data.frame(Species=c("angel sharks","copper shark","grey nurse shark","gummy shark","lemon shark",
@@ -342,7 +343,8 @@ use.auxiliary.effort=FALSE  # using effort as auxiliary data yielded very high R
 Rdist = "lnorm"
 KDIST="lnorm"  
 PsiDist='beta'
-Whiskery.q.periods=2  # split monthly cpue into this number of periods (Simpfendorfer 2000, Braccini et al 2021)
+Whiskery.q.periods=2 # split monthly cpue into this number of periods (Simpfendorfer 2000, Braccini et al 2021)
+drop.intermediate.yrs=FALSE  #remove whiskery inermediate Q years or not
 Gummy.q.periods=1     
 Obs.Err.JABBA=0.01   #JABBA uses SE2" = CPUE.se^2 + fixed.obsE^2 
 increase.CV.JABBA=TRUE   #for consistency with SS3 and because not using fixed.obsE
@@ -377,7 +379,7 @@ combine.sexes.tdgdlf.daily=NULL #c("sandbar shark")
 combine.sexes.survey=c("dusky shark") 
 combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
-fit.to.mean.weight.Southern2=c("spinner shark","sandbar shark","dusky shark")   #get model to fit mean weight despite no length comp
+fit.to.mean.weight.Southern2=c("spinner shark","gummy shark","whiskery shark","dusky shark","sandbar shark")   #get model to fit mean weight regardless of available length comp
 drop.len.comp.like=NULL    #c("dusky shark")
 survey.like.weight=NULL  #c("dusky shark","sandbar shark")
 use.Gab.trawl=TRUE   #note that this has only 1 year of data
@@ -413,8 +415,9 @@ resample.h.greynurse=FALSE  #no need to resample h
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
 Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
-SS3.q.an.sol=TRUE   #calculate q analytically to save up pars, set to FALSE otherwise
-Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit
+SS3.q.analit.solu=TRUE   #calculate q analytically to save up pars, set to FALSE if using block Q (time changing Q)
+block.species_Q=c("whiskery shark","gummy shark")
+Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
 Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation
 nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
 #MCMCsims=1e5; Thin=10; burning=1:(5*length(seq(1,MCMCsims,by=Thin))/100)   #5%  burning
@@ -1468,7 +1471,7 @@ if(do.r.prior)  #0.015 sec per iteration per species
   store.species.r=vector('list',N.sp)
   names(store.species.r)=Keep.species
   tic()
-  for(l in 1:N.sp)  #no parallel processing implementation as it stuffs up Mmin and Mmean
+  for(l in 1:N.sp)  #0.013 sec per iteration per species; no parallel processing implementation as it stuffs up Mmin and Mmean
   {
     print(paste('r calculation -------------',Keep.species[l]))  
     #if no sd, replace with mean from those species with sd
@@ -1483,15 +1486,17 @@ if(do.r.prior)  #0.015 sec per iteration per species
     #Get r prior
       #Age invariant M
     what.M<<-'age.invariant'
-    M.averaging<<-"min" # if using multiple methods with equal weight, 'min' yields rmax, Cortes pers com
+    M.averaging<<-"min" #Not Applicable as only Dureiul's methods used. If using multiple methods with equal weight, 'min' yields rmax, Cortes pers com
     GET.all.Ms=TRUE
+    Amx=List.sp[[l]]$Max.age.F
+    if(Keep.species[l]%in%species.too.high.M1) Amx=max(List.sp[[l]]$Max.age.F)
     r.prior.dist_M.age.invariant=with(List.sp[[l]],fun.rprior.dist(Nsims=NsimSS,
                                                                    K=Growth.F$k,
                                                                    LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
                                                                    K.sd=Growth.F$k.sd,
                                                                    LINF.sd=Growth.F$FL_inf.sd*a_FL.to.TL+b_FL.to.TL,
                                                                    k.Linf.cor,
-                                                                   Amax=Max.age.F,
+                                                                   Amax=Amx,
                                                                    MAT=unlist(Age.50.mat),
                                                                    FecunditY=Fecundity,
                                                                    Cycle=Breed.cycle,
@@ -1507,13 +1512,15 @@ if(do.r.prior)  #0.015 sec per iteration per species
                                                 # or high mortality (due to k for sandbar)
     if(!Keep.species[l]%in%mean.donotwork)  
     {
+      Amx=List.sp[[l]]$Max.age.F
+      if(Keep.species[l]%in%species.too.high.M1) Amx=max(List.sp[[l]]$Max.age.F)
       r.prior.dist_M.at.age=with(List.sp[[l]],fun.rprior.dist(Nsims=NsimSS,
                                                               K=Growth.F$k,
                                                               LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
                                                               K.sd=Growth.F$k.sd,
                                                               LINF.sd=Growth.F$FL_inf.sd*a_FL.to.TL+b_FL.to.TL,
                                                               k.Linf.cor,
-                                                              Amax=Max.age.F,
+                                                              Amax=Amx,
                                                               MAT=unlist(Age.50.mat),
                                                               FecunditY=Fecundity,
                                                               Cycle=Breed.cycle,
@@ -1617,13 +1624,13 @@ if(do.r.prior)  #0.015 sec per iteration per species
       ggplot(aes(x=Age, y=M.mean,color=Method))+
       geom_point()+
       geom_errorbar(aes(ymin=M.mean-M.sd, ymax=M.mean+M.sd))+
-      facet_wrap(~Method,scales='free_y',ncol=2)+
+      facet_wrap(~Method,ncol=2)+
       theme_PA()+
       theme(legend.position="none",
             axis.text.x = element_text(size=7,angle = 90, hjust=1))+
-      ylab('M (+/- SD)')
+      ylab('M (+/- SD)')+scale_y_continuous(limits = c(0, NA))
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[l]]$Name),"/",AssessYr,"/demography/M_all.tiff",sep=''),
-           width = 10,height = 6, dpi = 300, compression = "lzw")
+           width = 8,height = 6, dpi = 300, compression = "lzw")
   }
   
   #Compare M constant and M at age Natural mortality
@@ -1667,7 +1674,6 @@ if(do.r.prior)  #0.015 sec per iteration per species
  
   rm(store.species.r)
 }
-
 if(!do.r.prior)
 {
   for(l in 1:N.sp) 
@@ -1685,7 +1691,6 @@ if(!do.r.prior)
     rm(hndl.dummy)
   }
 }
-
 
   #display priors
 if(do.r.prior)
@@ -1744,12 +1749,10 @@ if(do.r.prior)
   dev.off()
 }
 
-
   #compare M and r
-Omit.these=NULL
 if(do.r.prior)
 {
-
+  Omit.these=NULL
   CompR=data.frame(Name=names(store.species.r_M.age.invariant),r=NA,M=NA)
   for(l in 1:N.sp)
   {
@@ -1871,7 +1874,6 @@ if(compare.FishLife)
   setwd(a)
   
 }
-
 
  
 #---10. Assign Resilience -----------------------------------------------------------------------
@@ -2271,7 +2273,7 @@ if(do.steepness)   #0.011 sec per iteration per species
     GET.all.Ms=FALSE
     
       #1. M at age
-    M.averaging<<-"mean"   #Not Applicable as only Dureiul's methods used ('min' yields too high h values for all species). 
+    M.averaging<<-"mean"   #Not Applicable as only Dureiul's methods used (previously, 'min' of multiple methods yielded too high h values for all species). 
     what.M<<-'at.age'
     steepNs_M.at.age=with(List.sp[[l]],fun.steepness(Nsims=NsimSS,K=Growth.F$k,LINF=Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL,
                                                    Linf.sd=Growth.F$FL_inf.sd*a_FL.to.TL+b_FL.to.TL,k.sd=Growth.F$k.sd,

@@ -432,7 +432,14 @@ for(w in 1:n.SS)
             if(exists("Var.ad.factr_meanbodywt")) Var.ad.factr=rbind(Var.ad.factr,Var.ad.factr_meanbodywt)
             clear.log("Var.ad.factr_meanbodywt")  
             clear.log("Var.ad.factr_cpue")
+            
+            if(drop.intermediate.yrs)if(Whiskery.q.periods==2 & Neim=='whiskery shark') 
+            {
+              CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%
+                filter(!yr.f%in%Life.history$Yr_q_change_transition)
+            }
           }
+          
 
           
           #Add size comp effective sample size bias adjustment    
@@ -626,6 +633,7 @@ for(w in 1:n.SS)
             
             #Life history
             Life.history$Fecundity=ceiling(mean(Life.history$Fecundity))
+            if(Neim%in%species.too.high.M1) Life.history$Max.age.F=max(Life.history$Max.age.F)
             Life.history$Max.age.F=ceiling(mean(Life.history$Max.age.F))
             Life.history$Breed.cycle=mean(Life.history$Breed.cycle)
             
@@ -1385,6 +1393,12 @@ for(w in 1:n.SS)
             if(exists("Var.ad.factr_meanbodywt")) Var.ad.factr=rbind(Var.ad.factr,Var.ad.factr_meanbodywt)
             clear.log("Var.ad.factr_meanbodywt")  
             clear.log("Var.ad.factr_cpue")
+            
+            if(drop.intermediate.yrs)if(Whiskery.q.periods==2 & Neim=='whiskery shark') 
+            {
+              CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%
+                filter(!yr.f%in%Life.history$Yr_q_change_transition)
+            }
           }
 
           
@@ -1579,6 +1593,7 @@ for(w in 1:n.SS)
             
             #Life history
             Life.history$Fecundity=ceiling(mean(Life.history$Fecundity))
+            if(Neim%in%species.too.high.M1) Life.history$Max.age.F=max(Life.history$Max.age.F)
             Life.history$Max.age.F=ceiling(mean(Life.history$Max.age.F))
             Life.history$Breed.cycle=mean(Life.history$Breed.cycle)
             

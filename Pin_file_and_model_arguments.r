@@ -435,7 +435,11 @@ for(l in 1:N.sp)
                                           'F.series_Southern.shark_1'),
                                   Fleet.n=1:6,
                                   Q=log(c(fn.ji(1e-2),fn.ji(1e-2),fn.ji(1e-3),fn.ji(4e-4),fn.ji(1e-2),fn.ji(1e-3))))
-
+  
+    #use analytical solution if not splitting Q in blocks   
+  List.sp[[l]]$SS3.q.an.sol=SS3.q.analit.solu
+  if(NeiM%in%block.species_Q)   List.sp[[l]]$SS3.q.an.sol=FALSE
+  
     #4.1.3 selectivity
   #4.1.3.1 SizeSelex
   #note: unknown for NSF and other fisheries so set to logistic using available size compo as a default unless otherwise
@@ -664,15 +668,22 @@ for(l in 1:N.sp)
     
     p1.sel_TDGDLF2=p1.sel_TDGDLF
     p2.sel_TDGDLF2=p2.sel_TDGDLF
+    p3.sel_TDGDLF2=p3.sel_TDGDLF
+    p4.sel_TDGDLF2=p4.sel_TDGDLF
     if(NeiM%in%fit.to.mean.weight.Southern2)  p1.sel_TDGDLF2=2
     if(NeiM=='spinner shark')  p2.sel_TDGDLF2=3
-      
+    if(NeiM=='whiskery shark')
+    {
+      p2.sel_TDGDLF2=3
+      p3.sel_TDGDLF2=3
+      p4.sel_TDGDLF2=3
+    }
     
     List.sp[[l]]$SS_selectivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                                  P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF2,p1.sel_Survey),
                                                  P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF2,p2.sel_Survey),
-                                                 P_3=c(p3.sel_NSF,p3.sel_Other,p3.sel_TDGDLF,p3.sel_TDGDLF,p3.sel_Survey),
-                                                 P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF,p4.sel_Survey),
+                                                 P_3=c(p3.sel_NSF,p3.sel_Other,p3.sel_TDGDLF,p3.sel_TDGDLF2,p3.sel_Survey),
+                                                 P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF2,p4.sel_Survey),
                                                  P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
                                                  P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))%>%
                                           replace(is.na(.), -2)

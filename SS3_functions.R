@@ -355,7 +355,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                       fleetinfo=NULL,abundance=NULL,size.comp=NULL,age.comp=NULL,meanbodywt=NULL,
                       F.tagging=NULL,cond.age.len=NULL,MeanSize.at.Age.obs=NULL,Lamdas=NULL,
                       RecDev_Phase=-3,SR_sigmaR=0.2,Var.adjust.factor=NULL,Future.project=NULL,
-                      first.age=0)
+                      first.age=0) #SS starts at age 0, if using 1, then Nages must be changed
 {
   # 1.Copy templates
   copy_SS_inputs(dir.old = Templates, dir.new = new.path,overwrite = TRUE,verbose=FALSE)
@@ -376,10 +376,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   
   #general age info
   dat$Nages=max(life.history$Max.age.F)
-  ageError=as.data.frame(matrix(nrow=2,ncol=dat$Nages+1))
+  nages=dat$Nages+1  #including plus group
+  #if(first.age==0) nages=dat$Nages+1  #including plus group  #NEW
+  #if(first.age>0) nages=dat$Nages
+  ageError=as.data.frame(matrix(nrow=2,ncol=nages))   
   ageError[1,]=-1.00
   ageError[2,]=0.001
-  names(ageError)=seq(0,dat$Nages)
+  names(ageError)=seq(first.age,dat$Nages)  
   dat$ageerror=ageError
   
   #population size classes
@@ -733,6 +736,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       M.age.fem=rep(Scenario$Mmean,length(1:length(ageError))) 
       M.age.male=rep(Scenario$Mmean,length(1:length(ageError)))
     }
+    if(is.na(M.age.fem[length(M.age.fem)])) M.age.fem[length(M.age.fem)]=M.age.fem[length(M.age.fem)-1]
+    if(is.na(M.age.male[length(M.age.male)])) M.age.male[length(M.age.male)]=M.age.male[length(M.age.male)-1]
     natM=data.frame(matrix(c(M.age.fem,M.age.male),nrow=2,byrow = T))
     colnames(natM)=paste('Age',first.age:max(life.history$Max.age.F),sep='_')
     ctl$natM=natM
@@ -924,6 +929,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       
       #Add extra SD to Q if CV too small  
       Difalcivi=default.CV
+      SS3.q.an.sol=life.history$SS3.q.an.sol
       if(Scenario$extra.SD.Q=='YES') Difalcivi=1
       n.indices=nrow(ctl$Q_options)
       Indx.small.CV=dat$CPUE%>%group_by(index)%>%summarise(Mean.CV=mean(CV))  
@@ -1115,8 +1121,24 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         Tab.size.comp.dat=with(dat$lencomp,table(Fleet))
         names(Tab.size.comp.dat)=fleetinfo$fleetname[as.numeric(names(Tab.size.comp.dat))]
         nn.Southern.shark_2=subset(Tab.size.comp.dat,names(Tab.size.comp.dat)=="Southern.shark_2")
+        if(length(nn.Southern.shark_2)>0)
+        {
+          ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_2",]=ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_1",]
+          add.Southern.shark_2.pars=ctl$size_selex_parms[grepl('Southern.shark_1',rownames(ctl$size_selex_parms)),]
+          rownames(add.Southern.shark_2.pars)=str_replace(rownames(add.Southern.shark_2.pars), "k_1", "k_2")
+          ctl$size_selex_parms=rbind(ctl$size_selex_parms,add.Southern.shark_2.pars)
+          ctl$size_selex_parms$fleet=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_", paste0(1:6,"_")), collapse = "|")))
+          ctl$size_selex_parms$order=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_",paste0("_",ctl$size_selex_parms$fleet)), collapse = "|")))
+          ctl$size_selex_parms=ctl$size_selex_parms%>%
+            left_join(data.frame(fleet=rownames(ctl$size_selex_types%>%filter(Special==0)))%>%mutate(Fleet.order=row_number()),
+                      by='fleet')%>%
+            arrange(Fleet.order,order)
+          rownames(ctl$size_selex_parms)=paste0('SizeSel_P_',ctl$size_selex_parms$order,'_',ctl$size_selex_parms$fleet)
+          ctl$size_selex_parms=ctl$size_selex_parms%>%
+            dplyr::select(-order,-fleet,-Fleet.order)
+        }
       }
-       if(length(nn.Southern.shark_2)>0 | (!is.null(meanbodywt) & isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt)) )
+       if( !any(grepl('Southern.shark_2',rownames(ctl$size_selex_parms))) &  (!is.null(meanbodywt) & isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt)))
       {
         ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_2",]=ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_1",]
         add.Southern.shark_2.pars=ctl$size_selex_parms[grepl('Southern.shark_1',rownames(ctl$size_selex_parms)),]
@@ -1184,7 +1206,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
           if(!is.null(size.comp))
           {
             #low.bound=sapply(low.bound, function(x) max(min(dat$lbin_vector),x))  
-            if(life.history$Name=="tiger shark") low.bound=min(dat$lbin_vector) 
+            if(life.history$Name%in%c("whiskery shark","tiger shark")) low.bound=min(dat$lbin_vector) 
           }
           #low.bound=min(low.bound,mean(seq(dat$minimum_size,(dat$minimum_size+1*TL.bins.cm),by=TL.bins.cm)))
         }
@@ -1436,8 +1458,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                E=match(D,fleetinfo$fleetname))
       dumiSel$dumi=paste(paste(paste(dumi.f$E,1,sep='_'),sapply(kkk, `[`, 2),sep='_'),sapply(kkk, `[`, 3),sep='_')
       ctl$size_selex_parms=rbind(dumiSel,offset_params)%>%
-        arrange(dumi)%>%
-        dplyr::select(-dumi)
+                            arrange(dumi)%>%
+                            dplyr::select(-dumi)
     }
     
     #order
