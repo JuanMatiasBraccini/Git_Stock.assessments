@@ -672,11 +672,11 @@ for(l in 1:N.sp)
     p4.sel_TDGDLF2=p4.sel_TDGDLF
     if(NeiM%in%fit.to.mean.weight.Southern2)  p1.sel_TDGDLF2=2
     if(NeiM=='spinner shark')  p2.sel_TDGDLF2=3
-    if(NeiM=='whiskery shark')
+    if(NeiM%in%c('whiskery shark','gummy shark'))
     {
       p2.sel_TDGDLF2=3
-      p3.sel_TDGDLF2=3
-      p4.sel_TDGDLF2=3
+    #  p3.sel_TDGDLF2=3
+    #  p4.sel_TDGDLF2=3
     }
     
     List.sp[[l]]$SS_selectivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
@@ -771,7 +771,7 @@ for(l in 1:N.sp)
   #4.1.6 Catchabilities
   if(NeiM=="whiskery shark")
   {
-    List.sp[[l]]$Nblock_Patterns=1
+    if(Whiskery.q.periods>1) List.sp[[l]]$Nblock_Patterns=1
     if(Whiskery.q.periods==2)
     {
       List.sp[[l]]$blocks_per_pattern=2

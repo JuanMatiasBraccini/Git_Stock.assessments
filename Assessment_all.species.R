@@ -258,7 +258,7 @@ ScallopedHH.Sedar=mean(c(0.69,0.71,0.67))
 SmoothHH.Sedar=0.78
 GreatHH.Sedar=0.71
 Mako.ICCAT=0.345
-species.too.high.M1=c("gummy shark","whiskery shark")  #Dureuil yields way too high M at 1 age for this so use upper Max Age
+species.too.high.M1=NULL #c("gummy shark","whiskery shark")  
 
 #publish demographic parameters
 Demo.published.values=data.frame(Species=c("angel sharks","copper shark","grey nurse shark","gummy shark","lemon shark",
@@ -385,6 +385,9 @@ survey.like.weight=NULL  #c("dusky shark","sandbar shark")
 use.Gab.trawl=TRUE   #note that this has only 1 year of data
 add.gummy.gab=FALSE
 
+species.increase.terminal.age=c("gummy shark","whiskery shark") #add a few extra age classes
+species.constant.fec=c("whiskery shark")   #dodgy linear fec
+
 Extract.SS.parameters=FALSE  #extract SS3 selectivity pars
 
 #set WRL as a separate fleet for these species
@@ -416,7 +419,7 @@ if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
 Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
 SS3.q.analit.solu=TRUE   #calculate q analytically to save up pars, set to FALSE if using block Q (time changing Q)
-block.species_Q=c("whiskery shark","gummy shark")
+block.species_Q=c("whiskery shark") #"gummy shark"
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
 Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation
 nMCsims=200  #number of Monte Carlo simulations for multivaritenormal

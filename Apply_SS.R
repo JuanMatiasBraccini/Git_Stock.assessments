@@ -633,7 +633,12 @@ for(w in 1:n.SS)
             
             #Life history
             Life.history$Fecundity=ceiling(mean(Life.history$Fecundity))
-            if(Neim%in%species.too.high.M1) Life.history$Max.age.F=max(Life.history$Max.age.F)
+            if(Neim%in%species.constant.fec)
+            {
+              Life.history$Fecu_a=NA
+              Life.history$Fecu_b=NA
+            }
+            if(Neim%in%species.increase.terminal.age) Life.history$Max.age.F=max(Life.history$Max.age.F)
             Life.history$Max.age.F=ceiling(mean(Life.history$Max.age.F))
             Life.history$Breed.cycle=mean(Life.history$Breed.cycle)
             
@@ -1593,7 +1598,12 @@ for(w in 1:n.SS)
             
             #Life history
             Life.history$Fecundity=ceiling(mean(Life.history$Fecundity))
-            if(Neim%in%species.too.high.M1) Life.history$Max.age.F=max(Life.history$Max.age.F)
+            if(Neim%in%species.constant.fec)
+            {
+              Life.history$Fecu_a=NA
+              Life.history$Fecu_b=NA
+            }
+            if(Neim%in%species.increase.terminal.age) Life.history$Max.age.F=max(Life.history$Max.age.F)
             Life.history$Max.age.F=ceiling(mean(Life.history$Max.age.F))
             Life.history$Breed.cycle=mean(Life.history$Breed.cycle)
             

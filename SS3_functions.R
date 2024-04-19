@@ -1205,8 +1205,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
           low.bound=sapply(low.bound, function(x) max(dat$minimum_size*bump,x))
           if(!is.null(size.comp))
           {
-            #low.bound=sapply(low.bound, function(x) max(min(dat$lbin_vector),x))  
-            if(life.history$Name%in%c("whiskery shark","tiger shark")) low.bound=min(dat$lbin_vector) 
+            low.bound=sapply(low.bound, function(x) max(min(dat$lbin_vector),x))  
+            #if(life.history$Name%in%c("whiskery shark","tiger shark")) low.bound=min(dat$lbin_vector) 
           }
           #low.bound=min(low.bound,mean(seq(dat$minimum_size,(dat$minimum_size+1*TL.bins.cm),by=TL.bins.cm)))
         }
@@ -1426,11 +1426,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       xx=life.history$SS_offset_selectivity%>%
         select_if(~ !any(is.na(.)))
-      xx.phase=life.history$SS_offset_selectivity_phase%>%
+       xx.phase=life.history$SS_offset_selectivity_phase%>%
         select_if(~ !any(is.na(.)))
       ctl$size_selex_types$Male[match(xx$Fleet,rownames(ctl$size_selex_types))]=3
       
-      xx.min=xx%>%mutate(P_1=-50,P_3=-5,P_4=-5,P_5=-5,P_6=0)
+      xx.min=xx%>%mutate(P_1=-50,P_3=-5,P_4=-5,P_5=-8,P_6=0)
       xx.max=xx%>%mutate(P_1=50,P_3=5,P_4=5,P_5=5,P_6=1.5)
 
       id.offset.patrn=grep(pattern = paste(unique(xx$Fleet),collapse="|"), x = rownames(ctl$size_selex_parms))

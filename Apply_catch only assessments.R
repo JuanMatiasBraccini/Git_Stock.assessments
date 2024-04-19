@@ -1070,7 +1070,7 @@ for(w in 1:length(Catch_only))
           
           #random LH samples
           LH.sim=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                                capitalize(List.sp[[i]]$Name),"/",AssessYr,"/steepness/Life.history_M.mean.csv",sep=''))
+                                capitalize(List.sp[[i]]$Name),"/",AssessYr,"/steepness/Life.history_M.at.age.csv",sep=''))
           
           #Scenario
           Scens=List.sp[[i]]$Sens.test$SS3%>%
@@ -1581,7 +1581,7 @@ for(w in 1:length(Catch_only))
           
           #random LH samples
           LH.sim=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                                capitalize(List.sp[[i]]$Name),"/",AssessYr,"/steepness/Life.history_M.mean.csv",sep=''))
+                                capitalize(List.sp[[i]]$Name),"/",AssessYr,"/steepness/Life.history_M.at.age.csv",sep=''))
           
           #Scenario
           Scens=List.sp[[i]]$Sens.test$SS3%>%
@@ -2459,7 +2459,7 @@ if(do.ensemble.simulations)   #56 sec per iteration under do.full.sims=FALSE (it
     Scens=List.sp[[i]]$Sens.test$SS3%>%filter(Scenario=='S1')
     #random LH samples
     LH.sim=read.csv(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                          capitalize(List.sp[[i]]$Name),"/",AssessYr,"/steepness/Life.history.csv",sep=''))
+                          capitalize(List.sp[[i]]$Name),"/",AssessYr,"/steepness/Life.history_M.at.age.csv",sep=''))
     this.wd1=this.wd
     
     if(do.full.sims) n.sims_SS=100 else
