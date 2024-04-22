@@ -209,7 +209,7 @@ NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue 
                           "lemon shark","pigeye shark","tiger shark",
                          "dusky shark","sandbar shark")
 tdgdlf_not.representative="smooth hammerhead"       #catch rates are for 'hammerheads'
-tdgdlf_monthly_not.representative="sandbar shark"   #increasing cpue with increasing catch and very jumpy  
+tdgdlf_monthly_not.representative=c("sandbar shark","gummy shark")   #increasing cpue with increasing catch and very jumpy  
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not distribution core
 drop.daily.cpue='2007&2008'  #drop 2007 & 2008 from TDGDLF daily cpue (consistently higher cpues across all species due to likely effort reporting bias)
 

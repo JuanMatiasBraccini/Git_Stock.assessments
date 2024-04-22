@@ -684,7 +684,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   min_Eggs_alpha=0
   if(fec.alpha<0) min_Eggs_alpha=fec.alpha*1.5
   ctl$MG_parms["Eggs_alpha_Fem_GP_1", c("LO","INIT","HI","PRIOR")]=c(min_Eggs_alpha,fec.alpha,100,fec.alpha)   
-  ctl$MG_parms["Eggs_beta_Fem_GP_1", c("INIT","PRIOR")]=rep(fec.beta,2)
+  ctl$MG_parms["Eggs_beta_Fem_GP_1", c("HI","INIT","PRIOR")]=c(fec.beta*1.5,rep(fec.beta,2))
   ctl$MG_parms["FracFemale_GP_1", c("INIT","PRIOR")]=rep(life.history$pup.sx.ratio,2)
   
   #males
@@ -1201,8 +1201,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         low.bound=multiplr*ctl$size_selex_parms[iid,"INIT"]
         if(pis[px]=="P_1")
         {
-          bump=1.05 #1.25
-          low.bound=sapply(low.bound, function(x) max(dat$minimum_size*bump,x))
+          #bump=1.05 #1.25
+          #low.bound=sapply(low.bound, function(x) max(dat$minimum_size*bump,x))
+          bump=seq(dat$minimum_size,dat$minimum_size+dat$binwidth,by=dat$binwidth)
+          bump=bump[length(bump)]+(dat$binwidth/2)
+          low.bound=sapply(low.bound, function(x) max(bump,x))
           if(!is.null(size.comp))
           {
             low.bound=sapply(low.bound, function(x) max(min(dat$lbin_vector),x))  
@@ -1426,9 +1429,17 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       xx=life.history$SS_offset_selectivity%>%
         select_if(~ !any(is.na(.)))
-       xx.phase=life.history$SS_offset_selectivity_phase%>%
+      xx.phase=life.history$SS_offset_selectivity_phase%>%
         select_if(~ !any(is.na(.)))
+      
       ctl$size_selex_types$Male[match(xx$Fleet,rownames(ctl$size_selex_types))]=3
+      ctl$size_selex_types=ctl$size_selex_types%>%mutate(Male=ifelse(Pattern==15,0,Male))
+      
+      xx=xx%>%
+            filter(Fleet%in%rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,]))
+      xx.phase=xx.phase%>%
+            filter(Fleet%in%rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,]))
+      if(is.null(size.comp) & is.null(meanbodywt)) xx.phase[,-1]=-1
       
       xx.min=xx%>%mutate(P_1=-50,P_3=-5,P_4=-5,P_5=-8,P_6=0)
       xx.max=xx%>%mutate(P_1=50,P_3=5,P_4=5,P_5=5,P_6=1.5)
