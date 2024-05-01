@@ -1675,16 +1675,16 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     fore$ForeCatch=Future.catch 
   }
 
-  
-  # 4.Export updated templates
-  
   #age composition 
   if(is.null(age.comp))
   {
     dat$N_agebins=0
-    dat=dat[-match(c("agebin_vector","N_ageerror_definitions","ageerror"),names(dat))]
+    if(Scenario$Model=='SSS') dat=dat[-match(c("ageerror"),names(dat))]
+    if(Scenario$Model=='SS') dat=dat[-match(c("agebin_vector","N_ageerror_definitions","ageerror"),names(dat))]
   }
   
+  
+  # 4.Export updated templates
   r4ss::SS_writestarter(start, dir = new.path, overwrite = TRUE,verbose = FALSE)
   r4ss::SS_writedat(dat, outfile = file.path(new.path, start$datfile), overwrite = TRUE, verbose = FALSE)
   r4ss::SS_writectl(ctl, outfile = file.path(new.path, start$ctlfile), overwrite = TRUE, verbose = FALSE)

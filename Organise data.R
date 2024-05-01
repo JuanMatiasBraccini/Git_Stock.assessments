@@ -661,7 +661,7 @@ fn.table.shots=function(dat,FSHRY)
 }
 
 fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,Min.shts,
-                       What.Efrt,Bin.size,Yr.assess,Dat,LH.par)   
+                       What.Efrt,Bin.size,Yr.assess,Dat,LH.par,remove.old.figures=FALSE)   
 {
   #---DATA SECTION--- 
   
@@ -1161,7 +1161,9 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
     dir.create(file.path(mainDir,subDir))
   }
   setwd(DiR)
-  ff=do.call(file.remove, list(list.files(DiR, full.names = TRUE)))
+  
+  #4.1 remove old figures from path
+  if(remove.old.figures) ff=do.call(file.remove, list(list.files(DiR, full.names = TRUE)))
   
   
   #5. Years with data for conventional tagging data
@@ -1988,8 +1990,8 @@ for(l in 1:N.sp)
                cpue=Catch.rate.series[[l]])
   
   
-  #Create .dat & .ctl for bespoked integrated assessments
-  #ACA. Fix this but should use  Auxiliary_functons.R MISSING!!!! Also, not doing bespoke model, only SS3
+  #Create .dat & .ctl for bespoke integrated assessments
+  #Fix this but should use  Auxiliary_functons.R Superseded, not doing bespoke model, only SS3
   do.this=FALSE
   if(do.this)if(List.sp[[l]]$Species%in%Indicator.species)
   {

@@ -54,6 +54,24 @@ Scenarios=data.frame(Scenario=c('Base Case','High','Low'),
 
 # 1 -------------------DATA SECTION------------------------------------
 
+# FishCube
+#Web:                    http://f01-fims-webp01/FishCubeWA/Query.aspx?CubeId=RecreationalISurveyStateLayer
+#Fact sheet:          http://f01-fims-webp01/FishCubeWA/Content/Documents/FishCubeWA%20-%20Recreational%20Fishing%20-%20Fact%20Sheet.pdf
+
+system.time({Rec.State.Survey.Bio.Catch.Estimate<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQL Server};
+                                                        server=CP-SDBS0001P-19\\RESP01;database=ResearchDataWarehouseQuery;
+                                                        trusted_connection=yes;"), 
+                                                            query="SELECT * FROM dbo.fcRecreationalStatewideSurveyBioregionCatchEstimate")})
+system.time({Rec.State.Survey.Catch.Estimate<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQL Server};
+                                                        server=CP-SDBS0001P-19\\RESP01;database=ResearchDataWarehouseQuery;
+                                                        trusted_connection=yes;"), 
+                                                        query="SELECT * FROM dbo.fcRecreationalStatewideSurveyStateCatchEstimate")})
+system.time({Rec.State.Survey.Zone.Catch.Estimate<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQL Server};
+                                                        server=CP-SDBS0001P-19\\RESP01;database=ResearchDataWarehouseQuery;
+                                                        trusted_connection=yes;"), 
+                                                             query="SELECT * FROM dbo.fcRecreationalStatewideSurveyZoneCatchEstimate")})
+
+
 # I-Survey
 if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 

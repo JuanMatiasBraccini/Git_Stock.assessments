@@ -5274,7 +5274,7 @@ fn.get.Kobe.plot_WA.Fisheries=function(this.sp,d,NKOL,NRW,RF=Ref.points)
   print(figure)
 }
 kobePlot_SAFS=function(f.traj,b.traj,Years,Titl,txt.col='black',YrSize=4,
-                       B.lim,F.lim)
+                       B.lim,F.lim,txt.size=7)
 {
   dta=data.frame(x=b.traj,
                  y=f.traj,
@@ -5291,10 +5291,10 @@ kobePlot_SAFS=function(f.traj,b.traj,Years,Titl,txt.col='black',YrSize=4,
     geom_rect(xmin = 0, xmax = B.lim, ymin = 0, ymax = F.lim, fill = RiskColors['High'], alpha = 0.05)+
     geom_rect(xmin = B.lim, xmax = Mx.B, ymin = 0, ymax = F.lim, fill = RiskColors['Low'], alpha = 0.05)+
     geom_rect(xmin = B.lim, xmax = Mx.B, ymin = F.lim, ymax = Mx.F, fill = RiskColors['Medium'], alpha = 0.05)+
-    annotate(geom = "text",x=mean(c(B.lim,Mx.B)),y=mean(c(F.lim,Mx.F)),label="Depleting",size=4,alpha=0.5)+
-    annotate(geom = "text",x=mean(c(B.lim,Mx.B)),y=mean(c(0,F.lim)),label="Sustainable",size=4,alpha=0.5)+
-    annotate(geom = "text", x = mean(c(0,B.lim)), y = mean(c(F.lim,Mx.F)), label = "Depleted",size=4,angle = 90,alpha=0.5)+
-    annotate(geom = "text", x = mean(c(0,B.lim)), y = mean(c(0,F.lim)), label = "Recovering",size=4,angle = 90,alpha=0.5)
+    annotate(geom = "text",x=mean(c(B.lim,Mx.B)),y=mean(c(F.lim,Mx.F)),label="Depleting",size=txt.size,alpha=0.5)+
+    annotate(geom = "text",x=mean(c(B.lim,Mx.B)),y=mean(c(0,F.lim)),label="Sustainable",size=txt.size,alpha=0.5)+
+    annotate(geom = "text", x = mean(c(0,B.lim)), y = mean(c(F.lim,Mx.F)), label = "Depleted",size=txt.size,angle = 90,alpha=0.5)+
+    annotate(geom = "text", x = mean(c(0,B.lim)), y = mean(c(0,F.lim)), label = "Recovering",size=txt.size,angle = 90,alpha=0.5)
   
   kobe <-kobe +
     geom_path(linetype = 2, size = 0.5,color='deepskyblue4')+

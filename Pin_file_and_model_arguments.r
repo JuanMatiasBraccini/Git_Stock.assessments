@@ -8,7 +8,7 @@
 k.fun=function(KTCH,times.ktch) max(KTCH,na.rm=T)*times.ktch  #use species-specific min and max times k based on exploitation history
                                                                #upper bound: 50 times (Andrade 2017)
 fn.mtch=function(WHAT,NMS) match(WHAT,names(NMS))
-if(Do.bespoked)
+if(Do.bespoke)
 {
   Q_phz=c("lnq","lnq2","log_Qdaily")                           
   Zns.par.phz=c("lnR_prop_west","lnR_prop_zn1")
@@ -799,8 +799,8 @@ for(l in 1:N.sp)
   }
 
   
-  #-- 4.2 Bespoked Size-based integrated model
-  if(Do.bespoked)
+  #-- 4.2 Bespoke Size-based integrated model
+  if(Do.bespoke)
   {
     if(List.sp[[l]]$Species%in%Indicator.species)
     {

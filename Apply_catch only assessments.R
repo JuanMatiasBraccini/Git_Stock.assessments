@@ -3452,67 +3452,72 @@ if(get.MSY.estimates)
 if(!"L3Assess" %in% (.packages())) library(L3Assess)
 dis.w=match(c("DBSRA", "CMSY"),names(Catch_only))
 LenInc=TL.bins.cm
-for(i in 1: length(Lista.sp.outputs))
+get.numb.ind.pop=FALSE
+if(get.numb.ind.pop)
 {
-  dis.spicis=Lista.sp.outputs[[i]][which(Lista.sp.outputs[[i]]%in%Catch.only.species)]
-  if(length(dis.spicis)>0)
+  for(i in 1: length(Lista.sp.outputs))
   {
-    ddd=vector('list',length(dis.w))
-    for(w in dis.w)
+    dis.spicis=Lista.sp.outputs[[i]][which(Lista.sp.outputs[[i]]%in%Catch.only.species)]
+    if(length(dis.spicis)>0)
     {
-      dummy=Catch_only[[w]]$estimates
-      dummy=dummy[match(Lista.sp.outputs[[i]],names(dummy))]
-      ddd[[w]]=do.call(rbind,dummy)%>%
-                rownames_to_column(var = "Species")%>%
-                mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
-                relocate(Species)%>%
-                filter(Scenario=='S1'& Parameter%in%c('MSY','K'))
-    }
-    ddd=do.call(rbind,ddd)%>%
-      group_by(Species,Parameter)%>%
-      summarise(Median=mean(Median))%>%
-      spread(Parameter,Median)
-    nn=unique(ddd$Species)
-    kk=vector('list',length(nn))
-    for(n in 1:length(nn))
-    {
-      x=ddd%>%filter(Species==nn[n])
-      l=match(tolower(x$Species),names(List.sp))
-      MaxAge = ceiling(mean(List.sp[[l]]$Max.age.F))
-      NatMort = List.sp[[l]]$Sens.test$SS3$Mmean[1]
-      MaxLen = 10*round(List.sp[[l]]$TLmax/10)
-      min.TL=with(List.sp[[l]],Lzero*a_FL.to.TL+b_FL.to.TL)
-      FishMort=1e-6
-      Linf = c(List.sp[[l]]$Growth.F$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
-               List.sp[[l]]$Growth.M$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL) #total length in cm for females and males   
-      vbK = c(List.sp[[l]]$Growth.F$k,List.sp[[l]]$Growth.M$k)          # k for females and males
-      GrowthParams = data.frame(Linf=Linf, vbK=vbK)
-      CVSizeAtAge = rep(with(List.sp[[l]],mean(c(Growth.CV_young,Growth.CV_old))),2)  
-
-      lbnd = seq(0,MaxLen - LenInc, LenInc)
-      ubnd = lbnd + LenInc
-      midpt = lbnd + (LenInc/2)
+      ddd=vector('list',length(dis.w))
+      for(w in dis.w)
+      {
+        dummy=Catch_only[[w]]$estimates
+        dummy=dummy[match(Lista.sp.outputs[[i]],names(dummy))]
+        ddd[[w]]=do.call(rbind,dummy)%>%
+          rownames_to_column(var = "Species")%>%
+          mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
+          relocate(Species)%>%
+          filter(Scenario=='S1'& Parameter%in%c('MSY','K'))
+      }
+      ddd=do.call(rbind,ddd)%>%
+        group_by(Species,Parameter)%>%
+        summarise(Median=mean(Median))%>%
+        spread(Parameter,Median)
+      nn=unique(ddd$Species)
+      kk=vector('list',length(nn))
+      for(n in 1:length(nn))
+      {
+        x=ddd%>%filter(Species==nn[n])
+        l=match(tolower(x$Species),names(List.sp))
+        MaxAge = ceiling(mean(List.sp[[l]]$Max.age.F))
+        NatMort = List.sp[[l]]$Sens.test$SS3$Mmean[1]
+        MaxLen = 10*round(List.sp[[l]]$TLmax/10)
+        min.TL=with(List.sp[[l]],Lzero*a_FL.to.TL+b_FL.to.TL)
+        FishMort=1e-6
+        Linf = c(List.sp[[l]]$Growth.F$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
+                 List.sp[[l]]$Growth.M$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL) #total length in cm for females and males   
+        vbK = c(List.sp[[l]]$Growth.F$k,List.sp[[l]]$Growth.M$k)          # k for females and males
+        GrowthParams = data.frame(Linf=Linf, vbK=vbK)
+        CVSizeAtAge = rep(with(List.sp[[l]],mean(c(Growth.CV_young,Growth.CV_old))),2)  
+        
+        lbnd = seq(0,MaxLen - LenInc, LenInc)
+        ubnd = lbnd + LenInc
+        midpt = lbnd + (LenInc/2)
+        
+        Res=SimLenAndAgeFreqData(SampleSize=5000, MaxAge, TimeStep=1, NatMort, FishMort, MaxLen, 
+                                 LenInc, MLL=NA, SelectivityType=1,
+                                 SelParams=c(NA,NA), RetenParams=c(NA,NA), SelectivityVec=rep(1,length(midpt)),
+                                 DiscMort=0, GrowthCurveType=1, GrowthParams, RefnceAges=NA, CVSizeAtAge)
+        TW=List.sp[[l]]$AwT*midpt^List.sp[[l]]$BwT
+        aidis=which(midpt>=min.TL)
+        TW=TW[aidis]
+        Equil.N=Res$ObsRetCatchFreqAtLen
+        Equil.N=Equil.N[aidis]
+        Equil.N=Equil.N/sum(Equil.N)
+        N.individuals=sum(Equil.N*x$K*1000/TW)
+        kk[[n]]=x%>%mutate(N.individuals_population=N.individuals)
+      }
       
-      Res=SimLenAndAgeFreqData(SampleSize=5000, MaxAge, TimeStep=1, NatMort, FishMort, MaxLen, 
-                               LenInc, MLL=NA, SelectivityType=1,
-                               SelParams=c(NA,NA), RetenParams=c(NA,NA), SelectivityVec=rep(1,length(midpt)),
-                               DiscMort=0, GrowthCurveType=1, GrowthParams, RefnceAges=NA, CVSizeAtAge)
-      TW=List.sp[[l]]$AwT*midpt^List.sp[[l]]$BwT
-      aidis=which(midpt>=min.TL)
-      TW=TW[aidis]
-      Equil.N=Res$ObsRetCatchFreqAtLen
-      Equil.N=Equil.N[aidis]
-      Equil.N=Equil.N/sum(Equil.N)
-      N.individuals=sum(Equil.N*x$K*1000/TW)
-      kk[[n]]=x%>%mutate(N.individuals_population=N.individuals)
+      write.csv(do.call(rbind,kk),paste(Rar.path,paste('Table 3. Catch only_estimates_Number of individuals','_',
+                                                       names(Lista.sp.outputs)[i],'.csv',sep=''),sep='/'),row.names = F)
+      
+      
     }
-    
-    write.csv(do.call(rbind,kk),paste(Rar.path,paste('Table 3. Catch only_estimates_Number of individuals','_',
-                                       names(Lista.sp.outputs)[i],'.csv',sep=''),sep='/'),row.names = F)
-    
-
   }
 }
+
 
 #18.12 Store Consequence and likelihood for WoE 
 get.cons.like.COM=FALSE  #import from table instead

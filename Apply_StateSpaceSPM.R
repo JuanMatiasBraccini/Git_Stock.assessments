@@ -103,7 +103,8 @@ for(w in 1:length(State.Space.SPM))
           if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
           if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
           if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
-           
+          if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
+          
           #reset very low CVs       
           #note:very low CVs in stand cpues, hence use Francis CVs 
           if(increase.CV.JABBA)
@@ -737,6 +738,7 @@ for(w in 1:length(State.Space.SPM))
           if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
           if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
           if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
+          if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
           
           #reset very low CVs       
           #note:very low CVs in stand cpues, hence increase obs error a bit 
@@ -1779,7 +1781,7 @@ for(i in 1:N.sp)
 {
   if(!is.null(State.Space.SPM$JABBA$estimates[[i]]))
   {
-    print(paste("JABBA --- Kobe plot WA Fisheries-----",Keep.species[i]))
+    print(paste("JABBA --- Kobe plot SAFS-----",Keep.species[i]))
     fn.get.Kobe.plot_appendix_SAFS(d=State.Space.SPM,
                                    sp=Keep.species[i],
                                    RF=Ref.points)
