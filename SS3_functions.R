@@ -786,24 +786,33 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       }
     }
  
-    ctl$recdev_early_start=0
+    if(RecDev_Phase<0)
+    {
+      ctl$recdev_early_start=0
+      ctl$recdev_early_phase=-1
+    }
+      
+    if(RecDev_Phase>0) 
+    {
+      ctl$recdev_early_start=20  #allow 20 years before catch for population to stabilize
+      ctl$recdev_early_phase=3
+    }
     ctl$max_bias_adj=0.8
     ctl$min_rec_dev=-2
     ctl$max_rec_dev=abs(ctl$min_rec_dev)
+    ctl$MainRdevYrFirst=min(Catch$finyear)
     if(is.null(size.comp) & !is.null(abundance))
     {
-      ctl$MainRdevYrFirst=min(abundance$Year)
       ctl$MainRdevYrLast=max(abundance$Year)
       ctl$last_early_yr_nobias_adj=min(abundance$Year)-1
       ctl$first_yr_fullbias_adj=min(abundance$Year)+5 #first year with full bias adj. should be a few years into the data-rich period
     }
     if(!is.null(size.comp))
     {
-      ctl$MainRdevYrFirst=min(size.comp$year) #-dat$Nages
       ctl$MainRdevYrLast=max(size.comp$year)
      if(!is.null(abundance) & life.history$Name=="smooth hammerhead") ctl$MainRdevYrLast=max(abundance$Year)#to allow fitting Southern2 cpue
-      ctl$last_early_yr_nobias_adj=ctl$MainRdevYrFirst-1
-      ctl$first_yr_fullbias_adj=min(ctl$MainRdevYrLast-1,ctl$MainRdevYrFirst+5) 
+      ctl$last_early_yr_nobias_adj=min(size.comp$year)-1
+      ctl$first_yr_fullbias_adj=min(ctl$MainRdevYrLast-1,min(size.comp$year)+5) 
     }
     ctl$last_yr_fullbias_adj=endyr-2
     ctl$first_recent_yr_nobias_adj=endyr   #end_yr_for_ramp_in_MPD

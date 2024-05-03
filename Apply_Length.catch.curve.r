@@ -571,7 +571,7 @@ Out.table=do.call(rbind,Store.per.recruit.results)%>%
   relocate(Species)%>%
   rename(Period=Year)%>%
   adorn_rounding(digits = 3, rounding = "half up")
-write.csv(Out.table,paste0(Rar.path,'/Table_Catch.curve_YPR.csv'),row.names = F)
+write.csv(Out.table,paste0(Rar.path,'/Table 6. Catch.curve_YPR.csv'),row.names = F)
 
 #2. By species group
 for(l in 1:length(Lista.sp.outputs))

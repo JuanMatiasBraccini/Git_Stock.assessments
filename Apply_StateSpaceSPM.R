@@ -104,6 +104,7 @@ for(w in 1:length(State.Space.SPM))
           if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
           if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
           if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
+          if(!is.null(List.sp[[i]]$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%List.sp[[i]]$drop.monthly.cpue)
           
           #reset very low CVs       
           #note:very low CVs in stand cpues, hence use Francis CVs 
@@ -739,6 +740,7 @@ for(w in 1:length(State.Space.SPM))
           if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
           if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
           if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
+          if(!is.null(List.sp[[i]]$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%List.sp[[i]]$drop.monthly.cpue)
           
           #reset very low CVs       
           #note:very low CVs in stand cpues, hence increase obs error a bit 
@@ -1318,7 +1320,7 @@ for(l in 1: length(Lista.sp.outputs))
     if(!evaluate.07.08.cpue) d.tbl=d.tbl%>%dplyr::select(-Daily.cpues)
       
     write.csv(d.tbl,
-              paste(Rar.path,paste('Table 6. ',names(State.Space.SPM)[w],' CPUE_scenarios_',
+              paste(Rar.path,paste('Table 7. ',names(State.Space.SPM)[w],' CPUE_scenarios_',
                                    names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
               row.names = F)
   }
@@ -1339,7 +1341,7 @@ for(l in 1: length(Lista.sp.outputs))
         rownames_to_column(var = "Species")%>%
         mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
         relocate(Species)
-      write.csv(dummy,paste(Rar.path,paste('Table 7. ',names(State.Space.SPM)[w],' CPUE_estimates_',
+      write.csv(dummy,paste(Rar.path,paste('Table 8. ',names(State.Space.SPM)[w],' CPUE_estimates_',
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
     }
@@ -1507,7 +1509,7 @@ for(l in 1:length(Lista.sp.outputs))
                 mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                 spread(Species,Probability)%>%
                 arrange(finyear,Range),
-              paste(Rar.path,'/Table 8. JABBA CPUE_Current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+              paste(Rar.path,'/Table 9. JABBA CPUE_Current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
               row.names=F)
     rm(dummy.mod)
     
@@ -1577,7 +1579,7 @@ if(do.B.over.Bmsy.series)
                   mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                   spread(Species,Probability)%>%
                   arrange(finyear,Range),
-                paste(Rar.path,'/Table 8. JABBA CPUE_Current.B.over.Bmsy_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+                paste(Rar.path,'/Table 9. JABBA CPUE_Current.B.over.Bmsy_',names(Lista.sp.outputs)[l],'.csv',sep=''),
                 row.names=F)
       rm(dummy.mod)
       

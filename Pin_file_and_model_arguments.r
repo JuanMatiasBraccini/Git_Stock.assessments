@@ -55,6 +55,31 @@ for(i in 1:N.sp)
   }
 }
 
+#Get CVs young and old
+fun.cv_young_old=function(d,NM)
+{
+  if('age_length' %in% names(d))
+  {
+    d=d$age_length
+    d%>%
+      ggplot(aes(round(Age),FL,col=Sex))+geom_point()
+    A.max=max(d$Age)
+    return(d%>%
+             mutate(Age.group=ifelse(Age<=3,'1.young',ifelse(Age>0.8*A.max,'3.old','2.mid')))%>%
+             group_by(Age.group)%>%
+             summarise(mean=mean(FL),
+                       sd=sd(FL))%>%
+             ungroup()%>%
+             mutate(CV=sd/mean,
+                    Species=NM))
+  }
+}
+Get.CV_youn_old=vector('list',N.sp)
+for(i in 1:N.sp) Get.CV_youn_old[[i]]=fun.cv_young_old(d=Species.data[[i]],NM=names(Species.data)[i])
+Get.CV_youn_old=do.call(rbind,Get.CV_youn_old)
+Young.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='1.young')%>%pull(CV)),2)
+Old.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='3.old')%>%pull(CV)),2)
+
 #Create pin files
 for(l in 1:N.sp)    
 {
@@ -398,10 +423,12 @@ for(l in 1:N.sp)
   N.rowSS=nrow(List.sp[[l]]$Sens.test$SS)
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,N.rowSS)
   if(evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=c(rep(drop.daily.cpue,N.rowSS-1),NA)
+  List.sp[[l]]$drop.monthly.cpue=NULL
+  if(NeiM%in%c("gummy shark")) List.sp[[l]]$drop.monthly.cpue=1975:1985
   
     #Use cpue in likelihood?
   List.sp[[l]]$drop.cpue=FALSE
-  if(NeiM%in%c("spinner shark"))  List.sp[[l]]$drop.cpue=TRUE
+  #if(NeiM%in%c("spinner shark"))  List.sp[[l]]$drop.cpue=TRUE
   
     #Always calculate extra SD for Q or only when CV is small
   List.sp[[l]]$Sens.test$SS$extra.SD.Q='NO' #set to 'YES' if not calculating Francis CVs otherwise if using both it blows it
@@ -424,8 +451,8 @@ for(l in 1:N.sp)
   }
   
     #4.1.2 Growth
-  List.sp[[l]]$Growth.CV_young=0.08  #constant CV 8.5%-10% Tremblay-Boyer et al 2019; 22% Sandbar Sedar; 15% Dogfish SS; 27% BigSkate SS
-  List.sp[[l]]$Growth.CV_old=0.1    #12% Sandbar Sedar
+  List.sp[[l]]$Growth.CV_young=max(0.1,Young.CV)  #constant CV 8.5%-10% Tremblay-Boyer et al 2019; 22% Sandbar Sedar; 15% Dogfish SS; 27% BigSkate SS
+  List.sp[[l]]$Growth.CV_old=max(0.1,Old.CV)    #12% Sandbar Sedar
   #if(NeiM%in%c("milk shark","wobbegongs")) List.sp[[l]]$Growth.CV_old=0.15  #widen the CV to allow observed max sizes be within Linf + CV
   List.sp[[l]]$SS3.estim.growth.pars=FALSE
   List.sp[[l]]$compress.tail=FALSE  #compress the size distribution tail into plus group. 
@@ -670,9 +697,14 @@ for(l in 1:N.sp)
     p2.sel_TDGDLF2=p2.sel_TDGDLF
     p3.sel_TDGDLF2=p3.sel_TDGDLF
     p4.sel_TDGDLF2=p4.sel_TDGDLF
-    if(NeiM%in%fit.to.mean.weight.Southern2)  p1.sel_TDGDLF2=2
-    if(NeiM=='spinner shark')  p2.sel_TDGDLF2=3
-    if(NeiM%in%c('whiskery shark','gummy shark')) p2.sel_TDGDLF2=3
+    if(NeiM%in%fit.to.mean.weight.Southern2)
+    {
+      p1.sel_TDGDLF2=2
+      if(NeiM=='spinner shark')  p2.sel_TDGDLF2=3
+      if(NeiM%in%c('whiskery shark','gummy shark')) p2.sel_TDGDLF2=3
+    }
+      
+
     List.sp[[l]]$SS_selectivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                                  P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF2,p1.sel_Survey),
                                                  P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF2,p2.sel_Survey),

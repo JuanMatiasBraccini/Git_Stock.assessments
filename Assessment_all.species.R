@@ -286,6 +286,7 @@ col.Threshold='orange'
 col.Limit='red'
 
 #18. Catch-only Models
+COM_use.this.for.risk='catch' #  define if using 'catch' or 'biomass' trajectories to determine risk from catch-only methods
 do.ensemble.simulations=FALSE
 catch.only=c('DBSRA','CMSY','SSS')      # define model types used
 do.OCOM=FALSE
@@ -367,7 +368,8 @@ combine.sexes.tdgdlf.daily=NULL #c("sandbar shark")
 combine.sexes.survey=c("dusky shark") 
 combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
-fit.to.mean.weight.Southern2=c("spinner shark","gummy shark","whiskery shark","dusky shark","sandbar shark")   #get model to fit mean weight regardless of available length comp
+fit.to.mean.weight.Southern2=NULL
+#fit.to.mean.weight.Southern2=c("spinner shark","gummy shark","whiskery shark","dusky shark","sandbar shark")   #get model to fit mean weight regardless of available length comp
 drop.len.comp.like=NULL    #c("dusky shark")
 survey.like.weight=NULL  #c("dusky shark","sandbar shark")
 use.Gab.trawl=TRUE   #note that this has only 1 year of data
@@ -3305,7 +3307,7 @@ if(First.run=="YES")
     }
   }
   write.csv(do.call(rbind,compact(Export.table.sels.man.fleet)),
-            paste(Rar.path,'Table_selectivities for main fleets.csv',sep='/'),row.names = F)  
+            paste(Rar.path,'Table_SS selectivities by fleets and prop of total catch.csv',sep='/'),row.names = F)  
 }
 
 
@@ -3718,7 +3720,6 @@ if(plot.bmsyK)
 }
 
 #Get Consequence and likelihoods
-COM_use.this.for.risk='catch' #'biomass'
 if(COM_use.this.for.risk=='catch')
 {
   if (any(grepl("Table 4. Catch.only_catch_vs_MSY",list.files(Rar.path))))
@@ -3819,19 +3820,19 @@ m.par=do.call(rbind,m.par)
 if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes 0.9 hours (3e4 sims for 8 species with 6 scenarios and fit diagnostics)
 
   #Get Consequence and likelihoods
-if (any(grepl("Table 8. JABBA CPUE_Current.B.over.Bmsy",list.files(Rar.path))))
+if (any(grepl("Table 9. JABBA CPUE_Current.B.over.Bmsy",list.files(Rar.path))))
 {
   Store.cons.Like_JABBA=list(Depletion=NULL,B.over.Bmsy=NULL)     
   DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
   for(l in 1:length(Lista.sp.outputs))  
   {
     ddis=names(Lista.sp.outputs)[l]
-    DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 8. JABBA CPUE_Current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
+    DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 9. JABBA CPUE_Current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
       dplyr::select(-c(Scenario,Model))%>%
       gather(Species,Probability,-c(Range,finyear))%>%
       mutate(Species=gsub(".", " ", Species, fixed=TRUE))
     
-    DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 8. JABBA CPUE_Current.depletion_',ddis,'.csv',sep=''))%>%
+    DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 9. JABBA CPUE_Current.depletion_',ddis,'.csv',sep=''))%>%
       dplyr::select(-c(Scenario,Model))%>%
       gather(Species,Probability,-c(Range,finyear))%>%
       mutate(Species=gsub(".", " ", Species, fixed=TRUE))
@@ -3859,19 +3860,19 @@ clear.log('State.Space.SPM')
 if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours
 
   #Get Consequence and likelihoods 
-if (any(grepl("Table 11. Age.based_SS_current.depletion",list.files(Rar.path))))
+if (any(grepl("Table 12. Age.based_SS_current.depletion",list.files(Rar.path))))
 {
   Store.cons.Like_Age.based=list(Depletion=NULL,B.over.Bmsy=NULL)     
   DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
   for(l in 1:length(Lista.sp.outputs))  
   {
     ddis=names(Lista.sp.outputs)[l]
-    DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 11. Age.based_SS_current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
+    DD.B.over.Bmsy[[l]]=read.csv(paste(Rar.path,'/Table 12. Age.based_SS_current.B.over.Bmsy_',ddis,'.csv',sep=''))%>%
       dplyr::select(-c(Scenario,Model))%>%
       gather(Species,Probability,-c(Range,finyear))%>%
       mutate(Species=gsub(".", " ", Species, fixed=TRUE))
     
-    DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 11. Age.based_SS_current.depletion_',ddis,'.csv',sep=''))%>%
+    DD.depletion[[l]]=read.csv(paste(Rar.path,'/Table 12. Age.based_SS_current.depletion_',ddis,'.csv',sep=''))%>%
       dplyr::select(-c(Scenario,Model))%>%
       gather(Species,Probability,-c(Range,finyear))%>%
       mutate(Species=gsub(".", " ", Species, fixed=TRUE))
@@ -4146,7 +4147,7 @@ Out.overall.risk=rbind(Store.risk_Drop.species,Store.risk_Other.sp,Store.risk_In
   mutate(Risk.overall=paste0(Risk,' (',Consequence,'x',Likelihood,')'))%>%
   dplyr::select(Species,Risk.overall)
 write.csv(Table.risks%>%left_join(Out.overall.risk,by='Species'),
-          paste(Rar.path,'Table 12. Risk of each LoE and Overall.csv',sep='/'),row.names=F)
+          paste(Rar.path,'Table 13. Risk of each LoE and Overall.csv',sep='/'),row.names=F)
 
 
 

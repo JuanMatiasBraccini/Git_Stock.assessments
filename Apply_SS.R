@@ -385,6 +385,7 @@ for(w in 1:n.SS)
             if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
             if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
             if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
+            if(!is.null(Life.history$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%Life.history$drop.monthly.cpue)
             
             #reset very low CVs
             #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
@@ -1352,6 +1353,7 @@ for(w in 1:n.SS)
             if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
             if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
             if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
+            if(!is.null(Life.history$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%Life.history$drop.monthly.cpue)
             
             #reset very low CVs
             #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
@@ -1962,7 +1964,7 @@ for(l in 1: length(Lista.sp.outputs))
     d.tbl=do.call(rbind,dummy)%>%relocate(Species)
     if(!evaluate.07.08.cpue) d.tbl=d.tbl%>%dplyr::select(-Daily.cpues)
     write.csv(d.tbl,
-              paste(Rar.path,paste('Table 9. Age.based_',names(Age.based)[w],'_scenarios_',
+              paste(Rar.path,paste('Table 10. Age.based_',names(Age.based)[w],'_scenarios_',
                                    names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
               row.names = F)
   }
@@ -1983,7 +1985,7 @@ for(l in 1: length(Lista.sp.outputs))
         rownames_to_column(var = "Species")%>%
         mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
         relocate(Species)
-      write.csv(dummy,paste(Rar.path,paste('Table 10. Age.based_',
+      write.csv(dummy,paste(Rar.path,paste('Table 11. Age.based_',
                                            names(Age.based)[w],'_estimates_',
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
@@ -1999,7 +2001,7 @@ for(l in 1: length(Lista.sp.outputs))
         rownames_to_column(var = "Species")%>%
         mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
         relocate(Species)
-      write.csv(dummy,paste(Rar.path,paste('Table 10. Age.based_',
+      write.csv(dummy,paste(Rar.path,paste('Table 11. Age.based_',
                                            names(Age.based)[w],'_likelihoods_',
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
@@ -2160,7 +2162,7 @@ for(l in 1:length(Lista.sp.outputs))
                 mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                 spread(Species,Probability)%>%
                 arrange(Range),
-              paste(Rar.path,'/Table 11. Age.based_SS_current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+              paste(Rar.path,'/Table 12. Age.based_SS_current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
               row.names=F)
     rm(dummy.mod)
     
