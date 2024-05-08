@@ -207,8 +207,8 @@ survey_not.representative=c("scalloped hammerhead","great hammerhead",
 NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue not used as unlikely to be representative
                           "lemon shark","pigeye shark","tiger shark",
                          "dusky shark","sandbar shark")
-tdgdlf_not.representative="smooth hammerhead"       #catch rates are for 'hammerheads'
-tdgdlf_monthly_not.representative=c("sandbar shark","gummy shark")   #increasing cpue with increasing catch and very jumpy index 
+tdgdlf_not.representative=c("smooth hammerhead","spinner shark")   #catch rates are for 'hammerheads' and for both species cpue tracks catch so no depletion signal
+tdgdlf_monthly_not.representative=c("sandbar shark")   #increasing cpue with increasing catch and very jumpy index 
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
 
@@ -363,20 +363,23 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
 combine_NSF_Survey=NULL   #combine length composition data to estimate logistic selectivity
 # combine_NSF_Survey=c("dusky shark","great hammerhead","lemon shark","milk shark",
 #                      "pigeye shark","sandbar shark","scalloped hammerhead","tiger shark")
-combine.sexes.tdgdlf=c("smooth hammerhead","spinner shark")
-combine.sexes.tdgdlf.daily=NULL #c("sandbar shark")
+combine.sexes.tdgdlf=NULL 
+combine.sexes.tdgdlf.daily=NULL 
 combine.sexes.survey=c("dusky shark") 
 combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
-fit.to.mean.weight.Southern2=NULL
-#fit.to.mean.weight.Southern2=c("spinner shark","gummy shark","whiskery shark","dusky shark","sandbar shark")   #get model to fit mean weight regardless of available length comp
+#fit.to.mean.weight.Southern2=NULL
+fit.to.mean.weight.Southern2=c("spinner shark","whiskery shark")  #get model to fit mean weight regardless of available length comp
 drop.len.comp.like=NULL    #c("dusky shark")
-survey.like.weight=NULL  #c("dusky shark","sandbar shark")
+survey.like.weight="dusky shark"  
 use.Gab.trawl=TRUE   #note that this has only 1 year of data
 add.gummy.gab=FALSE
 species.increase.terminal.age=c("gummy shark","whiskery shark") #add a few extra age classes
 species.constant.fec=c("whiskery shark")   #dodgy linear fec relationship
 Extract.SS.parameters=FALSE  #extract SS3 selectivity pars
+rescaled.species.sel=sort(c('great hammerhead','scalloped hammerhead','grey nurse shark','milk shark',
+                       'shortfin mako','sawsharks','spinner shark',
+                       'tiger shark','wobbegongs'))   #this species have no species-specific empirical sel (family was used)
 Plus.gp.size=1.25  #add 25% to max size make sure no accumulation of survivals in last size class
 
   #21.1 Set WRL as a separate fleet for these species

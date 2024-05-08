@@ -28,7 +28,7 @@ for(l in 1:N.sp)
     if(SP=='angel sharks') par=c(65,-4.5,5.5,7)
     if(SP=='copper shark') par=c(110,-2.5,6,8)
     if(SP=='dusky shark') par=c(90,-4.5,5.2,5.2)
-    if(SP=='gummy shark') par=c(130,-4.5,6,7)
+    if(SP=='gummy shark') par=c(115,-20,6,7)
     if(grepl("hammerhead",SP)) par=c(100,-4,9,10.2)
     if(SP=='sawsharks') par=c(100,-4.5,6,7)
     if(SP=='whiskery shark') par=c(130,-4.5,6,7)
@@ -53,14 +53,18 @@ for(l in 1:N.sp)
                                         fleet))),
              TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)
     dd=d.list%>%
-      filter(Fleet%in%c('Southern.shark_1','Southern.shark_2'))
+      filter(Fleet%in%c('Southern.shark_1','Southern.shark_2'))%>%
+      mutate(size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+      filter(TL<=with(List.sp[[l]],max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))
+
     dd1=dd
     
     #display size and selectivity
     fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                  capitalize(List.sp[[l]]$Name),"/",AssessYr,
                  "/1_Inputs/Visualise data/Estimated SS3 selectivity",sep=''),2000,2000)  
-    plot(TL,Obs,main=SP,pch=19,ylab='Relative selectivity',xlab='TL (cm)')
+    plot(TL,Obs,main=SP,pch=19,ylab='Relative selectivity',xlab='TL (cm)',xlim=c(with(List.sp[[l]],Lzero+a_FL.to.TL+b_FL.to.TL),
+                                                                                 List.sp[[l]]$TLmax))
     lines(TL,Init.val,col='red',lwd=1)
     if(SP=='copper shark')dd=dd%>%filter(Region=='Zone2.7')
     if(SP=='scalloped hammerhead') dd=dd%>%filter(Region%in%c('West.6.5','West.7'))
@@ -74,7 +78,7 @@ for(l in 1:N.sp)
       #  lines(d$x,d$y/max(d$y),col="forestgreen",lwd=2)
     }
     nlmb <- nlminb(par, ObjFunc, gradient = NULL, hessian = TRUE)
-    if(SP=='gummy shark')nlmb$par[1]=112
+    #if(SP=='gummy shark')nlmb$par[1]=112
     if(SP=='spurdogs')nlmb$par[1]=56
     TL1=TL
     Predicted=with(nlmb,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
@@ -89,8 +93,8 @@ for(l in 1:N.sp)
     if(SP=='milk shark')nlmb_fitted_to_obs$par[2:4]=c(-9,4.5,4.5) 
     Predicted_fitted_to_obs=with(nlmb_fitted_to_obs,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
     lines(TL1,Predicted_fitted_to_obs,col='forestgreen',lwd=3)
-    legend('topright',c('empirical sel','init values','predicted SS3',
-                        'predicted SS3_rescaled','observed lengths'),
+    legend('topleft',c('empirical sel','init values','predicted SS3',
+                        'predicted SS3_rescaled',paste0('observed lengths (n=',nrow(dd),')')),
            pch=c(19,NA,NA,NA,NA),lty=c(NA,1,1,1,1),lwd=3,
            col=c('black','red','black','forestgreen',"green"),bty='n')
     dev.off()
@@ -116,13 +120,10 @@ for(l in 1:N.sp)
     #store SS3 sel pars for use in assessment
     usedis=nlmb
     SS3.par.calculation='SS3 pars fitted to empirical selectivity'
-    rescaled.species=c('great hammerhead','scalloped hammerhead','copper shark',
-                       'grey nurse shark','milk shark','shortfin mako','sawsharks',
-                       'spinner shark','tiger shark','wobbegongs')
-    if(SP%in%rescaled.species)
+    if(SP%in%rescaled.species.sel)
     {
       usedis=nlmb_fitted_to_obs
-      SS3.par.calculation='SS3 pars fitted to empirical selectivity rescaled to length comp'
+      SS3.par.calculation='SS3 pars fitted to empirical selectivity rescaled to observed length comp'
     }
     SS.double.normal.pars_empirical[[l]]=with(usedis,data.frame(Species=SP,
                                                                 p1=par[1],
@@ -362,7 +363,8 @@ for(l in 1:N.sp)
     if(any(grepl('Other',names(d.list)))) d.list=d.list[-grep('Other',names(d.list))]
     if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
     for(x in 1:length(d.list)) d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
-    d.list=do.call(rbind,d.list)
+    if('Size_composition_Survey'%in%names(d.list)) d.list$Size_composition_Survey$Size.type='FL'
+    d.list=do.call(rbind,d.list)  
     d.list=d.list%>%
       mutate(TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)
     dd=d.list%>%
@@ -431,6 +433,7 @@ for(l in 1:N.sp)
     if(any(grepl('Other',names(d.list)))) d.list=d.list[-grep('Other',names(d.list))]
     if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
     for(x in 1:length(d.list)) d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
+    if('Size_composition_Survey'%in%names(d.list)) d.list$Size_composition_Survey$Size.type='FL'
     d.list=do.call(rbind,d.list)
     d.list=d.list%>%
       mutate(TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)

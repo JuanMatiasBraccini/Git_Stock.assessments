@@ -100,70 +100,69 @@ for(w in 1:length(State.Space.SPM))
           CPUE=compact(Catch.rate.series[[i]])
           DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
           if(length(DROP)>0)CPUE=CPUE[-DROP]
-          if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
-          if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
-          if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
+          if(Neim%in%survey_not.representative & any(grepl("Survey",names(CPUE)))) CPUE=CPUE[-grep("Survey",names(CPUE))]
+          if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
+          if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE)))) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
           if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
           if(!is.null(List.sp[[i]]$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%List.sp[[i]]$drop.monthly.cpue)
           
-          #reset very low CVs       
-          #note:very low CVs in stand cpues, hence use Francis CVs 
-          if(increase.CV.JABBA)
-          {
-            dumi.cpue=CPUE
-            for(j in 1:length(CPUE))
-            {
-              dumi.cpue[[j]]=dumi.cpue[[j]]%>%
-                mutate(Fleet=names(dumi.cpue)[j])%>%
-                dplyr::select(yr.f,Mean,Fleet,CV)
-            }
-            NewCVs=Francis.function(cipiuis=do.call(rbind,dumi.cpue)%>%
-                                              dplyr::select(yr.f,Mean,Fleet)%>%
-                                              spread(Fleet,Mean),
-                                    cvs=do.call(rbind,dumi.cpue)%>%
-                                              dplyr::select(yr.f,CV,Fleet)%>%
-                                              spread(Fleet,CV),
-                                    mininum.mean.CV=default.CV) 
-             
-            for(j in 1:length(CPUE))
-            {
-              CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
-              if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)
-              {
-                NewCVs$CV.var.adj[j]=0
-              }
-              if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
-              {
-                newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
-                  filter(yr.f%in%CPUE[[j]]$yr.f)
-                CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
-              }
-            }
-            
-            tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
-                            "/",AssessYr,"/Adjusted cpue CVs.tiff",sep=''),
-                 width = 1600, height = 2400,units = "px", res = 300, compression = "lzw")
-            par(mfrow=n2mfrow(length(CPUE)))
-            for(x in 1:length(CPUE))
-            {
-              plot(CPUE[[x]]$yr.f,CPUE[[x]]$CV,pch=19,
-                   main=paste(names(CPUE)[x]," (Var. Adj. factor=",round(NewCVs$CV.var.adj[x],3),")",sep=''),
-                   ylim=c(0,max(CPUE[[x]]$CV,na.rm=TRUE)),ylab='CV',xlab='Year')
-              points(CPUE[[x]]$yr.f,CPUE[[x]]$CV.Original)
-              abline(h=default.CV,col=2)
-              if(x==1) legend("bottomleft",c('Adjusted CV','Original CV',"Default mean CV"),bty='n',
-                              pch=c(19,1,NA),text.col=c(1,1,2))
-              CPUE[[x]]=CPUE[[x]]%>%dplyr::select(-CV.Original)
-            }
-            dev.off() 
-          }
-          
-
           len.cpue=length(CPUE)
           MAX.CV=List.sp[[i]]$MAX.CV
           if(len.cpue>0)
           {
-            Cpues=data.frame(Year=ktch$Year)
+            #reset very low CVs       
+            #note:very low CVs in stand cpues, hence use Francis CVs 
+            if(increase.CV.JABBA)
+            {
+              dumi.cpue=CPUE
+              for(j in 1:length(CPUE))
+              {
+                dumi.cpue[[j]]=dumi.cpue[[j]]%>%
+                  mutate(Fleet=names(dumi.cpue)[j])%>%
+                  dplyr::select(yr.f,Mean,Fleet,CV)
+              }
+              NewCVs=Francis.function(cipiuis=do.call(rbind,dumi.cpue)%>%
+                                        dplyr::select(yr.f,Mean,Fleet)%>%
+                                        spread(Fleet,Mean),
+                                      cvs=do.call(rbind,dumi.cpue)%>%
+                                        dplyr::select(yr.f,CV,Fleet)%>%
+                                        spread(Fleet,CV),
+                                      mininum.mean.CV=default.CV) 
+              
+              for(j in 1:length(CPUE))
+              {
+                CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
+                if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)
+                {
+                  NewCVs$CV.var.adj[j]=0
+                }
+                if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
+                {
+                  newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
+                    filter(yr.f%in%CPUE[[j]]$yr.f)
+                  CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
+                }
+              }
+              
+              tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
+                              "/",AssessYr,"/Adjusted cpue CVs.tiff",sep=''),
+                   width = 1600, height = 2400,units = "px", res = 300, compression = "lzw")
+              par(mfrow=n2mfrow(length(CPUE)))
+              for(x in 1:length(CPUE))
+              {
+                plot(CPUE[[x]]$yr.f,CPUE[[x]]$CV,pch=19,
+                     main=paste(names(CPUE)[x]," (Var. Adj. factor=",round(NewCVs$CV.var.adj[x],3),")",sep=''),
+                     ylim=c(0,max(CPUE[[x]]$CV,na.rm=TRUE)),ylab='CV',xlab='Year')
+                points(CPUE[[x]]$yr.f,CPUE[[x]]$CV.Original)
+                abline(h=default.CV,col=2)
+                if(x==1) legend("bottomleft",c('Adjusted CV','Original CV',"Default mean CV"),bty='n',
+                                pch=c(19,1,NA),text.col=c(1,1,2))
+                CPUE[[x]]=CPUE[[x]]%>%dplyr::select(-CV.Original)
+              }
+              dev.off() 
+            }
+            
+             Cpues=data.frame(Year=ktch$Year)
             Cpues.SE=Cpues
             for(x in 1:length(CPUE))    
             {
@@ -736,68 +735,69 @@ for(w in 1:length(State.Space.SPM))
           CPUE=compact(Catch.rate.series[[i]])
           DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
           if(length(DROP)>0)CPUE=CPUE[-DROP]
-          if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
-          if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
-          if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
+          if(Neim%in%survey_not.representative & any(grepl("Survey",names(CPUE)))) CPUE=CPUE[-grep("Survey",names(CPUE))]
+          if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
+          if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE)))) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
           if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
           if(!is.null(List.sp[[i]]$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%List.sp[[i]]$drop.monthly.cpue)
           
-          #reset very low CVs       
-          #note:very low CVs in stand cpues, hence increase obs error a bit 
-          if(increase.CV.JABBA)
-          {
-            dumi.cpue=CPUE
-            for(j in 1:length(CPUE))
-            {
-              dumi.cpue[[j]]=dumi.cpue[[j]]%>%
-                mutate(Fleet=names(dumi.cpue)[j])%>%
-                dplyr::select(yr.f,Mean,Fleet,CV)
-            }
-            NewCVs=Francis.function(cipiuis=do.call(rbind,dumi.cpue)%>%
-                                      dplyr::select(yr.f,Mean,Fleet)%>%
-                                      spread(Fleet,Mean),
-                                    cvs=do.call(rbind,dumi.cpue)%>%
-                                      dplyr::select(yr.f,CV,Fleet)%>%
-                                      spread(Fleet,CV),
-                                    mininum.mean.CV=default.CV) 
-            
-            for(j in 1:length(CPUE))
-            {
-              CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
-              if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)
-              {
-                NewCVs$CV.var.adj[j]=0
-              }
-              if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
-              {
-                newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
-                  filter(yr.f%in%CPUE[[j]]$yr.f)
-                CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
-              }
-            }
-            
-            tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
-                            "/",AssessYr,"/Adjusted cpue CVs.tiff",sep=''),
-                 width = 1600, height = 2400,units = "px", res = 300, compression = "lzw")
-            par(mfrow=n2mfrow(length(CPUE)))
-            for(x in 1:length(CPUE))
-            {
-              plot(CPUE[[x]]$yr.f,CPUE[[x]]$CV,pch=19,
-                   main=paste(names(CPUE)[x]," (Var. Adj. factor=",round(NewCVs$CV.var.adj[x],3),")",sep=''),
-                   ylim=c(0,max(CPUE[[x]]$CV,na.rm=TRUE)),ylab='CV',xlab='Year')
-              points(CPUE[[x]]$yr.f,CPUE[[x]]$CV.Original)
-              abline(h=default.CV,col=2)
-              if(x==1) legend("bottomleft",c('Adjusted CV','Original CV',"Default mean CV"),bty='n',
-                              pch=c(19,1,NA),text.col=c(1,1,2))
-              CPUE[[x]]=CPUE[[x]]%>%dplyr::select(-CV.Original)
-            }
-            dev.off() 
-          }
           
           len.cpue=length(CPUE)
           MAX.CV=List.sp[[i]]$MAX.CV
           if(len.cpue>0)
           {
+            #reset very low CVs       
+            #note:very low CVs in stand cpues, hence increase obs error a bit 
+            if(increase.CV.JABBA)
+            {
+              dumi.cpue=CPUE
+              for(j in 1:length(CPUE))
+              {
+                dumi.cpue[[j]]=dumi.cpue[[j]]%>%
+                  mutate(Fleet=names(dumi.cpue)[j])%>%
+                  dplyr::select(yr.f,Mean,Fleet,CV)
+              }
+              NewCVs=Francis.function(cipiuis=do.call(rbind,dumi.cpue)%>%
+                                        dplyr::select(yr.f,Mean,Fleet)%>%
+                                        spread(Fleet,Mean),
+                                      cvs=do.call(rbind,dumi.cpue)%>%
+                                        dplyr::select(yr.f,CV,Fleet)%>%
+                                        spread(Fleet,CV),
+                                      mininum.mean.CV=default.CV) 
+              
+              for(j in 1:length(CPUE))
+              {
+                CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
+                if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)
+                {
+                  NewCVs$CV.var.adj[j]=0
+                }
+                if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
+                {
+                  newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
+                    filter(yr.f%in%CPUE[[j]]$yr.f)
+                  CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
+                }
+              }
+              
+              tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
+                              "/",AssessYr,"/Adjusted cpue CVs.tiff",sep=''),
+                   width = 1600, height = 2400,units = "px", res = 300, compression = "lzw")
+              par(mfrow=n2mfrow(length(CPUE)))
+              for(x in 1:length(CPUE))
+              {
+                plot(CPUE[[x]]$yr.f,CPUE[[x]]$CV,pch=19,
+                     main=paste(names(CPUE)[x]," (Var. Adj. factor=",round(NewCVs$CV.var.adj[x],3),")",sep=''),
+                     ylim=c(0,max(CPUE[[x]]$CV,na.rm=TRUE)),ylab='CV',xlab='Year')
+                points(CPUE[[x]]$yr.f,CPUE[[x]]$CV.Original)
+                abline(h=default.CV,col=2)
+                if(x==1) legend("bottomleft",c('Adjusted CV','Original CV',"Default mean CV"),bty='n',
+                                pch=c(19,1,NA),text.col=c(1,1,2))
+                CPUE[[x]]=CPUE[[x]]%>%dplyr::select(-CV.Original)
+              }
+              dev.off() 
+            }
+            
             Cpues=data.frame(Year=ktch$Year)
             Cpues.SE=Cpues
             for(x in 1:length(CPUE))    

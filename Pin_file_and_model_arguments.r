@@ -516,7 +516,7 @@ for(l in 1:N.sp)
     p2.sel_TDGDLF2=p2.sel_TDGDLF
     p3.sel_TDGDLF2=p3.sel_TDGDLF
     p4.sel_TDGDLF2=p4.sel_TDGDLF
-    if(NeiM=="spinner shark") p1.sel_TDGDLF2=110
+    
     if(NeiM=="sandbar shark")
     {
       p1.sel_Survey=175
@@ -701,7 +701,11 @@ for(l in 1:N.sp)
     {
       p1.sel_TDGDLF2=2
       if(NeiM=='spinner shark')  p2.sel_TDGDLF2=3
-      if(NeiM%in%c('whiskery shark','gummy shark')) p2.sel_TDGDLF2=3
+      if(NeiM%in%c('whiskery shark'))
+      {
+        p2.sel_TDGDLF2=p3.sel_TDGDLF2=p4.sel_TDGDLF2=3
+      }
+        
     }
       
 

@@ -381,65 +381,69 @@ for(w in 1:n.SS)
           {
             DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
             if(length(DROP)>0)CPUE=CPUE[-DROP]
-            if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
-            if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
-            if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
+            if(Neim%in%survey_not.representative & any(grepl("Survey",names(CPUE)))) CPUE=CPUE[-grep("Survey",names(CPUE))]
+            if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
+            if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE)))) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
             if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
             if(!is.null(Life.history$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%Life.history$drop.monthly.cpue)
             
-            #reset very low CVs
-            #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
-            #      If only 1 index available, then do not estimate, just increase CV before fitting model
-            #      ICCAT and SEDAR leave CVs as is and don't estimate extraSD but add variance adjustments factors to the control file
-            dumi.cpue=CPUE
-            for(j in 1:length(CPUE))
+            if(length(CPUE)>0)
             {
-              dumi.cpue[[j]]=dumi.cpue[[j]]%>%
-                              mutate(Fleet=names(dumi.cpue)[j])%>%
-                dplyr::select(yr.f,Mean,Fleet,CV)
-            }
-            NewCVs=Francis.function(cipiuis=do.call(rbind,dumi.cpue)%>%
-                                      dplyr::select(yr.f,Mean,Fleet)%>%
-                                      spread(Fleet,Mean),
-                                    cvs=do.call(rbind,dumi.cpue)%>%
-                                      dplyr::select(yr.f,CV,Fleet)%>%
-                                      spread(Fleet,CV),
-                                    mininum.mean.CV=default.CV) 
-            for(j in 1:length(CPUE))
-            {
-              #CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
-              if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
+              #reset very low CVs
+              #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
+              #      If only 1 index available, then do not estimate, just increase CV before fitting model
+              #      ICCAT and SEDAR leave CVs as is and don't estimate extraSD but add variance adjustments factors to the control file
+              dumi.cpue=CPUE
+              for(j in 1:length(CPUE))
               {
-                newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
-                  filter(yr.f%in%CPUE[[j]]$yr.f)
-                CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
+                dumi.cpue[[j]]=dumi.cpue[[j]]%>%
+                  mutate(Fleet=names(dumi.cpue)[j])%>%
+                  dplyr::select(yr.f,Mean,Fleet,CV)
               }
+              NewCVs=Francis.function(cipiuis=do.call(rbind,dumi.cpue)%>%
+                                        dplyr::select(yr.f,Mean,Fleet)%>%
+                                        spread(Fleet,Mean),
+                                      cvs=do.call(rbind,dumi.cpue)%>%
+                                        dplyr::select(yr.f,CV,Fleet)%>%
+                                        spread(Fleet,CV),
+                                      mininum.mean.CV=default.CV) 
+              for(j in 1:length(CPUE))
+              {
+                #CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
+                if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
+                {
+                  newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
+                    filter(yr.f%in%CPUE[[j]]$yr.f)
+                  CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
+                }
+              }
+              #CV variance adjustment if small CVs
+              for(j in 1:length(CPUE))
+              {
+                if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)  NewCVs$CV.var.adj[j]=0
+              }
+              Var.ad.factr_cpue=data.frame(Factor=1,Fleet=names(NewCVs$CV.var.adj),Value=NewCVs$CV.var.adj)%>%
+                mutate(Fleet=case_when(Fleet=="NSF"~"Northern.shark",
+                                       Fleet=="TDGDLF.monthly"~"Southern.shark_1",
+                                       Fleet=="TDGDLF.daily"~"Southern.shark_2",
+                                       TRUE~Fleet))%>%
+                left_join(Flits.and.survey,by=c('Fleet'='Fleet.name'))%>%
+                mutate(Fleet=Fleet.number)%>%
+                dplyr::select(-Fleet.number)
+              
+              Var.ad.factr=Var.ad.factr_cpue           
+              if(exists("Var.ad.factr_meanbodywt")) Var.ad.factr=rbind(Var.ad.factr,Var.ad.factr_meanbodywt)
+              clear.log("Var.ad.factr_meanbodywt")  
+              clear.log("Var.ad.factr_cpue")
+              
+              if(drop.intermediate.yrs)if(Whiskery.q.periods==2 & Neim=='whiskery shark') 
+              {
+                CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%
+                  filter(!yr.f%in%Life.history$Yr_q_change_transition)
+              }
+              
             }
-            #CV variance adjustment if small CVs
-            for(j in 1:length(CPUE))
-            {
-              if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)  NewCVs$CV.var.adj[j]=0
-            }
-            Var.ad.factr_cpue=data.frame(Factor=1,Fleet=names(NewCVs$CV.var.adj),Value=NewCVs$CV.var.adj)%>%
-                                mutate(Fleet=case_when(Fleet=="NSF"~"Northern.shark",
-                                                       Fleet=="TDGDLF.monthly"~"Southern.shark_1",
-                                                       Fleet=="TDGDLF.daily"~"Southern.shark_2",
-                                                       TRUE~Fleet))%>%
-                              left_join(Flits.and.survey,by=c('Fleet'='Fleet.name'))%>%
-                              mutate(Fleet=Fleet.number)%>%
-                              dplyr::select(-Fleet.number)
-            
-            Var.ad.factr=Var.ad.factr_cpue           
-            if(exists("Var.ad.factr_meanbodywt")) Var.ad.factr=rbind(Var.ad.factr,Var.ad.factr_meanbodywt)
-            clear.log("Var.ad.factr_meanbodywt")  
-            clear.log("Var.ad.factr_cpue")
-            
-            if(drop.intermediate.yrs)if(Whiskery.q.periods==2 & Neim=='whiskery shark') 
-            {
-              CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%
-                filter(!yr.f%in%Life.history$Yr_q_change_transition)
-            }
-          }
+           }
           
 
           
@@ -449,6 +453,11 @@ for(w in 1:n.SS)
           {
             tuned.siz.comp=Life.history$tuned_size_comp
             if(!is.null(tuned.siz.comp))Var.ad.factr=rbind(Var.ad.factr,tuned.siz.comp)
+          }
+          if(is.null(Var.ad.factr) &!is.null(Size.compo.SS.format))
+          {
+            tuned.siz.comp=Life.history$tuned_size_comp
+            Var.ad.factr=tuned.siz.comp
           }
           
           
@@ -591,7 +600,7 @@ for(w in 1:n.SS)
           len.size.comp=length(Size.compo.SS.format) 
           if(len.cpue>0|len.size.comp>0)
           {
-            if(!is.null(CPUE))
+            if(len.cpue>0)
             {
               MAX.CV=Life.history$MAX.CV
               for(x in 1:len.cpue)    
@@ -1349,64 +1358,68 @@ for(w in 1:n.SS)
           {
             DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
             if(length(DROP)>0)CPUE=CPUE[-DROP]
-            if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
-            if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
-            if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
+            if(Neim%in%survey_not.representative & any(grepl("Survey",names(CPUE)))) CPUE=CPUE[-grep("Survey",names(CPUE))]
+            if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
+            if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE)))) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
             if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
             if(!is.null(Life.history$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%Life.history$drop.monthly.cpue)
             
-            #reset very low CVs
-            #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
-            #      If only 1 index available, then do not estimate, just increase CV before fitting model
-            dumi.cpue=CPUE
-            for(j in 1:length(CPUE))
+            if(length(CPUE)>0)
             {
-              dumi.cpue[[j]]=dumi.cpue[[j]]%>%
-                mutate(Fleet=names(dumi.cpue)[j])%>%
-                dplyr::select(yr.f,Mean,Fleet,CV)
-            }
-            NewCVs=Francis.function(cipiuis=do.call(rbind,dumi.cpue)%>%
-                                      dplyr::select(yr.f,Mean,Fleet)%>%
-                                      spread(Fleet,Mean),
-                                    cvs=do.call(rbind,dumi.cpue)%>%
-                                      dplyr::select(yr.f,CV,Fleet)%>%
-                                      spread(Fleet,CV),
-                                    mininum.mean.CV=default.CV) 
-            for(j in 1:length(CPUE))
-            {
-              #CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
-              if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
+              #reset very low CVs
+              #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
+              #      If only 1 index available, then do not estimate, just increase CV before fitting model
+              dumi.cpue=CPUE
+              for(j in 1:length(CPUE))
               {
-                newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
-                  filter(yr.f%in%CPUE[[j]]$yr.f)
-                CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
+                dumi.cpue[[j]]=dumi.cpue[[j]]%>%
+                  mutate(Fleet=names(dumi.cpue)[j])%>%
+                  dplyr::select(yr.f,Mean,Fleet,CV)
               }
+              NewCVs=Francis.function(cipiuis=do.call(rbind,dumi.cpue)%>%
+                                        dplyr::select(yr.f,Mean,Fleet)%>%
+                                        spread(Fleet,Mean),
+                                      cvs=do.call(rbind,dumi.cpue)%>%
+                                        dplyr::select(yr.f,CV,Fleet)%>%
+                                        spread(Fleet,CV),
+                                      mininum.mean.CV=default.CV) 
+              for(j in 1:length(CPUE))
+              {
+                #CPUE[[j]]=CPUE[[j]]%>%mutate(CV.Original=CV)
+                if(mean(CPUE[[j]]$CV,na.rm=T)<default.CV)
+                {
+                  newcv=NewCVs$CV.Adjusted[,match(c("yr.f",names(CPUE)[j]),names(NewCVs$CV.Adjusted))]%>%
+                    filter(yr.f%in%CPUE[[j]]$yr.f)
+                  CPUE[[j]]=CPUE[[j]]%>%mutate(CV=newcv[,2])
+                }
+              }
+              #CV variance adjustment if small CVs
+              for(j in 1:length(CPUE))
+              {
+                if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)  NewCVs$CV.var.adj[j]=0
+              }
+              Var.ad.factr_cpue=data.frame(Factor=1,Fleet=names(NewCVs$CV.var.adj),Value=NewCVs$CV.var.adj)%>%
+                mutate(Fleet=case_when(Fleet=="NSF"~"Northern.shark",
+                                       Fleet=="TDGDLF.monthly"~"Southern.shark_1",
+                                       Fleet=="TDGDLF.daily"~"Southern.shark_2",
+                                       TRUE~Fleet))%>%
+                left_join(Flits.and.survey,by=c('Fleet'='Fleet.name'))%>%
+                mutate(Fleet=Fleet.number)%>%
+                dplyr::select(-Fleet.number)
+              
+              Var.ad.factr=Var.ad.factr_cpue           
+              if(exists("Var.ad.factr_meanbodywt")) Var.ad.factr=rbind(Var.ad.factr,Var.ad.factr_meanbodywt)
+              clear.log("Var.ad.factr_meanbodywt")  
+              clear.log("Var.ad.factr_cpue")
+              
+              if(drop.intermediate.yrs)if(Whiskery.q.periods==2 & Neim=='whiskery shark') 
+              {
+                CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%
+                  filter(!yr.f%in%Life.history$Yr_q_change_transition)
+              }
+              
             }
-            #CV variance adjustment if small CVs
-            for(j in 1:length(CPUE))
-            {
-              if(mean(CPUE[[j]]$CV,na.rm=T)>=default.CV)  NewCVs$CV.var.adj[j]=0
-            }
-            Var.ad.factr_cpue=data.frame(Factor=1,Fleet=names(NewCVs$CV.var.adj),Value=NewCVs$CV.var.adj)%>%
-              mutate(Fleet=case_when(Fleet=="NSF"~"Northern.shark",
-                                     Fleet=="TDGDLF.monthly"~"Southern.shark_1",
-                                     Fleet=="TDGDLF.daily"~"Southern.shark_2",
-                                     TRUE~Fleet))%>%
-              left_join(Flits.and.survey,by=c('Fleet'='Fleet.name'))%>%
-              mutate(Fleet=Fleet.number)%>%
-              dplyr::select(-Fleet.number)
-            
-            Var.ad.factr=Var.ad.factr_cpue           
-            if(exists("Var.ad.factr_meanbodywt")) Var.ad.factr=rbind(Var.ad.factr,Var.ad.factr_meanbodywt)
-            clear.log("Var.ad.factr_meanbodywt")  
-            clear.log("Var.ad.factr_cpue")
-            
-            if(drop.intermediate.yrs)if(Whiskery.q.periods==2 & Neim=='whiskery shark') 
-            {
-              CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%
-                filter(!yr.f%in%Life.history$Yr_q_change_transition)
-            }
-          }
+           }
 
           
           #Add size comp effective sample size bias adjustment    
@@ -1415,6 +1428,11 @@ for(w in 1:n.SS)
           {
             tuned.siz.comp=Life.history$tuned_size_comp
             if(!is.null(tuned.siz.comp))Var.ad.factr=rbind(Var.ad.factr,tuned.siz.comp)
+          }
+          if(is.null(Var.ad.factr) &!is.null(Size.compo.SS.format))
+          {
+            tuned.siz.comp=Life.history$tuned_size_comp
+            Var.ad.factr=tuned.siz.comp
           }
           
           
@@ -1557,7 +1575,7 @@ for(w in 1:n.SS)
           len.size.comp=length(Size.compo.SS.format)
           if(len.cpue>0|len.size.comp>0)
           {
-            if(!is.null(CPUE))
+            if(len.cpue>0)
             {
               MAX.CV=Life.history$MAX.CV
               for(x in 1:len.cpue)    
