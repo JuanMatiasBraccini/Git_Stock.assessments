@@ -669,6 +669,7 @@ for(w in 1:length(State.Space.SPM))
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
                Out.B.Bmsy,Out.F.Fmsy,Out.Kobe.probs,Out.estimates)
           }
+          if(len.cpue==0) if(dir.exists(this.wd)) unlink(this.wd, recursive = TRUE)
         } 
       }
       stopCluster(cl)
@@ -1271,6 +1272,7 @@ for(w in 1:length(State.Space.SPM))
                Out.B.Bmsy,Out.F.Fmsy,Out.Kobe.probs,Out.estimates,
                Out.probs.B.Bmsy)
           }
+          if(len.cpue==0) if(dir.exists(this.wd)) unlink(this.wd, recursive = TRUE)
         }
       }
       

@@ -7,13 +7,69 @@ library(L3Assess)
 if(!exists('doubleNorm24.fn')) fn.source1("SS_selectivity functions.R")
 Alex.Logis.sel=function(pars) 1/(1 + exp(-log(19) * (midpt - pars[1])/(pars[2])))
 
+# Estimated SS selectivity parameters -----------------------------------------------------------------------
+List.estimated.SS.selectivity=vector('list',N.sp)
+names(List.estimated.SS.selectivity)=Keep.species
+for(l in 1:N.sp)
+{
+  x=match(names(List.estimated.SS.selectivity)[l],names(List.sp))
+  List.estimated.SS.selectivity[[l]]=List.sp[[x]]$SS_selectivity
+}
+#update if re-estimating selectivity with new assessment 
+List.estimated.SS.selectivity$`dusky shark`=List.estimated.SS.selectivity$`dusky shark`%>%
+                                        mutate(P_1=case_when(Fleet=='Southern.shark_1'~88.646,
+                                                             Fleet=='Southern.shark_2'~88.958,
+                                                             TRUE~P_1),
+                                               P_2=case_when(Fleet=='Southern.shark_1'~-17.942,
+                                                             Fleet=='Southern.shark_2'~-18.15,
+                                                             TRUE~P_2),
+                                               P_4=case_when(Fleet=='Southern.shark_1'~6.524,
+                                                             Fleet=='Southern.shark_2'~6.327,
+                                                             TRUE~P_4))
+List.estimated.SS.selectivity$`sandbar shark`=List.estimated.SS.selectivity$`sandbar shark`%>%
+                                      mutate(P_1=case_when(Fleet=='Southern.shark_1'~100.62,
+                                                           Fleet=='Southern.shark_2'~100.62,
+                                                           TRUE~P_1),
+                                             P_2=case_when(Fleet=='Southern.shark_1'~-6.0618,
+                                                           Fleet=='Southern.shark_2'~-6.0618,
+                                                           TRUE~P_2),
+                                             P_3=case_when(Fleet=='Southern.shark_1'~4.166,
+                                                           Fleet=='Southern.shark_2'~4.166,
+                                                           TRUE~P_3))
+List.estimated.SS.selectivity$`whiskery shark`=List.estimated.SS.selectivity$`whiskery shark`%>%
+                                            mutate(P_1=case_when(Fleet=='Southern.shark_2'~123.385,
+                                                                 TRUE~P_1),
+                                                   P_2=case_when(Fleet=='Southern.shark_2'~-3.093,
+                                                                 TRUE~P_2),
+                                                   P_3=case_when(Fleet=='Southern.shark_2'~4.776,
+                                                                 TRUE~P_3),
+                                                   P_4=case_when(Fleet=='Southern.shark_2'~5.22,
+                                                                 TRUE~P_4))
+List.estimated.SS.selectivity$`milk shark`=List.estimated.SS.selectivity$`milk shark`%>%
+                                            mutate(P_1=case_when(Fleet=='Northern.shark'~81.123,
+                                                                 Fleet=='Survey'~81.063,
+                                                                 TRUE~P_1),
+                                                   P_2=case_when(Fleet=='Northern.shark'~9.948,
+                                                                 Fleet=='Survey'~5.753,
+                                                                 TRUE~P_2))
+List.estimated.SS.selectivity$`spinner shark`=List.estimated.SS.selectivity$`spinner shark`%>%
+                                            mutate(P_1=case_when(Fleet=='Southern.shark_2'~78.72,
+                                                                 TRUE~P_1),
+                                                   P_2=case_when(Fleet=='Southern.shark_2'~-1.54,
+                                                                 TRUE~P_2))
+List.estimated.SS.selectivity$`smooth hammerhead`=List.estimated.SS.selectivity$`smooth hammerhead`%>%
+                                            mutate(P_1=case_when(Fleet=='Southern.shark_1'~115.79,
+                                                                 TRUE~P_1))
+
+
+
 # Useful functions -----------------------------------------------------------------------
 #getAnywhere()  #see hidden function
 #SimLenAndAgeFreqData() #Simulate length and age data, given specified growth, mortality and selectivity
 #VisualiseGrowthApplyingLTM() 
 
 
-# Eye-ball CVs -----------------------------------------------------------------------
+# Simulate growth to eye-ball CVs -----------------------------------------------------------------------
 do.eye.ball=FALSE
 if(do.eye.ball)
 {
@@ -75,15 +131,32 @@ if(do.eye.ball)
 TimeStep = 1 # model timestep (e.g. 1 = annual (typical long lived species), 1/12 = monthly)
 LenInc = TL.bins.cm  # TL in cm   
 MLL=NA # (minimum legal length) # retention set to 1 for all lengths if MLL set to NA and retention parameters not specified
-SelParams = c(300, 50) # L50, L95-L50 for gear selectivity       NOT USED
-RetenParams = c(NA, NA) # L50, L95-L50 for retention
-DiscMort = 0 # proportion of fish that die due to natural mortality
+SelParams = c(300, 50) # L50, L95-L50 for gear selectivity            NOT USED
+RetenParams = c(NA, NA) # L50, L95-L50 for retention                  NOT USED
+DiscMort = 0 # proportion of fish that die due to natural mortality   NOT USED
 DistnType = 1 # 1 = Multinomial, 2 = Dirichlet multinomial
 GrowthCurveType = 1 # 1 = von Bertalanffy, 2 = Schnute 
 InitDelta = 50
 RefnceAges = NA
+CVSizeAtAge = c(0.05,0.05)  #this CV is not the CV used in SS3, it's the CV of the size transition matrix so cannot be too large  
 Length.catch.curve=vector('list',N.sp)
 names(Length.catch.curve)=Keep.species
+standardise.mesh.zone=TRUE  #only use records from same mesh and zone (the most representative)
+if(standardise.mesh.zone) used.selectivity='Empirical for selected mesh'  #use published sel for chosen mesh
+if(!standardise.mesh.zone) used.selectivity='Estimated by SS'             #use combined mesh sel estimated in SS
+
+Main.zone.mesh=data.frame(Species=Keep.species)%>%
+                  mutate(Zone=case_when(Species%in%c("dusky shark","gummy shark",
+                                                     "sandbar shark","smooth hammerhead",
+                                                     "whiskery shark")~'Zone1',
+                                        Species%in%c("spinner shark")~'West',
+                                        TRUE~''),
+                         Mesh=case_when(Species%in%c("dusky shark","gummy shark",
+                                                     "sandbar shark","smooth hammerhead",
+                                                     "whiskery shark")~6.5,
+                                        Species%in%c("spinner shark")~7,
+                                        TRUE~NA))
+
 tic()
 for(l in 1: N.sp)
 {
@@ -125,12 +198,38 @@ for(l in 1: N.sp)
                Mesh=str_after_first(dd, coll(".")))
     }
     dummy=do.call(rbind,iid)%>%
-      filter(year<=as.numeric(substr(Last.yr.ktch,1,4)))
+              filter(year<=as.numeric(substr(Last.yr.ktch,1,4)))
     
     Min.sample.size=Min.annual.obs.ktch*prop.min.N.accepted_other
-    if(Neim%in%names(Indicator.species)) Min.sample.size=Min.annual.obs.ktch*0.5
-    if(Neim=="sandbar shark") Min.sample.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+    if(Neim%in%names(Indicator.species)) Min.sample.size=Min.annual.obs.ktch
+    #if(Neim=="sandbar shark") Min.sample.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+    
+    #Standardise to same mesh and zone
+    if(standardise.mesh.zone)
+    {
+      #export observations by sex, mesh and zone
+      dummy%>%
+        mutate(year=as.numeric(substr(FINYEAR,1,4)),
+               year=ifelse(Zone=='West',year-0.15,ifelse(Zone=='Zone2',year+0.15,year)))%>%
+        group_by(year,SEX,Zone,Mesh)%>%
+        tally()%>%
+        ungroup()%>%
+        ggplot(aes(year,n))+
+        geom_point(aes(color=Zone,shape=Mesh),size=3)+
+        facet_wrap(~SEX,ncol=1)+
+        theme(legend.position = 'top') 
+      ggsave(paste(this.wd,"/Number of length comps observations by sex, mesh and zone.tiff",sep=''),
+             width = 8,height = 8,compression = "lzw")
       
+      dd=Main.zone.mesh%>%filter(Species==Neim)
+      if(!is.na(dd$Mesh))
+      {
+        dummy=dummy%>%filter(Zone==dd$Zone & Mesh==dd$Mesh)
+        Min.sample.size=50
+      }
+    }
+    
+    #Keep records with min sample size
     N.min=dummy%>%
       group_by(FINYEAR)%>%
       tally()%>%
@@ -163,15 +262,41 @@ for(l in 1: N.sp)
       if(out.fleet=="NSF") SS.flit='Northern.shark'
       if(out.fleet=="Other") SS.flit='Other'
       
-      dis.Sel=List.sp[[l]]$SS_selectivity%>%filter(Fleet==SS.flit)
-      if(!is.na(dis.Sel$P_3))
+      if(used.selectivity=='Estimated by SS')
       {
-        SelectivityVec_full=with(dis.Sel,doubleNorm24.fn(midpt,a=P_1,b=P_2, c=P_3, d=P_4, e=P_5, f=P_6,use_e_999=FALSE, use_f_999=FALSE))
+        dis.Sel=List.estimated.SS.selectivity[[l]]%>%filter(Fleet==SS.flit)
+        if(!is.na(dis.Sel$P_3))
+        {
+          SelectivityVec_full=with(dis.Sel,doubleNorm24.fn(midpt,a=P_1,b=P_2, c=P_3, d=P_4, e=P_5, f=P_6,use_e_999=FALSE, use_f_999=FALSE))
+        }
+        if(is.na(dis.Sel$P_3))
+        {
+          SelectivityVec_full=with(dis.Sel,logistic1.fn(midpt,a=P_1,b=P_2))
+        }
       }
-      if(is.na(dis.Sel$P_3))
+      if(used.selectivity=='Empirical for selected mesh')  
       {
-        SelectivityVec_full=with(dis.Sel,logistic1.fn(midpt,a=P_1,b=P_2))
+        dd=Main.zone.mesh%>%filter(Species==Neim)
+        if(!is.na(dd$Mesh) & Neim%in%names(Indicator.species))
+        {
+          dis.mesh=ifelse(dd$Mesh==6.5,'X16.5',ifelse(dd$Mesh==7,'X17.8',NA))
+          SelectivityVec_full=Selectivity.at.totalength[[Neim]]%>%
+            filter(TL%in%midpt)%>%select(matches(dis.mesh))%>%pull(dis.mesh)
+        }
+        if(is.na(dd$Mesh) | !Neim%in%names(Indicator.species))
+        {
+          dis.Sel=List.estimated.SS.selectivity[[l]]%>%filter(Fleet==SS.flit)
+          if(!is.na(dis.Sel$P_3))
+          {
+            SelectivityVec_full=with(dis.Sel,doubleNorm24.fn(midpt,a=P_1,b=P_2, c=P_3, d=P_4, e=P_5, f=P_6,use_e_999=FALSE, use_f_999=FALSE))
+          }
+          if(is.na(dis.Sel$P_3))
+          {
+            SelectivityVec_full=with(dis.Sel,logistic1.fn(midpt,a=P_1,b=P_2))
+          }
+        }
       }
+      
       SelectivityVec=SelectivityVec_full
       SelectivityVec[which(lbnd<min.TL)]=1e-20
       
@@ -179,8 +304,6 @@ for(l in 1: N.sp)
                List.sp[[l]]$Growth.M$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL) #total length in cm for females and males   
       vbK = c(List.sp[[l]]$Growth.F$k,List.sp[[l]]$Growth.M$k)          # k for females and males
       tzero = List.sp[[l]]$Growth.F$to
-      CVSizeAtAge = rep(with(List.sp[[l]],mean(c(Growth.CV_young,Growth.CV_old))),2)  
-      #CVSizeAtAge=c(0.08,0.08)
       GrowthParams = data.frame(Linf=Linf, vbK=vbK)
       InitL50 = List.sp[[l]]$TL.50.mat
       

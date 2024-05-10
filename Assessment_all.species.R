@@ -3609,6 +3609,60 @@ if(do.dis)
   dev.off()
 }
 
+#Define length composition main mesh and zone
+if(do.dis)
+{
+  STORE=vector('list',N.sp)
+  names(STORE)=Keep.species
+  for(l in 1: N.sp)
+  {
+    Neim=Keep.species[l]
+    SelectivityType=1 # 1=selectivity inputted as vector, 2=asymptotic logistic selectivity curve
+    
+    #identify fishery with most catch 
+    Katch1=KtCh%>%
+      filter(Name==Neim)%>%
+      mutate(Fishery=case_when(FishCubeCode%in%c('Historic',Southern.shark.fisheries)~"TDGDLF",
+                               FishCubeCode%in%Northern.shark.fisheries~"NSF",
+                               .default="Other"))
+    Katch=Katch1%>%
+      group_by(Fishery)%>%
+      summarise(Tonnes=sum(LIVEWT.c))
+    this.size.comp=Katch%>%filter(Tonnes==max(Tonnes))%>%pull(Fishery)
+    if(Neim%in%Other.to.NSF) this.size.comp='NSF'
+    if(Neim%in%Other.to.TDGDLF) this.size.comp='TDGDLF'
+    out.fleet=this.size.comp
+    if(any(this.size.comp=='TDGDLF'))
+    {
+      this.size.comp=paste('Size_composition',c('West.6.5','West.7','Zone1.6.5','Zone1.7','Zone2.6.5','Zone2.7'),sep="_")
+    }
+    if(any(this.size.comp=='NSF'))
+    {
+      this.size.comp=paste('Size_composition',c('NSF.LONGLINE'),sep="_")
+    }
+    
+    #get relevant length composition  
+    iid=Species.data[[l]][fn.extract.dat(this.size.comp,names(Species.data[[l]]))]
+    if(any(grepl('Observations',names(iid)))) iid=iid[-grep('Observations',names(iid))]
+    if(length(iid)>0 & !Neim%in%no.empirical.sel.main.fleet)
+    {
+      for(x in 1:length(iid))
+      {
+        dd=str_before_first(str_after_nth(names(iid)[x],"_",2), coll(".inch"))
+        iid[[x]]=iid[[x]]%>%
+          mutate(Zone=str_before_first(dd, coll(".")),  
+                 Mesh=str_after_first(dd, coll(".")))
+      }
+      dummy=do.call(rbind,iid)%>%
+        filter(year<=as.numeric(substr(Last.yr.ktch,1,4)))
+      STORE[[l]]=list(Table1=with(dummy,table(year,Zone)),Table2=with(dummy,table(year,Mesh,Zone)))
+      
+    }
+  }
+}
+
+
+
 #---18. Catch-only assessments --------------------------------------
 #Decide if using Catch-only methods for species with only catch and life history data OR all species
 if(Assessed.ktch.only.species=='All')
@@ -3790,7 +3844,7 @@ clear.log('Logbook.sp')
 
 
 #---22. Catch curve with dome-shaped selectivity --------------------------------------
-#note: for each species, identify main fishery and a good sampling period (i.e. fishery with highest catch and length
+#note: for each species, identify main fleet and a good sampling period (i.e. fishery with highest catch and length
 #       composition from exploited period to be able to determine F) and combine 2/3 years.
 if(do.Size.based.Catch.curve) fn.source1("Apply_Length.catch.curve.r") 
 

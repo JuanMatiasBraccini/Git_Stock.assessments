@@ -520,11 +520,14 @@ for(l in 1:N.sp)
     if(NeiM=="sandbar shark")
     {
       p1.sel_Survey=175
-      # p2.sel_TDGDLF2=-13.5
-      # p3.sel_TDGDLF2=5.46
-      # p4.sel_TDGDLF2=4.08
     }
-      
+    if(NeiM=="gummy shark")
+    {
+      p1.sel_TDGDLF2=111.106
+      p2.sel_TDGDLF2=-13.235
+      p3.sel_TDGDLF3=4.14896
+      p4.sel_TDGDLF4=6.0187
+    }  
     
     List.sp[[l]]$SS_selectivity=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                            P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF2,p1.sel_Survey),
@@ -615,7 +618,11 @@ for(l in 1:N.sp)
                                                       P_4=xx$Offset_p4,
                                                       P_5=xx$Offset_p5,
                                                       P_6=xx$Offset_p6)
-        
+        if(NeiM=="gummy shark")
+        {
+          List.sp[[l]]$SS_offset_selectivity[List.sp[[l]]$SS_offset_selectivity$Fleet=='Southern.shark_2',
+                                             c('P_1','P_3','P_4')]=c(26.4585,-1.9885,3.9267)
+        }
         List.sp[[l]]$SS_offset_selectivity_phase=expand.grid(Fleet=str_split_1(xx$Offset_fleet, ','),
                                                              P_1=xx$Phase_Offset_p1,
                                                              P_3=xx$Phase_Offset_p3,
