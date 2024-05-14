@@ -445,8 +445,6 @@ for(w in 1:n.SS)
             }
            }
           
-
-          
           #Add size comp effective sample size bias adjustment    
           #note: a Value of 0 means no effect
           if(!is.null(Var.ad.factr))
@@ -779,9 +777,13 @@ for(w in 1:n.SS)
                           args=Arg) 
               }
  
+              #c. Bring in outputs 
+              COVAR=FORECAST=FALSE
+              if(Arg=="") COVAR=TRUE
+              if("SS"%in%future.models) FORECAST=TRUE
+              Report=SS_output(this.wd1,covar=COVAR,forecast=FORECAST,readwt=F)
               
-              #c. Bring in outputs
-              Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
+              if(run_SS_plots) SS_plots(Report,  png=T)
               
               #d. Store estimates and likelihoods
               Estims=Report[["estimated_non_dev_parameters"]]
@@ -811,7 +813,7 @@ for(w in 1:n.SS)
                                                      Type='Depletion',
                                                      scen=Scens$Scenario[s])
               Out.rel.biom[[s]]=dummy$Dat
-              Out.probs.rel.biom[[s]]=dummy$Probs
+              Out.probs.rel.biom[[s]]=dummy$Probs #based on asymptotic error
               
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                       mods="SS3",
@@ -832,7 +834,7 @@ for(w in 1:n.SS)
               Out.F.Fmsy[[s]]=dummy$Dat
               
               #Calculate posterior depletion   #takes 4.5 secs per nMC simulation
-              if(Scens$Scenario[s]=='S1' & SS3.run=='final')
+              if(Scens$Scenario[s]=='S1' & SS3.run=='final' & do.MC.multi)
               {
                 dd=fn.MC.sims(this.wd1,
                               nMC=nMCsims,
@@ -856,7 +858,13 @@ for(w in 1:n.SS)
                                 
               #Kobe
               if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=left_join(Out.B.Bmsy[[s]],Out.F.Fmsy[[s]],
-                                                                        by=c('year','Model','Scenario'))
+                                                                        by=c('year','Model','Scenario'))%>%
+                                                                  rename(B.Bmsy=median.x,
+                                                                         B.Bmsy.lower.95=lower.95.x,
+                                                                         B.Bmsy.upper.95=upper.95.x,
+                                                                         F.Fmsy=median.y,
+                                                                         F.Fmsy.lower.95=lower.95.y,
+                                                                         F.Fmsy.upper.95=upper.95.y)
               
               #Posterior vs prior
               if(Report$parameters%>%filter(Label=='SR_BH_steep')%>%pull(Phase)>0)
@@ -874,7 +882,7 @@ for(w in 1:n.SS)
                 fn.fit.diag_SS3(WD=this.wd1,
                                 do.like.prof=TRUE,
                                 disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
-                                R0.vec <- seq(3,Scens$Ln_R0_max[1],0.5),
+                                R0.vec <- seq(2,Scens$Ln_R0_max[1]+1,0.5),
                                 exe_path=handl_OneDrive('SS3/ss_win.exe'),
                                 start.retro=Retro_start,
                                 end.retro=Retro_end,
@@ -1755,7 +1763,12 @@ for(w in 1:n.SS)
  
               
               #c. Bring in outputs
-              Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
+              COVAR=FORECAST=FALSE
+              if(Arg=="") COVAR=TRUE
+              if("SS"%in%future.models) FORECAST=TRUE
+              Report=SS_output(this.wd1,covar=COVAR,forecast=FORECAST,readwt=F)
+              
+              if(run_SS_plots) SS_plots(Report,  png=T)
               
               #d. Store estimates
               Estims=Report[["estimated_non_dev_parameters"]]
@@ -1785,7 +1798,7 @@ for(w in 1:n.SS)
                                                      Type='Depletion',
                                                      scen=Scens$Scenario[s])
               Out.rel.biom[[s]]=dummy$Dat
-              Out.probs.rel.biom[[s]]=dummy$Probs
+              Out.probs.rel.biom[[s]]=dummy$Probs   #based on asymptotic error
               
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                       mods="SS3",
@@ -1807,7 +1820,7 @@ for(w in 1:n.SS)
               
               
               #Calculate posterior depletion   #takes 4.5 secs per nMC simulation
-              if(Scens$Scenario[s]=='S1' & SS3.run=='final')
+              if(Scens$Scenario[s]=='S1' & SS3.run=='final' & do.MC.multi)
               {
                 dd=fn.MC.sims(this.wd1,
                               nMC=nMCsims,
@@ -1831,7 +1844,13 @@ for(w in 1:n.SS)
                                   
               #Kobe
               if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=left_join(Out.B.Bmsy[[s]],Out.F.Fmsy[[s]],
-                                                                        by=c('year','Model','Scenario'))
+                                                                        by=c('year','Model','Scenario'))%>%
+                                                                  rename(B.Bmsy=median.x,
+                                                                         B.Bmsy.lower.95=lower.95.x,
+                                                                         B.Bmsy.upper.95=upper.95.x,
+                                                                         F.Fmsy=median.y,
+                                                                         F.Fmsy.lower.95=lower.95.y,
+                                                                         F.Fmsy.upper.95=upper.95.y)
               
               
               print(paste("___________","SS3 Scenario",Scens$Scenario[s],"___________",Neim))
@@ -2082,9 +2101,9 @@ if(do.F.series)
   {
     print(paste("SS3 --- Fishing mortality plot -----",Keep.species[i]))
     a=fn.plot.timeseries(d=Age.based,
-                                   sp=Keep.species[i],
-                                   Type='F.series',
-                                   YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))
+                         sp=Keep.species[i],
+                         Type='F.series',
+                         YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))
     if(!is.null(a))
     {
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
@@ -2101,9 +2120,9 @@ if(do.B.over.Bmsy.series)
   {
     print(paste("SS3 --- B over Bmsy plot -----",Keep.species[i]))
     a=fn.plot.timeseries(d=Age.based,
-                                   sp=Keep.species[i],
-                                   Type='B.Bmsy',
-                                   YLAB='B/Bmsy')
+                         sp=Keep.species[i],
+                         Type='B.Bmsy',
+                         YLAB='B/Bmsy')
     if(!is.null(a))
     {
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
@@ -2120,9 +2139,9 @@ if(do.F.over.Fmsy.series)
   {
     print(paste("SS3 --- F over Fmsy plot -----",Keep.species[i]))
     a=fn.plot.timeseries(d=Age.based,
-                                   sp=Keep.species[i],
-                                   Type='F.Fmsy',
-                                   YLAB='F/Fmsy')
+                         sp=Keep.species[i],
+                         Type='F.Fmsy',
+                         YLAB='F/Fmsy')
     if(!is.null(a))
     {
       ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),

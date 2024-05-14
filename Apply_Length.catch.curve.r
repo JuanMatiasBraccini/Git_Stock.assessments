@@ -68,95 +68,9 @@ List.estimated.SS.selectivity$`smooth hammerhead`=List.estimated.SS.selectivity$
 #SimLenAndAgeFreqData() #Simulate length and age data, given specified growth, mortality and selectivity
 #VisualiseGrowthApplyingLTM() 
 
-
-# Simulate growth to eye-ball CVs -----------------------------------------------------------------------
-do.eye.ball=FALSE
-if(do.eye.ball)
-{
-  #note: tweak CVSizeAtAge and FishMort to compare to observation dispersion in paper
-  CVSizeAtAge = c(0.08,0.08) 
-  FishMort = 0.1 # 0.05 low level of mortality
-  TimeStep = 1 # model timestep (e.g. 1 = annual, 1/12 = monthly)
-  LenInc = 5
-  MLL=NA # (minimum legal length) # retention set to 1 for all lengths if MLL set to NA and retention parameters not specified
-  SelectivityType=1 # 1=selectivity inputted as vector, 2=asymptotic logistic selectivity curve
-  SelParams = c(NA, NA) # L50, L95-L50 for gear selectivity
-  RetenParams = c(NA, NA) # L50, L95-L50 for retention
-  DiscMort = 0 # proportion of fish that die due to natural mortality
-  # single sex, von Bertalanffy
-  GrowthCurveType = 1 # 1 = von Bertalanffy, 2 = Schnute
-  RefnceAges = NA
-   
-  for(l in 1:N.sp)
-  {
-    
-    MaxAge = ceiling(List.sp[[l]]$Max.age.F[1])
-    NatMort = List.sp[[l]]$Sens.test$SS3$Mmean[1]
-    MaxLen = 10*round(List.sp[[l]]$TLmax/10)
-    min.TL=with(List.sp[[l]],Lzero*a_FL.to.TL+b_FL.to.TL)
-    lbnd = seq(0,MaxLen - LenInc, LenInc)
-    ubnd = lbnd + LenInc
-    midpt = lbnd + (LenInc/2)
-    if(out.fleet=="TDGDLF") SS.flit='Southern.shark_1'
-    if(out.fleet=="NSF") SS.flit='Northern.shark'
-    if(out.fleet=="Other") SS.flit='Other'
-    SelectivityVec_full=with(List.sp[[l]]$SS_selectivity%>%filter(Fleet==SS.flit),doubleNorm24.fn(midpt,a=P_1,
-                                                                                                  b=P_2, c=P_3, d=P_4, e=P_5, f=P_6,use_e_999=FALSE, use_f_999=FALSE))
-    SelectivityVec=SelectivityVec_full
-    SelectivityVec[which(lbnd<min.TL)]=1e-6
-    Linf = c(List.sp[[l]]$Growth.F$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
-             List.sp[[l]]$Growth.M$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL) #total length in cm for females and males   
-    vbK = c(List.sp[[l]]$Growth.F$k,List.sp[[l]]$Growth.M$k)          # k for females and males
-    GrowthParams = data.frame(Linf=Linf, vbK=vbK)
-    
-    
-    #1.2 Simulated data
-    SampleSize=5000
-    set.seed(123)
-    Res=SimLenAndAgeFreqData(SampleSize, MaxAge, TimeStep, NatMort, FishMort, MaxLen, LenInc, MLL, SelectivityType,
-                             SelParams, RetenParams, SelectivityVec, DiscMort, GrowthCurveType, GrowthParams, RefnceAges, CVSizeAtAge)
-    
-    #1.3 plot data
-    PlotOpt=1 # 0=all plots, 1=retained lengths at age, 2=retained plus discarded lengths at age, 3=length frequency, 6
-    # 7=female length frequency, 8=male length frequency, 9=female age frequency, 10=male age frequency,
-    # 11=selectivity/retention, 12=F-at-age reten + disc, 13=F-at-age reten, 14=F-at-age disc
-    PlotSimLenAndAgeFreqData(MaxAge, MaxLen, Res, PlotOpt)
-    
-    print(paste("Eye ball CVs for --",names(Species.data)[l]))
-  }
-}
-
 # Catch Curve -----------------------------------------------------------------------
-#common inputs
-TimeStep = 1 # model timestep (e.g. 1 = annual (typical long lived species), 1/12 = monthly)
-LenInc = TL.bins.cm  # TL in cm   
-MLL=NA # (minimum legal length) # retention set to 1 for all lengths if MLL set to NA and retention parameters not specified
-SelParams = c(300, 50) # L50, L95-L50 for gear selectivity            NOT USED
-RetenParams = c(NA, NA) # L50, L95-L50 for retention                  NOT USED
-DiscMort = 0 # proportion of fish that die due to natural mortality   NOT USED
-DistnType = 1 # 1 = Multinomial, 2 = Dirichlet multinomial
-GrowthCurveType = 1 # 1 = von Bertalanffy, 2 = Schnute 
-InitDelta = 50
-RefnceAges = NA
-CVSizeAtAge = c(0.05,0.05)  #this CV is not the CV used in SS3, it's the CV of the size transition matrix so cannot be too large  
 Length.catch.curve=vector('list',N.sp)
 names(Length.catch.curve)=Keep.species
-standardise.mesh.zone=TRUE  #only use records from same mesh and zone (the most representative)
-if(standardise.mesh.zone) used.selectivity='Empirical for selected mesh'  #use published sel for chosen mesh
-if(!standardise.mesh.zone) used.selectivity='Estimated by SS'             #use combined mesh sel estimated in SS
-
-Main.zone.mesh=data.frame(Species=Keep.species)%>%
-                  mutate(Zone=case_when(Species%in%c("dusky shark","gummy shark",
-                                                     "sandbar shark","smooth hammerhead",
-                                                     "whiskery shark")~'Zone1',
-                                        Species%in%c("spinner shark")~'West',
-                                        TRUE~''),
-                         Mesh=case_when(Species%in%c("dusky shark","gummy shark",
-                                                     "sandbar shark","smooth hammerhead",
-                                                     "whiskery shark")~6.5,
-                                        Species%in%c("spinner shark")~7,
-                                        TRUE~NA))
-
 tic()
 for(l in 1: N.sp)
 {
@@ -202,31 +116,34 @@ for(l in 1: N.sp)
     
     Min.sample.size=Min.annual.obs.ktch*prop.min.N.accepted_other
     if(Neim%in%names(Indicator.species)) Min.sample.size=Min.annual.obs.ktch
-    #if(Neim=="sandbar shark") Min.sample.size=Min.annual.obs.ktch*prop.min.N.accepted_other
     
     #Standardise to same mesh and zone
     if(standardise.mesh.zone)
     {
       #export observations by sex, mesh and zone
-      dummy%>%
-        mutate(year=as.numeric(substr(FINYEAR,1,4)),
-               year=ifelse(Zone=='West',year-0.15,ifelse(Zone=='Zone2',year+0.15,year)))%>%
-        group_by(year,SEX,Zone,Mesh)%>%
-        tally()%>%
-        ungroup()%>%
-        ggplot(aes(year,n))+
-        geom_point(aes(color=Zone,shape=Mesh),size=3)+
-        facet_wrap(~SEX,ncol=1)+
-        theme(legend.position = 'top') 
-      ggsave(paste(this.wd,"/Number of length comps observations by sex, mesh and zone.tiff",sep=''),
-             width = 8,height = 8,compression = "lzw")
-      
+      if(any(!is.na(dummy$Mesh)))
+      {
+        dummy%>%
+          mutate(year=as.numeric(substr(FINYEAR,1,4)),
+                 year=ifelse(Zone=='West',year-0.15,ifelse(Zone=='Zone2',year+0.15,year)))%>%
+          group_by(year,SEX,Zone,Mesh)%>%
+          tally()%>%
+          ungroup()%>%
+          ggplot(aes(year,n))+
+          geom_point(aes(color=Zone,shape=Mesh),size=3)+
+          facet_wrap(~SEX,ncol=1)+
+          theme(legend.position = 'top') 
+        ggsave(paste(this.wd,"/Number of length comps observations by sex, mesh and zone.tiff",sep=''),
+               width = 8,height = 8,compression = "lzw")
+        
+      }
+        
       dd=Main.zone.mesh%>%filter(Species==Neim)
       if(!is.na(dd$Mesh))
       {
         dummy=dummy%>%filter(Zone==dd$Zone & Mesh==dd$Mesh)
-        Min.sample.size=50
       }
+      Min.sample.size=50
     }
     
     #Keep records with min sample size
@@ -507,22 +424,10 @@ toc()
 
 # Yield per Recruit & Spawning Potential Ratio -----------------------------------------------------------------------
 #1. Calculate YPR, SPR and Brel
-WLrel_Type <- 1 # 1=power, 2=log-log relationship
-ReprodScale <- 1 # 1=default (standard calculations for spawning biomass), 2=hyperallometric reproductive scaling with female mass (i.e. BOFFF effects)
-ReprodPattern <- 1 # 1 = gonochoristic (separate sexes), 2 = protogynous (female to male sex change), 3 = protandrous (male to female sex change)
-InitRatioFem <- 0.5 # Ratio of females to males at recruitment age
-FinalSex_Pmax <- NA # Logistic sex change relationship parameters (max probability of final sex)
-FinalSex_L50 <- NA # Logistic sex change relationship parameters (inflection point)
-FinalSex_L95 <- NA # Logistic sex change relationship parameters (95% of max probability)
-SRrel_Type <- 1 # 1 = Beverton-Holt, 2=Ricker
-RefPointPlotOpt <- 2 # 0=don't plot, 1=plot defaults, 2=plot BMSY ref points
-nReps = 20 # 200 or 500
-
 YPR=vector('list',N.sp)
 names(YPR)=Keep.species
-
 tic()
-for(l in 1:N.sp)
+for(l in 1:N.sp)  #takes 3.7 secs per nReps per species
 {
   Neim=Keep.species[l]
   if(!is.null(Length.catch.curve[[l]]))
@@ -533,7 +438,7 @@ for(l in 1:N.sp)
     #identify fishery with most catch 
     out.fleet=Length.catch.curve[[l]][[1]]$out.fleet
     
-    print(paste("Yield per Recruit for --",Neim,'--',out.fleet,'fishery'))
+    print(paste("Yield per Recruit for -------------------------------",Neim,'--',out.fleet,'fishery'))
     
     #life history parameters
     MaxModelAge=Length.catch.curve[[l]][[1]]$MaxAge
@@ -570,7 +475,7 @@ for(l in 1:N.sp)
     
     #selectivity
     SelectivityVec=Length.catch.curve[[l]][[1]]$SelectivityVec
-    if(is.na(SelectivityVec)) SelectivityVec= with(Length.catch.curve[[l]][[1]],Alex.Logis.sel(ParamEst[2:3,1]))
+    if(any(is.na(SelectivityVec))) SelectivityVec= with(Length.catch.curve[[l]][[1]],Alex.Logis.sel(ParamEst[2:3,1]))
     EstGearSelAtLen <- data.frame(EstFemGearSelAtLen=SelectivityVec,
                                   EstMalGearSelAtLen=SelectivityVec)
     ret_Pmax <- NA # maximum retention, values lower than 1 imply discarding of fish above MLL
@@ -586,7 +491,7 @@ for(l in 1:N.sp)
       Current_F = Length.catch.curve[[l]][[g]]$ParamEst[1,1] # estimate of fishing mortality, e.g. from catch curve analysis
       Current_F_sd <- (Length.catch.curve[[l]][[g]]$ParamEst[1,1]-Length.catch.curve[[l]][[g]]$ParamEst[1,2])/1.96
       FMort <- Current_F 
-      if(FMort==0) FMort=1e-4
+      if(FMort==0) FMort=Dummy.F.mort
       
       #Run Yield per Recruit
       if(FMort>0)
@@ -660,7 +565,6 @@ for(l in 1:N.sp)
       rm(FMort)
     }
     YPR[[l]]=dumi
-
   }
 }
 toc()
@@ -715,18 +619,87 @@ for(l in 1:length(Lista.sp.outputs))
     geom_vline(aes(xintercept=BMSY_Targ),color=col.Target, size=.5)+
     geom_vline(aes(xintercept=BMSY_Thresh),color=col.Threshold, size=.5)+
     geom_vline(aes(xintercept=BMSY_Lim),color=col.Limit, size=.5)+
-    geom_point(size=5)+
+    geom_point(size=3)+
     geom_errorbarh(aes(xmin = Fem_LowEquilSB,xmax = Fem_UppEquilSB),linewidth=.1,position=position_dodge(.9))+
     geom_errorbar(aes(ymin=F_Low, ymax=F_Upp),width=.1,position=position_dodge(.9))+
-    facet_wrap(~Species,ncol = NKoL)+xlim(0,1)+
-    theme_PA(strx.siz=14,axs.T.siz=16)+
-    xlab('Relative female equilibrium breeding biomass')+
-    ylab('Fishing mortality')+
+    facet_wrap(~Species,ncol = NKoL)+ ylim(0, NA)+xlim(0,1)+
+    theme_PA(strx.siz=12,axs.T.siz=14)+
+    xlab(expression(B/~B[0]))+  #Relative female equilibrium breeding biomass
+    ylab(expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))+
     theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=1))+
-    geom_text_repel(aes(label = Period),size = 5,col='steelblue')
-  if(NKoL==2) DIMS=9
-  if(NKoL==1) DIMS=6
+    geom_text_repel(aes(label = Period),size = 4,col='steelblue')
+  if(NKoL==2) DIMS=6
+  if(NKoL==1) DIMS=3
   ggsave(paste(Rar.path,'/YPR_catch.curve_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
-         width = DIMS,height = 9,compression = "lzw")
+         width = DIMS,height = 6,compression = "lzw")
 }
 
+# Simulate growth to eye-ball CVs -----------------------------------------------------------------------
+if(do.eye.ball)
+{
+  #note: tweak CVSizeAtAge and FishMort to compare to observation dispersion in paper
+  CV.scens=list(c(0.025,0.025),c(0.05,0.05),c(0.1,0.1),c(0.15,0.15))
+  F.scens = c(0.01,0.05,0.1,0.2) # 0.05 low level of mortality
+  TimeStep = 1 # model timestep (e.g. 1 = annual, 1/12 = monthly)
+  LenInc = 5
+  MLL=NA # (minimum legal length) # retention set to 1 for all lengths if MLL set to NA and retention parameters not specified
+  SelectivityType=1 # 1=selectivity inputted as vector, 2=asymptotic logistic selectivity curve
+  SelParams = c(NA, NA) # L50, L95-L50 for gear selectivity
+  RetenParams = c(NA, NA) # L50, L95-L50 for retention
+  DiscMort = 0 # proportion of fish that die due to natural mortality
+  # single sex, von Bertalanffy
+  GrowthCurveType = 1 # 1 = von Bertalanffy, 2 = Schnute
+  RefnceAges = NA
+  for(l in 1:N.sp)
+  {
+    print(paste("Eye ball CVs for --",names(Species.data)[l]))
+    if(names(Species.data)[l]%in%c("dusky shark","gummy shark","sandbar shark","whiskery shark",
+                                   "milk shark","smooth hammerhead","spinner shark"))
+    {
+      pdf(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                capitalize(List.sp[[l]]$Name),"/",AssessYr,
+                "/Catch curve and per recruit/Effect of CVSizeAtAge.pdf",sep=''))
+      for(f in 1:length(F.scens))
+      {
+        FishMort = F.scens[f]
+        for(v in 1:length(CV.scens))
+        {
+          CVSizeAtAge = CV.scens[[v]]
+          MaxAge = ceiling(List.sp[[l]]$Max.age.F[1])
+          NatMort = List.sp[[l]]$Sens.test$SS3$Mmean[1]
+          MaxLen = 10*round(List.sp[[l]]$TLmax/10)
+          min.TL=with(List.sp[[l]],Lzero*a_FL.to.TL+b_FL.to.TL)
+          lbnd = seq(0,MaxLen - LenInc, LenInc)
+          ubnd = lbnd + LenInc
+          midpt = lbnd + (LenInc/2)
+          if(out.fleet=="TDGDLF") SS.flit='Southern.shark_1'
+          if(out.fleet=="NSF") SS.flit='Northern.shark'
+          if(out.fleet=="Other") SS.flit='Other'
+          SelectivityVec_full=with(List.sp[[l]]$SS_selectivity%>%filter(Fleet==SS.flit),doubleNorm24.fn(midpt,a=P_1,
+                                                                                                        b=P_2, c=P_3, d=P_4, e=P_5, f=P_6,use_e_999=FALSE, use_f_999=FALSE))
+          SelectivityVec=SelectivityVec_full
+          SelectivityVec[which(lbnd<min.TL)]=1e-6
+          Linf = c(List.sp[[l]]$Growth.F$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL,
+                   List.sp[[l]]$Growth.M$FL_inf*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL) #total length in cm for females and males   
+          vbK = c(List.sp[[l]]$Growth.F$k,List.sp[[l]]$Growth.M$k)          # k for females and males
+          GrowthParams = data.frame(Linf=Linf, vbK=vbK)
+          
+          
+          #1.2 Simulated data
+          SampleSize=5000
+          set.seed(123)
+          Res=SimLenAndAgeFreqData(SampleSize, MaxAge, TimeStep, NatMort, FishMort, MaxLen, LenInc, MLL, SelectivityType,
+                                   SelParams, RetenParams, SelectivityVec, DiscMort, GrowthCurveType, GrowthParams, RefnceAges, CVSizeAtAge)
+          
+          #1.3 plot data
+          PlotOpt=1 # 0=all plots, 1=retained lengths at age, 2=retained plus discarded lengths at age, 3=length frequency, 6
+          # 7=female length frequency, 8=male length frequency, 9=female age frequency, 10=male age frequency,
+          # 11=selectivity/retention, 12=F-at-age reten + disc, 13=F-at-age reten, 14=F-at-age disc
+          PlotSimLenAndAgeFreqData(MaxAge, MaxLen, Res, PlotOpt)
+          legend('topright',paste0(c('F= ','CV= '),c(FishMort,unique(CVSizeAtAge))),bty='n')
+        }
+      }
+      dev.off()
+    }
+  }
+}

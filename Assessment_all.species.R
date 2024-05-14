@@ -318,12 +318,53 @@ Assessed.ktch.only.species='All'                #assess all species with catch o
 #Assessed.ktch.only.species='Only.ktch.data'   #assess species with only catch data
 display.only.catch.only.sp=FALSE               #just display catch and MSY for species with only catch
 
-#19. Catch curves
+#19. Catch curve and YPR
+  #19.1 Catch curve inputs
 Init.F.Ktch.cur=0.2
+do.eye.ball=FALSE  #eye-ball CVSizeAtAge 
+CVSizeAtAge = c(0.03,0.03)  #this CV is not the CV used in SS3, it's the CV of the size transition matrix so cannot be too large  
+Main.zone.mesh=data.frame(Species=Keep.species)%>%       #revise when new length comp available
+        mutate(Zone=case_when(Species%in%c("dusky shark","gummy shark",
+                                           "sandbar shark","smooth hammerhead",
+                                           "whiskery shark")~'Zone1',
+                              Species%in%c("spinner shark")~'West',
+                              TRUE~''),
+               Mesh=case_when(Species%in%c("dusky shark","gummy shark",
+                                           "sandbar shark","smooth hammerhead",
+                                           "whiskery shark")~6.5,
+                              Species%in%c("spinner shark")~7,
+                              TRUE~NA))
+TimeStep = 1 # model timestep (e.g. 1 = annual (typical long lived species), 1/12 = monthly)
+LenInc = TL.bins.cm  # TL in cm   
+MLL=NA # (minimum legal length) # retention set to 1 for all lengths if MLL set to NA and retention parameters not specified
+SelParams = c(300, 50) # L50, L95-L50 for gear selectivity            NOT USED
+RetenParams = c(NA, NA) # L50, L95-L50 for retention                  NOT USED
+DiscMort = 0 # proportion of fish that die due to natural mortality   NOT USED
+DistnType = 1 # 1 = Multinomial, 2 = Dirichlet multinomial
+GrowthCurveType = 1 # 1 = von Bertalanffy, 2 = Schnute 
+InitDelta = 50
+RefnceAges = NA
+standardise.mesh.zone=TRUE  #only use records from same mesh and zone (the most representative)
+if(standardise.mesh.zone) used.selectivity='Empirical for selected mesh'  #use published sel for chosen mesh
+if(!standardise.mesh.zone) used.selectivity='Estimated by SS'             #use combined mesh sel estimated in SS
 
-  #19.1 Species for which 'other' fleet is main fleet but no length comp available 
+    #19.1.2 Species for which 'other' fleet is main fleet but no length comp available 
 Other.to.NSF=c("milk shark","pigeye shark","tiger shark","scalloped hammerhead")  
 Other.to.TDGDLF=c('sawsharks')
+
+  #19.2 YPR inputs
+Dummy.F.mort=1e-4   #if Catch curve estimates F.mort at 0, then reset at low value to run YPR
+WLrel_Type <- 1 # 1=power, 2=log-log relationship
+ReprodScale <- 1 # 1=default (standard calculations for spawning biomass), 2=hyperallometric reproductive scaling with female mass (i.e. BOFFF effects)
+ReprodPattern <- 1 # 1 = gonochoristic (separate sexes), 2 = protogynous (female to male sex change), 3 = protandrous (male to female sex change)
+InitRatioFem <- 0.5 # Ratio of females to males at recruitment age
+FinalSex_Pmax <- NA # Logistic sex change relationship parameters (max probability of final sex)
+FinalSex_L50 <- NA # Logistic sex change relationship parameters (inflection point)
+FinalSex_L95 <- NA # Logistic sex change relationship parameters (95% of max probability)
+SRrel_Type <- 1 # 1 = Beverton-Holt, 2=Ricker
+RefPointPlotOpt <- 2 # 0=don't plot, 1=plot defaults, 2=plot BMSY ref points
+nReps = 100 # 200 or 500
+
 
 #20. State space Surplus Production Models
 state.space.SPM='JABBA'     # define model types used
@@ -350,6 +391,7 @@ Integrated.age.based='SS'   # define model types used
 do.parallel.SS=TRUE         #do SS in parallel or not 
 SS3.run='test'              # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, MCMC, etc)
 create.SS.inputs=TRUE       #set to FALSE once happy with SS input files and only need to run the model
+run_SS_plots=FALSE          #set to TRUE once happy with model and want to plot outputs
 Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
@@ -370,7 +412,7 @@ combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.d
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
 #fit.to.mean.weight.Southern2=NULL
 fit.to.mean.weight.Southern2=c("spinner shark","whiskery shark")  #get model to fit mean weight regardless of available length comp
-drop.len.comp.like=NULL    #c("dusky shark")
+drop.len.comp.like=NULL    
 survey.like.weight="dusky shark"  
 use.Gab.trawl=TRUE   #note that this has only 1 year of data
 add.gummy.gab=FALSE
@@ -412,8 +454,9 @@ Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo v
 SS3.q.analit.solu=TRUE   #calculate q analytically to save up pars, set to FALSE if using block Q (time changing Q)
 block.species_Q=c("whiskery shark") #"gummy shark"
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
-Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation
+do.MC.multi=FALSE #doesn't work if estimating rec devs
 nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
+Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation. Used for Monte Carlo simulations
 #MCMCsims=1e5; Thin=10; burning=1:(5*length(seq(1,MCMCsims,by=Thin))/100)   #5%  burning
 #Arg=paste(' -mcmc',MCMCsims,' -mcsave', 100)  #MCMC
 
@@ -431,10 +474,9 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
 Drop.single.year.size.comp=FALSE
 
   #21.8 Fit diagnostics
-do.SS3.diagnostics=FALSE
-if(First.run=="YES") do.SS3.diagnostics=TRUE    #very time consuming
+do.SS3.diagnostics=FALSE   #TRUE     very time consuming. Only run once model is defined.
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
-Number.of.jitters=5       #Number of jitters for Jitter analysis.       MISSING: bump up to 50
+Number.of.jitters=50       #Number of jitters for Jitter analysis.       
 
 #22. Bespoke Integrated size-based model 
 if(Do.bespoke)
@@ -3846,7 +3888,25 @@ clear.log('Logbook.sp')
 #---22. Catch curve with dome-shaped selectivity --------------------------------------
 #note: for each species, identify main fleet and a good sampling period (i.e. fishery with highest catch and length
 #       composition from exploited period to be able to determine F) and combine 2/3 years.
-if(do.Size.based.Catch.curve) fn.source1("Apply_Length.catch.curve.r") 
+if(do.Size.based.Catch.curve)
+{
+  #Run catch curve and YPR
+  fn.source1("Apply_Length.catch.curve.r")
+  
+  #Get Consequence and likelihoods
+  if(any(grepl("Table 6. Catch.curve_YPR",list.files(Rar.path))))
+  {
+    Store.cons.Like_CatchCurve=list(Depletion=NULL,B.over.Bmsy=NULL)     
+    DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
+    for(l in 1:length(Lista.sp.outputs))  
+    {
+      
+    }
+    Store.cons.Like_CatchCurve$Depletion=do.call(rbind,DD.depletion)
+    Store.cons.Like_CatchCurve$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)  
+  }
+}
+   
 
 #---23. Dynamic catch and size composition with dome-shaped selectivity --------------------------------------
 #note: not used due to Cpp implementation issues
@@ -3973,7 +4033,7 @@ if(Do.bespoke) fn.source1("Integrated_size_based.R")
 #---27. Weight of Evidence Assessment ------
 
 #0. Stock assessment flow chart
-Ass.flow=FALSE
+Ass.flow=TRUE
 if(Ass.flow)
 {
   library(igraph)
@@ -4039,10 +4099,13 @@ if(Ass.flow)
   
   N=nrow(read.csv(paste(Exprt,'Table S1_All.species.caught.by.fishery.csv',sep='/')))
   N.COMS=N.sp
-  N.JABBA=length(unique(Store.cons.Like_JABBA$Depletion$Species))
-  N.SS=length(unique(Store.cons.Like_Age.based$Depletion$Species))
-  N.SS.size.only=N.SS-N.JABBA
-  N.SS=N.JABBA
+  JABBA.species=unique(Store.cons.Like_JABBA$Depletion$Species)
+  N.JABBA=length(JABBA.species)
+  SS.species=unique(Store.cons.Like_Age.based$Depletion$Species)
+  N.SS=length(SS.species)
+  SS.species.only.length=SS.species[which(!SS.species%in%JABBA.species)]
+  N.SS.size.only=length(SS.species.only.length)
+  
   plot_nodes=plot_nodes%>%
     mutate(label=case_when(grepl('Shark and ray',label)~paste0("Shark and ray species\n interacting with\n fisheries in WA (n= ",N,')'),
                            label=='COMs'~paste0('COMs\n (n= ',N.COMS,')'),
@@ -4139,7 +4202,15 @@ if(exists("Store.cons.Like_COM"))
   Risk.COM$LoE='COM'
 }
 
-  #1.3. JABBA
+#1.3. Catch curve
+if(exists("Store.cons.Like_CatchCurve"))
+{
+  if(Choose.probability=="Depletion")   Risk.CatchCurve=fn.risk(d=Store.cons.Like_CatchCurve$Depletion,w=1)
+  if(Choose.probability=="B.over.Bmsy") Risk.CatchCurve=fn.risk(d=Store.cons.Like_CatchCurve$B.over.Bmsy,w=1)
+  Risk.CatchCurve$LoE='CatchCurve'
+}
+
+  #1.4. JABBA
 if(exists("Store.cons.Like_JABBA"))
 {
   if(Choose.probability=="Depletion")   Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=1)
@@ -4147,7 +4218,7 @@ if(exists("Store.cons.Like_JABBA"))
   Risk.JABBA$LoE='JABBA'
 }
 
-  #1.4. SS3
+  #1.5. SS3
 if(exists("Store.cons.Like_Age.based"))
 {
   if(Choose.probability=="Depletion")   Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$Depletion,w=1)

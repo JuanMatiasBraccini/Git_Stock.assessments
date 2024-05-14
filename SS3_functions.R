@@ -336,16 +336,16 @@ fn.create.SS_DL_tool_inputs=function(Life.history,CACH,this.wd,Neim,InputData,Kt
       #export catch
       write.csv(ktch%>%
                   dplyr::select(Year,Fishry,Tonnes)%>%
-                  spread(Fishry,Tonnes,fill=0),paste(this.wd,'Catches.csv',sep='/'),row.names = F)
+                  spread(Fishry,Tonnes,fill=0),paste(this.wd,'Catches.csv',sep='/'),row.names = FALSE)
       
       #export lengths
-      if(!is.null(Size.compo.SS.format)) write.csv(Size.compo.SS.format,paste(this.wd,'Lengths.csv',sep='/'),row.names = F)
+      if(!is.null(Size.compo.SS.format)) write.csv(Size.compo.SS.format,paste(this.wd,'Lengths.csv',sep='/'),row.names = FALSE)
       
       #export abundance
-      if(!is.null(Abundance.SS.format)) write.csv(Abundance.SS.format,paste(this.wd,'Index.csv',sep='/'),row.names = F)
+      if(!is.null(Abundance.SS.format)) write.csv(Abundance.SS.format,paste(this.wd,'Index.csv',sep='/'),row.names = FALSE)
         
       #export life history
-      write.csv(out.LH,paste(this.wd,'Life history.csv',sep='/'),row.names = F)
+      write.csv(out.LH,paste(this.wd,'Life history.csv',sep='/'),row.names = FALSE)
     }
    }
 }
@@ -1530,7 +1530,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(!life.history$Nblock_Patterns==0 & ctl$time_vary_auto_generation[5]==0)
     {
       dis.blok=match(paste('SizeSel',names(life.history$SizeSelex_Block),life.history$Sel.Block.fleet,sep='_'),rownames(ctl$size_selex_parms))
-      ctl$size_selex_parms$Block[dis.blok]=life.history$SizeSelex_Block  #ACA
+      ctl$size_selex_parms$Block[dis.blok]=life.history$SizeSelex_Block  
     }
   }
   if(Scenario$Model=='SSS')  #SSS assumes selectivity = maturity
@@ -1713,6 +1713,7 @@ fn.run.SS=function(where.inputs,where.exe,args=FALSE)
 }
 
 #MC simulations for posterior probabilities ------------------------------------------------------  
+#note: this approach does not work if estimating rec devs 
 fn.med.ci.SS=function(d)
 {
   dframe=data.frame(year=as.numeric(names(d)),
@@ -1722,27 +1723,32 @@ fn.med.ci.SS=function(d)
   
   return(dframe)
 }
-fn.MC.sims=function(this.wd1,nMC=nMCsims,arg=Arg.no.estimation,B.th,scen)   
+fn.MC.sims=function(this.wd1,nMC=nMCsims,arg=Arg.no.estimation,B.th,scen,
+                    dis.pars=c('SR_parm','selparm','Q_parm'),turn.off.recdevs=TRUE)   
 {
-  #Get var-covar matrix
+  #Get var-covar matrix for relevant parameters
   MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
+  #n.mle=grep(paste(dis.pars,collapse='|'),MLE$names)
   n.mle=1:MLE$nopar
   Nms=MLE$names[n.mle]
-  
+
   #Monte Carlo sampling
   Depletion=vector('list',nMC)
   F.series=B.Bmsy=F.Fmsy=Depletion
   New.dir=paste(this.wd1,'MonteCarlo',sep='/')
   if(!dir.exists(New.dir))dir.create(New.dir)
+
   for(n in 1:nMC)   
   {
+    unlink(paste(New.dir,'*',sep='/'), recursive = TRUE, force = TRUE)
+    copy_SS_inputs(dir.old = this.wd1, dir.new = New.dir,overwrite = TRUE)
+
     #1. Sample from multivariate distribution
-    Rand.par=c(rmvnorm(1,mean=MLE$est[n.mle],sigma=MLE$cov[n.mle,n.mle]))
+    Rand.par=c(mvtnorm::rmvnorm(1,mean=MLE$est[n.mle],sigma=MLE$cov[n.mle,n.mle]))
     names(Rand.par)=Nms
     
-    #2. Create new SS input files
-    copy_SS_inputs(dir.old = this.wd1, dir.new = New.dir,overwrite = TRUE)
-    ctl <- r4ss::SS_readctl(file = file.path(this.wd1, "control.ctl"))
+    #2. Create new SS ctl file
+    ctl <- r4ss::SS_readctl(file = file.path(this.wd1, "control.ctl")) #ACA
     id=which(ctl$SR_parms$PHASE>0)
     if(length(id)>0)
     {
@@ -1750,9 +1756,10 @@ fn.MC.sims=function(this.wd1,nMC=nMCsims,arg=Arg.no.estimation,B.th,scen)
       if(length(dispars)>0) ctl$SR_parms$INIT[id]=Rand.par[dispars]
     }
     id=which(ctl$Q_parms$PHASE>0)
-    if(length(id)>0)
+    id.Q.float=which(ctl$Q_options$float==0)
+    if(length(id)>0 & length(id.Q.float)>0)
     {
-      dispars=grep('Q_parm',Nms)
+      dispars=grep('Q_parm',Nms)[1:length(id)]
       if(length(dispars)>0) ctl$Q_parms$INIT[id]=Rand.par[dispars]
     }
     id=which(ctl$size_selex_parms$PHASE>0)
@@ -1761,6 +1768,17 @@ fn.MC.sims=function(this.wd1,nMC=nMCsims,arg=Arg.no.estimation,B.th,scen)
       dispars=grep('selparm',Nms)
       if(length(dispars)>0) ctl$size_selex_parms$INIT[id]=Rand.par[dispars]
     }
+    
+    #turn off recruitment devs
+    if(turn.off.recdevs)
+    {
+      ctl$recdev_phase=-abs(ctl$recdev_phase)
+      ctl$recdev_early_start=0
+      ctl$recdev_early_phase=-1
+    }
+
+    
+    #export ctl
     r4ss::SS_writectl(ctl, outfile = file.path(New.dir, "control.ctl"), overwrite = TRUE, verbose = FALSE)
     
     #3. Run SS without estimation
@@ -1769,7 +1787,7 @@ fn.MC.sims=function(this.wd1,nMC=nMCsims,arg=Arg.no.estimation,B.th,scen)
               args=arg)  
     
     #4. Store quantities of interest (depletion)
-    Report=SS_output(New.dir,covar=F,forecast=F,readwt=F,checkcor=F)
+    Report=SS_output(New.dir,covar=F,forecast=F,readwt=F)
     Years=with(Report,startyr:endyr)
     dum=Report[["derived_quants"]]
     
@@ -1899,11 +1917,11 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   
   runs.test.value=vector('list',length(dis.dat))
   for(pp in 1:length(dis.dat))  runs.test.value[[pp]]=SSrunstest(Report,quants =  dis.dat[[pp]])
-  write.csv(do.call(rbind,runs.test.value),paste(dirname.diagnostics,"runs_tests.csv",sep='/'),row.names = F)
+  write.csv(do.call(rbind,runs.test.value),paste(dirname.diagnostics,"runs_tests.csv",sep='/'),row.names = FALSE)
   
   
   #2. Model consistency  
-  #2.1. Likelihood profile on Ro
+    #2.1. Likelihood profile on Ro
   if(do.like.prof) # very time consuming, takes 2.5 minutes per R0 value
   {
     library(doParallel)
@@ -1999,7 +2017,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     prof.R0.models <- SSgetoutput(dirvec=mydir, keyvec=1:Nprof.R0, getcovar = FALSE) # 
     
     # Step 10.  summarize output
-    prof.R0.summary <- SSsummarize(prof.R0.models)
+    prof.R0.summary <- SSsummarize(prof.R0.models,verbose = FALSE)
     
     # Likelihood components 
     mainlike_components         <- c('TOTAL',"Survey", "Catch", 'Length_comp',
@@ -2033,14 +2051,13 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     # make timeseries plots comparing models in profile
     labs <- paste("SR_Ln(R0) = ",R0.vec)
     labs[which(round(R0.vec,2)==Baseval)] <- paste("SR_Ln(R0) = ",Baseval,"(Base model)")
-    
     SSplotComparisons(prof.R0.summary,legendlabels=labs,
-                      pheight=4.5,png=TRUE,plotdir=plotdir,legendloc='bottomleft')
+                      pheight=4.5,plot = FALSE,png=TRUE,plotdir=plotdir,legendloc='bottomleft')
     
-    dev.off()
+    
     
     ###Piner plot
-    #Size comp
+        #Size comp
     tiff(file.path(dirname.diagnostics,"R0_profile_plot_Length_like.tiff"),
          width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
     par(mar=c(5,4,1,1))
@@ -2054,7 +2071,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
     dev.off()
     
-    #Survey
+        #Survey
     tiff(file.path(dirname.diagnostics,"R0_profile_plot_Survey_like.tiff"),
          width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
     par(mar=c(5,4,1,1))
@@ -2066,7 +2083,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     dev.off()
   }
   
-  #2.2. Retrospective analysis and Predicting skills
+    #2.2. Retrospective analysis and Predicting skills
   if(do.retros)      #took 9 mins for 5 years
   {
     dirname.Retrospective <- paste(dirname.diagnostics,"Retrospective",sep='/')
@@ -2109,8 +2126,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       hcL = SSmase(retroComp,quants = "len")
       out.MASE=rbind(out.MASE,hcL)
     }
-    write.csv(out.MASE,paste(dirname.diagnostics,"retro_hcxval_MASE.csv",sep='/'),row.names = F)
-    write.csv(SShcbias(retroSummary),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = F)
+    write.csv(out.MASE,paste(dirname.diagnostics,"retro_hcxval_MASE.csv",sep='/'),row.names = FALSE)
+    write.csv(SShcbias(retroSummary),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
     
     
     #Hindcasting cross validation
@@ -2124,7 +2141,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   
   
   #3. Convergence
-  #3.1. Jittering 
+    #3.1. Jittering 
   if(do.jitter)
   {
     #Create directories
@@ -2141,7 +2158,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     #Read in results using other r4ss functions
     # (note that un-jittered model can be read using keyvec=0:numjitter)
     profilemodels <- SSgetoutput(dirvec = dirname.Jitter, keyvec = 0:numjitter, getcovar = FALSE) #0 is basecase
-    profilesummary <- SSsummarize(profilemodels)
+    profilesummary <- SSsummarize(profilemodels,verbose = FALSE)
     
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
     Params=profilesummary[["pars"]]
@@ -2170,10 +2187,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     
     dev.off()
     
-    
-    
   }
-  
   
 }
 

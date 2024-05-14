@@ -3905,7 +3905,7 @@ add.probs.integrated.asympt.error=function(DAT,B.threshold) #Reference points pr
               Reference.points=data.frame(Rf.pt=c('Target','Threshold','Limit'),
                                           Value=c(B.target,B.threshold,B.limit))))
 }
-fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen)
+fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e4)
 {
   if(mods=='SS3')
   {
@@ -3915,9 +3915,10 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen)
     
     if(Type=='Depletion') 
     { 
-      d1=dum[grep(paste(paste("Bratio",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value','StdDev')]%>%
+      #iid=grep(paste(paste("Bratio",Years,sep='_'),collapse="|"),dum$Label)
+      iid=grep(paste("Bratio",collapse="|"),dum$Label)
+      d1=dum[iid,c('Label','Value','StdDev')]%>%
         mutate(year=readr::parse_number(Label))%>%
-        filter(year%in%Years)%>%
         rename(mu=Value)%>%
         mutate(lci=mu-1.96*StdDev,
                uci=mu+1.96*StdDev)%>%
@@ -3926,9 +3927,15 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen)
         rename(lower.95=lci,
                upper.95=uci)
       
-      Probs=add.probs.integrated.asympt.error(DAT=d1[nrow(d1),]%>%dplyr::select(mu,StdDev),
+      DaT=d1%>%filter(year==max(Years))%>%dplyr::select(mu,StdDev)
+      Probs=add.probs.integrated.asympt.error(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev),
                                               B.threshold=dum[grep('B_MSY/SSB_unfished',dum$Label),'Value'])     
-      Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      Probs$probs=Probs$probs%>%mutate(finyear=max(Years),Scenario=scen)
+      
+      DaT=d1%>%filter(year==max(d1$year))%>%dplyr::select(mu,StdDev)
+      Probs.future=add.probs.integrated.asympt.error(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev),
+                                              B.threshold=dum[grep('B_MSY/SSB_unfished',dum$Label),'Value'])     
+      Probs$probs.future=Probs.future$probs%>%mutate(finyear=max(d1$year),Scenario=scen)
       
       d1=d1%>%dplyr::select(-c(Label,StdDev))
     }
@@ -3952,27 +3959,68 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen)
     
     if(Type=='B.Bmsy') 
     {
-      SSB=dum[grep(paste(paste("SSB",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value')]
-      SSB_MSY=dum[dum$Label=="SSB_MSY",c('Label','Value')]
-      d1=SSB%>%
-        mutate(year=readr::parse_number(Label),
-               mu=Value/SSB_MSY$Value)%>%
-        relocate(year,mu)%>%
-        `rownames<-`( NULL )%>%
-        dplyr::select(-c(Label,Value))
+      dis.yrs=Years
+      #dis.yrs=c(Years,seq((Years[length(Years)]+1),(Years[length(Years)]+d$N_forecast_yrs)))
+      iid=grep(paste(paste("SSB",dis.yrs,sep='_'),collapse="|"),dum$Label)
+      SSB=dum[iid,c('Label','Value','StdDev')]
+      SSB_MSY=dum[dum$Label=="SSB_MSY",c('Label','Value','StdDev')]
       
+      d1=SSB%>%
+        mutate(year=readr::parse_number(Label))
+      
+      SSB_MSY.sims=rnorm(Nsims,SSB_MSY$Value,SSB_MSY$StdDev)
+      d1.expand=d1[rep(row.names(d1), Nsims), ]%>%
+                    arrange(year)%>%
+                    mutate(Value=rnorm(n(), mean=Value,sd=StdDev))
+      d1.expand$SSB_MSY=SSB_MSY.sims
+      d1=d1.expand%>%
+              mutate(ratio=Value/SSB_MSY)%>%
+              group_by(year)%>%
+              summarise(mu=mean(ratio),
+                        StdDev=sd(ratio))
+      rm(d1.expand)
+      
+      d1=d1%>%
+        mutate(lci=mu-1.96*StdDev,
+                uci=mu+1.96*StdDev)%>%
+        relocate(year,mu,lci,uci)%>%
+        `rownames<-`( NULL )%>%
+        rename(lower.95=lci,
+               upper.95=uci)%>%
+        dplyr::select(-c(StdDev))
     }
     
     if(Type=='F.Fmsy')
     {
-      EF=dum[grep(paste(paste("F",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value')]
-      annF_MSY=dum[dum$Label=="annF_MSY",c('Label','Value')]
+      dis.yrs=Years
+      #dis.yrs=c(Years,seq((Years[length(Years)]+1),(Years[length(Years)]+d$N_forecast_yrs)))
+      iid=grep(paste(paste("F",dis.yrs,sep='_'),collapse="|"),dum$Label)
+      EF=dum[iid,c('Label','Value','StdDev')]
+      annF_MSY=dum[dum$Label=="annF_MSY",c('Label','Value','StdDev')]
+      
       d1=EF%>%
-        mutate(year=readr::parse_number(Label),
-               mu=Value/annF_MSY$Value)%>%
-        relocate(year,mu)%>%
+        mutate(year=readr::parse_number(Label))
+      
+      annF_MSY.sims=rnorm(Nsims,annF_MSY$Value,annF_MSY$StdDev)
+      d1.expand=d1[rep(row.names(d1), Nsims), ]%>%
+        arrange(year)%>%
+        mutate(Value=rnorm(n(), mean=Value,sd=StdDev))
+      d1.expand$annF_MSY=annF_MSY.sims
+      d1=d1.expand%>%
+        mutate(ratio=Value/annF_MSY)%>%
+        group_by(year)%>%
+        summarise(mu=mean(ratio),
+                  StdDev=sd(ratio))
+      rm(d1.expand)
+      
+      d1=d1%>%
+        mutate(lci=mu-1.96*StdDev,
+               uci=mu+1.96*StdDev)%>%
+        relocate(year,mu,lci,uci)%>%
         `rownames<-`( NULL )%>%
-        dplyr::select(-c(Label,Value))
+        rename(lower.95=lci,
+               upper.95=uci)%>%
+        dplyr::select(-c(StdDev))
     }
     
     Dat=d1%>%
