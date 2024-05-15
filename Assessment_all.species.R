@@ -392,6 +392,7 @@ do.parallel.SS=TRUE         #do SS in parallel or not
 SS3.run='test'              # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, MCMC, etc)
 create.SS.inputs=TRUE       #set to FALSE once happy with SS input files and only need to run the model
 run_SS_plots=FALSE          #set to TRUE once happy with model and want to plot outputs
+if(SS3.run=='final') run_SS_plots=TRUE
 Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 

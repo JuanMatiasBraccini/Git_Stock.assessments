@@ -1448,9 +1448,9 @@ if(do.F.over.Fmsy.series)
   }
 }
 
-  #24.3.2 Display Scenario 1 for combined species 
-#24.3.2.1 Relative biomass (i.e. Depletion) 
-  #figure
+#24.3.2 Display Scenario 1 for combined species 
+  #24.3.2.1 Relative biomass (i.e. Depletion) 
+    #figure
 for(l in 1:length(Lista.sp.outputs))
 {
   print(paste("JABBA --- Relative biomass plot S1 -----",names(Lista.sp.outputs)[l],"----- single plot")) 
@@ -1467,7 +1467,7 @@ for(l in 1:length(Lista.sp.outputs))
   if(!is.null(a))ggsave(paste(Rar.path,'/Relative.biomass_JABBA CPUE_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
                         width = WIDt,height = 10,compression = "lzw")
 }
-  #table 
+    #table 
 for(l in 1:length(Lista.sp.outputs))
 {
   dummy.mod=vector('list',length(State.Space.SPM))

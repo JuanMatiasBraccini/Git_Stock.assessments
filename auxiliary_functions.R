@@ -3905,126 +3905,84 @@ add.probs.integrated.asympt.error=function(DAT,B.threshold) #Reference points pr
               Reference.points=data.frame(Rf.pt=c('Target','Threshold','Limit'),
                                           Value=c(B.target,B.threshold,B.limit))))
 }
-fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e4)
+fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e3)
 {
   if(mods=='SS3')
   {
-    Years=with(d,startyr:endyr)  
-    
+    Years=with(d,startyr:endyr)
+    dis.yrs=c(Years,seq((Years[length(Years)]+1),(Years[length(Years)]+d$N_forecast_yrs)))
     dum=d[["derived_quants"]]
-    
-    if(Type=='Depletion') 
-    { 
-      #iid=grep(paste(paste("Bratio",Years,sep='_'),collapse="|"),dum$Label)
-      iid=grep(paste("Bratio",collapse="|"),dum$Label)
-      d1=dum[iid,c('Label','Value','StdDev')]%>%
-        mutate(year=readr::parse_number(Label))%>%
-        rename(mu=Value)%>%
-        mutate(lci=mu-1.96*StdDev,
-               uci=mu+1.96*StdDev)%>%
-        relocate(year,mu,lci,uci)%>%
-        `rownames<-`( NULL )%>%
-        rename(lower.95=lci,
-               upper.95=uci)
-      
-      DaT=d1%>%filter(year==max(Years))%>%dplyr::select(mu,StdDev)
-      Probs=add.probs.integrated.asympt.error(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev),
-                                              B.threshold=dum[grep('B_MSY/SSB_unfished',dum$Label),'Value'])     
-      Probs$probs=Probs$probs%>%mutate(finyear=max(Years),Scenario=scen)
-      
-      DaT=d1%>%filter(year==max(d1$year))%>%dplyr::select(mu,StdDev)
-      Probs.future=add.probs.integrated.asympt.error(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev),
-                                              B.threshold=dum[grep('B_MSY/SSB_unfished',dum$Label),'Value'])     
-      Probs$probs.future=Probs.future$probs%>%mutate(finyear=max(d1$year),Scenario=scen)
-      
-      d1=d1%>%dplyr::select(-c(Label,StdDev))
+    if(Type=='Depletion')
+    {
+      Quant="Bratio"
+      thrshol=dum[grep('B_MSY/SSB_unfished',dum$Label),'Value']
     }
-    
     if(Type=='F.series')
     {
-      EF=dum[grep(paste(paste("F",Years,sep='_'),collapse="|"),dum$Label),c('Label','Value','StdDev')]
-      d1=EF%>%
-          mutate(year=readr::parse_number(Label))%>%
-          filter(year%in%Years)%>%
-          rename(mu=Value)%>%
-          mutate(lci=mu-1.96*StdDev,
-                 uci=mu+1.96*StdDev)%>%
-          relocate(year,mu,lci,uci)%>%
-        `rownames<-`( NULL )%>%
-        dplyr::select(-c(Label,StdDev))%>%
-        rename(lower.95=lci,
-               upper.95=uci)
-      
+      Quant="F"
     }
-    
-    if(Type=='B.Bmsy') 
+    if(Type=='B.Bmsy')
     {
-      dis.yrs=Years
-      #dis.yrs=c(Years,seq((Years[length(Years)]+1),(Years[length(Years)]+d$N_forecast_yrs)))
-      iid=grep(paste(paste("SSB",dis.yrs,sep='_'),collapse="|"),dum$Label)
-      SSB=dum[iid,c('Label','Value','StdDev')]
-      SSB_MSY=dum[dum$Label=="SSB_MSY",c('Label','Value','StdDev')]
-      
-      d1=SSB%>%
-        mutate(year=readr::parse_number(Label))
-      
-      SSB_MSY.sims=rnorm(Nsims,SSB_MSY$Value,SSB_MSY$StdDev)
-      d1.expand=d1[rep(row.names(d1), Nsims), ]%>%
-                    arrange(year)%>%
-                    mutate(Value=rnorm(n(), mean=Value,sd=StdDev))
-      d1.expand$SSB_MSY=SSB_MSY.sims
-      d1=d1.expand%>%
-              mutate(ratio=Value/SSB_MSY)%>%
-              group_by(year)%>%
-              summarise(mu=mean(ratio),
-                        StdDev=sd(ratio))
-      rm(d1.expand)
-      
-      d1=d1%>%
-        mutate(lci=mu-1.96*StdDev,
-                uci=mu+1.96*StdDev)%>%
-        relocate(year,mu,lci,uci)%>%
-        `rownames<-`( NULL )%>%
-        rename(lower.95=lci,
-               upper.95=uci)%>%
-        dplyr::select(-c(StdDev))
+      Quant="SSB"
+      msylabl="SSB_MSY"
+      thrshol=1
     }
-    
     if(Type=='F.Fmsy')
     {
-      dis.yrs=Years
-      #dis.yrs=c(Years,seq((Years[length(Years)]+1),(Years[length(Years)]+d$N_forecast_yrs)))
-      iid=grep(paste(paste("F",dis.yrs,sep='_'),collapse="|"),dum$Label)
-      EF=dum[iid,c('Label','Value','StdDev')]
-      annF_MSY=dum[dum$Label=="annF_MSY",c('Label','Value','StdDev')]
-      
-      d1=EF%>%
-        mutate(year=readr::parse_number(Label))
-      
-      annF_MSY.sims=rnorm(Nsims,annF_MSY$Value,annF_MSY$StdDev)
+      Quant="F"
+      msylabl="annF_MSY"
+    }
+    iid=grep(paste(paste(Quant,dis.yrs,sep='_'),collapse="|"),dum$Label)
+    d1=dum[iid,c('Label','Value','StdDev')]%>%
+      mutate(year=readr::parse_number(Label))
+    if(Type%in%c('B.Bmsy','F.Fmsy'))  #do ratio first and then get SE
+    {
+      x_MSY=dum[dum$Label==msylabl,c('Label','Value','StdDev')]
+      x_MSY.sims=rnorm(Nsims,x_MSY$Value,x_MSY$StdDev)
       d1.expand=d1[rep(row.names(d1), Nsims), ]%>%
         arrange(year)%>%
         mutate(Value=rnorm(n(), mean=Value,sd=StdDev))
-      d1.expand$annF_MSY=annF_MSY.sims
+      d1.expand$x_MSY=x_MSY.sims
       d1=d1.expand%>%
-        mutate(ratio=Value/annF_MSY)%>%
+        mutate(ratio=Value/x_MSY)%>%
         group_by(year)%>%
-        summarise(mu=mean(ratio),
+        summarise(Value=mean(ratio),
                   StdDev=sd(ratio))
+      Out.Kobe=d1.expand%>%filter(year==max(Years))%>%mutate(Value1=Value/x_MSY)%>%pull(Value1)
       rm(d1.expand)
-      
-      d1=d1%>%
-        mutate(lci=mu-1.96*StdDev,
-               uci=mu+1.96*StdDev)%>%
-        relocate(year,mu,lci,uci)%>%
-        `rownames<-`( NULL )%>%
-        rename(lower.95=lci,
-               upper.95=uci)%>%
-        dplyr::select(-c(StdDev))
     }
+    d1=d1%>%
+      rename(mu=Value)%>%
+      mutate(lower.60=mu-0.85*StdDev,
+             upper.60=mu+0.85*StdDev,
+             lci=mu-1.96*StdDev,
+             uci=mu+1.96*StdDev)%>%
+      relocate(year,mu,lci,uci)%>%
+      `rownames<-`( NULL )%>%
+      rename(lower.95=lci,
+             upper.95=uci)%>%
+      mutate(lower.60=ifelse(lower.60<0,0,lower.60),
+             lower.95=ifelse(lower.95<0,0,lower.95))
+    if(Type%in%c('Depletion','B.Bmsy'))  #get probs
+    {
+      Yr=max(Years)
+      DaT=d1%>%filter(year==Yr)%>%dplyr::select(mu,StdDev)
+      Probs=add.probs.integrated.asympt.error(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev),
+                                              B.threshold=thrshol)     
+      Probs$probs=Probs$probs%>%mutate(finyear=Yr,Scenario=scen)
+      
+      Yr=max(d1$year)
+      DaT=d1%>%filter(year==Yr)%>%dplyr::select(mu,StdDev)
+      Probs.future=add.probs.integrated.asympt.error(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev),
+                                                     B.threshold=thrshol)     
+      Probs$probs.future=Probs.future$probs%>%mutate(finyear=Yr,Scenario=scen)
+    }
+    d1=d1%>%dplyr::select(-c(StdDev))
+    if('Label'%in%colnames(d1)) d1=d1%>%dplyr::select(-c(Label))
     
     Dat=d1%>%
-      mutate(Model=mods) 
+      mutate(Model=mods)%>%
+      data.frame 
     
     if(add.50)
     {
@@ -4033,19 +3991,15 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e
                lower.50=NA)
     }
   }
-  
   Dat=Dat%>%
-          mutate(Scenario=scen)%>%
-          rename(median=mu)
+    mutate(Scenario=scen)%>%
+    rename(median=mu)
   
-  if(Type=='Depletion')
-  {
-    return(list(Dat=Dat,Probs=Probs))
-  }else
-  {
-    return(list(Dat=Dat))
-  }
+  list.out=list(Dat=Dat)
+  if(Type%in%c('Depletion','B.Bmsy')) list.out$Probs=Probs
+  if(Type%in%c('B.Bmsy','F.Fmsy')) list.out$Out.Kobe=Out.Kobe
   
+  return(list.out)
 }
 fn.display.priors=function(d,sp,XLAB,XLIM,Strx.siz=16)
 {
@@ -4272,7 +4226,10 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
       {
         Hline=TRUE
         Var=d[[m]]$f.series[[id]]
-        didi=d[[m]]$estimates[[id]]%>%
+        didi=d[[m]]$estimates[[id]]
+        if(!'Median'%in%names(didi)) didi=didi%>%rename(Median=Value)
+        if(!'Parameter'%in%names(didi)) didi=didi%>%rename(Parameter=Par)
+        didi=didi%>%
           dplyr::select(Parameter,Scenario,Median)%>%
           filter(Parameter%in%c('F.target','F.threshold','F.limit'))
         dis=data.frame(Target=didi%>%filter(Parameter=='F.target')%>%pull(Median),
@@ -4377,7 +4334,10 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
       Est=compact(d$estimates[id])
       for(q in 1:length(Var))
       {
-        didi=Est[[q]]%>%
+        didi=Est[[q]]
+        if(!'Median'%in%names(didi)) didi=didi%>%rename(Median=Value)
+        if(!'Parameter'%in%names(didi)) didi=didi%>%rename(Parameter=Par)
+        didi=didi%>%
           dplyr::select(Parameter,Scenario,Median)%>%
           filter(Scenario=='S1' & Parameter%in%c('F.target','F.threshold','F.limit'))
         Var[[q]]=Var[[q]]%>%
@@ -4420,7 +4380,7 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
       addKtch=TRUE
       for(q in 1:length(Var))
       {
-        RP=RefPoint[[q]]%>%data.frame
+        RP=RefPoint[[q]][[1]]%>%data.frame
         if(!is.data.frame(RP))
         {
           if(length(RP)>1)
@@ -4959,7 +4919,7 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
                        Years=yrs,
                        Titl="DBSRA",
                        YrSize=txt.size)
-      rm(yrs,Fmsy,Bmsy,dummy)
+      
     }
     
     #CMSY
@@ -4987,7 +4947,7 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
                       Years=yrs,
                       Titl="CMSY",
                       YrSize=txt.size)
-      rm(yrs,Fmsy,Bmsy,dummy)
+      
     }
     
     #JABBA
@@ -5035,7 +4995,7 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
                      Years=yrs,
                      Titl="SSS",
                      YrSize=txt.size)
-      rm(yrs,Fmsy,Bmsy,dummy)
+      
     }
     
     #SS
@@ -5048,12 +5008,26 @@ fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE
       Fmsy=d$SS$F.Fmsy[[id]]%>%
               filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
               pull(median)
-      p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
-                    b.traj=Bmsy[1:length(yrs)],
-                    Years=yrs,
-                    Titl="SS",
-                    YrSize=txt.size)
-      rm(yrs,Fmsy,Bmsy,dummy)
+      
+      if(!do.probs)
+      {
+        p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
+                        b.traj=Bmsy[1:length(yrs)],
+                        Years=yrs,
+                        Titl="SS",
+                        YrSize=txt.size)
+      }
+      if(do.probs)
+      {
+        p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
+                        b.traj=Bmsy[1:length(yrs)],
+                        Years=yrs,
+                        Titl="SS",
+                        Probs=data.frame(x=d$SS$Kobe.probs[[id]][[1]]$stock,  
+                                         y=d$SS$Kobe.probs[[id]][[1]]$harvest),
+                        YrSize=txt.size)
+      }
+      
     }
     
     plotlist[[pp]]=p.plot+rremove("axis.title")
@@ -5129,13 +5103,17 @@ fn.get.Kobe.plot=function(this.sp,d,NKOL,NRW,do.probs=FALSE)
     
     if(do.probs)
     {
+      dis.dum=d$Kobe.probs[[id[x]]]
+      if(class(dis.dum)=='list') dis.dum=dis.dum[[1]]
+      stock=dis.dum$stock
+      harvest=dis.dum$harvest
       dd=kobePlot(f.traj=dis.fmsy$median,
                   b.traj=dis.bmsy$median,
                   Years=dis.bmsy$year,
                   Titl=capitalize(names(Bmsy)[x]),
                   YrSize=6,
-                  Probs=data.frame(x=d$Kobe.probs[[id[x]]]$stock,
-                                   y=d$Kobe.probs[[id[x]]]$harvest))+rremove("axis.title")
+                  Probs=data.frame(x=stock,
+                                   y=harvest))+rremove("axis.title")
     }
     plotlist[[x]]=dd
   }
@@ -5232,6 +5210,8 @@ fn.get.Kobe.plot_appendix_WA.Fisheries=function(d,sp,Scen='S1',add.sp.nm=FALSE,t
         filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
         pull(median)
       F.ref.points=d$SS$estimates[[id]]%>%
+        rename(Parameter=Par)%>%
+        mutate(Median=Value)%>%
         filter(Scenario==Scen & Parameter%in%c('F.target','F.threshold','F.limit'))
       
       p.plot=kobePlot_WA.Fisheries(f.traj=FF[1:length(yrs)],
@@ -5245,7 +5225,7 @@ fn.get.Kobe.plot_appendix_WA.Fisheries=function(d,sp,Scen='S1',add.sp.nm=FALSE,t
                                    F.thr=F.ref.points%>%filter(Parameter=='F.threshold')%>%pull(Median),
                                    B.tar=B.ref.points%>%filter(Rf.pt=='Target')%>%pull(Value),
                                    F.tar=F.ref.points%>%filter(Parameter=='F.target')%>%pull(Median))
-      rm(yrs,Fmsy,Bmsy,dummy)
+      
     }
     
     if(length(id)>1)
@@ -5299,10 +5279,13 @@ fn.get.Kobe.plot_WA.Fisheries=function(this.sp,d,NKOL,NRW,RF=Ref.points)
       dis.bmsy=dis.bmsy%>%filter(Scenario=='S1')
     }
     B.ref.points=do.call(rbind,RF[id][[x]])%>%filter(Scenario=='S1')
-    F.ref.points=d$estimates[id][[x]]%>%
+    F.ref.points=d$estimates[id][[x]]
+    if(!"Parameter"%in%names(F.ref.points)) F.ref.points=F.ref.points%>%rename(Parameter=Par)
+    if(!"Median"%in%names(F.ref.points)) F.ref.points=F.ref.points%>%rename(Median=Value)
+    F.ref.points=F.ref.points%>%
       filter(Scenario=='S1' & Parameter%in%c('F.target','F.threshold','F.limit'))
     
-    dd=kobePlot_WA.Fisheries(f.traj=dis.fmsy$median,
+    dd=kobePlot_WA.Fisheries(f.traj=dis.fmsy$median[1:length(dis.bmsy$median)],
                              b.traj=dis.bmsy$median,
                              Years=dis.bmsy$year,
                              Titl=capitalize(names(Bmsy)[x]),
@@ -5408,6 +5391,8 @@ fn.get.Kobe.plot_appendix_SAFS=function(d,sp,Scen='S1',add.sp.nm=FALSE,txt.size=
         filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
         pull(median)
       F.ref.points=d$SS$estimates[[id]]%>%
+        rename(Parameter=Par,
+               Median=Value)%>%
         filter(Scenario==Scen & Parameter%in%c('F.target','F.threshold','F.limit'))
       
       p.plot=kobePlot_SAFS(f.traj=FF[1:length(yrs)],
@@ -5417,7 +5402,7 @@ fn.get.Kobe.plot_appendix_SAFS=function(d,sp,Scen='S1',add.sp.nm=FALSE,txt.size=
                            YrSize=txt.size,
                            B.lim=B.ref.points%>%filter(Rf.pt=='Limit')%>%pull(Value),
                            F.lim=F.ref.points%>%filter(Parameter=='F.limit')%>%pull(Median))
-      rm(yrs,Fmsy,Bmsy,dummy)
+      
     }
     
     if(length(id)>1)

@@ -637,7 +637,7 @@ for(w in 1:n.SS)
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
             Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
-              Out.F.Fmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
+              Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
             Life.history$Fecundity=ceiling(mean(Life.history$Fecundity))
@@ -722,8 +722,6 @@ for(w in 1:n.SS)
                              Var.adjust.factor=Var.ad.factr,
                              Future.project=add.ct.future)
               }
-
-              clear.log("Var.ad.factr")
               
               #b. Run SS3
                 #run this first time fitting model to define LnRo init value
@@ -826,12 +824,15 @@ for(w in 1:n.SS)
                                                       Type='B.Bmsy',
                                                       scen=Scens$Scenario[s])
               Out.B.Bmsy[[s]]=dummy$Dat
+              Out.probs.B.Bmsy[[s]]=dummy$Probs
+              Kobe.stock=dummy$Out.Kobe
               
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                       mods="SS3",
                                                       Type='F.Fmsy',
                                                       scen=Scens$Scenario[s])
               Out.F.Fmsy[[s]]=dummy$Dat
+              Kobe.harvest=dummy$Out.Kobe
               
               #Calculate posterior depletion   #takes 4.5 secs per nMC simulation
               if(Scens$Scenario[s]=='S1' & SS3.run=='final' & do.MC.multi)
@@ -851,20 +852,20 @@ for(w in 1:n.SS)
                 rm(dd)
               }
               
-              #add catch for display purposes
+              #add catch for display purposes 
+              Add.katch=Combined.ktch
+              if(any(add.ct.future$finyear%in%unique(Out.rel.biom[[s]]$year)))
+              {
+                TC.future=add.ct.future%>%ungroup()%>%dplyr::select(-c(SPECIES,Name,finyear))%>%rowSums()
+                Add.katch=rbind(Add.katch,data.frame(Year=add.ct.future$finyear,Total=TC.future))
+              }
               Out.rel.biom[[s]]=Out.rel.biom[[s]]%>%
-                                  left_join(Combined.ktch,by=c('year'='Year'))%>%
+                                  left_join(Add.katch,by=c('year'='Year'))%>%
                                   rename(Catch=Total)
                                 
               #Kobe
-              if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=left_join(Out.B.Bmsy[[s]],Out.F.Fmsy[[s]],
-                                                                        by=c('year','Model','Scenario'))%>%
-                                                                  rename(B.Bmsy=median.x,
-                                                                         B.Bmsy.lower.95=lower.95.x,
-                                                                         B.Bmsy.upper.95=upper.95.x,
-                                                                         F.Fmsy=median.y,
-                                                                         F.Fmsy.lower.95=lower.95.y,
-                                                                         F.Fmsy.upper.95=upper.95.y)
+              if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=data.frame(stock=Kobe.stock,
+                                                                         harvest=Kobe.harvest)
               
               #Posterior vs prior
               if(Report$parameters%>%filter(Label=='SR_BH_steep')%>%pull(Phase)>0)
@@ -932,6 +933,7 @@ for(w in 1:n.SS)
             return(list(dummy.store.sens.table=Out.Scens,
                         dummy.store.rel.biom=do.call(rbind,Out.rel.biom),
                         dummy.store.probs.rel.biom=Out.probs.rel.biom,
+                        dummy.store.probs.B.Bmsy=Out.probs.B.Bmsy,
                         dummy.store.f.series=do.call(rbind,Out.f.series),
                         dummy.store.B.Bmsy=do.call(rbind,Out.B.Bmsy),
                         dummy.store.F.Fmsy=do.call(rbind,Out.F.Fmsy),
@@ -941,8 +943,10 @@ for(w in 1:n.SS)
                         ))
             
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
-               Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods)  
+               Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods) 
+            
           }
+          clear.log("Var.ad.factr")
         }
       }
       stopCluster(cl)
@@ -951,6 +955,7 @@ for(w in 1:n.SS)
       Age.based[[w]]$estimates=fn.get.and.name(LISTA=out.species,x='dummy.store.estimates')
       Age.based[[w]]$rel.biom=fn.get.and.name(LISTA=out.species,x='dummy.store.rel.biom')
       Age.based[[w]]$probs.rel.biom=fn.get.and.name(LISTA=out.species,x='dummy.store.probs.rel.biom')
+      Age.based[[w]]$probs.B.Bmsy=fn.get.and.name(LISTA=out.species,x='dummy.store.probs.B.Bmsy') 
       Age.based[[w]]$f.series=fn.get.and.name(LISTA=out.species,x='dummy.store.f.series')
       Age.based[[w]]$B.Bmsy=fn.get.and.name(LISTA=out.species,x='dummy.store.B.Bmsy')
       Age.based[[w]]$F.Fmsy=fn.get.and.name(LISTA=out.species,x='dummy.store.F.Fmsy')
@@ -998,7 +1003,7 @@ for(w in 1:n.SS)
       dummy.store=vector('list',N.sp)
       names(dummy.store)=Keep.species
       dummy.store.estimates=dummy.store.likelihoods=dummy.store.rel.biom=dummy.store.probs.rel.biom=
-        dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
+        dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
         dummy.store.sens.table=dummy.store.ensemble=dummy.store
       
       for(i in 1:length(dummy.store))
@@ -1622,7 +1627,7 @@ for(w in 1:n.SS)
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
             Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
-              Out.F.Fmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
+              Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
             Life.history$Fecundity=ceiling(mean(Life.history$Fecundity))
@@ -1707,7 +1712,7 @@ for(w in 1:n.SS)
                              Future.project=add.ct.future)
                 }
 
-              clear.log("Var.ad.factr")
+              
               
               #b. Run SS3
                 #run this first time fitting model to define LnRo init value
@@ -1811,13 +1816,15 @@ for(w in 1:n.SS)
                                                       Type='B.Bmsy',
                                                       scen=Scens$Scenario[s])
               Out.B.Bmsy[[s]]=dummy$Dat
+              Out.probs.B.Bmsy[[s]]=dummy$Probs
+              Kobe.stock=dummy$Out.Kobe
               
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                       mods="SS3",
                                                       Type='F.Fmsy',
                                                       scen=Scens$Scenario[s])
               Out.F.Fmsy[[s]]=dummy$Dat
-              
+              Kobe.harvest=dummy$Out.Kobe
               
               #Calculate posterior depletion   #takes 4.5 secs per nMC simulation
               if(Scens$Scenario[s]=='S1' & SS3.run=='final' & do.MC.multi)
@@ -1838,19 +1845,19 @@ for(w in 1:n.SS)
               }
               
               #add catch for display purposes
+              Add.katch=Combined.ktch
+              if(any(add.ct.future$finyear%in%unique(Out.rel.biom[[s]]$year)))
+              {
+                TC.future=add.ct.future%>%ungroup()%>%dplyr::select(-c(SPECIES,Name,finyear))%>%rowSums()
+                Add.katch=rbind(Add.katch,data.frame(Year=add.ct.future$finyear,Total=TC.future))
+              }
               Out.rel.biom[[s]]=Out.rel.biom[[s]]%>%
-                                  left_join(Combined.ktch,by=c('year'='Year'))%>%
-                                    rename(Catch=Total)
+                left_join(Add.katch,by=c('year'='Year'))%>%
+                rename(Catch=Total)
                                   
               #Kobe
-              if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=left_join(Out.B.Bmsy[[s]],Out.F.Fmsy[[s]],
-                                                                        by=c('year','Model','Scenario'))%>%
-                                                                  rename(B.Bmsy=median.x,
-                                                                         B.Bmsy.lower.95=lower.95.x,
-                                                                         B.Bmsy.upper.95=upper.95.x,
-                                                                         F.Fmsy=median.y,
-                                                                         F.Fmsy.lower.95=lower.95.y,
-                                                                         F.Fmsy.upper.95=upper.95.y)
+              if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=data.frame(stock=Kobe.stock,
+                                                                         harvest=Kobe.harvest)
               
               
               print(paste("___________","SS3 Scenario",Scens$Scenario[s],"___________",Neim))
@@ -1897,6 +1904,7 @@ for(w in 1:n.SS)
             dummy.store.sens.table[[i]]=Out.Scens
             dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
             dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
+            dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
             dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
             dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
             dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
@@ -1919,20 +1927,22 @@ for(w in 1:n.SS)
               geom_line(aes(year,upper.95),linetype=2)+
               geom_line(aes(year,lower.95),linetype=2)+
               ggtitle(Keep.species[i])+ylim(0,1)+
-              theme_PA()+theme(legend.position = 'bottom')
-              #annotation_custom(tableGrob(dummy.store.sens.table[[i]]%>%dplyr::select(Scenario,Mmean,h.mean)),
-               #                 xmin=xmin+5, xmax=xmax+5, ymin=0, ymax=0.3)+
-              #annotation_custom(tableGrob(dummy.store.estimates[[i]]),xmin=xmin, xmax=xmax, ymin=0.35, ymax=0.55)
+              theme_PA()+theme(legend.position = 'bottom')+
+              annotation_custom(tableGrob(dummy.store.sens.table[[i]]%>%dplyr::select(Scenario,Mmean,h.mean)),
+                                xmin=xmin+5, xmax=xmax+5, ymin=0, ymax=0.3)+
+              annotation_custom(tableGrob(dummy.store.estimates[[i]]%>%filter(Par=='SR_LN(R0)')),xmin=xmin, xmax=xmax, ymin=0.35, ymax=0.55)
             print(p)
             ggsave(paste(this.wd,"/Rel.biomass&estimates.tiff",sep=''),compression = "lzw")
           }
+          clear.log("Var.ad.factr")
         }
-      }
+      } #end i loop
       
       Age.based[[w]]$sens.table=dummy.store.sens.table
       Age.based[[w]]$estimates=dummy.store.estimates
       Age.based[[w]]$rel.biom=dummy.store.rel.biom
       Age.based[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
+      Age.based[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
       Age.based[[w]]$f.series=dummy.store.f.series
       Age.based[[w]]$B.Bmsy=dummy.store.B.Bmsy
       Age.based[[w]]$F.Fmsy=dummy.store.F.Fmsy
@@ -1968,6 +1978,7 @@ if(SS3.run=='final')
                   capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
     if(file.exists(this.wd))
     {
+      print(paste("Compare scenarios for ------------",Neim))
       Scens=List.sp[[i]]$Sens.test$SS
       LIST=vector('list',nrow(Scens))
       names(LIST)=Scens$Scenario
@@ -1976,14 +1987,15 @@ if(SS3.run=='final')
         this.wd1=paste(this.wd,Scens$Scenario[s],sep='/')
         LIST[[s]]=SS_output(this.wd1)
       }
-      
       # create list summarizing model results
       mod.sum <- SSsummarize(LIST,verbose = FALSE)
       # plot comparisons
-      SUPLT=1:17
+      SUPLT=1:16
       SUPLT=subset(SUPLT,!SUPLT%in%c(1,3,5,7,9))
-      SSplotComparisons(mod.sum, legendlabels = names(LIST),pdf=TRUE,plotdir=this.wd,subplots=SUPLT)
-      
+      this.wd.compare=paste(this.wd,'Scenario comparison',sep='/')
+      if(!dir.exists(this.wd.compare))dir.create(this.wd.compare) 
+      SSplotComparisons(mod.sum, legendlabels = names(LIST),pheight=4.5,plot = FALSE,png=TRUE,
+                        plotdir=this.wd.compare,subplots=SUPLT,legendloc='bottomleft')
     }
   }
 }
@@ -2056,11 +2068,10 @@ Ref.points=vector('list',N.sp)
 names(Ref.points)=Keep.species
 for(i in 1:N.sp)
 {
-  if(file.exists(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                       capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/S1",sep='')))
+  if(!is.null(Age.based$SS$rel.biom[[i]]))
   {
     print(paste("SS3 --- Relative biomass plot -----",Keep.species[i])) 
-    a=fn.plot.timeseries(d=Age.based,
+    a=fn.plot.timeseries(d=Age.based,    
                          sp=Keep.species[i],
                          Type='Depletion',
                          YLAB='Relative biomass')
@@ -2088,7 +2099,7 @@ for(i in 1:N.sp)
                       capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_depletion.csv",sep=''),
                 row.names = F)
       
-      Ref.points[[i]]=a$Ref.points
+      Ref.points[[i]]=a$Ref.points$SS
     }
   }
 
@@ -2099,16 +2110,19 @@ if(do.F.series)
 {
   for(i in 1:N.sp)
   {
-    print(paste("SS3 --- Fishing mortality plot -----",Keep.species[i]))
-    a=fn.plot.timeseries(d=Age.based,
-                         sp=Keep.species[i],
-                         Type='F.series',
-                         YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))
-    if(!is.null(a))
+    if(!is.null(Age.based$SS$f.series[[i]]))
     {
-      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/time_series_fishing_mortality.tiff",sep=''),
-             width = 8,height = 10,compression = "lzw")
+      print(paste("SS3 --- Fishing mortality plot -----",Keep.species[i]))
+      a=fn.plot.timeseries(d=Age.based,
+                           sp=Keep.species[i],
+                           Type='F.series',
+                           YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))
+      if(!is.null(a))
+      {
+        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_fishing_mortality.tiff",sep=''),
+               width = 8,height = 10,compression = "lzw")
+      }
     }
   }
 }
@@ -2118,16 +2132,19 @@ if(do.B.over.Bmsy.series)
 {
   for(i in 1:N.sp)
   {
-    print(paste("SS3 --- B over Bmsy plot -----",Keep.species[i]))
-    a=fn.plot.timeseries(d=Age.based,
-                         sp=Keep.species[i],
-                         Type='B.Bmsy',
-                         YLAB='B/Bmsy')
-    if(!is.null(a))
+    if(!is.null(Age.based$SS$B.Bmsy[[i]]))
     {
-      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/time_series_B_Bmsy.tiff",sep=''),
-             width = 8,height = 10,compression = "lzw")
+      print(paste("SS3 --- B over Bmsy plot -----",Keep.species[i]))
+      a=fn.plot.timeseries(d=Age.based,
+                           sp=Keep.species[i],
+                           Type='B.Bmsy',
+                           YLAB='B/Bmsy')
+      if(!is.null(a))
+      {
+        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_B_Bmsy.tiff",sep=''),
+               width = 8,height = 10,compression = "lzw")
+      }
     }
   }
 }
@@ -2137,41 +2154,45 @@ if(do.F.over.Fmsy.series)
 {
   for(i in 1:N.sp)
   {
-    print(paste("SS3 --- F over Fmsy plot -----",Keep.species[i]))
-    a=fn.plot.timeseries(d=Age.based,
-                         sp=Keep.species[i],
-                         Type='F.Fmsy',
-                         YLAB='F/Fmsy')
-    if(!is.null(a))
+    if(!is.null(Age.based$SS$F.Fmsy[[i]]))
     {
-      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/time_series_F_Fmsy.tiff",sep=''),
-             width = 8,height = 10,compression = "lzw")
+      print(paste("SS3 --- F over Fmsy plot -----",Keep.species[i]))
+      a=fn.plot.timeseries(d=Age.based,
+                           sp=Keep.species[i],
+                           Type='F.Fmsy',
+                           YLAB='F/Fmsy')
+      if(!is.null(a))
+      {
+        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_F_Fmsy.tiff",sep=''),
+               width = 8,height = 10,compression = "lzw")
+      }
     }
   }
 }
 
 
 #25.3.2 Display Scenario 1 for combined species 
-
-#Relative biomass (i.e. Depletion) 
-  #figure
+  #25.3.2.1 Relative biomass (i.e. Depletion) 
+    #figure
 for(l in 1:length(Lista.sp.outputs))
 {
+  print(paste("RAR --- Depletion_SS3 plot S1 -----",names(Lista.sp.outputs)[l],"----- single plot"))
+  
   if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
   a=fn.plot.timeseries_combined(this.sp=Lista.sp.outputs[[l]],
-                                          d=Age.based$SS,
-                                          YLAB="Relative biomass",
-                                          Type="Depletion",
-                                          InnerMargin=InMar,
-                                          RefPoint=Ref.points,
-                                          Kach=Age.based$SS$rel.biom)
+                                d=Age.based$SS,
+                                YLAB="Relative biomass",
+                                Type="Depletion",
+                                InnerMargin=InMar,
+                                RefPoint=Ref.points,
+                                Kach=Age.based$SS$rel.biom)
   WIDt=10
   if(length(compact(Age.based$SS$sens.table))<=3) WIDt=7
   if(!is.null(a))ggsave(paste(Rar.path,'/Relative.biomass_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
                         width = WIDt,height = 10,compression = "lzw")
 }
-  #table 
+    #table 
 for(l in 1:length(Lista.sp.outputs))
 {
   dummy.mod=vector('list',length(Age.based))
@@ -2187,6 +2208,13 @@ for(l in 1:length(Lista.sp.outputs))
       {
         dummy[[d]]=str.prob[[d]][[1]]$probs%>%
           mutate(Species=capitalize(names(str.prob)[d]))
+        
+        if('probs.future'%in%names(str.prob[[d]][[1]]))
+        {
+          dummy[[d]]=rbind(dummy[[d]],
+          str.prob[[d]][[1]]$probs.future%>%
+            mutate(Species=capitalize(names(str.prob)[d])))
+        }
       }
       dummy.mod[[m]]=do.call(rbind,dummy)%>%
         mutate(Model=names(Age.based)[m])
@@ -2205,10 +2233,116 @@ for(l in 1:length(Lista.sp.outputs))
     
   }
 }
+  #25.3.2.2 B over Bmsy  
+if(do.B.over.Bmsy.series)
+{
+  #figure
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    print(paste("RAR --- B.over.Bmsy_SS3 plot S1 -----",names(Lista.sp.outputs)[l],"----- single plot")) 
+    if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
+    a=fn.plot.timeseries_combined(this.sp=Lista.sp.outputs[[l]],
+                                  d=Age.based$SS,
+                                  YLAB="B/Bmsy",
+                                  Type="B.Bmsy",
+                                  InnerMargin=InMar,
+                                  RefPoint=NULL,
+                                  Kach=Age.based$SS$rel.biom)
+    WIDt=10
+    if(length(compact(Age.based$SS$sens.table))<=3) WIDt=7
+    if(!is.null(a))ggsave(paste(Rar.path,'/B.over.Bmsy_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+                          width = WIDt,height = 10,compression = "lzw")
+  }
+  #table 
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    dummy.mod=vector('list',length(Age.based))
+    for(m in 1:length(Age.based))
+    {
+      str.prob=Age.based[[m]]$probs.B.Bmsy
+      str.prob=str.prob[match(Lista.sp.outputs[[l]],names(str.prob))]
+      str.prob=compact(str.prob)
+      if(length(str.prob)>0)
+      {
+        dummy=vector('list',length =length(str.prob))
+        for(d in 1:length(dummy))
+        {
+          dummy[[d]]=str.prob[[d]][[1]]$probs%>%
+            mutate(Species=capitalize(names(str.prob)[d]))
+          
+          if('probs.future'%in%names(str.prob[[d]][[1]]))
+          {
+            dummy[[d]]=rbind(dummy[[d]],
+                             str.prob[[d]][[1]]$probs.future%>%
+                               mutate(Species=capitalize(names(str.prob)[d])))
+          }
+        }
+        dummy.mod[[m]]=do.call(rbind,dummy)%>%
+          mutate(Model=names(Age.based)[m])
+      }
+    }
+    dummy.mod=compact(dummy.mod)
+    if(length(dummy.mod)>0)
+    {
+      write.csv(do.call(rbind,dummy.mod)%>%
+                  mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
+                  spread(Species,Probability)%>%
+                  arrange(Range),
+                paste(Rar.path,'/Table 12. Age.based_SS_Current.B.over.Bmsy_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+                row.names=F)
+      rm(dummy.mod)
+      
+    }
+  }
+  
+}
+  #25.3.2.3 F over Fmsy  
+if(do.F.over.Fmsy.series)
+{
+  #figure
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    print(paste("RAR --- F.over.Fmsy_SS3 plot S1 -----",names(Lista.sp.outputs)[l],"----- single plot")) 
+    if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
+    a=fn.plot.timeseries_combined(this.sp=Lista.sp.outputs[[l]],
+                                  d=Age.based$SS,
+                                  YLAB="F/Fmsy",
+                                  Type="F.Fmsy",
+                                  InnerMargin=InMar,
+                                  RefPoint=NULL,
+                                  Kach=Age.based$SS$rel.biom)
+    WIDt=10
+    if(length(compact(Age.based$SS$sens.table))<=3) WIDt=7
+    if(!is.null(a))ggsave(paste(Rar.path,'/F.over.Fmsy_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+                          width = WIDt,height = 10,compression = "lzw")
+  }
+}
+  #25.3.2.4 F series  
+if(do.F.series)
+{
+  #figure
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    print(paste("RAR --- F_SS3 plot S1 -----",names(Lista.sp.outputs)[l],"----- single plot")) 
+    if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
+    a=fn.plot.timeseries_combined(this.sp=Lista.sp.outputs[[l]],
+                                  d=Age.based$SS,
+                                  YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")),
+                                  Type="F.series",
+                                  InnerMargin=InMar,
+                                  RefPoint=NULL,
+                                  Kach=Age.based$SS$rel.biom)
+    WIDt=10
+    if(length(compact(Age.based$SS$sens.table))<=3) WIDt=7
+    if(!is.null(a))ggsave(paste(Rar.path,'/F.series_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+                          width = WIDt,height = 10,compression = "lzw")
+  }
+}
 
 #25.3.3 Display sensitivity tests for combined species
 for(l in 1:length(Lista.sp.outputs))
 {
+  print(paste("SS3 --- Relative biomass plot by Scenario -----",names(Lista.sp.outputs)[l],"----- single plot"))
   if(length(Lista.sp.outputs[[l]])>8) InMar=1.25 else InMar=.5
   a=fn.plot.timeseries_combined_sensitivity(this.sp=Lista.sp.outputs[[l]], 
                                             d=Age.based$SS,
@@ -2233,7 +2367,7 @@ for(i in 1:N.sp)
     print(paste("SS3 --- Kobe plot -----",Keep.species[i]))
     store.kobes[[i]]=fn.get.Kobe.plot_appendix(d=Age.based,
                                                sp=Keep.species[i],
-                                               do.probs=FALSE)
+                                               do.probs=TRUE)
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                  capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Kobe_plot.tiff",sep=''),
            width = 9,height = 14, dpi = 300,compression = "lzw")
@@ -2245,6 +2379,7 @@ store.kobes=compact(store.kobes)
   #25.4.2 Display combined species     
 for(l in 1:length(Lista.sp.outputs))
 {
+  print(paste("SS3 --- Kobe plot -----",names(Lista.sp.outputs)[l]))
   Nms=names(compact(Age.based$SS$estimates))
   this.sp=Lista.sp.outputs[[l]]
   this.sp=this.sp[which(this.sp%in%Nms)]
@@ -2260,14 +2395,70 @@ for(l in 1:length(Lista.sp.outputs))
                      d=Age.based$SS,
                      NKOL,
                      NRW,
-                     do.probs=FALSE)
+                     do.probs=TRUE)
     ggsave(paste(Rar.path,'/Kobe_plot_Age.based_SS_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = WIZ,height = 12,compression = "lzw")
     
   }
 }
 
-#25.5 Store Consequence and likelihood for WoE 
+#25.5. Kobe plots WA.Fisheries style (Scenario 1)
+  #25.5.1 by species  
+for(i in 1:N.sp)
+{
+  if(!is.null(Age.based$SS$estimates[[i]]))
+  {
+    print(paste("SS3 --- Kobe plot WA Fisheries-----",Keep.species[i]))
+    fn.get.Kobe.plot_appendix_WA.Fisheries(d=Age.based,
+                                           sp=Keep.species[i],
+                                           RF=Ref.points)
+    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Kobe_plot_WA_Fisheries.tiff",sep=''),
+           width = 10,height = 10, dpi = 300,compression = "lzw")
+  }
+}
+  #25.5.2 Display combined species  
+for(l in 1:length(Lista.sp.outputs))
+{
+  Nms=names(compact(Age.based$SS$estimates))
+  this.sp=Lista.sp.outputs[[l]]
+  this.sp=this.sp[which(this.sp%in%Nms)]
+  if(length(this.sp)>0)
+  {
+    print(paste("SS3 --- Kobe plot WA Fisheries-----",names(Lista.sp.outputs)[l]))
+    DIMS=n2mfrow(length(this.sp))
+    NKOL=DIMS[2]
+    NRW=DIMS[1]
+    if(NKOL%in%3:4) WIZ=14
+    if(NKOL==2) WIZ=11
+    if(NKOL==1) WIZ=9
+    fn.get.Kobe.plot_WA.Fisheries(this.sp,
+                                  d=Age.based$SS,
+                                  NKOL,
+                                  NRW,
+                                  RF=Ref.points)
+    ggsave(paste(Rar.path,'/Kobe_plot_Age.based_SS_WA_Fisheries_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+           width = WIZ,height = 12,compression = "lzw")
+  }
+}
+
+#25.6 Kobe plots SAFS style (Scenario 1)
+  #25.6.1 by species  
+for(i in 1:N.sp)
+{
+  if(!is.null(Age.based$SS$estimates[[i]]))
+  {
+    print(paste("SS3 --- Kobe plot SAFS-----",Keep.species[i]))
+    fn.get.Kobe.plot_appendix_SAFS(d=Age.based,
+                                   sp=Keep.species[i],
+                                   RF=Ref.points)
+    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Kobe_plot_SAFS.tiff",sep=''),
+           width = 10,height = 10, dpi = 300,compression = "lzw")
+  }
+}
+
+#25.7 Store Consequence and likelihood for WoE 
 get.cons.like.SS=FALSE  #import from table instead
 if(get.cons.like.SS) Store.cons.Like_Age.based=fn.get.cons.like(lista=Age.based) 
 
