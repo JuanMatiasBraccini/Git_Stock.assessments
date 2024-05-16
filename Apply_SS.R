@@ -17,7 +17,7 @@ for(w in 1:n.SS)
       registerDoSNOW(cl)
       out.species=foreach(i= 1:N.sp,.options.snow = opts,.packages=c('gridExtra','Hmisc','JABBA','strex',
                                                                      'TruncatedDistributions','tidyverse','r4ss',
-                                                                     'mvtnorm')) %dopar%
+                                                                     'mvtnorm','ggrepel','ss3diags')) %dopar%
       {
         Neim=Keep.species[i]
         
@@ -878,12 +878,15 @@ for(w in 1:n.SS)
               }
               
               # Evaluate fit diagnostics
+              GoodnessFit=function.goodness.fit_SS(Rep=Report)  
+              write.csv(GoodnessFit,paste(this.wd1,"/GoodnessFit_",Neim,".csv",sep=''))
               if(do.SS3.diagnostics & Scens$Scenario[s]=='S1')
               {
+                Estim.LnRo=Report$estimated_non_dev_parameters%>%rownames_to_column()%>%filter(rowname=='SR_LN(R0)')%>%pull(Value)
                 fn.fit.diag_SS3(WD=this.wd1,
                                 do.like.prof=TRUE,
                                 disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
-                                R0.vec <- seq(2,Scens$Ln_R0_max[1]+1,0.5),
+                                R0.vec=seq(Estim.LnRo*.6,Estim.LnRo*1.6,length.out=LikePro.N),
                                 exe_path=handl_OneDrive('SS3/ss_win.exe'),
                                 start.retro=Retro_start,
                                 end.retro=Retro_end,
@@ -950,6 +953,7 @@ for(w in 1:n.SS)
         }
       }
       stopCluster(cl)
+      names(out.species)=Keep.species
       
       Age.based[[w]]$sens.table=fn.get.and.name(LISTA=out.species,x='dummy.store.sens.table')
       Age.based[[w]]$estimates=fn.get.and.name(LISTA=out.species,x='dummy.store.estimates')
@@ -1863,7 +1867,11 @@ for(w in 1:n.SS)
               print(paste("___________","SS3 Scenario",Scens$Scenario[s],"___________",Neim))
               
               
-            }
+              # Evaluate fit diagnostics
+              GoodnessFit=function.goodness.fit_SS(Rep=Report)  
+              write.csv(GoodnessFit,paste(this.wd1,"/GoodnessFit_",Neim,".csv",sep=''))
+              
+            } #end s loop
             Out.Scens=Out.Scens%>%
               rename(h.mean=Steepness,
                      h.sd=Steepness.sd)%>%
@@ -2355,9 +2363,51 @@ for(l in 1:length(Lista.sp.outputs))
                         width = WIDt,height = 10,compression = "lzw")
 }
 
+#25.4. Compare goodness of fit for different Scenarios  
+#note: compare DIC, RMSE & SDNR 
+for(l in 1:length(Lista.sp.outputs))
+{
+  Nms=names(compact(State.Space.SPM$JABBA$estimates))
+  this.sp=Lista.sp.outputs[[l]]
+  this.sp=this.sp[which(this.sp%in%Nms)]
+  print(paste("SS3 --- Compare Scenarios goodness of fit -----",names(Lista.sp.outputs)[l])) 
+  if(length(this.sp)>0)
+  {
+    stor.plt=vector('list',length(this.sp))
+    for(q in 1:length(this.sp))
+    {
+      i=match(this.sp[q],Keep.species)
+      this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                    capitalize(List.sp[[i]]$Name),"/",AssessYr,"/SS3 integrated",sep='')
+      if(file.exists(this.wd))
+      {
+        Scens=List.sp[[i]]$Sens.test$SS$Scenario 
+        a=vector('list',length(Scens))
+        for(s in 1:length(Scens))
+        {
+          a[[s]]=read.csv(paste(paste(this.wd,"/",Scens[s],sep=''),
+                                paste0('GoodnessFit_',List.sp[[i]]$Name,'.csv'),sep='/'))%>%
+            dplyr::select(-X)%>%mutate(Scenario=Scens[s])
+        }
+        stor.plt[[q]]=do.call(rbind,a)%>%
+          filter(Stastistic%in%c('RMSE','AIC'))%>%
+          ggplot(aes(Scenario,Value))+
+          geom_col(fill='brown')+
+          facet_wrap(~Stastistic,scales='free',ncol=2)+
+          theme_PA()+ylab('')+xlab('')+
+          ggtitle(capitalize(List.sp[[i]]$Name))
+      }
+    }
+    figure <- ggarrange(plotlist=stor.plt,ncol=1,nrow=length(this.sp),common.legend = TRUE)
+    figure=annotate_figure(figure,bottom = text_grob('Scenario', size=22),left = text_grob('Value',rot = 90, size=22))
+    ggsave(paste(Rar.path,'/GoodnessFit per scenario_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+           width = 5,height = 8,compression = "lzw")
+  }
+}
 
-#25.4. Kobe plots (Scenario 1) 
-  #25.4.1 by species 
+
+#25.5. Kobe plots (Scenario 1) 
+  #25.5.1 by species 
 store.kobes=vector('list',N.sp)
 names(store.kobes)=Keep.species
 for(i in 1:N.sp)
@@ -2369,14 +2419,14 @@ for(i in 1:N.sp)
                                                sp=Keep.species[i],
                                                do.probs=TRUE)
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Kobe_plot.tiff",sep=''),
+                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot.tiff",sep=''),
            width = 9,height = 14, dpi = 300,compression = "lzw")
   }
   
 }
 store.kobes=compact(store.kobes)
 
-  #25.4.2 Display combined species     
+  #25.5.2 Display combined species     
 for(l in 1:length(Lista.sp.outputs))
 {
   print(paste("SS3 --- Kobe plot -----",names(Lista.sp.outputs)[l]))
@@ -2402,8 +2452,8 @@ for(l in 1:length(Lista.sp.outputs))
   }
 }
 
-#25.5. Kobe plots WA.Fisheries style (Scenario 1)
-  #25.5.1 by species  
+#25.6. Kobe plots WA.Fisheries style (Scenario 1)
+  #25.6.1 by species  
 for(i in 1:N.sp)
 {
   if(!is.null(Age.based$SS$estimates[[i]]))
@@ -2413,11 +2463,11 @@ for(i in 1:N.sp)
                                            sp=Keep.species[i],
                                            RF=Ref.points)
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Kobe_plot_WA_Fisheries.tiff",sep=''),
+                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot_WA_Fisheries.tiff",sep=''),
            width = 10,height = 10, dpi = 300,compression = "lzw")
   }
 }
-  #25.5.2 Display combined species  
+  #25.6.2 Display combined species  
 for(l in 1:length(Lista.sp.outputs))
 {
   Nms=names(compact(Age.based$SS$estimates))
@@ -2442,8 +2492,8 @@ for(l in 1:length(Lista.sp.outputs))
   }
 }
 
-#25.6 Kobe plots SAFS style (Scenario 1)
-  #25.6.1 by species  
+#25.7 Kobe plots SAFS style (Scenario 1)
+  #25.7.1 by species  
 for(i in 1:N.sp)
 {
   if(!is.null(Age.based$SS$estimates[[i]]))
@@ -2453,12 +2503,12 @@ for(i in 1:N.sp)
                                    sp=Keep.species[i],
                                    RF=Ref.points)
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Kobe_plot_SAFS.tiff",sep=''),
+                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot_SAFS.tiff",sep=''),
            width = 10,height = 10, dpi = 300,compression = "lzw")
   }
 }
 
-#25.7 Store Consequence and likelihood for WoE 
+#25.8 Store Consequence and likelihood for WoE 
 get.cons.like.SS=FALSE  #import from table instead
 if(get.cons.like.SS) Store.cons.Like_Age.based=fn.get.cons.like(lista=Age.based) 
 

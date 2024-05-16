@@ -5206,7 +5206,7 @@ fn.get.Kobe.plot_appendix_WA.Fisheries=function(d,sp,Scen='S1',add.sp.nm=FALSE,t
         filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
       yrs=dummy%>%pull(year)
       B=dummy$median
-      FF=d$SS$F.Fmsy[[id]]%>%
+      FF=d$SS$f.series[[id]]%>%
         filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
         pull(median)
       F.ref.points=d$SS$estimates[[id]]%>%
@@ -5261,7 +5261,7 @@ fn.get.Kobe.plot_appendix_WA.Fisheries=function(d,sp,Scen='S1',add.sp.nm=FALSE,t
                                        fig.lab.size=24)
   
   print(figure)
-  return(plotlist)
+ # return(plotlist)
 }
 fn.get.Kobe.plot_WA.Fisheries=function(this.sp,d,NKOL,NRW,RF=Ref.points)
 {
@@ -5387,7 +5387,7 @@ fn.get.Kobe.plot_appendix_SAFS=function(d,sp,Scen='S1',add.sp.nm=FALSE,txt.size=
         filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
       yrs=dummy%>%pull(year)
       B=dummy$median
-      FF=d$SS$F.Fmsy[[id]]%>%
+      FF=d$SS$f.series[[id]]%>%
         filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
         pull(median)
       F.ref.points=d$SS$estimates[[id]]%>%
@@ -5438,7 +5438,7 @@ fn.get.Kobe.plot_appendix_SAFS=function(d,sp,Scen='S1',add.sp.nm=FALSE,txt.size=
                                        fig.lab.size=24)
   
   print(figure)
-  return(plotlist)
+  #return(plotlist)
 }
 fn.get.f.ref.points=function(Report,propTar=Tar.prop.bmsny,propLim=Lim.prop.bmsy)
 {

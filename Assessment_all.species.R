@@ -455,7 +455,7 @@ Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo v
 SS3.q.analit.solu=TRUE   #calculate q analytically to save up pars, set to FALSE if using block Q (time changing Q)
 block.species_Q=c("whiskery shark") #"gummy shark"
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
-do.MC.multi=FALSE #doesn't work if estimating rec devs
+do.MC.multi=FALSE #doesn't work if estimating rec devs as rec devs are not updated with random sample
 nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
 Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation. Used for Monte Carlo simulations
 #MCMCsims=1e5; Thin=10; burning=1:(5*length(seq(1,MCMCsims,by=Thin))/100)   #5%  burning
@@ -475,9 +475,11 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
 Drop.single.year.size.comp=FALSE
 
   #21.8 Fit diagnostics
-do.SS3.diagnostics=FALSE   #TRUE     very time consuming. Only run once model is defined.
+if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
+if(SS3.run=='test') do.SS3.diagnostics=FALSE   
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
 Number.of.jitters=50       #Number of jitters for Jitter analysis.       
+LikePro.N=6               #Number of likelihood profiles
 
 #22. Bespoke Integrated size-based model 
 if(Do.bespoke)

@@ -1896,28 +1896,33 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   
   #1. Goodness-of-fit diagnostic
   #1.1. residuals with smoothing function showing trends
+  NrowS=1
+  if(cpue.series>0 & length.series>0) NrowS=2
   tiff(file.path(dirname.diagnostics,"jabbaresidual.tiff"),
        width = 1500, height = 2000,units = "px", res = 300, compression = "lzw")
-  sspar(mfrow=c(2,1),labs=T,plot.cex=0.9)
-  ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "cpue",add=TRUE)
-  ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "len",add=TRUE)
+  sspar(mfrow=c(NrowS,1),labs=T,plot.cex=0.9)
+  if(cpue.series>0) ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "cpue",add=TRUE)
+  if(length.series>0) ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "len",add=TRUE)
   dev.off()
   
   #1.2. runs test
   dis.dat=c("cpue")
-  if(any(unique(Report$lendbase$Yr)%in%Report$catch$Yr[nrow(Report$catch)-end.retro+1]:
-         Report$catch$Yr[nrow(Report$catch)])) dis.dat=c(dis.dat,"len")      
-  if(any(unique(Report$agedbase$Yr)%in%Report$catch$Yr[nrow(Report$catch)-end.retro+1]:
-         Report$catch$Yr[nrow(Report$catch)])) dis.dat=c(dis.dat,"age")  
-  tiff(file.path(dirname.diagnostics,"runs_tests.tiff"),
-       width = 2000, height = 2000,units = "px", res = 300, compression = "lzw")
-  sspar(mfrow=n2mfrow(length(dis.dat)),labs=T,plot.cex=0.9)
-  for(pp in 1:length(dis.dat)) ss3diags::SSplotRunstest(ss3rep=Report,subplots = dis.dat[[pp]],add=TRUE)
-  dev.off()
-  
-  runs.test.value=vector('list',length(dis.dat))
-  for(pp in 1:length(dis.dat))  runs.test.value[[pp]]=SSrunstest(Report,quants =  dis.dat[[pp]])
-  write.csv(do.call(rbind,runs.test.value),paste(dirname.diagnostics,"runs_tests.csv",sep='/'),row.names = FALSE)
+  if(cpue.series>0)
+  {
+    if(any(unique(Report$lendbase$Yr)%in%Report$catch$Yr[nrow(Report$catch)-end.retro+1]:
+           Report$catch$Yr[nrow(Report$catch)])) dis.dat=c(dis.dat,"len")      
+    if(any(unique(Report$agedbase$Yr)%in%Report$catch$Yr[nrow(Report$catch)-end.retro+1]:
+           Report$catch$Yr[nrow(Report$catch)])) dis.dat=c(dis.dat,"age")  
+    tiff(file.path(dirname.diagnostics,"runs_tests.tiff"),
+         width = 2000, height = 2000,units = "px", res = 300, compression = "lzw")
+    sspar(mfrow=n2mfrow(length(dis.dat)),labs=T,plot.cex=0.9)
+    for(pp in 1:length(dis.dat)) ss3diags::SSplotRunstest(ss3rep=Report,subplots = dis.dat[[pp]],add=TRUE)
+    dev.off()
+    
+    runs.test.value=vector('list',length(dis.dat))
+    for(pp in 1:length(dis.dat))  runs.test.value[[pp]]=SSrunstest(Report,quants =  dis.dat[[pp]])
+    write.csv(do.call(rbind,runs.test.value),paste(dirname.diagnostics,"runs_tests.csv",sep='/'),row.names = FALSE)
+  }
   
   
   #2. Model consistency  
@@ -2006,7 +2011,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     SS_writestarter(starter, dir=mydir, overwrite=TRUE)
     
     #Run SS_profile command   
-    profile <- profile(dir=mydir, # directory
+    profile <- r4ss::profile(dir=mydir, # directory
                        oldctlfile="control.ss_new",
                        newctlfile="control_modified.ss",
                        string="SR_LN(R0)",
@@ -2014,7 +2019,9 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
                        exe=exe_path)
     
     # read the output files (with names like Report1.sso, Report2.sso, etc.)
-    prof.R0.models <- SSgetoutput(dirvec=mydir, keyvec=1:Nprof.R0, getcovar = FALSE) # 
+    prof.R0.models <- SSgetoutput(dirvec=mydir, keyvec=c('',1:Nprof.R0), getcovar = FALSE) # ACA
+    a=sapply(sapply(prof.R0.models, is.na), isTRUE)  #remove empty list elements
+    if(length(a)<=Nprof.R0)prof.R0.models=prof.R0.models[names(subset(a,a==FALSE))]
     
     # Step 10.  summarize output
     prof.R0.summary <- SSsummarize(prof.R0.models,verbose = FALSE)
@@ -2054,90 +2061,97 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     SSplotComparisons(prof.R0.summary,legendlabels=labs,
                       pheight=4.5,plot = FALSE,png=TRUE,plotdir=plotdir,legendloc='bottomleft')
     
-    
-    
     ###Piner plot
         #Size comp
-    tiff(file.path(dirname.diagnostics,"R0_profile_plot_Length_like.tiff"),
-         width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-    par(mar=c(5,4,1,1))
-    PinerPlot(prof.R0.summary, 
-              profile.string = "R0", 
-              component = "Length_like",
-              main = "Changes in length-composition likelihoods by fleet",
-              add_cutoff = TRUE,
-              cutoff_prob = 0.95)
-    abline(v = Baseval, lty=2,col='orange',lwd=2)
-    legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
-    dev.off()
-    
+    if(length.series>0)
+    {
+      tiff(file.path(dirname.diagnostics,"R0_profile_plot_Length_like.tiff"),
+           width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+      par(mar=c(5,4,1,1))
+      PinerPlot(prof.R0.summary, 
+                profile.string = "R0", 
+                component = "Length_like",
+                main = "Changes in length-composition likelihoods by fleet",
+                add_cutoff = TRUE,
+                cutoff_prob = 0.95)
+      abline(v = Baseval, lty=2,col='orange',lwd=2)
+      legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
+      dev.off()
+    }
         #Survey
-    tiff(file.path(dirname.diagnostics,"R0_profile_plot_Survey_like.tiff"),
-         width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-    par(mar=c(5,4,1,1))
-    PinerPlot(prof.R0.summary, profile.string = "R0", component = "Surv_like",main = "Changes in Index likelihoods by fleet",
-              add_cutoff = TRUE,
-              cutoff_prob = 0.95, legendloc="topleft")
-    abline(v = Baseval, lty=2,col='orange',lwd=2)
-    legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
-    dev.off()
+    if(cpue.series>0)
+    {
+      tiff(file.path(dirname.diagnostics,"R0_profile_plot_Survey_like.tiff"),
+           width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+      par(mar=c(5,4,1,1))
+      PinerPlot(prof.R0.summary, profile.string = "R0", component = "Surv_like",main = "Changes in Index likelihoods by fleet",
+                add_cutoff = TRUE,
+                cutoff_prob = 0.95, legendloc="topleft")
+      abline(v = Baseval, lty=2,col='orange',lwd=2)
+      legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
+      dev.off()
+    }
   }
   
     #2.2. Retrospective analysis and Predicting skills
   if(do.retros)      #took 9 mins for 5 years
   {
-    dirname.Retrospective <- paste(dirname.diagnostics,"Retrospective",sep='/')
-    if(!dir.exists(dirname.Retrospective)) dir.create(path=dirname.Retrospective, showWarnings = TRUE, recursive = TRUE)
-    plots.Retrospective <- paste(dirname.Retrospective,"Plots",sep='/')
-    if(!dir.exists(plots.Retrospective)) dir.create(path=plots.Retrospective, showWarnings = TRUE, recursive = TRUE)
-    file.copy(Sys.glob(paste(WD, "*.*", sep="/"), dirmark = FALSE),dirname.Retrospective)
-    retro(dir = dirname.Retrospective,
-          years = start.retro:-end.retro,
-          exe=exe_path)
-    retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
-    retroSummary <- SSsummarize(retroModels,verbose = FALSE)
-    if("len"%in%dis.dat) retroComp= SSretroComps(retroModels)
-    #endyrvec <- retroSummary[["endyrs"]] + start.retro:-end.retro
-    #SSplotComparisons(summaryoutput=retroSummary,
-    #                  subplots= c(2,4,6,12,14),
-    #                  endyrvec = endyrvec,
-    #                  png=TRUE,
-    #                  plotdir=plots.Retrospective,
-    #                  legendlabels = paste("Data", start.retro:-end.retro, "years"))
-    
-    tiff(file.path(dirname.diagnostics,"retro_Mohns_Rho.tiff"),
-         width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
-    sspar(mfrow=c(2,2),plot.cex=0.8)
-    rb.full = SSplotRetro(retroSummary,add=T,forecast = F,legend = F,verbose=F)
-    rf.full = SSplotRetro(retroSummary,add=T,subplots="F", ylim=c(0,0.4),
-                          forecast = F,legendloc="topleft",legendcex = 0.8,verbose=F)
-    
-    rb = SSplotRetro(retroSummary,add=T,forecast = T,legend = F,verbose=F,xmin=2000)
-    rf = SSplotRetro(retroSummary,add=T,subplots="F", ylim=c(0,0.4),
-                     forecast = T,legendloc="topleft",legendcex = 0.8,verbose=F,xmin=2000)
-    
-    dev.off()
-    
-    #Get MASE as metric of prediction skill  
-    hcI = SSmase(retroSummary)
-    out.MASE=hcI
-    if(exists('retroComp'))
+    if(cpue.series>0)
     {
-      hcL = SSmase(retroComp,quants = "len")
-      out.MASE=rbind(out.MASE,hcL)
+      dirname.Retrospective <- paste(dirname.diagnostics,"Retrospective",sep='/')
+      if(!dir.exists(dirname.Retrospective)) dir.create(path=dirname.Retrospective, showWarnings = TRUE, recursive = TRUE)
+      plots.Retrospective <- paste(dirname.Retrospective,"Plots",sep='/')
+      if(!dir.exists(plots.Retrospective)) dir.create(path=plots.Retrospective, showWarnings = TRUE, recursive = TRUE)
+      file.copy(Sys.glob(paste(WD, "*.*", sep="/"), dirmark = FALSE),dirname.Retrospective)
+      retro(dir = dirname.Retrospective,
+            years = start.retro:-end.retro,
+            exe=exe_path)
+      retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
+      retroSummary <- SSsummarize(retroModels,verbose = FALSE)
+      if("len"%in%dis.dat) retroComp= SSretroComps(retroModels)
+      #endyrvec <- retroSummary[["endyrs"]] + start.retro:-end.retro
+      #SSplotComparisons(summaryoutput=retroSummary,
+      #                  subplots= c(2,4,6,12,14),
+      #                  endyrvec = endyrvec,
+      #                  png=TRUE,
+      #                  plotdir=plots.Retrospective,
+      #                  legendlabels = paste("Data", start.retro:-end.retro, "years"))
+      
+      tiff(file.path(dirname.diagnostics,"retro_Mohns_Rho.tiff"),
+           width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
+      sspar(mfrow=c(2,2),plot.cex=0.8)
+      rb.full = SSplotRetro(retroSummary,add=T,forecast = F,legend = F,verbose=F)
+      rf.full = SSplotRetro(retroSummary,add=T,subplots="F", ylim=c(0,0.4),
+                            forecast = F,legendloc="topleft",legendcex = 0.8,verbose=F)
+      
+      rb = SSplotRetro(retroSummary,add=T,forecast = T,legend = F,verbose=F,xmin=2000)
+      rf = SSplotRetro(retroSummary,add=T,subplots="F", ylim=c(0,0.4),
+                       forecast = T,legendloc="topleft",legendcex = 0.8,verbose=F,xmin=2000)
+      
+      dev.off()
+      
+      #Get MASE as metric of prediction skill  
+      hcI = SSmase(retroSummary)
+      out.MASE=hcI
+      if(exists('retroComp'))
+      {
+        hcL = SSmase(retroComp,quants = "len")
+        out.MASE=rbind(out.MASE,hcL)
+      }
+      write.csv(out.MASE,paste(dirname.diagnostics,"retro_hcxval_MASE.csv",sep='/'),row.names = FALSE)
+      write.csv(SShcbias(retroSummary),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
+      
+      
+      #Hindcasting cross validation
+      tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation.tiff"),
+           width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
+      sspar(mfrow=n2mfrow(length(dis.dat)),plot.cex=0.8)
+      hci = SSplotHCxval(retroSummary,add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
+      if(exists('retroComp'))hci = SSplotHCxval(retroComp,subplots="len",add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
+      dev.off()
+      
     }
-    write.csv(out.MASE,paste(dirname.diagnostics,"retro_hcxval_MASE.csv",sep='/'),row.names = FALSE)
-    write.csv(SShcbias(retroSummary),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
-    
-    
-    #Hindcasting cross validation
-    tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation.tiff"),
-         width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
-    sspar(mfrow=n2mfrow(length(dis.dat)),plot.cex=0.8)
-    hci = SSplotHCxval(retroSummary,add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
-    if(exists('retroComp'))hci = SSplotHCxval(retroComp,subplots="len",add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
-    dev.off()
-  }
+   }
   
   
   #3. Convergence
@@ -2152,12 +2166,12 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     #Run jitter   
     jit.likes <- r4ss::jitter(dir = dirname.Jitter,
                               Njitter = numjitter,
-                              jitter_fraction = 0.1,
+                              jitter_fraction = 0.05,  #0.1
                               exe=exe_path)
     
     #Read in results using other r4ss functions
-    # (note that un-jittered model can be read using keyvec=0:numjitter)
-    profilemodels <- SSgetoutput(dirvec = dirname.Jitter, keyvec = 0:numjitter, getcovar = FALSE) #0 is basecase
+    keyvec_1=0 #0 is basecase
+    profilemodels <- SSgetoutput(dirvec = dirname.Jitter, keyvec = keyvec_1:numjitter, getcovar = FALSE) 
     profilesummary <- SSsummarize(profilemodels,verbose = FALSE)
     
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
@@ -2179,18 +2193,67 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     {
       lines(profilesummary[["SpawnBio"]]$Yr,profilesummary[["SpawnBio"]][,x],col=CL[x])
     }
-    
-    plot(1:length(Total.likelihoods[-1]),Total.likelihoods[-1],
+    First.jit=-1
+    plot(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],
          xlab='Jitter runs at a converged solution',ylab='Total likelihood')
     abline(h=Total.likelihoods[1],lty=2,col=2)
-    points(1:length(Total.likelihoods[-1]),Total.likelihoods[-1],cex=2,pch=19)
+    points(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],cex=2,pch=19)
     
     dev.off()
     
   }
   
 }
+function.goodness.fit_SS=function(Rep)
+{
+  Res.cpue=NA  
+  if('cpue'%in%names(Rep))
+  {
+    if(nrow(Rep$cpue)>0)
+    {
+      Res.cpue = Rep$cpue%>%
+        mutate(residuals = ifelse(is.na(Obs), NA, log(Obs) - log(Exp)))%>%
+        pull(residuals)
+    }
+  }
 
+  Res.length.comps=NA
+  if(nrow(Rep$lendbase)>0)
+  {
+    Res.length.comps = SScompsTA1.8(Rep, fleet = NULL, type = "len", plotit = FALSE)$runs_dat%>%
+      mutate(residuals = ifelse(is.na(Obs), NA, log(Obs) -log(Exp)))%>%pull(residuals)
+  }
+  Res.age.comps=NA
+  if(nrow(Rep$agedbase)>0)
+  {
+    Res.age.comps = SScompsTA1.8(Rep, fleet = NULL, type = "age", plotit = FALSE)$runs_dat%>%
+      mutate(residuals = ifelse(is.na(Obs), NA, log(Obs) -log(Exp)))%>%pull(residuals)
+  }
+  Res.mnwgt=NA  
+  if(!is.na(Rep$mnwgt))
+  {
+    if(nrow(Rep$mnwgt)>0)
+    {
+      Res.mnwgt = Rep$mnwgt%>%
+      mutate(residuals = ifelse(is.na(Obs), NA, log(Obs) - log(Exp)))%>%
+      pull(residuals)
+    }
+  }
+  Resids=c(Res.cpue,Res.length.comps,Res.age.comps,Res.mnwgt)
+  Resids=Resids[!is.na(Resids)]
+  
+  npar = nrow(Rep$estimated_non_dev_parameters)
+  Nobs = length(Resids)
+  DF = Nobs - npar
+  RMSE = round(100 * sqrt(sum(Resids^2, na.rm = TRUE)/DF),1)
+  NegLogLike = Rep$likelihoods_used[match("TOTAL",rownames(Rep$likelihoods_used)),]$values
+
+  AIC= 2*npar+2*NegLogLike
+  AICc =AIC+2*npar*(npar + 1) / (Nobs - npar - 1)
+  GoodnessFit= data.frame(Stastistic = c("N", "p","DF", "RMSE","AIC", "AICc"), 
+                          Value = c(Nobs, npar, DF, RMSE,AIC, AICc))
+  return(GoodnessFit)
+}
 #Francis re weighting of cpue CVs ------------------------------------------------------
 Francis.function=function(cipiuis,cvs,mininum.mean.CV=NULL)  
 {
