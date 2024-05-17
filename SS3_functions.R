@@ -1748,7 +1748,7 @@ fn.MC.sims=function(this.wd1,nMC=nMCsims,arg=Arg.no.estimation,B.th,scen,
     names(Rand.par)=Nms
     
     #2. Create new SS ctl file
-    ctl <- r4ss::SS_readctl(file = file.path(this.wd1, "control.ctl")) #ACA
+    ctl <- r4ss::SS_readctl(file = file.path(this.wd1, "control.ctl")) 
     id=which(ctl$SR_parms$PHASE>0)
     if(length(id)>0)
     {
@@ -1893,6 +1893,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   
   cpue.series=length(unique(Report$cpue$Fleet))
   length.series=length(unique(unique(Report$len_comp_fit_table$Fleet)))
+  age.series=length(unique(unique(Report$agedbase$Fleet)))
   
   #1. Goodness-of-fit diagnostic
   #1.1. residuals with smoothing function showing trends
@@ -1906,19 +1907,31 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   dev.off()
   
   #1.2. runs test
-  dis.dat=c("cpue")
-  if(cpue.series>0)
+  dis.dat=NULL
+  if(cpue.series>0) dis.dat=c(dis.dat,"cpue")
+  if(length.series>0) dis.dat=c(dis.dat,"len")
+  if(age.series>0) dis.dat=c(dis.dat,"age")
+  if(!is.null(dis.dat))
   {
-    if(any(unique(Report$lendbase$Yr)%in%Report$catch$Yr[nrow(Report$catch)-end.retro+1]:
-           Report$catch$Yr[nrow(Report$catch)])) dis.dat=c(dis.dat,"len")      
-    if(any(unique(Report$agedbase$Yr)%in%Report$catch$Yr[nrow(Report$catch)-end.retro+1]:
-           Report$catch$Yr[nrow(Report$catch)])) dis.dat=c(dis.dat,"age")  
-    tiff(file.path(dirname.diagnostics,"runs_tests.tiff"),
-         width = 2000, height = 2000,units = "px", res = 300, compression = "lzw")
-    sspar(mfrow=n2mfrow(length(dis.dat)),labs=T,plot.cex=0.9)
-    for(pp in 1:length(dis.dat)) ss3diags::SSplotRunstest(ss3rep=Report,subplots = dis.dat[[pp]],add=TRUE)
-    dev.off()
-    
+    for(pp in 1:length(dis.dat))
+    {
+      if(dis.dat[pp]=="cpue")
+      {
+        nRws=cpue.series
+        if(any(grepl('F.series',unique(Report$cpue$Fleet_name)))) nRws=nRws-1
+      }
+      if(dis.dat[pp]=="len")
+      {
+        nRws=length.series
+        if(any(grepl("Northern.shark",unique(Report$len_comp_fit_table$Fleet_Name)))) nRws=nRws-1
+      }
+      if(dis.dat[pp]=="age") nRws=age.series   
+      tiff(file.path(dirname.diagnostics,paste0("runs_tests_",dis.dat[pp],".tiff")),
+           width = 2000, height = 2000,units = "px", res = 300, compression = "lzw")
+      sspar(mfrow=n2mfrow(nRws),labs=T,plot.cex=0.9)
+      ss3diags::SSplotRunstest(ss3rep=Report,subplots = dis.dat[[pp]],add=TRUE)
+      dev.off()
+    }
     runs.test.value=vector('list',length(dis.dat))
     for(pp in 1:length(dis.dat))  runs.test.value[[pp]]=SSrunstest(Report,quants =  dis.dat[[pp]])
     write.csv(do.call(rbind,runs.test.value),paste(dirname.diagnostics,"runs_tests.csv",sep='/'),row.names = FALSE)
@@ -1941,10 +1954,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     # Step 3. Create a "R0_profile" subdirectory and set as the working directory
     dirname.R0.profile <- dirname.base
     if(!dir.exists(dirname.R0.profile)) dir.create(path=dirname.R0.profile, showWarnings = TRUE, recursive = TRUE)
-    
     mydir <- dirname.R0.profile
     setwd(dirname.R0.profile)
-    
     
     # Step 4. Create a "Figures_Tables" subdirectory
     plotdir=paste0(dirname.R0.profile, "/Figures & Tables")
@@ -1976,8 +1987,9 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     # Step 8. Edit "starter.ss" in the "R0_profile" working directory to read from init values from control_modified.ss
     starter.file <- readLines(paste(dirname.R0.profile, "/starter.ss", sep=""))
     linen <- NULL
-    linen <- grep("# 0=use init values in control file; 1=use ss.par", starter.file)
+    linen <- grep(paste(c("# 0=use init values in control file; 1=use ss.par","#_init_values_src"),collapse='|'), starter.file)
     starter.file[linen] <- paste0("0 # 0=use init values in control file; 1=use ss.par")
+    if(like.prof.case=='faster') starter.file[grep("#_converge_criterion", starter.file)] <- paste0("0.001 #_converge_criterion")
     write(starter.file, paste(dirname.R0.profile, "/starter.ss", sep=""))
 
     
@@ -2006,22 +2018,35 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     starter$ctlfile <- "control_modified.ss" 
     
     # Make sure the prior likelihood is calculated for non-estimated quantities
-    starter$prior_like <- 1                                 
-    
+    starter$prior_like <- 1                           
     SS_writestarter(starter, dir=mydir, overwrite=TRUE)
     
-    #Run SS_profile command   
-    profile <- r4ss::profile(dir=mydir, # directory
-                       oldctlfile="control.ss_new",
-                       newctlfile="control_modified.ss",
-                       string="SR_LN(R0)",
-                       profilevec=R0.vec,
-                       exe=exe_path)
+    #Run SS_profile command 
+    if(like.prof.case=='standard') 
+    {
+      Like.profile <- profile(dir=mydir, 
+                                      oldctlfile="control.ss_new",
+                                      newctlfile="control_modified.ss",
+                                      string="SR_LN(R0)",
+                                      profilevec=R0.vec,
+                                      exe=exe_path)
+    }
+    if(like.prof.case=='faster')
+    {
+      Like.profile <- profile_tweaked(dir=mydir, 
+                                      oldctlfile="control.ss_new",
+                                      newctlfile="control_modified.ss",
+                                      string="SR_LN(R0)",
+                                      profilevec=R0.vec,
+                                      exe=exe_path)
+    }
+    
+    write.csv(Like.profile,file.path(dirname.diagnostics,"R0_profile_summary_table.csv"),row.names = FALSE)
     
     # read the output files (with names like Report1.sso, Report2.sso, etc.)
-    prof.R0.models <- SSgetoutput(dirvec=mydir, keyvec=c('',1:Nprof.R0), getcovar = FALSE) # ACA
-    a=sapply(sapply(prof.R0.models, is.na), isTRUE)  #remove empty list elements
-    if(length(a)<=Nprof.R0)prof.R0.models=prof.R0.models[names(subset(a,a==FALSE))]
+    prof.R0.models <- SSgetoutput(dirvec=mydir, keyvec=c('',1:Nprof.R0), getcovar = FALSE) 
+    if(any(is.na(prof.R0.models)))prof.R0.models=prof.R0.models[-which(is.na(prof.R0.models))]  #remove empty list elements (no convergence)
+    
     
     # Step 10.  summarize output
     prof.R0.summary <- SSsummarize(prof.R0.models,verbose = FALSE)
@@ -2039,10 +2064,10 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     tiff(file.path(dirname.diagnostics,"R0_profile_plot.tiff"),
          width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
     par(mar=c(5,4,1,1))
-    
     SSplotProfile(prof.R0.summary,           # summary object
                   profile.string = "R0",     # substring of profile parameter
-                  profile.label=expression(log(italic(R)[0])), ymax=150,minfraction = 0.001,
+                  profile.label=expression(log(italic(R)[0])),
+                  minfraction = 0.001,
                   pheight=4.5, 
                   print=FALSE, 
                   plotdir=plotdir, 
@@ -2109,13 +2134,17 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
       retroSummary <- SSsummarize(retroModels,verbose = FALSE)
       if("len"%in%dis.dat) retroComp= SSretroComps(retroModels)
-      #endyrvec <- retroSummary[["endyrs"]] + start.retro:-end.retro
-      #SSplotComparisons(summaryoutput=retroSummary,
-      #                  subplots= c(2,4,6,12,14),
-      #                  endyrvec = endyrvec,
-      #                  png=TRUE,
-      #                  plotdir=plots.Retrospective,
-      #                  legendlabels = paste("Data", start.retro:-end.retro, "years"))
+      
+      # make timeseries plots comparing models in profile
+      endyrvec <- retroSummary[["endyrs"]] + start.retro:-end.retro
+      SSplotComparisons(summaryoutput=retroSummary,
+                       subplots= c(2,4,6,12,14),
+                       endyrvec = endyrvec,
+                       plot = FALSE,
+                       png=TRUE,
+                       plotdir=plots.Retrospective,
+                       legendlabels = paste("Data", start.retro:-end.retro, "years"))
+      
       
       tiff(file.path(dirname.diagnostics,"retro_Mohns_Rho.tiff"),
            width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
@@ -2142,14 +2171,26 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       write.csv(SShcbias(retroSummary),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
       
       
-      #Hindcasting cross validation
-      tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation.tiff"),
+      #Hindcasting cross validation  
+      tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation_Survey.tiff"),
            width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
-      sspar(mfrow=n2mfrow(length(dis.dat)),plot.cex=0.8)
+      nRws=cpue.series
+      if(any(grepl('F.series',unique(Report$cpue$Fleet_name)))) nRws=nRws-1
+      sspar(mfrow=n2mfrow(nRws),plot.cex=0.8)
       hci = SSplotHCxval(retroSummary,add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
-      if(exists('retroComp'))hci = SSplotHCxval(retroComp,subplots="len",add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
       dev.off()
       
+      if(exists('retroComp'))
+      {
+        nRws=length.series
+        if(any(grepl(paste(c("Northern.shark","Southern.shark_1"),collapse='|'),unique(Report$len_comp_fit_table$Fleet_Name)))) nRws=nRws-2
+        
+        tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation_Length.tiff"),
+             width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
+        sspar(mfrow=n2mfrow(nRws),plot.cex=0.8)
+        hci = SSplotHCxval(retroComp,subplots="len",add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
+        dev.off()
+      }
     }
    }
   
@@ -2193,6 +2234,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     {
       lines(profilesummary[["SpawnBio"]]$Yr,profilesummary[["SpawnBio"]][,x],col=CL[x])
     }
+    
     First.jit=-1
     plot(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],
          xlab='Jitter runs at a converged solution',ylab='Total likelihood')
@@ -2204,6 +2246,248 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   }
   
 }
+profile_tweaked=function (dir, oldctlfile = "control.ss_new", masterctlfile = lifecycle::deprecated(), 
+                          newctlfile = "control_modified.ss", linenum = NULL, 
+                          string = NULL, profilevec = NULL, usepar = FALSE, globalpar = FALSE, 
+                          parlinenum = NULL, parstring = NULL, saveoutput = TRUE, overwrite = TRUE, 
+                          whichruns = NULL, prior_check = TRUE, read_like = TRUE, exe = "ss3", 
+                          verbose = TRUE, ...) 
+{
+  orig_wd <- getwd()
+  on.exit(setwd(orig_wd))
+  if (lifecycle::is_present(masterctlfile)) {
+    lifecycle::deprecate_warn(when = "1.46.0", what = "profile(masterctlfile)", 
+                              with = "profile(oldctlfile)")
+    oldctlfile <- masterctlfile
+  }
+  check_exe(exe = exe, dir = dir, verbose = verbose)
+  if (is.null(linenum) & is.null(string)) {
+    stop("You should input either 'linenum' or 'string' (but not both)")
+  }
+  if (!is.null(linenum) & !is.null(string)) {
+    stop("You should input either 'linenum' or 'string' (but not both)")
+  }
+  if (usepar) {
+    if (is.null(parlinenum) & is.null(parstring)) {
+      stop("Using par file. You should input either 'parlinenum' or ", 
+           "'parstring' (but not both)")
+    }
+    if (!is.null(parlinenum) & !is.null(parstring)) {
+      stop("Using par file. You should input either 'parlinenum' or ", 
+           "'parstring' (but not both)")
+    }
+  }
+  if (!is.null(linenum)) {
+    npars <- length(linenum)
+  }
+  if (!is.null(string)) {
+    npars <- length(string)
+  }
+  if (usepar) {
+    if (!is.null(parlinenum)) {
+      npars <- length(parlinenum)
+    }
+    if (!is.null(parstring)) {
+      npars <- length(parstring)
+    }
+  }
+  if (is.na(npars) || npars < 1) {
+    stop("Problem with the number of parameters to profile over. npars = ", 
+         npars)
+  }
+  if (is.null(profilevec)) {
+    stop("Missing input 'profilevec'")
+  }
+  if (npars == 1)
+  {
+    n <- length(profilevec)
+  }else
+  {
+    if ((!is.data.frame(profilevec) & !is.matrix(profilevec)) || 
+        ncol(profilevec) != npars) {
+      stop("'profilevec' should be a data.frame or a matrix with ", 
+           npars, " columns")
+    }
+    n <- length(profilevec[[1]])
+    if (any(unlist(lapply(profilevec, FUN = length)) != n)) {
+      stop("Each element in the 'profilevec' list should have length ", 
+           n)
+    }
+    if (verbose) {
+      if (!is.null(string)) {
+        profilevec_df <- data.frame(profilevec)
+        names(profilevec_df) <- string
+        message("Profiling over ", npars, " parameters\n", 
+                paste0(profilevec_df, collapse = "\n"))
+      }
+    }
+  }
+  if (is.null(whichruns))
+  {
+    whichruns <- 1:n
+  }else
+  {
+    if (!all(whichruns %in% 1:n)) {
+      stop("input whichruns should be NULL or a subset of 1:", 
+           n, "\n", sep = "")
+    }
+  }
+  if (verbose) {
+    message("Doing runs: ", paste(whichruns, collapse = ", "), 
+            ",\n  out of n = ", n)
+  }
+  converged <- rep(NA, n)
+  totallike <- rep(NA, n)
+  liketable <- NULL
+  if (verbose) {
+    message("Changing working directory to ", dir, 
+            ",\n", " but will be changed back on exit from function.")
+  }
+  setwd(dir)
+  stdfile <- file.path(dir, "ss.std")
+  #parfile <- get_par_name(dir)
+  parfile='ss.par'
+  starter.file <- dir()[tolower(dir()) == "starter.ss"]
+  if (length(starter.file) == 0) {
+    stop("starter.ss not found in", dir)
+  }
+  starter <- SS_readstarter(starter.file, verbose = FALSE)
+  if (starter[["ctlfile"]] != newctlfile) {
+    stop("starter file should be changed to change\n", 
+         "'", starter[["ctlfile"]], "' to '", 
+         newctlfile, "'")
+  }
+  if (prior_check & starter[["prior_like"]] == 0) {
+    stop("for likelihood profile, you should change the starter file value of\n", 
+         " 'Include prior likelihood for non-estimated parameters'\n", 
+         " from 0 to 1 and re-run the estimation.\n")
+  }
+  if (usepar & starter[["init_values_src"]] == 0) {
+    stop("With setting 'usepar=TRUE', change the starter file value", 
+         " for initial value source from 0 (ctl file) to 1 (par file).\n")
+  }
+  if (!usepar & starter[["init_values_src"]] == 1) {
+    stop("Change the starter file value for initial value source", 
+         " from 1 (par file) to 0 (par file) or change to", 
+         " profile(..., usepar = TRUE).")
+  }
+  if (usepar) {
+    file.copy(parfile, "parfile_original_backup.sso")
+  }
+  for (i in whichruns) {
+    newrepfile <- paste("Report", i, ".sso", 
+                        sep = "")
+    if (!overwrite & file.exists(newrepfile)) {
+      message("skipping profile i=", i, "/", 
+              n, " because overwrite=FALSE\n", "  and file exists: ", 
+              newrepfile)
+    }
+    else {
+      message("running profile i=", i, "/", 
+              n)
+      if (npars == 1) {
+        newvals <- profilevec[i]
+      }
+      else {
+        newvals <- as.numeric(profilevec[i, ])
+      }
+      SS_changepars(dir = NULL, ctlfile = oldctlfile, newctlfile = newctlfile, 
+                    linenums = linenum, strings = string, newvals = newvals, 
+                    estimate = FALSE, verbose = TRUE, repeat.vals = TRUE)
+      ctltable_new <- SS_parlines(ctlfile = newctlfile)
+      if (!any(ctltable_new[["PHASE"]] == 1)) {
+        warning("At least one parameter needs to be estimated in phase 1.\n", 
+                "Edit control file to add a parameter\n", 
+                "which isn't being profiled over to phase 1.")
+      }
+      if (usepar) {
+        if (globalpar) {
+          par <- readLines("parfile_original_backup.sso")
+        }
+        else {
+          par <- readLines(parfile)
+        }
+        for (ipar in 1:npars) {
+          if (!is.null(parstring)) {
+            parlinenum <- grep(parstring[ipar], par, 
+                               fixed = TRUE) + 1
+          }
+          if (length(parlinenum) == 0) {
+            stop("Problem with input parstring = '", 
+                 parstring[ipar], "'")
+          }
+          parline <- par[parlinenum[ipar]]
+          parval <- as.numeric(parline)
+          if (is.na(parval)) {
+            stop("Problem with parlinenum or parstring for par file.\n", 
+                 "line as read: ", parline)
+          }
+          par[parlinenum[ipar]] <- ifelse(npars > 1, 
+                                          profilevec[i, ipar], profilevec[i])
+        }
+        note <- c(paste("# New par file created by profile() with the value on line number", 
+                        linenum), paste("# changed from", parval, 
+                                        "to", profilevec[i]))
+        par <- c(par, "#", note)
+        message(paste0(note, collapse = "\n"))
+        writeLines(par, paste0("ss_input_par", 
+                               i, ".ss"))
+        writeLines(par, parfile)
+      }
+      if (file.exists(stdfile)) {
+        file.remove(stdfile)
+      }
+      if (file.exists("Report.sso")) {
+        file.remove("Report.sso")
+      }
+      #run(dir = dir, verbose = TRUE, exe = exe, extras="-nohess")
+      fn.run.SS(where.inputs=dir, where.exe=exe,args='-nohess')
+      converged[i] <- file.exists(stdfile)
+      onegood <- FALSE
+      if (read_like && file.exists("Report.sso") & 
+          file.info("Report.sso")$size > 0) {
+        onegood <- TRUE
+        Rep <- readLines("Report.sso", n = 400)
+        skip <- grep("LIKELIHOOD", Rep)[2]
+        nrows <- grep("Crash_Pen", Rep) - skip - 
+          1
+        like <- read.table("Report.sso", skip = skip, 
+                           nrows = nrows, header = TRUE, fill = TRUE)
+        liketable <- rbind(liketable, as.numeric(like[["logL.Lambda"]]))
+      }
+      else {
+        liketable <- rbind(liketable, rep(NA, 10))
+      }
+      if (saveoutput) {
+        file.copy("Report.sso", paste("Report", 
+                                      i, ".sso", sep = ""), overwrite = overwrite)
+        file.copy("CompReport.sso", paste("CompReport", 
+                                          i, ".sso", sep = ""), overwrite = overwrite)
+        file.copy("covar.sso", paste("covar", 
+                                     i, ".sso", sep = ""), overwrite = overwrite)
+        file.copy("warning.sso", paste("warning", 
+                                       i, ".sso", sep = ""), overwrite = overwrite)
+        file.copy("admodel.hes", paste("admodel", 
+                                       i, ".hes", sep = ""), overwrite = overwrite)
+        file.copy(parfile, paste(parfile, "_", 
+                                 i, ".sso", sep = ""), overwrite = overwrite)
+      }
+    }
+  }
+  if (onegood) {
+    liketable <- as.data.frame(liketable)
+    names(liketable) <- like[["Component"]]
+    bigtable <- cbind(profilevec[whichruns], converged[whichruns], 
+                      liketable)
+    names(bigtable)[1] <- "Value"
+    return(bigtable)
+  }
+  else {
+    stop("Error: no good Report.sso files created in profile")
+  }
+}
+
+
 function.goodness.fit_SS=function(Rep)
 {
   Res.cpue=NA  

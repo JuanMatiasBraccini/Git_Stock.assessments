@@ -478,8 +478,11 @@ Drop.single.year.size.comp=FALSE
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
 if(SS3.run=='test') do.SS3.diagnostics=FALSE   
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
-Number.of.jitters=50       #Number of jitters for Jitter analysis.       
-LikePro.N=6               #Number of likelihood profiles
+Number.of.jitters=20              
+Number.of.likelihood.profiles=10
+delta.likelihood.profiles=0.5  #margine around Ro MLE for setting range of Ro values tested in like prof.
+like.prof.case='faster'  #faster run, no hessian estimation
+#like.prof.case='standard'  #as per r4ss
 
 #22. Bespoke Integrated size-based model 
 if(Do.bespoke)

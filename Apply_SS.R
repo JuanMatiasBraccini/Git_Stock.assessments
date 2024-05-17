@@ -880,22 +880,6 @@ for(w in 1:n.SS)
               # Evaluate fit diagnostics
               GoodnessFit=function.goodness.fit_SS(Rep=Report)  
               write.csv(GoodnessFit,paste(this.wd1,"/GoodnessFit_",Neim,".csv",sep=''))
-              if(do.SS3.diagnostics & Scens$Scenario[s]=='S1')
-              {
-                Estim.LnRo=Report$estimated_non_dev_parameters%>%rownames_to_column()%>%filter(rowname=='SR_LN(R0)')%>%pull(Value)
-                fn.fit.diag_SS3(WD=this.wd1,
-                                do.like.prof=TRUE,
-                                disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
-                                R0.vec=seq(Estim.LnRo*.6,Estim.LnRo*1.6,length.out=LikePro.N),
-                                exe_path=handl_OneDrive('SS3/ss_win.exe'),
-                                start.retro=Retro_start,
-                                end.retro=Retro_end,
-                                do.retros=TRUE,
-                                do.jitter=TRUE,
-                                numjitter=Number.of.jitters)
-              }
-
-                              
             }  #end s loop
             Out.Scens=Out.Scens%>%
                         rename(h.mean=Steepness,
@@ -1975,6 +1959,45 @@ send.email(TO=Send.email.to,
            Attachment=NULL) 
 
 
+#---Do SS3 diagnostics -------------------------------------------------
+if(do.SS3.diagnostics)
+{
+  tic("timer")
+  for(l in 1:N.sp)
+  {
+    Neim=Keep.species[l]
+    this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+    this.wd1=paste(this.wd,"S1",sep='/')
+    if(file.exists(this.wd1))
+    {
+      print(paste0('SS3 diagnostics for ------------------',Neim))
+      MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
+      Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
+      R0.range=seq(Estim.LnRo*(1.1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=Number.of.likelihood.profiles)
+      fn.fit.diag_SS3(WD=this.wd1,
+                      do.like.prof=TRUE,
+                      disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
+                      R0.vec=R0.range,
+                      exe_path=handl_OneDrive('SS3/ss_win.exe'),
+                      start.retro=Retro_start,
+                      end.retro=Retro_end,
+                      do.retros=TRUE,
+                      do.jitter=TRUE,
+                      numjitter=Number.of.jitters)
+      rm(MLE,this.wd1,R0.range,Estim.LnRo)
+    }
+    
+  }
+  toc(log = TRUE, quiet = TRUE)
+  computation.time <- tic.log(format = TRUE)
+  tic.clearlog()
+  send.email(TO=Send.email.to,
+             CC='',
+             Subject=paste("SS3 model diagnostics finished running at",Sys.time()),
+             Body= paste("Computation",computation.time),  
+             Attachment=NULL) 
+}
+
 
 #---Compare different scenarios for each species -------------------------------------------------
 if(SS3.run=='final')
@@ -2367,7 +2390,7 @@ for(l in 1:length(Lista.sp.outputs))
 #note: compare DIC, RMSE & SDNR 
 for(l in 1:length(Lista.sp.outputs))
 {
-  Nms=names(compact(State.Space.SPM$JABBA$estimates))
+  Nms=names(compact(Age.based$SS$estimates))
   this.sp=Lista.sp.outputs[[l]]
   this.sp=this.sp[which(this.sp%in%Nms)]
   print(paste("SS3 --- Compare Scenarios goodness of fit -----",names(Lista.sp.outputs)[l])) 
