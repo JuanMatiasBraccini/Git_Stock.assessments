@@ -349,7 +349,7 @@ for(l in 1:N.sp)
   if(NeiM=="smooth hammerhead") List.sp[[l]]$Sens.test$JABBA$K.mean=1500
   List.sp[[l]]$Sens.test$JABBA$use.these.abundances=NA
   List.sp[[l]]$Sens.test$JABBA$model.type=c(rep("Pella_m",nrow(List.sp[[l]]$Sens.test$JABBA)-2),"Schaefer", "Fox")
-  if(NeiM%in%c("dusky shark","sandbar shark"))
+  if(NeiM%in%c("dusky shark"))
   {
     List.sp[[l]]$Sens.test$JABBA$use.these.abundances=c('Survey') # Due to selectivity, TDGDLF catches small juveniles not spawning stock "Survey_TDGDLF.monthly"
     List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%   #redundant scenario as daily cpue not used

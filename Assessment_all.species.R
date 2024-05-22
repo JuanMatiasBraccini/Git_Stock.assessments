@@ -203,11 +203,11 @@ drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not. Supe
 
   #10.1 Define species for which cpue is not considered to be indexing abundance:
 survey_not.representative=c("scalloped hammerhead","great hammerhead",
-                            "lemon shark","pigeye shark") #few individuals caught (<5 per trip) and huge CVs 
+                            "lemon shark","pigeye shark","dusky shark") #few individuals caught (<5 per trip) and huge CVs 
 NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue not used as unlikely to be representative
                           "lemon shark","pigeye shark","tiger shark",
                          "dusky shark","sandbar shark")
-tdgdlf_not.representative=c("smooth hammerhead","spinner shark")   #catch rates are for 'hammerheads' and for both species cpue tracks catch so no depletion signal
+tdgdlf_not.representative=c("smooth hammerhead","spinner shark","dusky shark")   #catch rates are for 'hammerheads' and for both species cpue tracks catch so no depletion signal
 tdgdlf_monthly_not.representative=c("sandbar shark")   #increasing cpue with increasing catch and very jumpy index 
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
@@ -323,7 +323,9 @@ display.only.catch.only.sp=FALSE               #just display catch and MSY for s
 Init.F.Ktch.cur=0.2
 do.eye.ball=FALSE  #eye-ball CVSizeAtAge 
 CVSizeAtAge = c(0.03,0.03)  #this CV is not the CV used in SS3, it's the CV of the size transition matrix so cannot be too large  
-Main.zone.mesh=data.frame(Species=Keep.species)%>%       #revise when new length comp available
+Main.zone.mesh=data.frame(Species=c("dusky shark","gummy shark",#revise when new length comp available
+                                    "sandbar shark","smooth hammerhead",
+                                    "whiskery shark","spinner shark"))%>%       
         mutate(Zone=case_when(Species%in%c("dusky shark","gummy shark",
                                            "sandbar shark","smooth hammerhead",
                                            "whiskery shark")~'Zone1',
@@ -414,7 +416,7 @@ combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.d
 #fit.to.mean.weight.Southern2=NULL
 fit.to.mean.weight.Southern2=c("spinner shark","whiskery shark")  #get model to fit mean weight regardless of available length comp
 drop.len.comp.like=NULL    
-survey.like.weight="dusky shark"  
+survey.like.weight=NULL  #"dusky shark"  
 use.Gab.trawl=TRUE   #note that this has only 1 year of data
 add.gummy.gab=FALSE
 species.increase.terminal.age=c("gummy shark","whiskery shark") #add a few extra age classes

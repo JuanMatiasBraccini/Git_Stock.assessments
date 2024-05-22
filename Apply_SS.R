@@ -11,7 +11,7 @@ for(w in 1:n.SS)
     if(do.parallel.SS) 
     {
       set.seed(1234)
-      progress <- function(n) cat(Keep.species[n],sprintf(": SS3 fit complete-----------\n", n))
+      progress <- function(n) cat(sprintf(": SS3 fit complete for -----------", n),Keep.species[n],"\n")
       opts <- list(progress = progress)
       cl <- makeCluster(detectCores()-1)
       registerDoSNOW(cl)
@@ -461,7 +461,7 @@ for(w in 1:n.SS)
           
           #5. F from tagging studies on TDGDLF (1994-95 and 2001-03)
           F.SS.format=NULL  
-          if(any(grepl('Fishing.mortality.TDGDLF',names(Species.data[[i]]))))
+          if(any(grepl('Fishing.mortality.TDGDLF',names(Species.data[[i]]))) & length(CPUE)>0)
           {
             F.SS.format=Species.data[[i]][[grep('Fishing.mortality.TDGDLF',names(Species.data[[i]]))]]%>%
               mutate(year=as.numeric(substr(Finyear,1,4)),
@@ -1439,7 +1439,7 @@ for(w in 1:n.SS)
           
           #5. F from tagging studies on TDGDLF (1994-95 and 2001-03)
           F.SS.format=NULL  
-          if(any(grepl('Fishing.mortality.TDGDLF',names(Species.data[[i]]))))
+          if(any(grepl('Fishing.mortality.TDGDLF',names(Species.data[[i]]))) & length(CPUE)>0)
           {
             F.SS.format=Species.data[[i]][[grep('Fishing.mortality.TDGDLF',names(Species.data[[i]]))]]%>%
               mutate(year=as.numeric(substr(Finyear,1,4)),
@@ -1963,31 +1963,36 @@ send.email(TO=Send.email.to,
 if(do.SS3.diagnostics)
 {
   tic("timer")
-  for(l in 1:N.sp)
-  {
-    Neim=Keep.species[l]
-    this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
-    this.wd1=paste(this.wd,"S1",sep='/')
-    if(file.exists(this.wd1))
+  set.seed(1234)
+  progress <- function(n) cat(sprintf(": SS3 fit diagnostics complete for -----------", n),Keep.species[n],"\n")
+  #progress <- function(n) setTxtProgressBar(txtProgressBar(max = N.sp, style = 3), n)
+  opts <- list(progress = progress)
+  cl <- makeCluster(detectCores()-1)
+  registerDoSNOW(cl)
+  out=foreach(l= 1:N.sp,.options.snow = opts,.packages=c('Hmisc','tidyverse','r4ss','ss3diags')) %dopar%
     {
-      print(paste0('SS3 diagnostics for ------------------',Neim))
-      MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
-      Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
-      R0.range=seq(Estim.LnRo*(1.1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=Number.of.likelihood.profiles)
-      fn.fit.diag_SS3(WD=this.wd1,
-                      do.like.prof=TRUE,
-                      disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
-                      R0.vec=R0.range,
-                      exe_path=handl_OneDrive('SS3/ss_win.exe'),
-                      start.retro=Retro_start,
-                      end.retro=Retro_end,
-                      do.retros=TRUE,
-                      do.jitter=TRUE,
-                      numjitter=Number.of.jitters)
-      rm(MLE,this.wd1,R0.range,Estim.LnRo)
+      Neim=Keep.species[l]
+      this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+      this.wd1=paste(this.wd,"S1",sep='/')
+      if(file.exists(this.wd1) & Neim=='milk shark')
+      {
+          MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
+          Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
+          R0.range=seq(Estim.LnRo*(1.1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=Number.of.likelihood.profiles)
+          fn.fit.diag_SS3(WD=this.wd1,
+                          do.like.prof=TRUE,
+                          disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
+                          R0.vec=R0.range,
+                          exe_path=handl_OneDrive('SS3/ss_win.exe'),
+                          start.retro=Retro_start,
+                          end.retro=Retro_end,
+                          do.retros=TRUE,
+                          do.jitter=TRUE,
+                          numjitter=Number.of.jitters)
+          rm(MLE,this.wd1,R0.range,Estim.LnRo)
+        }
     }
-    
-  }
+  stopCluster(cl)
   toc(log = TRUE, quiet = TRUE)
   computation.time <- tic.log(format = TRUE)
   tic.clearlog()

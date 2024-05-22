@@ -1918,12 +1918,12 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       if(dis.dat[pp]=="cpue")
       {
         nRws=cpue.series
-        if(any(grepl('F.series',unique(Report$cpue$Fleet_name)))) nRws=nRws-1
+        #if(any(grepl('F.series',unique(Report$cpue$Fleet_name)))) nRws=nRws-1
       }
       if(dis.dat[pp]=="len")
       {
         nRws=length.series
-        if(any(grepl("Northern.shark",unique(Report$len_comp_fit_table$Fleet_Name)))) nRws=nRws-1
+        #if(any(grepl("Northern.shark",unique(Report$len_comp_fit_table$Fleet_Name)))) nRws=nRws-1
       }
       if(dis.dat[pp]=="age") nRws=age.series   
       tiff(file.path(dirname.diagnostics,paste0("runs_tests_",dis.dat[pp],".tiff")),
@@ -1942,8 +1942,10 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     #2.1. Likelihood profile on Ro
   if(do.like.prof) # very time consuming, takes 2.5 minutes per R0 value
   {
-    library(doParallel)
-    registerDoParallel(detectCores()-1)
+    #library(doParallel)
+    #cl=parallel::makeCluster(detectCores()-1)
+    #doParallel::registerDoParallel(detectCores()-1)
+    #doParallel::stopImplicitCluster()
     
     # Step 1. Identify a directory for the profile likelihood model run(s)
     dirname.base <- paste(dirname.diagnostics,"R0_profile",sep='/')
@@ -2116,6 +2118,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
       dev.off()
     }
+    
+    #parallel::stopCluster(cl)
   }
   
     #2.2. Retrospective analysis and Predicting skills
@@ -2175,7 +2179,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation_Survey.tiff"),
            width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
       nRws=cpue.series
-      if(any(grepl('F.series',unique(Report$cpue$Fleet_name)))) nRws=nRws-1
+      #if(any(grepl('F.series',unique(Report$cpue$Fleet_name)))) nRws=nRws-1
       sspar(mfrow=n2mfrow(nRws),plot.cex=0.8)
       hci = SSplotHCxval(retroSummary,add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
       dev.off()
@@ -2183,8 +2187,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       if(exists('retroComp'))
       {
         nRws=length.series
-        if(any(grepl(paste(c("Northern.shark","Southern.shark_1"),collapse='|'),unique(Report$len_comp_fit_table$Fleet_Name)))) nRws=nRws-2
-        
+        #if(nRws>2&any(grepl(paste(c("Northern.shark","Southern.shark_1"),collapse='|'),unique(Report$len_comp_fit_table$Fleet_Name)))) nRws=nRws-2
         tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation_Length.tiff"),
              width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
         sspar(mfrow=n2mfrow(nRws),plot.cex=0.8)
@@ -2207,7 +2210,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     #Run jitter   
     jit.likes <- r4ss::jitter(dir = dirname.Jitter,
                               Njitter = numjitter,
-                              jitter_fraction = 0.05,  #0.1
+                              jitter_fraction =0.1 ,  #0.05
                               exe=exe_path)
     
     #Read in results using other r4ss functions
