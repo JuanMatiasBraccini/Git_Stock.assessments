@@ -2180,21 +2180,22 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       #Hindcasting cross validation  
       tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation_Survey.tiff"),
            width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
-      nRws=cpue.series
-      #if(any(grepl('F.series',unique(Report$cpue$Fleet_name)))) nRws=nRws-1
+      nRws=length(unique(Report$cpue%>%filter(Yr%in%endyrvec)%>%pull(Fleet)))
       sspar(mfrow=n2mfrow(nRws),plot.cex=0.8)
       hci = SSplotHCxval(retroSummary,add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
       dev.off()
       
       if(exists('retroComp'))
       {
-        nRws=length.series
-        #if(nRws>2&any(grepl(paste(c("Northern.shark","Southern.shark_1"),collapse='|'),unique(Report$len_comp_fit_table$Fleet_Name)))) nRws=nRws-2
-        tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation_Length.tiff"),
-             width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
-        sspar(mfrow=n2mfrow(nRws),plot.cex=0.8)
-        hci = SSplotHCxval(retroComp,subplots="len",add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
-        dev.off()
+        nRws=length(unique(Report$len_comp_fit_table%>%filter(Yr%in%endyrvec)%>%pull(Fleet)))
+        if(nRws>0)
+        {
+          tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation_Length.tiff"),
+               width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
+          sspar(mfrow=n2mfrow(nRws),plot.cex=0.8)
+          hci = SSplotHCxval(retroComp,subplots="len",add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
+          dev.off()
+        }
       }
     }
    }
@@ -2219,15 +2220,13 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     keyvec_1=0 #0 is basecase
     profilemodels <- SSgetoutput(dirvec = dirname.Jitter, keyvec = keyvec_1:numjitter, getcovar = FALSE) 
     profilesummary <- SSsummarize(profilemodels,verbose = FALSE)
-    
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
     Params=profilesummary[["pars"]]
     
+    #Plot
     tiff(file.path(dirname.diagnostics,"Jitter.tiff"), 
          width = 2100, height = 2100,units = "px", res = 300, compression = "lzw")
-    
     sspar(mfrow=c(2,1),labs=T,plot.cex=0.9)
-    
     dis.cols=grep('replist',colnames(profilesummary[["SpawnBio"]]))
     YLIM=c(0,max(profilesummary[["SpawnBioUpper"]]$replist0))
     with(profilesummary[["SpawnBioLower"]],plot(Yr,replist0,ylim=YLIM,col='transparent',ylab='SSB (t)',xlab='Year'))
@@ -2235,17 +2234,12 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
             y=c(profilesummary[["SpawnBioLower"]]$replist0,rev(profilesummary[["SpawnBioUpper"]]$replist0)),
             col='grey60')
     CL=rainbow(length(dis.cols))
-    for(x in dis.cols)
-    {
-      lines(profilesummary[["SpawnBio"]]$Yr,profilesummary[["SpawnBio"]][,x],col=CL[x])
-    }
-    
+    for(x in dis.cols)lines(profilesummary[["SpawnBio"]]$Yr,profilesummary[["SpawnBio"]][,x],col=CL[x])
     First.jit=-1
     plot(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],
          xlab='Jitter runs at a converged solution',ylab='Total likelihood')
     abline(h=Total.likelihoods[1],lty=2,col=2)
     points(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],cex=2,pch=19)
-    
     dev.off()
     
   }
