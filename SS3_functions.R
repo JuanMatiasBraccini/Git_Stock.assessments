@@ -1918,12 +1918,14 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       if(dis.dat[pp]=="cpue")
       {
         nRws=cpue.series
-        #if(any(grepl('F.series',unique(Report$cpue$Fleet_name)))) nRws=nRws-1
+        TAb=table(Report$cpue$Fleet)
+        if(any(TAb<=1)) nRws=nRws-1
       }
       if(dis.dat[pp]=="len")
       {
         nRws=length.series
-        #if(any(grepl("Northern.shark",unique(Report$len_comp_fit_table$Fleet_Name)))) nRws=nRws-1
+        TAb=table(Report$len_comp_fit_table$Fleet)
+        if(any(TAb<=1)) nRws=nRws-1
       }
       if(dis.dat[pp]=="age") nRws=age.series   
       tiff(file.path(dirname.diagnostics,paste0("runs_tests_",dis.dat[pp],".tiff")),

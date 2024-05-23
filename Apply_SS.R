@@ -1960,6 +1960,7 @@ send.email(TO=Send.email.to,
 
 
 #---Do SS3 diagnostics -------------------------------------------------
+#note: runs test only displays for series with >1 year
 if(do.SS3.diagnostics)
 {
   tic("timer")
@@ -1974,11 +1975,11 @@ if(do.SS3.diagnostics)
       Neim=Keep.species[l]
       this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
       this.wd1=paste(this.wd,"S1",sep='/')
-      if(file.exists(this.wd1) & Neim=='milk shark')
+      if(file.exists(this.wd1))
       {
           MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
           Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
-          R0.range=seq(Estim.LnRo*(1.1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=Number.of.likelihood.profiles)
+          R0.range=seq(Estim.LnRo*(1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=Number.of.likelihood.profiles)
           fn.fit.diag_SS3(WD=this.wd1,
                           do.like.prof=TRUE,
                           disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
