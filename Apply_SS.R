@@ -1960,7 +1960,9 @@ send.email(TO=Send.email.to,
 
 
 #---Do SS3 diagnostics -------------------------------------------------
-#note: runs test only displays for series with >1 year
+#notes: 
+        # runs test only displays for series with >1 year
+        # Hindcasting cross-validation only available for species with abundance series
 if(do.SS3.diagnostics)
 {
   tic("timer")

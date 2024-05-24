@@ -5741,7 +5741,9 @@ fn.risk=function(d,w)
   {
     d$Likelihood[n]=which(unlist(lapply(Like.ranges,function(x) check.in.range(d$Probability[n],x,fatal=F))))
   }
-  return(d%>%dplyr::select(Species,Consequence,Likelihood,Probability,w))
+  dis=c('Species','Consequence','Likelihood','Probability','w')
+  if('finyear'%in%names(d)) dis=c(dis,'finyear')  
+  return(d%>%dplyr::select(all_of(dis)))
 }
 Integrate.LoE=function(Cons.Like.tab,criteriaMinMax,plot.data,LoE.weights,Normalised)
 {
@@ -5919,7 +5921,64 @@ fn.risk.figure=function(d,Risk.colors,out.plot)
   }
   return(d[iid.dups,]%>%dplyr::select(-c(w,Cons.lbl,Like.lbl,Max.val,id)))
 }
-
+fn.risk.figure.all.LOE=function(d,d1,lbl.cols,RiskCls)
+{
+  a=d%>%
+    mutate(Species.lbl=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
+                                 Species%in%Store.risk_Other.sp$Species~'Non.indicator',
+                                 TRUE~'PSA.only'))%>%
+    left_join(d1,by='Species')%>%
+    mutate(Risk.overall=gsub( " .*$", "", Risk.overall))
+  b=a%>%
+    filter(Species.lbl=='PSA.only')
+  
+  D=rbind(b%>%
+            mutate(Species=Species.lbl)%>%
+            distinct(Species,Species.lbl,LoE,Risk,Score,Risk.overall)%>%
+            mutate(Species=paste0(Species,' species (n=',nrow(b),')')),
+          a%>%filter(!Species.lbl=='PSA.only')%>%
+            distinct(Species,Species.lbl,LoE,Risk,Score,Risk.overall))%>%
+    mutate(Risk.overall=factor(Risk.overall,levels=names(RiskCls)))%>%
+    arrange(Risk.overall)
+  Sp.position=D%>%distinct(Species)%>%pull(Species)
+  Sp.color=data.frame(Species=Sp.position)%>%
+    mutate(Sp.color=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
+                              Species%in%Store.risk_Other.sp$Species~'Non.indicator',
+                              TRUE~'PSA.only'))%>%
+    left_join(data.frame(Sp.color=names(lbl.cols),CL=lbl.cols),by='Sp.color')%>%
+    pull(CL)
+  
+  p1=D%>%
+    mutate(Species=factor(Species,levels=Sp.position),
+           LoE=factor(capitalize(LoE),levels=capitalize(names(LOE.risks))))%>%
+    ggplot(aes(LoE,Species)) +
+    geom_tile(aes(fill = Risk))+
+    labs(x="LOE", y="")+
+    theme_PA(axs.t.siz=12)+
+    theme(legend.position =  'none',
+          axis.text.y = element_text(colour = Sp.color))+
+    scale_fill_manual(values=RiskCls)+
+    scale_color_manual(values =lbl.cols)
+  
+  p2=D%>%
+    distinct(Species,Risk.overall)%>%
+    mutate(Species=factor(Species,levels=Sp.position),
+           dummy=1)%>%
+    ggplot(aes(dummy,Species,fill = Risk.overall))+
+    geom_tile()+
+    scale_fill_manual(values=RiskCls)+
+    theme_PA()+labs(x='Overall risk')+
+    theme(legend.title = element_blank(),
+          legend.position = 'top',
+          axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.x=element_blank(),
+          axis.text.x = element_text(colour = 'transparent'))
+  
+  
+  return(ggarrange(plotlist=list(p1,p2),widths=c(5,1), common.legend = TRUE))
+  
+}
 
 #---Old WoE risk integration  ------------------------------------------------- 
 

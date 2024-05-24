@@ -1884,7 +1884,7 @@ fn.compare.prior.post=function(d,Par,prior_type)
 #Fit diagnostic functions ------------------------------------------------------
 #note: this follows Carvalho et al 2021
 fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
-                         do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter)
+                         do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,outLength.Cross.Val=FALSE)
 {
   Report=SS_output(dir=WD,covar=T)
   
@@ -2122,67 +2122,72 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     }
     
     #parallel::stopCluster(cl)
+    
+    #remove prof likelihood files
+    setwd(WD)
+    dropfiles=list.files(dirname.R0.profile)
+    dropfiles=subset(dropfiles,!dropfiles=='Figures & Tables')
+    for(f in 1:length(dropfiles)) file.remove(paste(dirname.R0.profile, dropfiles[f], sep="/"),recursive = TRUE)
+    
   }
   
     #2.2. Retrospective analysis and Predicting skills
   if(do.retros)      #took 9 mins for 5 years
   {
+    dirname.Retrospective <- paste(dirname.diagnostics,"Retrospective",sep='/')
+    if(!dir.exists(dirname.Retrospective)) dir.create(path=dirname.Retrospective, showWarnings = TRUE, recursive = TRUE)
+    plots.Retrospective <- paste(dirname.Retrospective,"Plots",sep='/')
+    if(!dir.exists(plots.Retrospective)) dir.create(path=plots.Retrospective, showWarnings = TRUE, recursive = TRUE)
+    file.copy(Sys.glob(paste(WD, "*.*", sep="/"), dirmark = FALSE),dirname.Retrospective)
+    retro(dir = dirname.Retrospective,
+          years = start.retro:-end.retro,
+          exe=exe_path)
+    retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
+    if(any(is.na(retroModels)))retroModels=retroModels[-which(is.na(retroModels))]
+    retroSummary <- r4ss::SSsummarize(retroModels,verbose = FALSE)
+    if("len"%in%dis.dat & outLength.Cross.Val) retroComp= SSretroComps(retroModels)
+    
+    # make timeseries plots comparing models in profile
+    endyrvec <- retroSummary[["endyrs"]] + start.retro:-end.retro
+    SSplotComparisons(summaryoutput=retroSummary,
+                      subplots= c(2,4,6,12,14),
+                      endyrvec = endyrvec,
+                      plot = FALSE,
+                      png=TRUE,
+                      plotdir=plots.Retrospective,
+                      legendlabels = paste("Data", start.retro:-end.retro, "years"))
+    tiff(file.path(dirname.diagnostics,"retro_Mohns_Rho.tiff"),
+         width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
+    sspar(mfrow=c(2,2),plot.cex=0.8)
+    #full series
+    rb.full = SSplotRetro(retroSummary,add=T,forecast = F,legend = F,verbose=F)
+    rf.full = SSplotRetro(retroSummary,add=T,subplots="F", forecast = F,legendloc="topleft",legendcex = 0.8,verbose=F)
+    #last 1- years
+    rb = SSplotRetro(retroSummary,add=T,forecast = T,legend = F,verbose=F,xmin=min(endyrvec)-10)
+    rf = SSplotRetro(retroSummary,add=T,subplots="F", forecast = T,legendloc="topleft",legendcex = 0.8,verbose=F,xmin=min(endyrvec)-10)
+    dev.off()
+    
+    #Get MASE as metric of prediction skill  
     if(cpue.series>0)
     {
-      dirname.Retrospective <- paste(dirname.diagnostics,"Retrospective",sep='/')
-      if(!dir.exists(dirname.Retrospective)) dir.create(path=dirname.Retrospective, showWarnings = TRUE, recursive = TRUE)
-      plots.Retrospective <- paste(dirname.Retrospective,"Plots",sep='/')
-      if(!dir.exists(plots.Retrospective)) dir.create(path=plots.Retrospective, showWarnings = TRUE, recursive = TRUE)
-      file.copy(Sys.glob(paste(WD, "*.*", sep="/"), dirmark = FALSE),dirname.Retrospective)
-      retro(dir = dirname.Retrospective,
-            years = start.retro:-end.retro,
-            exe=exe_path)
-      retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
-      retroSummary <- SSsummarize(retroModels,verbose = FALSE)
-      if("len"%in%dis.dat) retroComp= SSretroComps(retroModels)
-      
-      # make timeseries plots comparing models in profile
-      endyrvec <- retroSummary[["endyrs"]] + start.retro:-end.retro
-      SSplotComparisons(summaryoutput=retroSummary,
-                       subplots= c(2,4,6,12,14),
-                       endyrvec = endyrvec,
-                       plot = FALSE,
-                       png=TRUE,
-                       plotdir=plots.Retrospective,
-                       legendlabels = paste("Data", start.retro:-end.retro, "years"))
-      
-      
-      tiff(file.path(dirname.diagnostics,"retro_Mohns_Rho.tiff"),
-           width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
-      sspar(mfrow=c(2,2),plot.cex=0.8)
-      rb.full = SSplotRetro(retroSummary,add=T,forecast = F,legend = F,verbose=F)
-      rf.full = SSplotRetro(retroSummary,add=T,subplots="F", ylim=c(0,0.4),
-                            forecast = F,legendloc="topleft",legendcex = 0.8,verbose=F)
-      
-      rb = SSplotRetro(retroSummary,add=T,forecast = T,legend = F,verbose=F,xmin=2000)
-      rf = SSplotRetro(retroSummary,add=T,subplots="F", ylim=c(0,0.4),
-                       forecast = T,legendloc="topleft",legendcex = 0.8,verbose=F,xmin=2000)
-      
-      dev.off()
-      
-      #Get MASE as metric of prediction skill  
       hcI = SSmase(retroSummary)
       out.MASE=hcI
-      if(exists('retroComp'))
-      {
-        hcL = SSmase(retroComp,quants = "len")
-        out.MASE=rbind(out.MASE,hcL)
-      }
       write.csv(out.MASE,paste(dirname.diagnostics,"retro_hcxval_MASE.csv",sep='/'),row.names = FALSE)
       write.csv(SShcbias(retroSummary),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
-      
+      if(exists('retroComp'))
+      {
+        hcL = SSmase(retroSummary=retroComp,quants = "len")
+        out.MASE=rbind(out.MASE,hcL)
+        write.csv(out.MASE,paste(dirname.diagnostics,"retro_hcxval_MASE.csv",sep='/'),row.names = FALSE)
+        write.csv(SShcbias(retroSummary),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
+      }
       
       #Hindcasting cross validation  
       tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation_Survey.tiff"),
            width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
       nRws=length(unique(Report$cpue%>%filter(Yr%in%endyrvec)%>%pull(Fleet)))
       sspar(mfrow=n2mfrow(nRws),plot.cex=0.8)
-      hci = SSplotHCxval(retroSummary,add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
+      hci = SSplotHCxval(retroSummary,add=T,verbose=F,ylimAdj = 1.2,legendcex = 0.7)
       dev.off()
       
       if(exists('retroComp'))
@@ -2193,11 +2198,17 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
           tiff(file.path(dirname.diagnostics,"Hindcasting cross-validation_Length.tiff"),
                width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
           sspar(mfrow=n2mfrow(nRws),plot.cex=0.8)
-          hci = SSplotHCxval(retroComp,subplots="len",add=T,verbose=F,ylimAdj = 1.3,legendcex = 0.7)
+          hci = SSplotHCxval(retroComp,subplots="len",add=T,verbose=F,ylimAdj = 1.2,legendcex = 0.7)
           dev.off()
         }
       }
     }
+    #remove retro files
+    unlink(paste(WD, "Diagnostics/Retrospective/retrospectives", sep="/"), recursive = TRUE, force = TRUE)
+    setwd(WD)
+    dropfiles=list.files(dirname.Retrospective)
+    dropfiles=subset(dropfiles,!dropfiles%in%c('Plots','retrospectives'))
+    if(length(dropfiles)>0)for(f in 1:length(dropfiles)) file.remove(paste(dirname.Retrospective, dropfiles[f], sep="/"),recursive = TRUE) 
    }
   
   
@@ -2219,6 +2230,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     #Read in results using other r4ss functions
     keyvec_1=0 #0 is basecase
     profilemodels <- SSgetoutput(dirvec = dirname.Jitter, keyvec = keyvec_1:numjitter, getcovar = FALSE) 
+    if(any(is.na(profilemodels)))profilemodels=profilemodels[-which(is.na(profilemodels))]
     profilesummary <- SSsummarize(profilemodels,verbose = FALSE)
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
     Params=profilesummary[["pars"]]
@@ -2242,6 +2254,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     points(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],cex=2,pch=19)
     dev.off()
     
+    #remove jitter files
+    unlink(paste(WD, "Diagnostics/Jitter", sep="/"), recursive = TRUE, force = TRUE)  
   }
   
 }

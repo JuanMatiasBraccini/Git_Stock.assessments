@@ -480,8 +480,8 @@ Drop.single.year.size.comp=FALSE
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
 if(SS3.run=='test') do.SS3.diagnostics=FALSE   
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
-Number.of.jitters=20              
-Number.of.likelihood.profiles=5
+Number.of.jitters=50              
+Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.
 like.prof.case='faster'  #faster run, no hessian estimation
 #like.prof.case='standard'  #as per r4ss
@@ -4237,8 +4237,15 @@ if(exists("Store.cons.Like_Age.based"))
 
 #2. Overall risk   
 
-  #2.1. Combine all individual LoE Risks
+  #2.1 extract future risk   
+Risk.JABBA_future=Risk.JABBA%>%filter(finyear==max(Risk.JABBA$finyear))
+Risk.integrated_future=Risk.integrated%>%filter(finyear==max(Risk.integrated$finyear))
+Risk.JABBA=Risk.JABBA%>%filter(finyear==min(Risk.JABBA$finyear))%>%dplyr::select(-finyear)
+Risk.integrated=Risk.integrated%>%filter(finyear==min(Risk.integrated$finyear))%>%dplyr::select(-finyear)
+
+  #2.2. Combine Risks from all individual LoEs 
 LOE.risks=list(PSA=Risk.PSA,Spatial=Risk.Spatial,COM=Risk.COM,JABBA=Risk.JABBA,integrated=Risk.integrated)
+if(exists("Store.cons.Like_CatchCurve")) LOE.risks$CatchCurve=Risk.CatchCurve 
 Store.risks=LOE.risks
 for(r in 1:length(LOE.risks))
 {
@@ -4253,7 +4260,7 @@ Table.risks=Store.risks%>%
   spread(LoE,Risk)%>%
   rename(Integrated=integrated)
 
-  #2.2. Calculate and display overall risk
+  #2.3. Calculate and display overall risk
 Weighted.overall.risk=do.call(rbind,LOE.risks[-match('PSA',names(LOE.risks))])%>%
   left_join(data.frame(LoE=names(LoE.Weights),
                        LoE.weight=LoE.Weights),by='LoE')%>%
@@ -4278,17 +4285,21 @@ Store.risk_Indicator.sp=fn.risk.figure(d=Weighted.overall.risk%>%filter(tolower(
                                        out.plot=TRUE)
 ggsave(paste(Rar.path,"Risk_Indicator.sp.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
 
-  #2.3. Export Risk table
+  #2.4. Export Risk table
 Out.overall.risk=rbind(Store.risk_Drop.species,Store.risk_Other.sp,Store.risk_Indicator.sp)%>%
   mutate(Risk.overall=paste0(Risk,' (',Consequence,'x',Likelihood,')'))%>%
   dplyr::select(Species,Risk.overall)
 write.csv(Table.risks%>%left_join(Out.overall.risk,by='Species'),
           paste(Rar.path,'Table 13. Risk of each LoE and Overall.csv',sep='/'),row.names=F)
 
+  #2.5. Export future Risk from JABBA and Integrated
+write.csv(rbind(Risk.JABBA_future,Risk.integrated_future),
+          paste(Rar.path,'Table 14. Future risk.csv',sep='/'),row.names=F)
 
 
-#4. Display final risk for all species combined  
-  #4.1 Combined drop species
+#3. Display final risk for all species combined 
+
+  #3.1 Combined drop species
 Final.risk_Drop.species=Store.risk_Drop.species%>%
                                 group_by(Score,Risk)%>%
                                 tally()%>%
@@ -4297,7 +4308,6 @@ Final.risk_Drop.species=Store.risk_Drop.species%>%
 
 Final.risk_Other.sp=Store.risk_Other.sp%>%dplyr::select(Species,Score,Risk)
 Final.risk_Indicator.sp=Store.risk_Indicator.sp%>%dplyr::select(Species,Score,Risk)
-
 p=rbind(Final.risk_Drop.species,Final.risk_Other.sp,Final.risk_Indicator.sp)
 p%>%
   mutate(Species=factor(Species,levels=p%>%arrange(Score)%>%pull(Species)))%>%
@@ -4311,7 +4321,7 @@ p%>%
   scale_y_continuous(breaks = breaks_width(1))
 ggsave(paste(Rar.path,"Risk_all species together.tiff",sep='/'),width = 8,height = 10,compression = "lzw")
 
-  #4.2 Overall proportions
+  #3.2 Overall proportions
 add.non.interacting.species=FALSE
 p1=rbind(Store.risk_Drop.species%>%
           dplyr::select(Species,Score,Risk),
@@ -4361,6 +4371,15 @@ pp%>%
   scale_color_manual(values =label_colors)+
   guides(color = guide_none())
 ggsave(paste(Rar.path,"Risk_all species together_proportion.tiff",sep='/'),width = 8,height = 8,compression = "lzw")
+
+  #3.3 Each LoE risk and overall risk  #ACA
+fn.risk.figure.all.LOE(d=Store.risks,
+                       d1=Out.overall.risk,
+                       lbl.cols=label_colors,
+                       RiskCls=RiskColors)
+ggsave(paste(Rar.path,"Risk_all LoE for each species.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
+
+
 
 
 #---28. Outputs for strategic papers  ------------------------------------------------- 
