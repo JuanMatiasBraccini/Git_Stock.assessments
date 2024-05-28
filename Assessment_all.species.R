@@ -144,7 +144,7 @@ do.Dynamic.catch.size.comp=FALSE #superseded by length-only SS3 (also, not yet i
 Do.StateSpaceSPM=FALSE
 
   #2.5 Level 5
-Do.integrated=TRUE  #integrated SS3
+Do.integrated=FALSE  #integrated SS3
 Do.bespoke=FALSE   #bespoke integrated size-based
 Do.sim.Test="NO" #do simulation testing bespoke size-based model
 do.Andre.model=FALSE
@@ -537,7 +537,7 @@ RiskColors=c('Negligible'="cornflowerblue",
              'Medium'="yellow1",
              'High'="orange",
              'Severe'="brown1")   #red2
-Choose.probability="B.over.Bmsy" #"Depletion"  #use B/Bmys or B/K probabilities
+Choose.probability="Depletion" #"B.over.Bmsy"  #use B/Bmys or B/K probabilities
 Like.ranges=list(L1=c(0,0.0499999),
                  L2=c(0.05,0.2),
                  L3=c(0.20001,0.5),
@@ -3948,7 +3948,7 @@ if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes 0.9 hours (3e4
 if (any(grepl("Table 9. JABBA CPUE_Current.B.over.Bmsy",list.files(Rar.path))))
 {
   Store.cons.Like_JABBA=list(Depletion=NULL,B.over.Bmsy=NULL)     
-  DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
+  DD.depletion=DD.B.over.Bmsy=DD.f=vector('list',length(Lista.sp.outputs))
   for(l in 1:length(Lista.sp.outputs))  
   {
     ddis=names(Lista.sp.outputs)[l]
@@ -3961,9 +3961,15 @@ if (any(grepl("Table 9. JABBA CPUE_Current.B.over.Bmsy",list.files(Rar.path))))
       dplyr::select(-c(Scenario,Model))%>%
       gather(Species,Probability,-c(Range,finyear))%>%
       mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    
+    DD.f[[l]]=read.csv(paste(Rar.path,'/Table 9. JABBA CPUE_Current.f_',ddis,'.csv',sep=''))%>%
+      dplyr::select(-c(Scenario,Model))%>%
+      gather(Species,Probability,-c(Range,finyear))%>%
+      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
   }
   Store.cons.Like_JABBA$Depletion=do.call(rbind,DD.depletion)
-  Store.cons.Like_JABBA$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)  
+  Store.cons.Like_JABBA$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
+  Store.cons.Like_JABBA$f=do.call(rbind,DD.f)
 }
   
   #Clear log
@@ -3985,10 +3991,10 @@ clear.log('State.Space.SPM')
 if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours
 
   #Get Consequence and likelihoods 
-if (any(grepl("Table 12. Age.based_SS_current.depletion",list.files(Rar.path))))
+if(any(grepl("Table 12. Age.based_SS_current.depletion",list.files(Rar.path))))
 {
   Store.cons.Like_Age.based=list(Depletion=NULL,B.over.Bmsy=NULL)     
-  DD.depletion=DD.B.over.Bmsy=vector('list',length(Lista.sp.outputs))
+  DD.depletion=DD.B.over.Bmsy=DD.f=vector('list',length(Lista.sp.outputs))
   for(l in 1:length(Lista.sp.outputs))  
   {
     ddis=names(Lista.sp.outputs)[l]
@@ -4001,9 +4007,15 @@ if (any(grepl("Table 12. Age.based_SS_current.depletion",list.files(Rar.path))))
       dplyr::select(-c(Scenario,Model))%>%
       gather(Species,Probability,-c(Range,finyear))%>%
       mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    
+    DD.f[[l]]=read.csv(paste(Rar.path,'/Table 12. Age.based_SS_Current.f_',ddis,'.csv',sep=''))%>%
+      dplyr::select(-c(Scenario,Model))%>%
+      gather(Species,Probability,-c(Range,finyear))%>%
+      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
   }
   Store.cons.Like_Age.based$Depletion=do.call(rbind,DD.depletion)
-  Store.cons.Like_Age.based$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)  
+  Store.cons.Like_Age.based$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
+  Store.cons.Like_Age.based$f=do.call(rbind,DD.f)
 }
 
   #Clear log
@@ -4113,6 +4125,7 @@ if(Ass.flow)
   N.SS=length(SS.species)
   SS.species.only.length=SS.species[which(!SS.species%in%JABBA.species)]
   N.SS.size.only=length(SS.species.only.length)
+  N.SS=N.SS-N.SS.size.only
   
   plot_nodes=plot_nodes%>%
     mutate(label=case_when(grepl('Shark and ray',label)~paste0("Shark and ray species\n interacting with\n fisheries in WA (n= ",N,')'),
@@ -4221,17 +4234,31 @@ if(exists("Store.cons.Like_CatchCurve"))
   #1.4. JABBA
 if(exists("Store.cons.Like_JABBA"))
 {
+  #Biomass based
   if(Choose.probability=="Depletion")   Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=1)
   if(Choose.probability=="B.over.Bmsy") Risk.JABBA=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=1)
   Risk.JABBA$LoE='JABBA'
+  
+  #F based
+  Risk.JABBA_f=fn.risk_f(d=Store.cons.Like_JABBA$f,w=1)  
+  Risk.JABBA_f$LoE='JABBA'
 }
+do.this=FALSE
+if(do.this) fn.compare.risk.ref.point(Depletion=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=1)%>%filter(finyear==2021),
+                               B.over.Bmsy=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=1)%>%filter(finyear==2021),
+                               TITL='JABBA')
 
   #1.5. SS3
 if(exists("Store.cons.Like_Age.based"))
 {
+  #Biomass based
   if(Choose.probability=="Depletion")   Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$Depletion,w=1)
   if(Choose.probability=="B.over.Bmsy") Risk.integrated=fn.risk(d=Store.cons.Like_Age.based$B.over.Bmsy,w=1)
   Risk.integrated$LoE='integrated'
+  
+  #F based
+  Risk.integrated_f=fn.risk_f(d=Store.cons.Like_Age.based$f,w=1)  
+  Risk.integrated_f$LoE='integrated'
 }
 
 
@@ -4294,40 +4321,33 @@ write.csv(Table.risks%>%left_join(Out.overall.risk,by='Species'),
 
   #2.5. Export future Risk from JABBA and Integrated
 write.csv(rbind(Risk.JABBA_future,Risk.integrated_future),
-          paste(Rar.path,'Table 14. Future risk.csv',sep='/'),row.names=F)
+          paste(Rar.path,'Table 14. Risk_Future.csv',sep='/'),row.names=F)
+
+  #2.6. Export current and future Risk based on F from JABBA and Integrated  
+write.csv(rbind(Risk.JABBA_f,Risk.integrated_f),
+          paste(Rar.path,'Table 15. Risk_based on F_Current and Future.csv',sep='/'),row.names=F)
 
 
 #3. Display final risk for all species combined 
-
-  #3.1 Combined drop species
 Final.risk_Drop.species=Store.risk_Drop.species%>%
-                                group_by(Score,Risk)%>%
-                                tally()%>%
-                                mutate(Species=paste0("PSA-only species \n", "(n=",n,")"))%>%
-                                dplyr::select(Species,Score,Risk)
-
+                          group_by(Score,Risk)%>%
+                          tally()%>%
+                          mutate(Species=paste0("PSA-only species \n", "(n=",n,")"))%>%
+                          dplyr::select(Species,Score,Risk)
 Final.risk_Other.sp=Store.risk_Other.sp%>%dplyr::select(Species,Score,Risk)
 Final.risk_Indicator.sp=Store.risk_Indicator.sp%>%dplyr::select(Species,Score,Risk)
-p=rbind(Final.risk_Drop.species,Final.risk_Other.sp,Final.risk_Indicator.sp)
-p%>%
-  mutate(Species=factor(Species,levels=p%>%arrange(Score)%>%pull(Species)))%>%
-  ggplot(aes(Species,Score,fill=Risk))+
-  geom_bar(stat="identity")+ coord_flip()+
-  theme_PA(axs.t.siz=14)+
-  theme(legend.title = element_blank(),
-        legend.position = 'bottom')+
-  ylab('Risk score')+xlab('')+
-  scale_fill_manual(values=RiskColors)+
-  scale_y_continuous(breaks = breaks_width(1))
+
+  #3.1 Overall risk by species (combined PSA species)
+fn.risk.all.sp(d=rbind(Final.risk_Drop.species,Final.risk_Other.sp,Final.risk_Indicator.sp))
 ggsave(paste(Rar.path,"Risk_all species together.tiff",sep='/'),width = 8,height = 10,compression = "lzw")
 
-  #3.2 Overall proportions
+  #3.2 Overall risk by species (all species)
 add.non.interacting.species=FALSE
 p1=rbind(Store.risk_Drop.species%>%
           dplyr::select(Species,Score,Risk),
         Final.risk_Other.sp ,
         Final.risk_Indicator.sp)
-if(add.non.interacting.species)
+if(add.non.interacting.species)  #display species not interacting with fishing?
 {
   All.WA.species= #missing
   non.interacting.species=data.frame(Species=All.WA.species,
@@ -4336,43 +4356,10 @@ if(add.non.interacting.species)
     filter(!Species%in%c(p$Species,capitalize(assessed.elsewhere)))
   p1=rbind(p1,non.interacting.species)
 }
-pp=p1%>%
-  arrange(Score,Risk,Species)%>%
-  mutate(id=row_number(),
-         Score1=8)
-label_colors=c(Indicator='chocolate4',Non.indicator='cadetblue4',PSA.only='black')
-label_pp <- pp%>%
-  mutate(angle=90-360*(id-0.5) /nrow(pp),
-         hjust=ifelse( angle < -90, 1, 0),
-         angle=ifelse(angle < -90, angle+180, angle),
-         Species=case_when(Species=='Australian sharpnose shark'~'Au. sharpnose shark',
-                           TRUE~Species),
-         lbl.col=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
-                           Species%in%Store.risk_Other.sp$Species~'Non.indicator',
-                           TRUE~'PSA.only'))
-pp%>%
-  ggplot(aes(x=as.factor(id), y=Score1)) +  
-  geom_bar(aes(fill=Risk),stat="identity")+
-  ylim(-5,12)+
-  scale_fill_manual(values=subset(RiskColors,names(RiskColors)%in%unique(pp$Risk)))+
-  theme_minimal() +
-  theme(axis.text = element_blank(),
-        axis.title = element_blank(),
-        panel.grid = element_blank(),
-        plot.margin = unit(rep(-1,4), "cm"),
-        legend.title = element_blank(),
-        legend.position = c(0.5, 0.5),
-        legend.direction='vertical',
-        legend.text = element_text(size=20)) +
-  coord_polar(start = 0)+
-  geom_text(data=label_pp, aes(x=id, y=Score1*1.1, label=Species, hjust=hjust,color=lbl.col),
-            fontface="bold",alpha=0.6, size=2.8, angle= label_pp$angle,
-            inherit.aes = FALSE )+
-  scale_color_manual(values =label_colors)+
-  guides(color = guide_none())
+fn.risk.all.sp.eye(d=p1,show.all.risk.cat=TRUE)  
 ggsave(paste(Rar.path,"Risk_all species together_proportion.tiff",sep='/'),width = 8,height = 8,compression = "lzw")
 
-  #3.3 Each LoE risk and overall risk  #ACA
+  #3.3 Each LoE risk and overall risk  
 fn.risk.figure.all.LOE(d=Store.risks,
                        d1=Out.overall.risk,
                        lbl.cols=label_colors,

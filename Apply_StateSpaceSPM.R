@@ -230,7 +230,7 @@ for(w in 1:length(State.Space.SPM))
             this.wd1=this.wd
             Out.Scens=Scens%>%
               mutate(Bo.mean=NA,Bo.CV=NA,r.mean=NA,r.cv=NA,Rdist=NA,Kdist=NA,PsiDist=NA,bmsyk.mean=NA)
-            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=
+            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.probs.f.series=Out.f.series=
               Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
             
             for(s in 1:length(Store.sens))
@@ -452,6 +452,7 @@ for(w in 1:length(State.Space.SPM))
                                                 scen=Scens$Scenario[s],
                                                 Katch=outktch)
               Out.f.series[[s]]=dummy$Dat
+              Out.probs.f.series[[s]]=dummy$Probs
               
               dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                                 mods=names(State.Space.SPM)[w],
@@ -659,6 +660,7 @@ for(w in 1:length(State.Space.SPM))
                         dummy.store.rel.biom=do.call(rbind,Out.rel.biom),
                         dummy.store.probs.rel.biom=Out.probs.rel.biom,
                         dummy.store.probs.B.Bmsy=Out.probs.B.Bmsy,
+                        dummy.store.probs.f.series=Out.probs.f.series,
                         dummy.store.f.series=do.call(rbind,Out.f.series),
                         dummy.store.B.Bmsy=do.call(rbind,Out.B.Bmsy),
                         dummy.store.F.Fmsy=do.call(rbind,Out.F.Fmsy),
@@ -680,6 +682,7 @@ for(w in 1:length(State.Space.SPM))
       State.Space.SPM[[w]]$rel.biom=fn.get.and.name(LISTA=out.species,x="dummy.store.rel.biom")
       State.Space.SPM[[w]]$probs.rel.biom=fn.get.and.name(LISTA=out.species,x="dummy.store.probs.rel.biom")
       State.Space.SPM[[w]]$probs.B.Bmsy=fn.get.and.name(LISTA=out.species,x="dummy.store.probs.B.Bmsy")
+      State.Space.SPM[[w]]$probs.f.series=fn.get.and.name(LISTA=out.species,x="dummy.store.probs.f.series")
       State.Space.SPM[[w]]$f.series=fn.get.and.name(LISTA=out.species,x="dummy.store.f.series")
       State.Space.SPM[[w]]$B.Bmsy=fn.get.and.name(LISTA=out.species,x="dummy.store.B.Bmsy")
       State.Space.SPM[[w]]$F.Fmsy=fn.get.and.name(LISTA=out.species,x="dummy.store.F.Fmsy")
@@ -694,7 +697,8 @@ for(w in 1:length(State.Space.SPM))
       dummy.store=vector('list',N.sp)     
       names(dummy.store)=Keep.species
       dummy.store.sens.table=dummy.store.estimates=dummy.store.rel.biom=dummy.store.probs.rel.biom=
-        dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=dummy.store.MSY=dummy.store
+        dummy.store.probs.B.Bmsy=dummy.store.probs.f.series=dummy.store.f.series=dummy.store.B.Bmsy=
+        dummy.store.F.Fmsy=dummy.store.Kobe.probs=dummy.store.MSY=dummy.store
       
       for(i in 1:length(dummy.store))
       {
@@ -867,7 +871,7 @@ for(w in 1:length(State.Space.SPM))
             this.wd1=this.wd
             Out.Scens=Scens%>%
               mutate(Bo.mean=NA,Bo.CV=NA,r.mean=NA,r.cv=NA,Rdist=NA,Kdist=NA,PsiDist=NA,bmsyk.mean=NA)
-            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.f.series=
+            Out.estimates=Out.rel.biom=Out.probs.rel.biom=Out.probs.B.Bmsy=Out.probs.f.series=Out.f.series=
               Out.B.Bmsy=Out.F.Fmsy=vector('list',length(Store.sens))
             
             for(s in 1:length(Store.sens))
@@ -1090,6 +1094,7 @@ for(w in 1:length(State.Space.SPM))
                                                 scen=Scens$Scenario[s],
                                                 Katch=outktch)
               Out.f.series[[s]]=dummy$Dat
+              Out.probs.f.series[[s]]=dummy$Probs
               
               dummy=fn.ktch.only.get.timeseries(d=Store.sens[[s]],
                                                 mods=names(State.Space.SPM)[w],
@@ -1261,6 +1266,7 @@ for(w in 1:length(State.Space.SPM))
             dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
             dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
             dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
+            dummy.store.probs.f.series[[i]]=Out.probs.f.series
             dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
             dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
             dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
@@ -1270,7 +1276,7 @@ for(w in 1:length(State.Space.SPM))
             
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
                Out.B.Bmsy,Out.F.Fmsy,Out.Kobe.probs,Out.estimates,
-               Out.probs.B.Bmsy)
+               Out.probs.B.Bmsy,Out.probs.f.series)
           }
           if(len.cpue==0) if(dir.exists(this.wd)) unlink(this.wd, recursive = TRUE)
         }
@@ -1281,6 +1287,7 @@ for(w in 1:length(State.Space.SPM))
       State.Space.SPM[[w]]$rel.biom=dummy.store.rel.biom
       State.Space.SPM[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
       State.Space.SPM[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
+      State.Space.SPM[[w]]$probs.f.series=dummy.store.probs.f.series
       State.Space.SPM[[w]]$f.series=dummy.store.f.series
       State.Space.SPM[[w]]$B.Bmsy=dummy.store.B.Bmsy
       State.Space.SPM[[w]]$F.Fmsy=dummy.store.F.Fmsy
@@ -1290,7 +1297,7 @@ for(w in 1:length(State.Space.SPM))
       rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,
          dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,
          dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.MSY,
-         dummy.store.probs.B.Bmsy)   
+         dummy.store.probs.B.Bmsy,dummy.store.probs.f.series)   
       
     }
   }
@@ -1343,7 +1350,8 @@ for(l in 1: length(Lista.sp.outputs))
         rownames_to_column(var = "Species")%>%
         mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
         relocate(Species)
-      write.csv(dummy,paste(Rar.path,paste('Table 8. ',names(State.Space.SPM)[w],' CPUE_estimates_',
+      write.csv(dummy,
+                paste(Rar.path,paste('Table 8. ',names(State.Space.SPM)[w],' CPUE_estimates_',
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
     }
@@ -1630,9 +1638,61 @@ if(do.F.series)
     if(!is.null(a))ggsave(paste(Rar.path,'/F.series_JABBA CPUE_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
                           width = WIDt,height = 10,compression = "lzw")
   }
+  
+  #table 
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    dummy.mod=vector('list',length(State.Space.SPM))
+    for(m in 1:length(State.Space.SPM))
+    {
+      str.prob=State.Space.SPM[[m]]$probs.f.series  
+      str.prob=str.prob[match(Lista.sp.outputs[[l]],names(str.prob))]
+      str.prob=compact(str.prob)
+      if(length(str.prob)>0)
+      {
+        dummy=vector('list',length =length(str.prob))
+        for(d in 1:length(dummy))
+        {
+          pp=str.prob[[d]][[1]]$probs
+          outdis=pp%>%
+            mutate(Species=capitalize(names(str.prob)[d]))
+          if(!'finyear'%in%names(outdis) & !'probs.future'%in%names(str.prob[[d]][[1]]))
+          {
+            aidi=match(names(str.prob)[d],names(State.Space.SPM[[m]]$rel.biom))
+            outdis$finyear=max(State.Space.SPM[[m]]$rel.biom[[aidi]]$year) 
+          }
+          
+          if('probs.future'%in%names(str.prob[[d]][[1]]))
+          {
+            pp.future=str.prob[[d]][[1]]$probs.future
+            pp=pp%>%
+              mutate(finyear=unique(pp.future$finyear)-years.futures)
+            outdis=rbind(pp,pp.future)%>%
+              mutate(Species=capitalize(names(str.prob)[d]))
+          }
+          dummy[[d]]=outdis
+        }
+        dummy.mod[[m]]=do.call(rbind,dummy)%>%
+          mutate(Model=names(State.Space.SPM)[m])
+      }
+    }
+    dummy.mod=compact(dummy.mod)
+    if(length(dummy.mod)>0)
+    {
+      write.csv(do.call(rbind,dummy.mod)%>%
+                  mutate(Range=factor(Range,levels=c(">lim","lim.thr","thr.tar","<tar")))%>%
+                  spread(Species,Probability)%>%
+                  arrange(finyear,Range),
+                paste(Rar.path,'/Table 9. JABBA CPUE_Current.f_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+                row.names=F)
+      rm(dummy.mod)
+      
+    }
+  }
 }
 
   #24.3.3 Display sensitivity tests for combined species
+disspisis=names(State.Space.SPM$JABBA$rel.biom)[!sapply(State.Space.SPM$JABBA$rel.biom,is.null)]
 for(l in 1:length(Lista.sp.outputs))
 {
   print(paste("JABBA --- Relative biomass plot by Scenario -----",names(Lista.sp.outputs)[l],"----- single plot")) 
@@ -1642,10 +1702,11 @@ for(l in 1:length(Lista.sp.outputs))
                                             InnerMargin=InMar,
                                             RefPoint=Ref.points,
                                             Kach=State.Space.SPM$JABBA$rel.biom)
-  WIDt=10
-  if(length(compact(State.Space.SPM$JABBA$sens.table))<=3) WIDt=7
+  HEIT=8
+  WIDt=8
+  if(length(which(Lista.sp.outputs[[l]]%in%disspisis))<=3) WIDt=6
   if(!is.null(a))ggsave(paste(Rar.path,'/Relative.biomass_JABBA CPUE_',names(Lista.sp.outputs)[l],'_sensitivity.tiff',sep=''),
-                        width = WIDt,height = 10,compression = "lzw")
+                        width = WIDt,height = HEIT,compression = "lzw")
 }
 
 
@@ -1739,7 +1800,7 @@ for(l in 1:length(Lista.sp.outputs))
 }
 
 
-#24.6 Kobe plots WA.Fisheries style (Scenario 1)
+#24.6 Kobe plots WA.Fisheries style (Scenario 1)   
   #24.6.1 by species  
 for(i in 1:N.sp)
 {
@@ -1796,7 +1857,7 @@ for(i in 1:N.sp)
 }
 
 #24.8 store Consequence and likelihood for WoE
-get.cons.like.JABBA=FALSE  #import from table instead
+get.cons.like.JABBA=FALSE  #Superseded. Now this is extracted from exported tables 
 if(get.cons.like.JABBA) Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 
 
 

@@ -3463,6 +3463,25 @@ add.probs=function(DAT,id.yr,B.threshold,plot.ranges=FALSE) #Reference points pr
               Reference.points=data.frame(Rf.pt=c('Target','Threshold','Limit'),
                                           Value=c(B.target,B.threshold,B.limit))))
 }
+add.probs_F=function(DAT,id.yr,target,threshold,limit)   
+{
+  DAT=DAT[,id.yr] 
+  f=ecdf(DAT)
+  P.below.target=f(target)
+  P.below.threshold=f(threshold)
+  P.below.limit=f(limit)
+  P.above.target=1-P.below.target
+  P.above.threshold=1-P.below.threshold
+  P.above.limit=1-P.below.limit
+  P.between.thre.tar=P.below.threshold-P.below.target
+  P.between.lim.thre=P.below.limit-P.below.threshold
+  return(list(probs=data.frame(Range=c('>lim','lim.thr',
+                                       'thr.tar','<tar'),
+                               Probability=round(c(P.above.limit,P.between.lim.thre,
+                                                   P.between.thre.tar,P.below.target),3)),
+              Reference.points=data.frame(Rf.pt=c('Target','Threshold','Limit'),
+                                          Value=c(target,threshold,limit))))
+}
 fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
 {
   if('output'%in%names(d))dd=d$output
@@ -3616,6 +3635,23 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
                     uci.60=apply(dd$posteriors$H,2,function(x) quantile(x,probs=0.8,na.rm=T)),
                     lci=apply(dd$posteriors$H,2,function(x) quantile(x,probs=0.025,na.rm=T)),
                     uci=apply(dd$posteriors$H,2,function(x) quantile(x,probs=0.975,na.rm=T)))
+      Probs=add.probs_F(DAT=dd$posteriors$H,
+                        id.yr=match(as.numeric(substr(Last.yr.ktch,1,4)),Years),
+                        target=dummi.F%>%filter(Parameter=='F.target')%>%pull(Median),
+                        threshold=dummi.F%>%filter(Parameter=='F.threshold')%>%pull(Median),
+                        limit=dummi.F%>%filter(Parameter=='F.limit')%>%pull(Median))
+      Probs$probs=Probs$probs%>%mutate(Scenario=scen)
+      if(as.numeric(substr(Last.yr.ktch,1,4))<Years[length(Years)])  
+      {
+        Probs.future=add.probs_F(DAT=dd$posteriors$H,
+                                 id.yr=match(Years[length(Years)],Years),
+                                 target=dummi.F%>%filter(Parameter=='F.target')%>%pull(Median),
+                                 threshold=dummi.F%>%filter(Parameter=='F.threshold')%>%pull(Median),
+                                 limit=dummi.F%>%filter(Parameter=='F.limit')%>%pull(Median))
+        Probs$probs.future=Probs.future$probs%>%
+          mutate(Scenario=scen,
+                 finyear=Years[length(Years)])
+      }
     }
     if(Type=='B.Bmsy')
     {
@@ -3876,16 +3912,11 @@ fn.ktch.only.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Katch)
   
   Dat=Dat%>%mutate(Scenario=scen)
   
-  if(Type%in%c('Depletion','B.Bmsy'))
-  {
-    return(list(Dat=Dat,Probs=Probs))
-  }else
-  {
-    return(list(Dat=Dat))
-  }
-  
+  list.out=list(Dat=Dat)
+  if(exists('Probs')) list.out$Probs=Probs
+  return(list.out)
 }
-add.probs.integrated.asympt.error=function(DAT,B.threshold) #Reference points probability based on asymptotic error 
+add.probs.integrated.asympt.error=function(DAT,B.threshold) #B Reference points probability based on asymptotic error 
 {
   B.target=Tar.prop.bmsny*B.threshold
   B.limit=max(Minimum.acceptable.blim,Lim.prop.bmsy*B.threshold)
@@ -3905,7 +3936,26 @@ add.probs.integrated.asympt.error=function(DAT,B.threshold) #Reference points pr
               Reference.points=data.frame(Rf.pt=c('Target','Threshold','Limit'),
                                           Value=c(B.target,B.threshold,B.limit))))
 }
-fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e3)
+add.probs.integrated.asympt.error_F=function(DAT,threshold,target,limit) #F Reference points probability based on asymptotic error 
+{
+  DAT=subset(DAT,DAT>0)
+  f=ecdf(DAT)
+  P.below.target=f(target)
+  P.below.threshold=f(threshold)
+  P.below.limit=f(limit)
+  P.above.target=1-P.below.target
+  P.above.threshold=1-P.below.threshold
+  P.above.limit=1-P.below.limit
+  P.between.thre.tar=P.below.threshold-P.below.target
+  P.between.lim.thre=P.below.limit-P.below.threshold
+  return(list(probs=data.frame(Range=c('>lim','lim.thr',
+                                       'thr.tar','<tar'),
+                               Probability=round(c(P.above.limit,P.between.lim.thre,
+                                                   P.between.thre.tar,P.below.target),3)),
+              Reference.points=data.frame(Rf.pt=c('Target','Threshold','Limit'),
+                                          Value=c(target,threshold,limit))))
+}
+fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e3,get.uncertainty=NULL)
 {
   if(mods=='SS3')
   {
@@ -3920,6 +3970,10 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e
     if(Type=='F.series')
     {
       Quant="F"
+      F.ref.points=fn.get.f.ref.points(d)
+      trgt=F.ref.points$F.target
+      thrshol=F.ref.points$F.threshold
+      lmt=F.ref.points$F.limit
     }
     if(Type=='B.Bmsy')
     {
@@ -3935,21 +3989,48 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e
     iid=grep(paste(paste(Quant,dis.yrs,sep='_'),collapse="|"),dum$Label)
     d1=dum[iid,c('Label','Value','StdDev')]%>%
       mutate(year=readr::parse_number(Label))
-    if(Type%in%c('B.Bmsy','F.Fmsy'))  #do ratio first and then get SE
+    if(Type%in%c('B.Bmsy','F.Fmsy'))  
     {
       x_MSY=dum[dum$Label==msylabl,c('Label','Value','StdDev')]
-      x_MSY.sims=rnorm(Nsims,x_MSY$Value,x_MSY$StdDev)
-      d1.expand=d1[rep(row.names(d1), Nsims), ]%>%
-        arrange(year)%>%
-        mutate(Value=rnorm(n(), mean=Value,sd=StdDev))
-      d1.expand$x_MSY=x_MSY.sims
-      d1=d1.expand%>%
-        mutate(ratio=Value/x_MSY)%>%
-        group_by(year)%>%
-        summarise(Value=mean(ratio),
-                  StdDev=sd(ratio))
-      Out.Kobe=d1.expand%>%filter(year==max(Years))%>%mutate(Value1=Value/x_MSY)%>%pull(Value1)
-      rm(d1.expand)
+      
+      if(get.uncertainty=='CV')
+      {
+        #Ratio.CV=max(0.05,min(0.3,x_MSY$StdDev/x_MSY$Value))
+        if(Type=='B.Bmsy')
+        {
+          Ratio.CV=dum[grep(paste(paste("Bratio",dis.yrs,sep='_'),collapse="|"),dum$Label),c('Label','Value','StdDev')]%>%
+                    mutate(CV=StdDev/Value)%>%pull(CV)
+        }
+        if(Type=='F.Fmsy')
+        {
+          Ratio.CV=dum[grep(paste(paste("F",dis.yrs,sep='_'),collapse="|"),dum$Label),c('Label','Value','StdDev')]%>%
+            mutate(CV=StdDev/Value)%>%pull(CV)
+        }
+        if(length(Ratio.CV)<nrow(d$Kobe)) Ratio.CV=c(Ratio.CV[1],Ratio.CV)
+        
+        d1=d$Kobe%>%
+          rename(year=Yr)%>%
+          mutate(Value=!!sym(Type),
+                 Ratio.CV=Ratio.CV,
+                 StdDev=Ratio.CV*Value)%>%
+          dplyr::select(year,Value,StdDev)
+        Out.Kobe=with(d1%>%filter(year==max(Years)),rnorm(Nsims,Value,StdDev))
+      }
+      if(get.uncertainty=='ratio.first')  #do ratio first and then get SE. 
+      {
+        x_MSY.sims=rnorm(Nsims,x_MSY$Value,x_MSY$StdDev) 
+        d1.expand=d1[rep(row.names(d1), Nsims), ]%>%
+          arrange(year)%>%
+          mutate(Value=rnorm(n(), mean=Value,sd=StdDev))
+        d1.expand$x_MSY=x_MSY.sims
+        d1=d1.expand%>%
+          mutate(ratio=Value/x_MSY)%>%
+          group_by(year)%>%
+          summarise(Value=mean(ratio),
+                    StdDev=sd(ratio))
+        Out.Kobe=d1.expand%>%filter(year==max(Years))%>%mutate(Value1=Value/x_MSY)%>%pull(Value1)
+        rm(d1.expand)
+      }
     }
     d1=d1%>%
       rename(mu=Value)%>%
@@ -3963,18 +4044,42 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e
              upper.95=uci)%>%
       mutate(lower.60=ifelse(lower.60<0,0,lower.60),
              lower.95=ifelse(lower.95<0,0,lower.95))
-    if(Type%in%c('Depletion','B.Bmsy'))  #get probs
+    
+    #get probs
+    if(Type%in%c('Depletion','B.Bmsy'))  
     {
+      #Current
       Yr=max(Years)
       DaT=d1%>%filter(year==Yr)%>%dplyr::select(mu,StdDev)
-      Probs=add.probs.integrated.asympt.error(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev),
+      Probs=add.probs.integrated.asympt.error(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev), 
                                               B.threshold=thrshol)     
       Probs$probs=Probs$probs%>%mutate(finyear=Yr,Scenario=scen)
       
+      #Future
       Yr=max(d1$year)
       DaT=d1%>%filter(year==Yr)%>%dplyr::select(mu,StdDev)
       Probs.future=add.probs.integrated.asympt.error(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev),
                                                      B.threshold=thrshol)     
+      Probs$probs.future=Probs.future$probs%>%mutate(finyear=Yr,Scenario=scen)
+    }
+    if(Type%in%c('F.series'))  
+    {
+      #current
+      Yr=max(Years)
+      DaT=d1%>%filter(year==Yr)%>%dplyr::select(mu,StdDev)
+      Probs=add.probs.integrated.asympt.error_F(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev), 
+                                                threshold=thrshol,
+                                                target=trgt,
+                                                limit=lmt)     
+      Probs$probs=Probs$probs%>%mutate(finyear=Yr,Scenario=scen)
+      
+      #Future
+      Yr=max(d1$year)
+      DaT=d1%>%filter(year==Yr)%>%dplyr::select(mu,StdDev)
+      Probs.future=add.probs.integrated.asympt.error_F(DAT=rnorm(Nsims,mean=DaT$mu,sd=DaT$StdDev),
+                                                       threshold=thrshol,
+                                                       target=trgt,
+                                                       limit=lmt)     
       Probs$probs.future=Probs.future$probs%>%mutate(finyear=Yr,Scenario=scen)
     }
     d1=d1%>%dplyr::select(-c(StdDev))
@@ -3996,7 +4101,7 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e
     rename(median=mu)
   
   list.out=list(Dat=Dat)
-  if(Type%in%c('Depletion','B.Bmsy')) list.out$Probs=Probs
+  if(Type%in%c('Depletion','B.Bmsy','F.series')) list.out$Probs=Probs
   if(Type%in%c('B.Bmsy','F.Fmsy')) list.out$Out.Kobe=Out.Kobe
   
   return(list.out)
@@ -4606,9 +4711,13 @@ fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,
       spread(Rf.pt,Value)%>%
       dplyr::select(-Scenario)
     ach=ach%>%left_join(Hline,by='Species')
+    nKL=1
+    enSpi=length(unique(ach$Species))
+    if(enSpi>3 & enSpi<9) nKL=2
+    if(enSpi>9) nKL=3
     figure=ach%>%
       ggplot(aes(year,median,color=Scenario))+
-      facet_wrap(~Species)+
+      facet_wrap(~Species,ncol=nKL)+
       geom_ribbon(aes(ymin = lower.95, ymax = upper.95,fill=Scenario), alpha = 0.1)+
       geom_line(size=2)+
       guides(color = guide_legend(nrow = 1),fill= guide_legend(nrow = 1))+
@@ -4835,19 +4944,20 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
     arrange(yr)
   Mx.F=max(2,max(dta$y,na.rm=T))
   Mx.B=max(2,max(dta$x,na.rm=T))
+  Mn.F=0 
+  Mn.B=0
   
   kobe <-dta%>%
-    ggplot(aes(x, y))+    
-    scale_x_continuous(limits=c(0,Mx.B),expand = c(0, 0)) +
-    scale_y_continuous(limits=c(0,Mx.F),expand = c(0, 0))+
-    geom_rect(xmin = 1, xmax = Mx.B, ymin = 0, ymax = 1, fill = RiskColors['Low'], alpha = 0.05) +
-    geom_rect(xmin = 0, xmax = 1, ymin = 1, ymax = Mx.F, fill = RiskColors['Severe'], alpha = 0.05) +
+    ggplot(aes(x, y))+
+    geom_rect(xmin = 1, xmax = Mx.B, ymin = Mn.F, ymax = 1, fill = RiskColors['Low'], alpha = 0.05) +
+    geom_rect(xmin = Mn.B, xmax = 1, ymin = 1, ymax = Mx.F, fill = RiskColors['Severe'], alpha = 0.05) +
     geom_rect(xmin = 1, xmax = Mx.B, ymin = 1, ymax = Mx.F, fill = RiskColors['High'], alpha = 0.05) +
-    geom_rect(xmin = 0, xmax = 1, ymin = 0, ymax = 1, fill = RiskColors['Medium'], alpha = 0.05)
+    geom_rect(xmin = Mn.B, xmax = 1, ymin = Mn.F, ymax = 1, fill = RiskColors['Medium'], alpha = 0.05)
   if(!is.null(Probs))
   {
-    kernelF <- gplots::ci2d(Probs$x, Probs$y, nbins = 151, factor = 1.5, 
-                            ci.levels = c(0.5, 0.8, 0.75, 0.9, 0.95), show = "none")
+    Probs=Probs%>%filter(x>=0 & y>=0)
+    kernelF <- gplots::ci2d(Probs$x, Probs$y, nbins = 50, factor = 1.5, 
+                            ci.levels = c(0.5, 0.8, 0.95), show = "none")
     KernelD=rbind(kernelF$contours$"0.95"%>%mutate(CI='1',col='grey30'),
                   kernelF$contours$"0.8"%>%mutate(CI='2',col='grey60'),
                   kernelF$contours$"0.5"%>%mutate(CI='3',col='grey85'))
@@ -4868,14 +4978,17 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
     names(pr.ds)=paste(Nms.probs,'%',sep='')
     #pr.ds=pr.ds[which(!names(pr.ds)=='0%')]
     kobe <-kobe +
-      geom_polygon(data=KernelD%>%dplyr::filter(y<=Mx.F & x<=Mx.B),aes(x, y,fill=CI),size=1.25,alpha=0.5)+
+      geom_polygon(data=KernelD,aes(x, y,fill=CI),size=1.25,alpha=0.5)+
       scale_fill_manual(labels=c("95%","80%","50%"),values = kernels)+
       geom_point(data=Pr.d,aes(x, y,color=col),alpha = 1,size=5)+
       scale_color_manual(labels=names(pr.ds),values =Pr.d$col)+
       labs(CI="", col=dta[nrow(dta),'yr'])
     
   }
-  kobe <-kobe +
+  kobe <-kobe + 
+    coord_cartesian(xlim = c(Mn.B,Mx.B), ylim=c(Mn.F,Mx.F))+
+    scale_x_continuous(expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0))+
     geom_path(linetype = 2, size = 0.5,color='deepskyblue4')+
     geom_point(size=2,color='deepskyblue4')+
     geom_point(aes(x=dta[1,'x'],y=dta[1,'y']),size=4,shape=22,fill='white',alpha=.3)+
@@ -5745,6 +5858,22 @@ fn.risk=function(d,w)
   if('finyear'%in%names(d)) dis=c(dis,'finyear')  
   return(d%>%dplyr::select(all_of(dis)))
 }
+fn.risk_f=function(d,w)
+{
+  d=d%>%
+    mutate(w=w,
+           Consequence=case_when(Range=='<tar'~1,
+                                 Range=='thr.tar'~2,
+                                 Range=='lim.thr'~3,
+                                 Range=='>lim'~4))
+  for(n in 1:nrow(d))
+  {
+    d$Likelihood[n]=which(unlist(lapply(Like.ranges,function(x) check.in.range(d$Probability[n],x,fatal=F))))
+  }
+  dis=c('Species','Consequence','Likelihood','Probability','w')
+  if('finyear'%in%names(d)) dis=c(dis,'finyear')  
+  return(d%>%dplyr::select(all_of(dis)))
+}
 Integrate.LoE=function(Cons.Like.tab,criteriaMinMax,plot.data,LoE.weights,Normalised)
 {
   #Set up preference table by converting Cons-Like to Risk scores
@@ -5930,7 +6059,8 @@ fn.risk.figure.all.LOE=function(d,d1,lbl.cols,RiskCls)
     left_join(d1,by='Species')%>%
     mutate(Risk.overall=gsub( " .*$", "", Risk.overall))
   b=a%>%
-    filter(Species.lbl=='PSA.only')
+    filter(Species.lbl=='PSA.only')%>%
+    mutate(Species.lbl='PSA-only')
   
   D=rbind(b%>%
             mutate(Species=Species.lbl)%>%
@@ -5942,22 +6072,34 @@ fn.risk.figure.all.LOE=function(d,d1,lbl.cols,RiskCls)
     arrange(Risk.overall)
   Sp.position=D%>%distinct(Species)%>%pull(Species)
   Sp.color=data.frame(Species=Sp.position)%>%
-    mutate(Sp.color=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
-                              Species%in%Store.risk_Other.sp$Species~'Non.indicator',
-                              TRUE~'PSA.only'))%>%
-    left_join(data.frame(Sp.color=names(lbl.cols),CL=lbl.cols),by='Sp.color')%>%
-    pull(CL)
-  
+            mutate(Sp.color=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
+                                      Species%in%Store.risk_Other.sp$Species~'Non.indicator',
+                                      TRUE~'PSA.only'))%>%
+            left_join(data.frame(Sp.color=names(lbl.cols),CL=lbl.cols),by='Sp.color')%>%
+            pull(CL)
+  lbl.face=c(Indicator="bold", Non.indicator="plain", PSA.only="plain")
+  Sp.face=data.frame(Species=Sp.position)%>%
+            mutate(Sp.face=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
+                                      Species%in%Store.risk_Other.sp$Species~'Non.indicator',
+                                      TRUE~'PSA.only'))%>%
+            left_join(data.frame(Sp.face=names(lbl.face),bold=lbl.face),by='Sp.face')%>%
+            pull(bold)
+  LoE.wei=rbind(data.frame(LoE='PSA',LoE.width=1),
+                data.frame(LoE=names(LoE.Weights),
+                    LoE.width=LoE.Weights))%>%
+            mutate(LoE.width=1.2*LoE.width/max(LoE.width))
   p1=D%>%
-    mutate(Species=factor(Species,levels=Sp.position),
-           LoE=factor(capitalize(LoE),levels=capitalize(names(LOE.risks))))%>%
+    mutate(Species=factor(Species,levels=Sp.position))%>%
+    left_join(LoE.wei,by='LoE')%>%
+    mutate(LoE=factor(capitalize(LoE),levels=capitalize(names(LOE.risks))))%>% 
     ggplot(aes(LoE,Species)) +
-    geom_tile(aes(fill = Risk))+
-    labs(x="LOE", y="")+
+    geom_tile(aes(fill = Risk,width = LoE.width))+
+    labs(x="LOE risk", y="")+
     theme_PA(axs.t.siz=12)+
-    theme(legend.position =  'none',
-          axis.text.y = element_text(colour = Sp.color))+
-    scale_fill_manual(values=RiskCls)+
+    theme(legend.title = element_blank(),
+          legend.position = 'top',
+          axis.text.y = element_text(colour = Sp.color,face=Sp.face))+
+    scale_fill_manual(values=RiskCls,drop=FALSE)+
     scale_color_manual(values =lbl.cols)
   
   p2=D%>%
@@ -5966,10 +6108,9 @@ fn.risk.figure.all.LOE=function(d,d1,lbl.cols,RiskCls)
            dummy=1)%>%
     ggplot(aes(dummy,Species,fill = Risk.overall))+
     geom_tile()+
-    scale_fill_manual(values=RiskCls)+
+    scale_fill_manual(values=RiskCls,drop=FALSE)+
     theme_PA()+labs(x='Overall risk')+
-    theme(legend.title = element_blank(),
-          legend.position = 'top',
+    theme(legend.position =  'none',
           axis.title.y=element_blank(),
           axis.text.y=element_blank(),
           axis.ticks.x=element_blank(),
@@ -5979,7 +6120,73 @@ fn.risk.figure.all.LOE=function(d,d1,lbl.cols,RiskCls)
   return(ggarrange(plotlist=list(p1,p2),widths=c(5,1), common.legend = TRUE))
   
 }
-
+fn.risk.all.sp=function(d)
+{
+  p=d%>%
+    mutate(Species=factor(Species,levels=d%>%arrange(Score)%>%pull(Species)))%>%
+    ggplot(aes(Species,Score,fill=Risk))+
+    geom_bar(stat="identity")+ coord_flip()+
+    theme_PA(axs.t.siz=14)+
+    theme(legend.title = element_blank(),
+          legend.position = 'bottom')+
+    ylab('Risk score')+xlab('')+
+    scale_fill_manual(values=RiskColors,drop=FALSE)+
+    scale_y_continuous(breaks = breaks_width(1))  
+  return(p)
+}
+fn.risk.all.sp.eye=function(d,show.all.risk.cat=FALSE)
+{
+  Risk.values=subset(RiskColors,names(RiskColors)%in%unique(pp$Risk))
+  if(show.all.risk.cat) Risk.values=RiskColors
+  pp=d%>%
+    arrange(Score,Risk,Species)%>%
+    mutate(id=row_number(),
+           Score1=8)
+  label_colors=c(Indicator='chocolate4',Non.indicator='cadetblue4',PSA.only='black')
+  label_pp <- pp%>%
+    mutate(angle=90-360*(id-0.5) /nrow(pp),
+           hjust=ifelse( angle < -90, 1, 0),
+           angle=ifelse(angle < -90, angle+180, angle),
+           Species=case_when(Species=='Australian sharpnose shark'~'Au. sharpnose shark',
+                             TRUE~Species),
+           lbl.col=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
+                             Species%in%Store.risk_Other.sp$Species~'Non.indicator',
+                             TRUE~'PSA.only'))
+  p=pp%>%
+    ggplot(aes(x=as.factor(id), y=Score1)) +  
+    geom_bar(aes(fill=Risk),stat="identity")+
+    ylim(-5,12)+
+    scale_fill_manual(values=Risk.values,drop=FALSE)+
+    theme_minimal() +
+    theme(axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank(),
+          plot.margin = unit(rep(-1,4), "cm"),
+          legend.title = element_blank(),
+          legend.position = c(0.5, 0.5),
+          legend.direction='vertical',
+          legend.text = element_text(size=20)) +
+    coord_polar(start = 0)+
+    geom_text(data=label_pp, aes(x=id, y=Score1*1.1, label=Species, hjust=hjust,color=lbl.col),
+              fontface="bold",alpha=0.6, size=2.8, angle= label_pp$angle,
+              inherit.aes = FALSE )+
+    scale_color_manual(values =label_colors)+
+    guides(color = guide_none())
+  return(p)
+}
+fn.compare.risk.ref.point=function(Depletion,B.over.Bmsy,TITL)
+{
+  p=rbind(Depletion%>%
+            mutate(Metric='depletion'),
+          B.over.Bmsy%>%
+            mutate(Likelihood=Likelihood*1.01,
+                   Consequence=Consequence*1.01,
+                   Metric='B.over.Bmsy'))%>%
+    ggplot(aes(Consequence,Likelihood,color=Metric))+
+    geom_point()+
+    facet_wrap(~Species)+ggtitle(TITL)
+  return(p)
+}
 #---Old WoE risk integration  ------------------------------------------------- 
 
 do.old.WOE=FALSE

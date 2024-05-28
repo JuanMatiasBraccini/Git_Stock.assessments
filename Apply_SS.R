@@ -636,7 +636,7 @@ for(w in 1:n.SS)
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
-            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
+            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.probs.f.series=Out.B.Bmsy=
               Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
@@ -806,31 +806,40 @@ for(w in 1:n.SS)
                                       `rownames<-`( NULL )
                                     
               #e. Store trajectories
+              #note: uncertainty is based on asymptotic error
+              
+                #e.1 relative biomass
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                      mods="SS3",
                                                      Type='Depletion',
                                                      scen=Scens$Scenario[s])
               Out.rel.biom[[s]]=dummy$Dat
-              Out.probs.rel.biom[[s]]=dummy$Probs #based on asymptotic error
+              Out.probs.rel.biom[[s]]=dummy$Probs 
               
+              #e.2 F 
               dummy=fn.integrated.mod.get.timeseries(d=Report,
-                                                      mods="SS3",
-                                                      Type='F.series',
-                                                      scen=Scens$Scenario[s])
+                                                     mods="SS3",
+                                                     Type='F.series',
+                                                     scen=Scens$Scenario[s])
               Out.f.series[[s]]=dummy$Dat
+              Out.probs.f.series[[s]]=dummy$Probs
               
+              #e.3 B/Bmsy
               dummy=fn.integrated.mod.get.timeseries(d=Report,
-                                                      mods="SS3",
-                                                      Type='B.Bmsy',
-                                                      scen=Scens$Scenario[s])
+                                                     mods="SS3",
+                                                     Type='B.Bmsy',
+                                                     scen=Scens$Scenario[s],
+                                                     get.uncertainty='CV') 
               Out.B.Bmsy[[s]]=dummy$Dat
               Out.probs.B.Bmsy[[s]]=dummy$Probs
               Kobe.stock=dummy$Out.Kobe
               
+              #e.4 F/Fmsy
               dummy=fn.integrated.mod.get.timeseries(d=Report,
-                                                      mods="SS3",
-                                                      Type='F.Fmsy',
-                                                      scen=Scens$Scenario[s])
+                                                     mods="SS3",
+                                                     Type='F.Fmsy',
+                                                     scen=Scens$Scenario[s],
+                                                     get.uncertainty='ratio.first')
               Out.F.Fmsy[[s]]=dummy$Dat
               Kobe.harvest=dummy$Out.Kobe
               
@@ -865,7 +874,8 @@ for(w in 1:n.SS)
                                 
               #Kobe
               if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=data.frame(stock=Kobe.stock,
-                                                                         harvest=Kobe.harvest)
+                                                                         harvest=Kobe.harvest)%>%
+                                                                        filter(stock>=0 & harvest>=0)
               
               #Posterior vs prior
               if(Report$parameters%>%filter(Label=='SR_BH_steep')%>%pull(Phase)>0)
@@ -921,6 +931,7 @@ for(w in 1:n.SS)
                         dummy.store.rel.biom=do.call(rbind,Out.rel.biom),
                         dummy.store.probs.rel.biom=Out.probs.rel.biom,
                         dummy.store.probs.B.Bmsy=Out.probs.B.Bmsy,
+                        dummy.store.probs.f.series=Out.probs.f.series,
                         dummy.store.f.series=do.call(rbind,Out.f.series),
                         dummy.store.B.Bmsy=do.call(rbind,Out.B.Bmsy),
                         dummy.store.F.Fmsy=do.call(rbind,Out.F.Fmsy),
@@ -929,7 +940,7 @@ for(w in 1:n.SS)
                         dummy.store.likelihoods=do.call(rbind,Out.likelihoods)  
                         ))
             
-            rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
+            rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,Out.probs.f.series,
                Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods) 
             
           }
@@ -990,7 +1001,7 @@ for(w in 1:n.SS)
     {
       dummy.store=vector('list',N.sp)
       names(dummy.store)=Keep.species
-      dummy.store.estimates=dummy.store.likelihoods=dummy.store.rel.biom=dummy.store.probs.rel.biom=
+      dummy.store.estimates=dummy.store.likelihoods=dummy.store.rel.biom=dummy.store.probs.rel.biom=dummy.store.probs.f.series=
         dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
         dummy.store.sens.table=dummy.store.ensemble=dummy.store
       
@@ -1614,7 +1625,7 @@ for(w in 1:n.SS)
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
-            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
+            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=Out.probs.f.series=
               Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
@@ -1786,6 +1797,8 @@ for(w in 1:n.SS)
                                      `rownames<-`( NULL )
                                 
               #e. Store trajectories
+              
+              #e.1 relative biomass
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                      mods="SS3",
                                                      Type='Depletion',
@@ -1793,24 +1806,30 @@ for(w in 1:n.SS)
               Out.rel.biom[[s]]=dummy$Dat
               Out.probs.rel.biom[[s]]=dummy$Probs   #based on asymptotic error
               
+              #e.2 F
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                       mods="SS3",
                                                       Type='F.series',
                                                       scen=Scens$Scenario[s])
               Out.f.series[[s]]=dummy$Dat
+              Out.probs.f.series[[s]]=dummy$Probs
               
+              #e.3 B/Bmsy
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                       mods="SS3",
                                                       Type='B.Bmsy',
-                                                      scen=Scens$Scenario[s])
+                                                      scen=Scens$Scenario[s],
+                                                     get.uncertainty='CV')
               Out.B.Bmsy[[s]]=dummy$Dat
               Out.probs.B.Bmsy[[s]]=dummy$Probs
               Kobe.stock=dummy$Out.Kobe
               
+              #e.4 F/Fmsy
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                       mods="SS3",
                                                       Type='F.Fmsy',
-                                                      scen=Scens$Scenario[s])
+                                                      scen=Scens$Scenario[s],
+                                                     get.uncertainty='ratio.first')
               Out.F.Fmsy[[s]]=dummy$Dat
               Kobe.harvest=dummy$Out.Kobe
               
@@ -1845,7 +1864,8 @@ for(w in 1:n.SS)
                                   
               #Kobe
               if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=data.frame(stock=Kobe.stock,
-                                                                         harvest=Kobe.harvest)
+                                                                         harvest=Kobe.harvest)%>%
+                                                                filter(stock>=0 & harvest>=0)
               
               
               print(paste("___________","SS3 Scenario",Scens$Scenario[s],"___________",Neim))
@@ -1897,6 +1917,7 @@ for(w in 1:n.SS)
             dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
             dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
             dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
+            dummy.store.probs.f.series[[i]]=Out.probs.f.series
             dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
             dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
             dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
@@ -1935,6 +1956,7 @@ for(w in 1:n.SS)
       Age.based[[w]]$rel.biom=dummy.store.rel.biom
       Age.based[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
       Age.based[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
+      Age.based[[w]]$probs.f.series=dummy.store.probs.f.series
       Age.based[[w]]$f.series=dummy.store.f.series
       Age.based[[w]]$B.Bmsy=dummy.store.B.Bmsy
       Age.based[[w]]$F.Fmsy=dummy.store.F.Fmsy
@@ -1942,8 +1964,8 @@ for(w in 1:n.SS)
       Age.based[[w]]$likelihoods=dummy.store.likelihoods
       
       
-      rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,
-         dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,
+      rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,dummy.store.probs.f.series,
+         dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,dummy.store.probs.B.Bmsy,
          dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.Kobe.probs,dummy.store.likelihoods)
       
     }
@@ -2376,9 +2398,52 @@ if(do.F.series)
     if(!is.null(a))ggsave(paste(Rar.path,'/F.series_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
                           width = WIDt,height = 10,compression = "lzw")
   }
+  
+  #table 
+  for(l in 1:length(Lista.sp.outputs))
+  {
+    dummy.mod=vector('list',length(Age.based))
+    for(m in 1:length(Age.based))
+    {
+      str.prob=Age.based[[m]]$probs.f.series
+      str.prob=str.prob[match(Lista.sp.outputs[[l]],names(str.prob))]
+      str.prob=compact(str.prob)
+      if(length(str.prob)>0)
+      {
+        dummy=vector('list',length =length(str.prob))
+        for(d in 1:length(dummy))
+        {
+          dummy[[d]]=str.prob[[d]][[1]]$probs%>%
+            mutate(Species=capitalize(names(str.prob)[d]))
+          
+          if('probs.future'%in%names(str.prob[[d]][[1]]))
+          {
+            dummy[[d]]=rbind(dummy[[d]],
+                             str.prob[[d]][[1]]$probs.future%>%
+                               mutate(Species=capitalize(names(str.prob)[d])))
+          }
+        }
+        dummy.mod[[m]]=do.call(rbind,dummy)%>%
+          mutate(Model=names(Age.based)[m])
+      }
+    }
+    dummy.mod=compact(dummy.mod)
+    if(length(dummy.mod)>0)
+    {
+      write.csv(do.call(rbind,dummy.mod)%>%
+                  mutate(Range=factor(Range,levels=c(">lim","lim.thr","thr.tar","<tar")))%>%
+                  spread(Species,Probability)%>%
+                  arrange(Range),
+                paste(Rar.path,'/Table 12. Age.based_SS_Current.f_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+                row.names=F)
+      rm(dummy.mod)
+      
+    }
+  }
 }
 
 #25.3.3 Display sensitivity tests for combined species
+disspisis=names(Age.based$SS$rel.biom)[!sapply(Age.based$SS$rel.biom,is.null)] 
 for(l in 1:length(Lista.sp.outputs))
 {
   print(paste("SS3 --- Relative biomass plot by Scenario -----",names(Lista.sp.outputs)[l],"----- single plot"))
@@ -2388,10 +2453,11 @@ for(l in 1:length(Lista.sp.outputs))
                                             InnerMargin=InMar,
                                             RefPoint=Ref.points,
                                             Kach=Age.based$SS$rel.biom)
-  WIDt=10
-  if(length(compact(Age.based$SS$sens.table))<=3) WIDt=7
+  HEIT=8
+  WIDt=8
+  if(length(which(Lista.sp.outputs[[l]]%in%disspisis))<=3) WIDt=6
   if(!is.null(a))ggsave(paste(Rar.path,'/Relative.biomass_SS3 integrated_',names(Lista.sp.outputs)[l],'_sensitivity.tiff',sep=''),
-                        width = WIDt,height = 10,compression = "lzw")
+                        width = WIDt,height = HEIT,compression = "lzw")
 }
 
 #25.4. Compare goodness of fit for different Scenarios  
@@ -2540,7 +2606,7 @@ for(i in 1:N.sp)
 }
 
 #25.8 Store Consequence and likelihood for WoE 
-get.cons.like.SS=FALSE  #import from table instead
+get.cons.like.SS=FALSE   #Superseded. Now this is extracted from exported tables
 if(get.cons.like.SS) Store.cons.Like_Age.based=fn.get.cons.like(lista=Age.based) 
 
 
