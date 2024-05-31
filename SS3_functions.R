@@ -2144,6 +2144,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
           exe=exe_path)
     retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
     if(any(is.na(retroModels)))retroModels=retroModels[-which(is.na(retroModels))]
+    if(Neim=='milk shark') retroModels=retroModels[-1]   
     retroSummary <- r4ss::SSsummarize(retroModels,verbose = FALSE)
     if("len"%in%dis.dat & outLength.Cross.Val) retroComp= SSretroComps(retroModels)
     
