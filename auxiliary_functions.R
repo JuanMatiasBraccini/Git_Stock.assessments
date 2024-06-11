@@ -5590,6 +5590,53 @@ fn.get.f.ref.points=function(Report,propTar=Tar.prop.bmsny,propLim=Lim.prop.bmsy
   ggsave(paste(this.wd1,'F reference points.tiff',sep='/'),width = 6,height = 6, dpi = 300, compression = "lzw")
   return(list(F.target=F.target,F.threshold=F.threshold,F.limit=F.limit)) 
 }
+
+fn.get.Numbers.from.K=function(Life.history,SampleSize=5000,TimeStep = 1,FishMort = 1e-8,MLL=NA,K)
+{
+  set.seed(123)
+  SelectivityType=2 # 1=selectivity inputted as vector, 2=asymptotic logistic selectivity curve
+  SelectivityVec = NA # selectivity vector
+  SelParams = c(0, 0) # L50, L95-L50 for gear selectivity
+  RetenParams = c(NA, NA) # L50, L95-L50 for retention
+  DiscMort = 0 # proportion of fish that die due to natural mortality
+  GrowthCurveType = 1 
+  
+  
+  MaxAge = Life.history$Max.age.F[1]
+  NatMort = mean(Life.history$Sens.test$DBSRA$Mmean)  #4.22/MaxAge
+  MaxLen = Life.history$TLmax
+  LenInc = LenInc
+  Linf = Life.history$Growth.F$FL_inf*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL
+  vbK = Life.history$Growth.F$k
+  to =  Life.history$Growth.F$to
+  CVSizeAtAge = 0.08
+  GrowthParams = c(Linf, vbK)
+  RefnceAges = NA
+  
+  #1. Get Population age distribution with no fishing
+  Res=SimLenAndAgeFreqData(SampleSize, MaxAge, TimeStep, NatMort, FishMort, MaxLen, LenInc, MLL, SelectivityType,
+                           SelParams, RetenParams, SelectivityVec, DiscMort, GrowthCurveType, GrowthParams, RefnceAges, CVSizeAtAge)
+  
+  d=table(Res$ObsDecAgeRetCatch)
+  d=data.frame(d)%>%
+    rename(Age=Var1)%>%
+    mutate(N.rel=Freq/SampleSize)
+  
+  #2. Convert age to length and weight
+  d=d%>%
+    mutate(Age=as.numeric(as.character(Age)),
+           TL=Linf*(1-exp(-vbK*(Age-to))),
+           TW=Life.history$AwT*TL^Life.history$BwT)
+  
+  
+  #3. Reapportion K to weight classes and calculate numbers at age
+  d=d%>%
+    mutate(N.at.age=(N.rel*K)/TW)
+  
+  return(d)
+  
+}
+
 # Store consequence-likelihood  ------------------------------------------------------
 fn.get.cons.like=function(lista,Mod.Avrg.weight=NULL)
 {

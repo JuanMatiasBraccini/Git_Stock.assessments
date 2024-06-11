@@ -3826,6 +3826,48 @@ if(plot.bmsyK)
   
 }
 
+#Get population numbers from K estimation (virgin conditions)
+Get.pop.numbers=FALSE
+if(Get.pop.numbers)
+{
+  Numbers.from.K=vector('list',length(Lista.sp.outputs))
+  for(l in 1: length(Lista.sp.outputs))
+  {
+    dis.spicis=Lista.sp.outputs[[l]]
+    dummy=vector('list',length(dis.spicis))
+    K.estims_DBSRA=read.csv(paste0(Rar.path,'/Table 3. Catch only_estimates_DBSRA_',names(Lista.sp.outputs)[l],'.csv'))%>%
+      filter(Scenario=='S1' & Parameter=='K')
+    K.estims_CMSY=read.csv(paste0(Rar.path,'/Table 3. Catch only_estimates_CMSY_',names(Lista.sp.outputs)[l],'.csv'))%>%
+      filter(Scenario=='S1' & Parameter=='K')
+    for(i in 1:length(dis.spicis))
+    {
+      Carrying.capacity=rbind(K.estims_DBSRA%>%filter(Species==capitalize(dis.spicis[i])),
+                              K.estims_CMSY%>%filter(Species==capitalize(dis.spicis[i])))
+      dummy[[i]]=fn.get.Numbers.from.K(Life.history=List.sp[[match(dis.spicis[i],names(List.sp))]],K=mean(Carrying.capacity$Median)*1000)%>%
+        mutate(Species=capitalize(dis.spicis[i]),
+               N=sum(N.at.age))
+      
+      
+    }
+    Numbers.from.K[[l]]=do.call(rbind,dummy)
+  }
+  do.call(rbind,Numbers.from.K)%>%
+    mutate(Species=case_when(Species=='Great hammerhead'~'Great H.',
+                             Species=='Scalloped hammerhead'~'Scalloped H.',
+                             Species=='Smooth hammerhead'~'Smooth H.',
+                             TRUE~Species),
+           Facet=paste0(Species,' (N=',format(round(N), nsmall=0, big.mark=","),')'))%>%
+    ggplot(aes(Age,N.at.age))+
+    geom_point()+
+    facet_wrap(~Facet,scales='free')+
+    ylab('Numbers')+
+    theme_PA(strx.siz=9)
+  ggsave(paste0(Rar.path,"/Numbers of individuals from K_Catch only.tiff"),
+         width = 11.5,height = 8, dpi = 300, compression = "lzw")
+  
+}
+
+
 #Get Consequence and likelihoods
 if(COM_use.this.for.risk=='catch')
 {
@@ -3878,6 +3920,7 @@ clear.log('visualize.dat')
 clear.log('Mod.AV')
 clear.log('mod.average')
 clear.log('dummy.store.Kobe.probs')
+clear.log('fn.get.Numbers.from.K')
 
 #---19. Spatio-temporal catch and effort. Reported TDGLF and NSF ----   
 if(Do.Spatio.temporal.catch.effort) fn.source1('TDGLF and NSF spatio-temporal catch and effort.r')
