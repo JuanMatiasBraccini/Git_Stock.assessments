@@ -284,6 +284,10 @@ Minimum.acceptable.blim=0.2  #Blim should be the max(Minimum.acceptable.blim,Lim
 col.Target='forestgreen'
 col.Threshold='orange'
 col.Limit='red'
+COM.limit=1  #as proportion of MSY
+COM.threshold=0.8
+COM.target=0.5
+
 
 #18. Catch-only Models
 COM_use.this.for.risk='catch' #  define if using 'catch' or 'biomass' trajectories to determine risk from catch-only methods
@@ -308,6 +312,7 @@ r.prob.max=0.9999   #quantile probs for defining r range for CMSY
 r.prob.min=1e-3
 #Ensemble.weight='weighted'  #define if doing weighted or unweighted model average
 Ensemble.weight='equal'
+Wei.SSS=2   #give more weight to SSS given biological realism
 tweak.BmsyK.Cortes=FALSE #update value to increase COM acceptance rate
 tweak.Final.Bio_low=FALSE #update value to increase COM acceptance rate
 n.last.catch.yrs_MSY.catch.only=5
@@ -531,7 +536,7 @@ if(Do.bespoke)
 }
 
 #23. Weight of Evidence
-LoE.Weights=c(Spatial=.25,COM=.5,JABBA=1,integrated=2)  
+LoE.Weights=c(Spatial=0,COM=0,JABBA=0,integrated=1)  #if no integrated, use next highest
 RiskColors=c('Negligible'="cornflowerblue",
              'Low'="chartreuse3",  #olivedrab3
              'Medium'="yellow1",
@@ -542,6 +547,7 @@ Like.ranges=list(L1=c(0,0.0499999),
                  L2=c(0.05,0.2),
                  L3=c(0.20001,0.5),
                  L4=c(0.50001,1))
+label_colors=c(Indicator='chocolate4',Non.indicator='cadetblue4',PSA.only='black')
 
 #24. Average ratio L50:L95 for species with no L95 estimates
 average.prop.L95_L50=mean(c(135.4/154.5,225/262,210/240,113/138,175/198,281/328,113/139,125/136,113/138))
@@ -4256,7 +4262,7 @@ if(exists("Store.cons.Like_COM"))
 {
   if(COM_use.this.for.risk=='catch')
   {
-    Risk.COM=fun.risk.CoMs(d=Store.cons.Like_COM)
+    Risk.COM=fun.risk.CoMs(d=Store.cons.Like_COM,Ktch.type='dist')
   }
   if(COM_use.this.for.risk=='biomass')
   {
@@ -4314,6 +4320,8 @@ Risk.JABBA=Risk.JABBA%>%filter(finyear==min(Risk.JABBA$finyear))%>%dplyr::select
 Risk.integrated=Risk.integrated%>%filter(finyear==min(Risk.integrated$finyear))%>%dplyr::select(-finyear)
 
   #2.2. Combine Risks from all individual LoEs 
+Risk.COM=Risk.COM%>%
+  relocate(names(Risk.JABBA))
 LOE.risks=list(PSA=Risk.PSA,Spatial=Risk.Spatial,COM=Risk.COM,JABBA=Risk.JABBA,integrated=Risk.integrated)
 if(exists("Store.cons.Like_CatchCurve")) LOE.risks$CatchCurve=Risk.CatchCurve 
 Store.risks=LOE.risks
@@ -4330,11 +4338,42 @@ Table.risks=Store.risks%>%
   spread(LoE,Risk)%>%
   rename(Integrated=integrated)
 
-  #2.3. Calculate and display overall risk
+  #2.3. Calculate and display overall risk 
 Weighted.overall.risk=do.call(rbind,LOE.risks[-match('PSA',names(LOE.risks))])%>%
   left_join(data.frame(LoE=names(LoE.Weights),
                        LoE.weight=LoE.Weights),by='LoE')%>%
-  mutate(LoE.weight=ifelse(LoE=='PSA',1,LoE.weight))%>%
+  mutate(LoE.weight=ifelse(LoE=='PSA',1,LoE.weight))
+  
+  #if no integrated assessment, use next highest assessment
+  en.spi=unique(Weighted.overall.risk$Species)
+  for(x in 1:length(en.spi))
+  {
+    a=Weighted.overall.risk%>%filter(Species==en.spi[x])
+    Weighted.overall.risk=Weighted.overall.risk%>%filter(!Species==en.spi[x])
+    disLoes=unique(a$LoE)
+    if(!"integrated"%in%disLoes)
+    {
+      if("JABBA"%in%disLoes)
+      {
+        a=a%>%
+          mutate(LoE.weight=ifelse(LoE=="JABBA",1,LoE.weight))
+      }else
+      {
+        if("CatchCurve"%in%disLoes)
+        {
+          a=a%>%
+            mutate(LoE.weight=ifelse(LoE=="CatchCurve",1,LoE.weight))
+        }else
+        {
+          a=a%>%
+            mutate(LoE.weight=ifelse(LoE%in%c("Spatial","COM"),1,LoE.weight))
+        }
+      }
+    }
+    Weighted.overall.risk=rbind(Weighted.overall.risk,a)
+  }
+  
+Weighted.overall.risk=Weighted.overall.risk%>%  
   group_by(Species,Consequence)%>%
   mutate(Weighted.Likelihood=weighted.mean(x=Likelihood,w=LoE.weight))%>%
   dplyr::select(Species,LoE,Consequence,Weighted.Likelihood,Probability,w)%>%
@@ -4402,7 +4441,7 @@ if(add.non.interacting.species)  #display species not interacting with fishing?
 fn.risk.all.sp.eye(d=p1,show.all.risk.cat=TRUE)  
 ggsave(paste(Rar.path,"Risk_all species together_proportion.tiff",sep='/'),width = 8,height = 8,compression = "lzw")
 
-  #3.3 Each LoE risk and overall risk  
+  #3.3 Each LoE risk and overall risk  ACA
 fn.risk.figure.all.LOE(d=Store.risks,
                        d1=Out.overall.risk,
                        lbl.cols=label_colors,

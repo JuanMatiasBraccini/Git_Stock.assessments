@@ -2879,11 +2879,7 @@ for(i in 1:N.sp)
     Wei=COM_weight_by.r.group%>%
       filter(r.group==row.names(dis.r.range))%>%
       dplyr::select(-r.group)
-    if(!'SSS'%in%Wei$Model)
-    {
-      Wei.SSS=Wei%>%filter(Model=='DBSRA')%>%mutate(Model='SSS')
-      if('SSS'%in%names(Catch_only)) Wei=rbind(Wei,Wei.SSS)
-    }
+    Wei=Wei%>%mutate(Weight=ifelse(Model=='SSS',Wei.SSS,Weight))
     Wei=Wei%>%filter(Model%in%names(Catch_only)) 
     
     #Reference points  
@@ -2928,10 +2924,15 @@ for(i in 1:N.sp)
                      Weights=Wei)
     Mod.AV_F.Fmsy[[i]]=dumi$Trajectories
     
-    #MSY  
+    #MSY 
+    tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                    capitalize(Keep.species[i]),"/",AssessYr,"/Catch_only_MSY cumulative density.tiff",sep=''),
+         width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
     Mod.AV_MSY[[i]]=mod.average.scalar(dd=map(Catch_only, ~.x$ensemble[[i]]$MSY),   
                                        Weights=Wei,
-                                       KtcH=Store.catch.MSY[[i]]%>%distinct(Year,.keep_all = T)%>%dplyr::select(Year,Catch))  
+                                       KtcH=Store.catch.MSY[[i]]%>%distinct(Year,.keep_all = T)%>%dplyr::select(Year,Catch),
+                                       approach="Proportions")  
+    dev.off()
 
     
     rm(Wei)

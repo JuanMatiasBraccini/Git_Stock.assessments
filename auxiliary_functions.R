@@ -3314,7 +3314,7 @@ mod.average=function(dd,Weights,Ref.pnt=NULL)
   }
   return(list(Trajectories=Trajectories,Probs=Probs,Probs.future=Probs.future))
 }
-mod.average.scalar=function(dd,Weights,KtcH)
+mod.average.scalar=function(dd,Weights,KtcH,approach="Proportions",Ktch.type='dist')
 {
   NN=max(sapply(dd,nrow))
   for(w in 1:length(dd))
@@ -3332,22 +3332,59 @@ mod.average.scalar=function(dd,Weights,KtcH)
   Upper=quantile(dd,probs=0.975,na.rm=T)
   Lower.60=quantile(dd,probs=0.2,na.rm=T)
   Upper.60=quantile(dd,probs=0.8,na.rm=T)
-  Threshold=Upper.60
-  Limit=Upper
-  Target=Median
-  Catch.mean.last.n.yrs=mean(data.table::last(KtcH$Catch,n.last.catch.yrs_MSY.catch.only))
-  f=ecdf(dd) 
-  P.catch=f(Catch.mean.last.n.yrs)
-  P.below.target=f(Target)
-  P.below.threshold=f(Threshold)  
-  P.below.limit=f(Limit)
-  #Minor consequence (1): catch<tar; Moderate (2): tar<catch<thre; High (3): thre<catch<Limit; Major (4): Limit<catch
-  P.catch.below.tar=ifelse(Catch.mean.last.n.yrs<=Target,1,0)
-  P.between.thre.tar=ifelse(Target<Catch.mean.last.n.yrs & Catch.mean.last.n.yrs<=Threshold,1,0)
-  P.between.lim.thre=ifelse(Threshold<Catch.mean.last.n.yrs & Catch.mean.last.n.yrs<=Limit,1,0)
-  P.catch.above.limit=ifelse(Limit<Catch.mean.last.n.yrs,1,0)
   
-
+  if(approach=="Proportions")
+  {
+    Threshold=COM.threshold*Median 
+    Limit=COM.limit*Median 
+    Target=COM.target*Median
+  }
+  if(approach=="Percentiles")
+  {
+    Threshold=Upper.60
+    Limit=Upper
+    Target=Median
+  }
+  
+  if(Ktch.type=='dist')
+  {
+    Catch.last.n.yrs=data.table::last(KtcH$Catch,n.last.catch.yrs_MSY.catch.only)
+    Catch.dist=rnorm(1e4,mean=mean(Catch.last.n.yrs),sd=sd(Catch.last.n.yrs))
+    f=ecdf(Catch.dist)
+    P.below.target=f(Target)
+    P.below.threshold=f(Threshold)
+    P.below.limit=f(Limit)
+    P.catch.below.tar=P.below.target
+    P.between.thre.tar=P.below.threshold-P.below.target
+    P.between.lim.thre=P.below.limit-P.below.threshold
+    P.catch.above.limit=1-P.below.limit
+    
+    plot(f,xlab='Tonnes',main=Keep.species[i])
+    abline(v=Limit,col=col.Limit)
+    abline(v=Threshold,col=col.Threshold)
+    abline(v=Target,col=col.Target)
+  }
+  if(Ktch.type=='scalar')
+  {
+    Catch.mean.last.n.yrs=mean(data.table::last(KtcH$Catch,n.last.catch.yrs_MSY.catch.only))
+    f=ecdf(dd) 
+    P.catch=f(Catch.mean.last.n.yrs)
+    P.below.target=f(Target)
+    P.below.threshold=f(Threshold)  
+    P.below.limit=f(Limit)
+    #Minor consequence (1): catch<tar; Moderate (2): tar<catch<thre; High (3): thre<catch<Limit; Major (4): Limit<catch
+    P.catch.below.tar=ifelse(Catch.mean.last.n.yrs<=Target,1,0)
+    P.between.thre.tar=ifelse(Target<Catch.mean.last.n.yrs & Catch.mean.last.n.yrs<=Threshold,1,0)
+    P.between.lim.thre=ifelse(Threshold<Catch.mean.last.n.yrs & Catch.mean.last.n.yrs<=Limit,1,0)
+    P.catch.above.limit=ifelse(Limit<Catch.mean.last.n.yrs,1,0)
+    
+    plot(f,xlab='Tonnes',main=Keep.species[i])
+    abline(v=Catch.mean.last.n.yrs,col='blue')
+    abline(v=Limit,col=col.Limit)
+    abline(v=Threshold,col=col.Threshold)
+    abline(v=Target,col=col.Target)
+  }
+  
   return(data.frame(median=Median,
                     lower.60=Lower.60,upper.60=Upper.60,
                     lower.95=Lower,upper.95=Upper,
@@ -4485,7 +4522,8 @@ fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Ka
       addKtch=TRUE
       for(q in 1:length(Var))
       {
-        RP=RefPoint[[q]][[1]]%>%data.frame
+        if(is.data.frame(RefPoint[[q]])) RP=RefPoint[[q]]%>%data.frame
+        if(!is.data.frame(RefPoint[[q]])) RP=RefPoint[[q]][[1]]%>%data.frame
         if(!is.data.frame(RP))
         {
           if(length(RP)>1)
@@ -4797,6 +4835,9 @@ fn.plot.catch.vs.MSY=function(d,sp,YLAB)
       geom_ribbon(aes(ymin = MSY_Lower.95_S2, ymax = MSY_Upper.95_S2), alpha=.1,fill =ColS2)+
       geom_ribbon(aes(ymin = MSY_Lower.60_S2, ymax = MSY_Upper.60_S2), alpha=.3,fill =ColS2)+
       geom_line(size=.75,color='dodgerblue4')+
+      geom_hline(aes(yintercept=MSY_Median*COM.limit), color = col.Limit)+  
+      geom_hline(aes(yintercept=MSY_Median*COM.threshold), color = col.Threshold)+
+      geom_hline(aes(yintercept=MSY_Median*COM.target), color = col.Target)+
       facet_wrap(~Model,ncol=1)+
       theme_PA()+ylab(YLAB)+xlab('Financial year')
     future.ktch=store.plots%>%filter(Year>Last.yr.ktch.numeric)
@@ -4850,6 +4891,9 @@ fn.plot.catch.vs.MSY_combined_Appendix=function(all.this.sp,this.sp,d,NM,YLAB)
         geom_ribbon(aes(ymin = MSY_Lower.95, ymax = MSY_Upper.95), alpha=.1,fill ="black")+
         geom_ribbon(aes(ymin = MSY_Lower.60, ymax = MSY_Upper.60), alpha=.3,fill ="black")+
         geom_line(size=.75,color='dodgerblue4')+
+        geom_hline(aes(yintercept=MSY_Median*COM.limit), color = col.Limit)+ 
+        geom_hline(aes(yintercept=MSY_Median*COM.threshold), color = col.Threshold)+
+        geom_hline(aes(yintercept=MSY_Median*COM.target), color = col.Target)+
         facet_wrap(~Species,scales='free_y',ncol=Nkl)+
         theme_PA(axs.t.siz=aXS.si,strx.siz=STR.siz)+
         ylab(YLAB)+xlab("Financial year")
@@ -4921,6 +4965,9 @@ fn.plot.catch.vs.MSY_combined=function(all.this.sp,this.sp,d,NM,YLAB,MSY)
       geom_ribbon(aes(ymin = ensembled.lower.95, ymax = ensembled.upper.95), alpha=.1,fill ="black")+
       geom_ribbon(aes(ymin = ensembled.lower.60, ymax = ensembled.upper.60), alpha=.3,fill ="black")+
       geom_line(size=.75,color='dodgerblue4')+
+      geom_hline(aes(yintercept=ensembled.median*COM.limit), color = col.Limit)+  
+      geom_hline(aes(yintercept=ensembled.median*COM.threshold), color = col.Threshold)+
+      geom_hline(aes(yintercept=ensembled.median*COM.target), color = col.Target)+
       facet_wrap(~Species,scales='free',ncol=Nkl)+
       theme_PA(axs.t.siz=aXS.si,strx.siz=STR.siz)+
       ylab(YLAB)+xlab("Financial year")
@@ -5865,28 +5912,52 @@ fun.risk.spatial.dist=function(d,Optns=c('increasing','stable','decreasing'),Mul
   return(risk.tab)
   
 }
-fun.risk.CoMs=function(d)
+fun.risk.CoMs=function(d,Ktch.type='dist')  
 {
   dd=vector('list',nrow(d))
-  for(q in 1:length(dd))
+  if(Ktch.type=='scalar')
   {
-    d[q,]
-    dd[[q]]=data.frame(Species=rep(d[q,]$Species,4),
-                       Consequence=1:4,
-                       Likelihood=1,
-                       Probability=0)%>%
-      mutate(Likelihood=case_when(d[q,]$P.catch.below.tar==1 & Consequence==1~4,
-                                  d[q,]$P.between.thre.tar==1 & Consequence==2~4,
-                                  d[q,]$P.between.lim.thre==1 & Consequence==3~4,
-                                  d[q,]$P.catch.above.limit==1 & Consequence==4~4,
-                                  TRUE~Likelihood),
-             Probability=case_when(d[q,]$P.catch.below.tar==1 & Consequence==1~1,
-                                   d[q,]$P.between.thre.tar==1 & Consequence==2~1,
-                                   d[q,]$P.between.lim.thre==1 & Consequence==3~1,
-                                   d[q,]$P.catch.above.limit==1 & Consequence==4~1,
-                                   TRUE~Probability),
-             w=1)
+    for(q in 1:length(dd))
+    {
+      d[q,]
+      dd[[q]]=data.frame(Species=rep(d[q,]$Species,4),
+                         Consequence=1:4,
+                         Likelihood=1,
+                         Probability=0)%>%
+        mutate(Likelihood=case_when(d[q,]$P.catch.below.tar==1 & Consequence==1~4,
+                                    d[q,]$P.between.thre.tar==1 & Consequence==2~4,
+                                    d[q,]$P.between.lim.thre==1 & Consequence==3~4,
+                                    d[q,]$P.catch.above.limit==1 & Consequence==4~4,
+                                    TRUE~Likelihood),
+               Probability=case_when(d[q,]$P.catch.below.tar==1 & Consequence==1~1,
+                                     d[q,]$P.between.thre.tar==1 & Consequence==2~1,
+                                     d[q,]$P.between.lim.thre==1 & Consequence==3~1,
+                                     d[q,]$P.catch.above.limit==1 & Consequence==4~1,
+                                     TRUE~Probability),
+               w=1)
+    }
   }
+
+  if(Ktch.type=='dist')   
+  {
+    for(q in 1:length(dd))
+    {
+      d[q,]
+      dd[[q]]=d[q,]%>%
+                gather(Consequence,Probability,-Species)%>%
+                mutate(Consequence=case_when(Consequence=='P.catch.below.tar'~1,
+                                             Consequence=='P.between.thre.tar'~2,
+                                             Consequence=='P.between.lim.thre'~3,
+                                             Consequence=='P.catch.above.limit'~4),
+                       Likelihood=NA,
+                       w=1)
+      for(n in 1:nrow(dd[[q]]))
+      {
+        dd[[q]]$Likelihood[n]=which(unlist(lapply(Like.ranges,function(x) check.in.range(dd[[q]]$Probability[n],x,fatal=F))))
+      }
+    }
+  }
+  
   return(do.call(rbind,dd))
 }
 fn.risk=function(d,w)
@@ -6133,8 +6204,8 @@ fn.risk.figure.all.LOE=function(d,d1,lbl.cols,RiskCls)
             pull(bold)
   LoE.wei=rbind(data.frame(LoE='PSA',LoE.width=1),
                 data.frame(LoE=names(LoE.Weights),
-                    LoE.width=LoE.Weights))%>%
-            mutate(LoE.width=1.2*LoE.width/max(LoE.width))
+                    LoE.width=1))
+            #mutate(LoE.width=1.2*LoE.width/max(LoE.width))
   p1=D%>%
     mutate(Species=factor(Species,levels=Sp.position))%>%
     left_join(LoE.wei,by='LoE')%>%
@@ -6183,13 +6254,13 @@ fn.risk.all.sp=function(d)
 }
 fn.risk.all.sp.eye=function(d,show.all.risk.cat=FALSE)
 {
-  Risk.values=subset(RiskColors,names(RiskColors)%in%unique(pp$Risk))
+  Risk.values=subset(RiskColors,names(RiskColors)%in%unique(d$Risk))
   if(show.all.risk.cat) Risk.values=RiskColors
   pp=d%>%
     arrange(Score,Risk,Species)%>%
     mutate(id=row_number(),
            Score1=8)
-  label_colors=c(Indicator='chocolate4',Non.indicator='cadetblue4',PSA.only='black')
+  
   label_pp <- pp%>%
     mutate(angle=90-360*(id-0.5) /nrow(pp),
            hjust=ifelse( angle < -90, 1, 0),

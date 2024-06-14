@@ -205,6 +205,7 @@ for(l in 1:N.sp)
   ktch=ktch.combined%>%
     filter(Name==List.sp[[l]]$Name)  
   Klow=k.fun(ktch$Tonnes,Depl.lvl%>%pull(K_times_max_ktch_min)) 
+  if(NeiM=="angel sharks") Klow=2000  #to allow enough COMs samples to be accepted
   Kup=max(K_min,k.fun(ktch$Tonnes,Depl.lvl%>%pull(K_times_max_ktch_max)))  
   fmsy.m=0.41                 # Zhou et al 2012 fmsy/M=0.41 for chondrichthyans
   fmsy.m2=Fmsy.M.scaler[[l]]  #Cortes & Brooks 2018
