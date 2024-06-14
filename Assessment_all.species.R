@@ -4441,7 +4441,7 @@ if(add.non.interacting.species)  #display species not interacting with fishing?
 fn.risk.all.sp.eye(d=p1,show.all.risk.cat=TRUE)  
 ggsave(paste(Rar.path,"Risk_all species together_proportion.tiff",sep='/'),width = 8,height = 8,compression = "lzw")
 
-  #3.3 Each LoE risk and overall risk  ACA
+  #3.3 Each LoE risk and overall risk  
 fn.risk.figure.all.LOE(d=Store.risks,
                        d1=Out.overall.risk,
                        lbl.cols=label_colors,

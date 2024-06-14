@@ -20,13 +20,25 @@ Spatio.temp.dat=rbind(Southern%>%
                         mutate(Fishery='Northern'))
 rm(Southern,Northern)
 
-Relevant.yrs=sort(unique(KtCh.method$FINYEAR))
+Relevant.yrs=sort(unique(KtCh.method$FINYEAR)) 
+
+#Keep only relevant years
+ol.iers=sort(unique(Spatio.temp.dat$FINYEAR))
+use.dis.yrs=ol.iers[1:match(Last.yr.ktch,ol.iers)]
+Spatio.temp.dat=Spatio.temp.dat%>%filter(FINYEAR%in%use.dis.yrs)
+
+
 
 #spatial effort
 Effort.monthly_blocks=fn.in("Effort.monthly.csv")
 Effort.daily_blocks=fn.in("Effort.daily.csv")
 Effort.monthly.north_blocks=fn.in("Effort.monthly.north.csv")
 Effort.daily.north_blocks=fn.in("Effort.daily.north.csv") 
+
+Effort.monthly_blocks=Effort.monthly_blocks%>%filter(FINYEAR%in%use.dis.yrs) 
+Effort.monthly.north_blocks=Effort.monthly.north_blocks%>%filter(FINYEAR%in%use.dis.yrs) 
+Effort.daily_blocks=Effort.daily_blocks%>%filter(finyear%in%use.dis.yrs) 
+Effort.daily.north_blocks=Effort.daily.north_blocks%>%filter(finyear%in%use.dis.yrs) 
 
 FINYrS=sort(unique(c(as.character(unique(Effort.monthly_blocks$FINYEAR))),sort(as.character(unique(Effort.daily_blocks$finyear)))))
 grouping=5
@@ -211,7 +223,8 @@ NSF.no.fishing=data.frame(FINYEAR=Effort_blocks$FINYEAR[which(!Effort_blocks$FIN
 Effort_blocks.all=rbind(Effort_blocks%>%mutate(Fishery='Southern'),
                         rbind(Effort.north_blocks,NSF.no.fishing)%>%
                           arrange(FINYEAR)%>%
-                          mutate(Fishery='Northern'))
+                          mutate(Fishery='Northern'))%>%
+                  filter(FINYEAR%in%use.dis.yrs)
 
 
 #plot
@@ -442,7 +455,7 @@ fn.spatio.temp.catch.dist_old=function(d,Snames,prop.by='fishery',show.prop='blk
   return(list(Fished.blks.Fishery=Dummy,
               prop.ktch_over.fished.bocks=d2))
 }
-fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist)
+fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
 {
   #some manipulations
   this.sp=All.species.names%>%filter(SNAME%in%Snames)
@@ -471,8 +484,8 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist)
     theme_PA(leg.siz=12.5,axs.t.siz=13,axs.T.siz=19,Sbt.siz=14,strx.siz=14)+
     theme(
       legend.title=element_blank(),
-      legend.key.size = unit(.65, 'cm'),
-      legend.position = c(0.9, 0.11))+
+      legend.key.size = unit(.5, 'cm'),
+      legend.position = c(0.92, 0.93))+
     ylab(expression('Latitude ('*~degree*S*')'))+xlab(expression('Longitude ('*~degree*E*')'))+
     scale_y_reverse()
   
@@ -591,12 +604,13 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist)
            SNAME=capitalize(SNAME))%>%
     ggplot(aes(yr,prop,colour=Fishery))+
     geom_point(size=2,show.legend = FALSE)+
-    stat_smooth(method = "lm",
-                formula = y ~ x,
-                geom = "smooth",
-                se = FALSE)+
-    stat_regline_equation(aes(label=paste(..eq.label..,..rr.label..,sep="~~~~"), color=Fishery),
-                          label.y = 1,label.x = quantile(d2$year,.01), size = Siz)+
+    geom_line()+
+    # stat_smooth(method = "lm",
+    #             formula = y ~ x,
+    #             geom = "smooth",
+    #             se = FALSE)+
+    # stat_regline_equation(aes(label=paste(..eq.label..,..rr.label..,sep="~~~~"), color=Fishery),
+    #                       label.y = 1,label.x = quantile(d2$year,.01), size = Siz)+
     ylab('Proportion of blocks fished with catch within core area')+
     xlab('Financial year')+
     theme_PA(axs.t.siz=13,axs.T.siz=19,Sbt.siz=14,leg.siz=20,strx.siz=16)+
@@ -644,10 +658,33 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist)
                       vp.width = 0.3, vp.height = 0.6))
   
   
-  #combine figures
-  figure=ggarrange(plotlist=list(p1,p2),ncol=2,heights=c(1,1))+
-    theme(plot.margin = margin(0.1,0.5,0.1,0.1, "cm"))
-  print(figure)
+  if(show.Effort.Catch=='combined')
+  {
+    figure=ggarrange(plotlist=list(p1,p2),ncol=2,heights=c(1,1))+
+      theme(plot.margin = margin(0.1,0.5,0.1,0.1, "cm"))
+    print(figure)
+    ggsave(paste(Rar.path,'/Spatio.temporal.catch_combined_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+           width = wiz,height = heiz,compression = "lzw")
+  }
+  
+  if(show.Effort.Catch=='separated')
+  {
+    print(p1)
+    ggsave(paste(Rar.path,'/Spatio.temporal.effort.tiff',sep=''),width = 6,height = 10,compression = "lzw")
+    
+    print(p2)
+    Wi=8
+    Hei=12
+    if(length(Snames)<5)
+    {
+      Wi=6
+      Hei=10 
+    }
+    ggsave(paste(Rar.path,'/Spatio.temporal.catch_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+           width = Wi,height = Hei,compression = "lzw")
+    
+  }
+
   
   
   return(list(Fished.blks.Fishery=Effort_blocks.all,
@@ -668,12 +705,17 @@ for(l in 1:length(Store.spatial.temporal.ktch))
     wiz = 13.5
     heiz = 14
   }
+  # Store.spatial.temporal.ktch[[l]]=fn.spatio.temp.catch.dist(d=Spatio.temp.dat,
+  #                                                            Snames=get.dis.sp,
+  #                                                            FISHRY='Southern',
+  #                                                            core.dist=0.95,
+  #                                                            show.Effort.Catch='combined')
   Store.spatial.temporal.ktch[[l]]=fn.spatio.temp.catch.dist(d=Spatio.temp.dat,
                                                              Snames=get.dis.sp,
                                                              FISHRY='Southern',
-                                                             core.dist=0.95)
-  ggsave(paste(Rar.path,'/Spatio.temporal.catch_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
-         width = wiz,height = heiz,compression = "lzw")
+                                                             core.dist=0.95,
+                                                             show.Effort.Catch='separated')
+
 }
 clear.log('fn.spatio.temp.catch.dist')
 clear.log('Spatio.temp.dat')
