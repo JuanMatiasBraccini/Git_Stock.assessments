@@ -4236,7 +4236,7 @@ Risk.Spatial=fun.risk.spatial.dist(d=data.frame(Species=c("angel sharks","copper
                                                           "gummy shark","lemon shark","sandbar shark","sawsharks","shortfin mako",
                                                           "spinner shark","spurdogs","tiger shark","whiskery shark","wobbegongs"))%>%
                                      mutate(Market=case_when(Species%in%c("grey nurse shark")~'zero',
-                                                             Species%in%c("spurdogs","sawsharks")~'decreasing',
+                                                             Species%in%c("spurdogs","sawsharks","angel sharks")~'decreasing',
                                                              Species%in%c("sandbar shark","copper shark","hammerheads",
                                                                           "spinner shark","tiger shark","wobbegongs")~'increasing',
                                                              TRUE~'stable'),
@@ -4244,7 +4244,7 @@ Risk.Spatial=fun.risk.spatial.dist(d=data.frame(Species=c("angel sharks","copper
                                                                    TRUE~'no'),
                                             Blocks.fished=case_when(Species%in%c('grey nurse shark',"tiger shark","sandbar shark")~'decreasing',
                                                                     TRUE~'stable'),
-                                            Blocks.fished.with.catch=case_when(Species%in%c('grey nurse shark',"spurdogs","sawsharks")~'decreasing',
+                                            Blocks.fished.with.catch=case_when(Species%in%c('grey nurse shark',"spurdogs","sawsharks","angel sharks")~'decreasing',
                                                                                Species%in%c("sandbar shark","copper shark","hammerheads",
                                                                                             "spinner shark","tiger shark","wobbegongs")~'increasing',
                                                                                TRUE~'stable'),
@@ -4253,7 +4253,9 @@ Risk.Spatial=fun.risk.spatial.dist(d=data.frame(Species=c("angel sharks","copper
                                    outpath=Rar.path)
 Risk.Spatial=Risk.Spatial%>%
               mutate(LoE='Spatial',
-                     Species=ifelse(Species=="Hammerheads","Smooth hammerhead",Species))
+                     Species=ifelse(Species=="Hammerheads","Smooth hammerhead",Species),
+                     Likelihood=ifelse(Species%in%c('Angel sharks','Copper shark') & Consequence==4,2,
+                                       Likelihood))   #increase risk due to unknown trends for GAB Trawl and SA MSF
 
 
 
@@ -4373,13 +4375,15 @@ Weighted.overall.risk=do.call(rbind,LOE.risks[-match('PSA',names(LOE.risks))])%>
     Weighted.overall.risk=rbind(Weighted.overall.risk,a)
   }
   
-Weighted.overall.risk=Weighted.overall.risk%>%  
-  group_by(Species,Consequence)%>%
-  mutate(Weighted.Likelihood=weighted.mean(x=Likelihood,w=LoE.weight))%>%
-  dplyr::select(Species,LoE,Consequence,Weighted.Likelihood,Probability,w)%>%
-  rename(Likelihood=Weighted.Likelihood)%>%
-  distinct(Species,Consequence,Likelihood,w)%>%
-  mutate(Likelihood=round(Likelihood))
+Weighted.overall.risk=Weighted.overall.risk%>%
+                filter(!LoE.weight==0)%>%
+                filter(!(LoE=='Spatial' & Consequence%in%1:3))%>%  #only assigning Risk to C = 4 for spatial
+                group_by(Species,Consequence)%>%
+                mutate(Weighted.Likelihood=weighted.mean(x=Likelihood,w=LoE.weight))%>%
+                dplyr::select(Species,LoE,Consequence,Weighted.Likelihood,Probability,w)%>%
+                rename(Likelihood=Weighted.Likelihood)%>%
+                distinct(Species,Consequence,Likelihood,w)%>%
+                mutate(Likelihood=round(Likelihood))
 
 Store.risk_Drop.species=fn.risk.figure(d=LOE.risks$PSA, Risk.colors=RiskColors, out.plot=FALSE)%>%
   dplyr::select(-LoE)

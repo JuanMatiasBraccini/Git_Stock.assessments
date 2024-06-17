@@ -240,7 +240,7 @@ myspecies=read.csv(paste(hendl,'dummy.csv',sep=''))%>%
   filter(tolower(Name)%in%Keep.species)
 get.this=CAAB%>%
           filter(!SCIENTIFIC_NAME=='Squalus spp.')%>%
-          mutate(SCIENTIFIC_NAME=case_when(SCIENTIFIC_NAME=='Squatina tergocellata'~'Squatinidae',  #reset for Families
+          mutate(SCIENTIFIC_NAME=case_when(SCIENTIFIC_NAME=='Squatina australis'~'Squatinidae',  #reset for Families
                                            SCIENTIFIC_NAME=='Pristiophorus cirratus'~'Pristiophoridae',
                                            SCIENTIFIC_NAME=='Squalus megalops'~'Squalus spp.',
                                            SCIENTIFIC_NAME=='Orectolobus maculatus'~'Orectolobidae',
@@ -256,7 +256,7 @@ for(i in 1:length(Store.shp.files))
                                                         spe=get.this$SCIENTIFIC_NAME[i])
 }
 names(Store.shp.files)=tolower(names(Store.shp.files))
-names(Store.shp.files)=case_when(names(Store.shp.files)=='ornate angelshark'~'angel sharks',
+names(Store.shp.files)=case_when(names(Store.shp.files)=='australian angelshark'~'angel sharks',
                                  names(Store.shp.files)=='bronze whaler'~'copper shark',
                                  names(Store.shp.files)=='dusky whaler'~'dusky shark',
                                  names(Store.shp.files)=='greynurse shark'~'grey nurse shark',
