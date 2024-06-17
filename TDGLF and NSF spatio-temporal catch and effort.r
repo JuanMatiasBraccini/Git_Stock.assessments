@@ -1,6 +1,7 @@
 #---Spatio-temporal catch and effort. Reported TDGLF and NSF ----   
 #note: bubble size is proportion of blocks fished out of maximum number of blocks fished for each species
 
+
 #get reported catch
 dis.sp=All.species.names%>%filter(SNAME%in%unlist(Lista.sp.outputs))%>%pull(SPECIES)
 dis.sp=c(dis.sp,19000)
@@ -26,7 +27,6 @@ Relevant.yrs=sort(unique(KtCh.method$FINYEAR))
 ol.iers=sort(unique(Spatio.temp.dat$FINYEAR))
 use.dis.yrs=ol.iers[1:match(Last.yr.ktch,ol.iers)]
 Spatio.temp.dat=Spatio.temp.dat%>%filter(FINYEAR%in%use.dis.yrs)
-
 
 
 #spatial effort
@@ -225,6 +225,46 @@ Effort_blocks.all=rbind(Effort_blocks%>%mutate(Fishery='Southern'),
                           arrange(FINYEAR)%>%
                           mutate(Fishery='Northern'))%>%
                   filter(FINYEAR%in%use.dis.yrs)
+
+
+#get species CSIRO distribution
+library(rgdal)
+library(sf)
+library(ozmaps)
+source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/CSIRO distribution maps.r'))  
+hendl=handl_OneDrive('Analyses/Mapping/Map reported species distribution/')
+CAAB=read.csv(paste(hendl,'caab_dump_latest.csv',sep=''))%>%
+        filter(CLASS=='Elasmobranchii')%>%
+        mutate(COMMON_NAME=ifelse(COMMON_NAME=='Fossil Shark','Snaggletooth',COMMON_NAME))
+myspecies=read.csv(paste(hendl,'dummy.csv',sep=''))%>%
+  filter(tolower(Name)%in%Keep.species)
+get.this=CAAB%>%
+          filter(!SCIENTIFIC_NAME=='Squalus spp.')%>%
+          mutate(SCIENTIFIC_NAME=case_when(SCIENTIFIC_NAME=='Squatina tergocellata'~'Squatinidae',  #reset for Families
+                                           SCIENTIFIC_NAME=='Pristiophorus cirratus'~'Pristiophoridae',
+                                           SCIENTIFIC_NAME=='Squalus megalops'~'Squalus spp.',
+                                           SCIENTIFIC_NAME=='Orectolobus maculatus'~'Orectolobidae',
+                                           TRUE~SCIENTIFIC_NAME))%>%
+          filter(SCIENTIFIC_NAME%in%myspecies$Scientific.name)%>%
+            dplyr::select(SPCODE,COMMON_NAME,SCIENTIFIC_NAME)
+Store.shp.files=vector('list',length=nrow(get.this))
+names(Store.shp.files)=get.this$COMMON_NAME
+for(i in 1:length(Store.shp.files))
+{
+  print(paste('---------i = ',i,'......Downloading shape file for',get.this$SCIENTIFIC_NAME[i]))
+  Store.shp.files[[i]]=get_expert_distribution_shp_CAAB(CAAB_species_id=get.this$SPCODE[i],
+                                                        spe=get.this$SCIENTIFIC_NAME[i])
+}
+names(Store.shp.files)=tolower(names(Store.shp.files))
+names(Store.shp.files)=case_when(names(Store.shp.files)=='ornate angelshark'~'angel sharks',
+                                 names(Store.shp.files)=='bronze whaler'~'copper shark',
+                                 names(Store.shp.files)=='dusky whaler'~'dusky shark',
+                                 names(Store.shp.files)=='greynurse shark'~'grey nurse shark',
+                                 names(Store.shp.files)=='spotted wobbegong'~'wobbegongs',
+                                 names(Store.shp.files)=='common sawshark'~'sawsharks',
+                                 names(Store.shp.files)=='spikey dogfish'~'spurdogs',
+                                 TRUE~names(Store.shp.files))
+Store.shp.files$hammerheads=Store.shp.files$`smooth hammerhead`
 
 
 #plot
@@ -455,10 +495,11 @@ fn.spatio.temp.catch.dist_old=function(d,Snames,prop.by='fishery',show.prop='blk
   return(list(Fished.blks.Fishery=Dummy,
               prop.ktch_over.fished.bocks=d2))
 }
-fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
+fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch) 
 {
   #some manipulations
   this.sp=All.species.names%>%filter(SNAME%in%Snames)
+  this.shp.file=Store.shp.files[match(Snames,names(Store.shp.files))]
   
   d1=d%>%
     filter(SPECIES%in%this.sp$SPECIES)%>%
@@ -623,13 +664,30 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
     theme(axis.title.y.right = element_text(margin = margin(t = 0, r = 0, b = 0, l = 10)))+
     theme(axis.title.y.left = element_text(margin = margin(t = 0, r = 5, b = 0, l = 0)))
   main <- base + facet_wrap(~ SNAME,ncol=Nfact)
-  nmax_rep <- length(unique(d2$SNAME))
+  
+  dis.neims=sort(unique(d2$SNAME))
+  nmax_rep <- length(dis.neims)
   SSIZ=4.5
-  if(nmax_rep>6)SSIZ=3.5
+  vp.wi=0.3
+  vp.he = 0.7
+  if(nmax_rep>6)
+  {
+    SSIZ=3.5
+    vp.wi=0.4
+    vp.he=0.8
+  }
+    
   insets <- lapply(seq_len(nmax_rep), function(i) {
-    Kr.blks%>%left_join(BLOCKX_lat_long,by='BLOCKX')%>%
-      ggplot(aes(LONG,LAT))+
-      geom_point(type=15)+
+    #Kr.blks%>%
+     # left_join(BLOCKX_lat_long,by='BLOCKX')%>%
+    #  ggplot(aes(LONG,LAT))+
+     # geom_point(type=15)+
+    ggplot(ozmap_states) +
+      xlim(113,133)+ ylim(-37,-12)+
+      geom_sf(fill='orange',alpha=.6)+
+      geom_sf(data=sf::st_as_sf(this.shp.file[[match(dis.neims[i],names(this.shp.file))]]),
+              fill='chartreuse3')+
+      geom_point(data=Kr.blks%>%left_join(BLOCKX_lat_long,by='BLOCKX'),aes(LONG,LAT),type=15,size=.5)+
       theme_bw(base_size=9) +  ## makes everything smaller
       ggforce::facet_wrap_paginate(~ SNAME, nrow = 1, ncol = 1, page = i)+
       guides(fill="none",colour = "none", x = "none", y = "none") +
@@ -644,6 +702,8 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
                                            colour = NA_character_),
             legend.box.background = element_rect(fill = "transparent"),
             legend.key = element_rect(fill = "transparent"),
+            axis.text = element_text(size = 8),
+            axis.text.x = element_text(angle = 90),
             axis.title.y = element_blank(),
             axis.title.x = element_blank())+
       annotate(geom="text", x=120, y=-26, label="Core area",color="transparent",size=SSIZ)
@@ -655,7 +715,7 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
   p2=main +
     geom_plot_npc(data = insets, 
                   aes(npcx = x, npcy = y, label = plot,
-                      vp.width = 0.3, vp.height = 0.6))
+                      vp.width = vp.wi, vp.height = vp.he))
   
   
   if(show.Effort.Catch=='combined')
@@ -673,19 +733,17 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
     ggsave(paste(Rar.path,'/Spatio.temporal.effort.tiff',sep=''),width = 6,height = 10,compression = "lzw")
     
     print(p2)
-    Wi=8
+    Wi=7
     Hei=12
     if(length(Snames)<5)
     {
-      Wi=6
+      Wi=7
       Hei=10 
     }
     ggsave(paste(Rar.path,'/Spatio.temporal.catch_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = Wi,height = Hei,compression = "lzw")
     
   }
-
-  
   
   return(list(Fished.blks.Fishery=Effort_blocks.all,
               prop.ktch_over.fished.bocks=d2))
@@ -707,12 +765,12 @@ for(l in 1:length(Store.spatial.temporal.ktch))
   }
   # Store.spatial.temporal.ktch[[l]]=fn.spatio.temp.catch.dist(d=Spatio.temp.dat,
   #                                                            Snames=get.dis.sp,
-  #                                                            FISHRY='Southern',
+  #                                                            FISHRY=c('Northern','Southern'),
   #                                                            core.dist=0.95,
   #                                                            show.Effort.Catch='combined')
   Store.spatial.temporal.ktch[[l]]=fn.spatio.temp.catch.dist(d=Spatio.temp.dat,
                                                              Snames=get.dis.sp,
-                                                             FISHRY='Southern',
+                                                             FISHRY=c('Southern'),
                                                              core.dist=0.95,
                                                              show.Effort.Catch='separated')
 
