@@ -2048,7 +2048,7 @@ if(First.run=="YES")
 
 #---12. Extract catch rates-----------------------------------------------------------------------
 Catch.rate.series=vector('list',N.sp) 
-names(Catch.rate.series)=Keep.species
+names(Catch.rate.series)=Keep.species   
 for(l in 1:N.sp) 
 {
   Neim=Keep.species[l]
@@ -2059,93 +2059,60 @@ for(l in 1:N.sp)
     dummy=list()
     if('CPUE_Pilbara.trawl'%in%names(Species.data[[l]]))
     {
-      if(Neim%in%other_not.representative)
-      {
-        dumi.a=Species.data[[l]][-grep('Pilbara.trawl',names(Species.data[[l]]))]
-        if(length(dumi.a)==0) dumi.a='dummy'
-        Species.data[[l]]=dumi.a
-      }else
-      {
-        d=Species.data[[l]]$CPUE_Pilbara.trawl
-        if(Abundance.error.dist=="Lognormal") d$siv=d$CV 
-        if(Abundance.error.dist=="Normal") d$siv=d$SE
-        d=d%>%
-          dplyr::select(-c( CV,SE))%>%
-          rename(CV=siv)%>%
-          mutate(yr.f=as.numeric(substr(Finyear,1,4)))
-        if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$Other=d
-        rm(d)
-        
-      }
+      d=Species.data[[l]]$CPUE_Pilbara.trawl
+      if(Abundance.error.dist=="Lognormal") d$siv=d$CV 
+      if(Abundance.error.dist=="Normal") d$siv=d$SE
+      d=d%>%
+        dplyr::select(-c( CV,SE))%>%
+        rename(CV=siv)%>%
+        mutate(yr.f=as.numeric(substr(Finyear,1,4)))
+      if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$Other=d
+      rm(d)
     }
     if('Srvy.FixSt'%in%names(Species.data[[l]]))
     {
-      if(Neim%in%survey_not.representative)
-      {
-        dumi.a=Species.data[[l]][-grep(paste(c('Srvy.FixSt','Srvy.FixSt_relative'),collapse='|'),names(Species.data[[l]]))]
-        if(length(dumi.a)==0) dumi.a=NULL
-        Species.data[[l]]=dumi.a
-      }else
-      {
-        if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$Srvy.FixSt
-        if(Abundance.error.dist=="Normal") d=Species.data[[l]]$Srvy.FixSt_relative
-        d=d%>%
-          mutate(Finyear=paste(yr-1,substr(yr,3,4),sep='-'),
-                 yr.f=as.numeric(substr(Finyear,1,4)))%>%
-          rename(Mean=MeAn,
-                 LOW.CI=LowCI,
-                 UP.CI=UppCI)%>%
-          filter(yr.f<=Last.yr.ktch.numeric)
-        if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$Survey=d
-        rm(d)
-      }
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$Srvy.FixSt
+      if(Abundance.error.dist=="Normal") d=Species.data[[l]]$Srvy.FixSt_relative
+      d=d%>%
+        mutate(Finyear=paste(yr-1,substr(yr,3,4),sep='-'),
+               yr.f=as.numeric(substr(Finyear,1,4)))%>%
+        rename(Mean=MeAn,
+               LOW.CI=LowCI,
+               UP.CI=UppCI)%>%
+        filter(yr.f<=Last.yr.ktch.numeric)
+      if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$Survey=d
+      rm(d)
     }
     if('annual.abundance.NSF_relative'%in%names(Species.data[[l]]))
     {
-      if(Neim%in%NSF_not.representative)
-      {
-        dumi.a=Species.data[[l]][-grep(paste(c('annual.abundance.NSF','annual.abundance.NSF_relative'),collapse='|'),names(Species.data[[l]]))]
-        if(length(dumi.a)==0) dumi.a=NULL
-        Species.data[[l]]=dumi.a
-      }else
-      {
-        if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.NSF
-        if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.NSF_relative
-        d=d%>%
-          rename(Finyear=FINYEAR)%>%
-          mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
-          filter(yr.f<=Last.yr.ktch.numeric)
-        if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$NSF=d
-        rm(d)
-      }
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.NSF
+      if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.NSF_relative
+      d=d%>%
+        rename(Finyear=FINYEAR)%>%
+        mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
+        filter(yr.f<=Last.yr.ktch.numeric)
+      if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$NSF=d
+      rm(d)
     }
     if('CPUE_Observer_TDGDLF'%in%names(Species.data[[l]]))
     {
       d=Species.data[[l]]$CPUE_Observer_TDGDLF%>%
         rename(yr.f=year)%>%
-      filter(yr.f<=Last.yr.ktch.numeric)
+        filter(yr.f<=Last.yr.ktch.numeric)
       if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF_observer=d
       rm(d)
     }
     if('annual.abundance.basecase.monthly_relative'%in%names(Species.data[[l]]))
     {
-      if(Neim%in%tdgdlf_not.representative)
-      {
-        dumi.a=Species.data[[l]][-grep(paste(c('annual.abundance.basecase.monthly_relative','annual.abundance.basecase.monthly'),collapse='|'),names(Species.data[[l]]))]
-        if(length(dumi.a)==0) dumi.a=NULL
-        Species.data[[l]]=dumi.a
-      }else
-      {
-        if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.monthly
-        if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.monthly_relative
-        d=d%>%
-          mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
-          filter(yr.f<=Last.yr.ktch.numeric)
-        Inf.CI=which(is.infinite(d$UP.CI))
-        if(length(Inf.CI)>0) d[Inf.CI,match(c('Mean','CV','LOW.CI','UP.CI'),names(d))]=NA
-        if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.monthly=d
-        rm(d)
-      }
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.monthly
+      if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.monthly_relative
+      d=d%>%
+        mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
+        filter(yr.f<=Last.yr.ktch.numeric)
+      Inf.CI=which(is.infinite(d$UP.CI))
+      if(length(Inf.CI)>0) d[Inf.CI,match(c('Mean','CV','LOW.CI','UP.CI'),names(d))]=NA
+      if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.monthly=d
+      rm(d)
     }
     if('annual.abundance.basecase.monthly.West'%in%names(Species.data[[l]]))
     {
@@ -2179,21 +2146,13 @@ for(l in 1:N.sp)
     }
     if('annual.abundance.basecase.daily_relative'%in%names(Species.data[[l]]))
     {
-      if(Neim%in%tdgdlf_not.representative)
-      {
-        dumi.a=Species.data[[l]][-grep(paste(c('annual.abundance.basecase.daily_relative','annual.abundance.basecase.daily'),collapse='|'),names(Species.data[[l]]))]
-        if(length(dumi.a)==0) dumi.a=NULL
-        Species.data[[l]]=dumi.a
-      }else
-      {
-        if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.daily
-        if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.daily_relative
-        d=d%>%
-          mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
-          filter(yr.f<=Last.yr.ktch.numeric)
-        if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.daily=d
-        rm(d)
-      }
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.daily
+      if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.daily_relative
+      d=d%>%
+        mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
+        filter(yr.f<=Last.yr.ktch.numeric)
+      if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.daily=d
+      rm(d)
     }
     if('annual.abundance.basecase.daily.West'%in%names(Species.data[[l]]))
     {
@@ -2304,6 +2263,79 @@ for(l in 1:N.sp)
     Species.data[[l]]=Species.data[[l]][-match("annual.mean.size",names(Species.data[[l]]))] 
   }
 }
+
+#display Survey and TDGDLF cpues     
+if(First.run=="YES")
+{
+  for(l in 1:N.sp)
+  {
+    A=Catch.rate.series[[l]]
+    IID=grep(paste(c("Survey","TDGDLF.monthly","TDGDLF.daily"),collapse='|'),names(A))
+    if(length(IID)>0)
+    {
+      A=A[IID]
+      if(!is.null(A))
+      {
+        print(paste("Display all cpues --------",names(Species.data)[l]))
+        
+        fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(List.sp[[l]]$Name),"/",AssessYr,
+                     "/1_Inputs/Visualise data/All cpues",sep=''),2000,2000) 
+        smart.par(n.plots=length(A),MAR=c(2,3,1,1),OMA=c(2.5,1,.05,2.5),MGP=c(1.8,.5,0))
+        par(cex.lab=1.5,las=1)
+        Mx.yr=max(sapply(A, function(x) max(x$yr.f, na.rm=TRUE)))
+        Min.yr=min(sapply(A, function(x) min(x$yr.f, na.rm=TRUE)))
+        
+        for(i in 1:length(A))
+        {
+          with(A[[i]],{
+            plot(yr.f,Mean,col='orange',xlim=c(Min.yr,Mx.yr),ylim=c(0,max(UP.CI,na.rm=T)),pch=19,cex=1.15,
+                 main=names(A)[i],ylab='',xlab="")
+            segments(yr.f,LOW.CI,yr.f,UP.CI,col='orange')
+          })
+          if(names(A[i])=='TDGDLF.daily')
+          {
+            with(A[[i]]%>%filter(yr.f%in%c(2007,2008)),{
+              points(yr.f,Mean,col='brown4',pch=19,cex=1.15)
+              segments(yr.f,LOW.CI,yr.f,UP.CI,col='brown4')
+            })
+          }
+        }
+        mtext("Financial year", side = 1, line = 1,outer=T)
+        mtext("CPUE", side = 2, line = -1,las=3,outer=T)
+        dev.off()
+      }
+    }
+
+    rm(A,IID)
+  }
+}
+
+#Remove non-representative series  
+for(l in 1:N.sp) 
+{
+  Neim=Keep.species[l]
+  dummy=Catch.rate.series[[l]]
+  drop.this=NULL
+  if(Neim%in%other_not.representative)  drop.this=c(drop.this,match('Other',names(dummy)))  
+  if(Neim%in%survey_not.representative) drop.this=c(drop.this,match('Survey',names(dummy)))  
+  if(Neim%in%NSF_not.representative)    drop.this=c(drop.this,match('NSF',names(dummy)))  
+  if(Neim%in%tdgdlf_not.representative)
+  {
+    drop.this=c(drop.this,match('TDGDLF.monthly',names(dummy)))
+    drop.this=c(drop.this,match('TDGDLF.daily',names(dummy)))
+  }
+  if(!is.null(drop.this))
+  {
+    drop.this=subset(drop.this,!is.na(drop.this))
+    dummy=dummy[-drop.this]
+  }
+  if(length(dummy)>0) Catch.rate.series[[l]]=dummy
+  if(length(dummy)==0) Catch.rate.series[l]=list(NULL) 
+  rm(dummy,drop.this)
+}
+
+
 
 #---13. Calculate Steepness ----------------------------------------------------------------------- 
   #calculate prior
@@ -3016,38 +3048,6 @@ if(First.run=="YES")
   clear.log('fun.check.mean.weight')
 }
 
-#display cpues     
-if(First.run=="YES")
-{
-  for(l in 1:N.sp)
-  {
-    if(!is.null(Catch.rate.series[[l]]))
-    {
-      print(paste("Display all cpues --------",names(Species.data)[l]))
-      
-      fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(List.sp[[l]]$Name),"/",AssessYr,
-                   "/1_Inputs/Visualise data/All cpues",sep=''),2000,2000) 
-      smart.par(n.plots=length(Catch.rate.series[[l]]),MAR=c(2,3,1,1),OMA=c(2.5,1,.05,2.5),MGP=c(1.8,.5,0))
-      par(cex.lab=1.5,las=1)
-      Mx.yr=max(sapply(Catch.rate.series[[l]], function(x) max(x$yr.f, na.rm=TRUE)))
-      Min.yr=min(sapply(Catch.rate.series[[l]], function(x) min(x$yr.f, na.rm=TRUE)))
-      
-      for(i in 1:length(Catch.rate.series[[l]]))
-      {
-        with(Catch.rate.series[[l]][[i]],{
-          plot(yr.f,Mean,col='orange',xlim=c(Min.yr,Mx.yr),ylim=c(0,max(UP.CI,na.rm=T)),pch=19,cex=1.15,
-               main=names(Catch.rate.series[[l]])[i],ylab='',xlab="")
-          segments(yr.f,LOW.CI,yr.f,UP.CI,col='orange')
-        })
-      }
-      mtext("Financial year", side = 1, line = 1,outer=T)
-      mtext("CPUE", side = 2, line = -1,las=3,outer=T)
-      dev.off()
-    }
-  }
-}
-
 # Get sex ratio by zone
 if(First.run=="YES")
 {
@@ -3411,7 +3411,8 @@ if(First.run=="YES")
         annotate("text", y = TL.95.mat*.95, x = 1.1,parse = T, label =as.character(L95) ,col='brown2')+
         geom_hline(yintercept=TL.95.mat, linetype="dashed",alpha=0.5,color='brown2')+
         theme(legend.title=element_blank(),
-              legend.position="top")
+              legend.position="top")+
+        expand_limits(x = 0, y = 0)
       
       plt[[2]]=data.frame(TL=lengz,
                           Maturity=1/(1+exp(-log(19)*((lengz-TL.50.mat)/(TL.95.mat-TL.50.mat)))))%>%
@@ -3419,7 +3420,8 @@ if(First.run=="YES")
         geom_line(size=1.25,color="#F8766D")+xlab("TL (cm)")+ylab('Proportion mature')+
         theme_PA()+
         annotate("text", x = TL.50.mat*.75, y = .8, label = paste('Fecundity [',Fecundity[1],',',Fecundity[2],']',sep=''))+
-        annotate("text", x = TL.50.mat*.75, y = .85, label = paste('Cycle [',Breed.cycle[1],',',Breed.cycle[2],']',sep=''))
+        annotate("text", x = TL.50.mat*.75, y = .85, label = paste('Cycle [',Breed.cycle[1],',',Breed.cycle[2],']',sep=''))+
+        expand_limits(x = 0, y = 0)
       
       plt[[3]]=rbind(
         data.frame(Sex='F',
@@ -3430,13 +3432,15 @@ if(First.run=="YES")
                    Twt=AwT.M*lengz^BwT.M))%>%
         ggplot(aes(TL,Twt,color=Sex))+
         geom_line(size=1.25)+xlab("TL (cm)")+ylab('Twt (kg)')+
-        theme_PA() 
+        theme_PA()+
+        expand_limits(x = 0, y = 0) 
       
       plt[[4]]=data.frame(Age=eig,
                           M=Mmean.mean.at.age)%>%
         ggplot(aes(Age,M))+
         geom_line(size=1.25,color="black")+xlab("Age")+ylab(expression(paste(plain("Natural mortality (year") ^ plain("-1"),")",sep="")))+
-        theme_PA()
+        theme_PA()+
+        expand_limits(x = 0, y = 0)
       
       plt[[5]]=data.frame(TL=lengz,
                           FL=(lengz-b_FL.to.TL)/a_FL.to.TL)%>%
@@ -3444,7 +3448,8 @@ if(First.run=="YES")
         geom_line(size=1.25)+xlab("FL (cm)")+ylab('TL (cm)')+
         theme_PA()+
         annotate("text", x = mean(lengz), y = mean(lengz)*.8,
-                 label = paste('TL =',a_FL.to.TL,' FL + ',b_FL.to.TL ,sep=''))
+                 label = paste('TL =',a_FL.to.TL,' FL + ',b_FL.to.TL ,sep=''))+
+        expand_limits(x = 0, y = 0)
 
       PLT=ggarrange(plotlist = plt, common.legend = TRUE)
       #annotate_figure(PLT, top = text_grob(capitalize(names(List.sp)[l]),face = "bold", size = 14))
