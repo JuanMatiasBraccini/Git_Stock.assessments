@@ -4457,6 +4457,11 @@ fn.risk.figure.all.LOE(d=Store.risks,
                        RiskCls=RiskColors)
 ggsave(paste(Rar.path,"Risk_all LoE for each species.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
 
+fn.risk.figure.all.LOE(d=Store.risks%>%filter(!Species%in%capitalize(names(Indicator.species))),
+                       d1=Out.overall.risk%>%filter(!Species%in%capitalize(names(Indicator.species))),
+                       lbl.cols=label_colors,
+                       RiskCls=RiskColors)
+ggsave(paste(Rar.path,"Risk_all LoE for each species_non_indicators only.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
 
 
 
