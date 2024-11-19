@@ -1,5 +1,9 @@
 #-- Script for reconstructing time series of commercial catch of sharks in WA and IUU
 
+#missing: 
+      # Add Eagle ray Swan and Peel harvey blue swimmer crab catches (see Matias\Management\Sharks\Eagle ray trial estuarine fishery)
+      # Consider SoFAR Appendix reported Tep interactions (sawfish in KGB, etc) and see if captured by catch recons
+
 #notes: 'wetline' (as reported in Heupel & McAuley 2007) groups the byproduct of several 
 #       different fisheries. This is already included in CAESS
 #       Prior November 2006: 

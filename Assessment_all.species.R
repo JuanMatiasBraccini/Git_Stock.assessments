@@ -11,11 +11,15 @@
 #               . State-space SPM,
 #               . Catch curves,
 #               . Catch-only
+#    5. Tagging data: 
+#             . Conventional: use '_Con_tag_BLK.rec' '_Con_tag_BLK.rel' '_Con_tag_Zn.rec' '_Con_tag_Zn.rel'
+#             . Acoustic: 'Acous.Tag_Rep.Recap' has recaptures (treat as conventional for F estimation!!)
+#                          '_Acous.Tag_Zn.rec_Acous.Tag'  (time step of 1 week!!)
 
 #Steps: 
 #     1. For each new assessment, update 'New.assessment', 'Year.of.assessment' and 'Last.yr.ktch' in '1. DEFINE GLOBALS'  
 #     2. Define arguments (inputs) used in each of the shark species/species-complex assessed.
-#     3. Bring in updated available data and parameters
+#     3. Bring in updated available data and parameters (see 'Matias\Reports\Steps for creating RAR and SFRAR.docx')
 #     4. Determine which species to assess based on PSA
 #     5. Run relevant population models according to data availability
 #     6. Generate relevant outputs. Outputs are stored in each species folder ('.../Analyses/Population dynamics/...')
@@ -507,7 +511,7 @@ if(Do.bespoke)
   mcmc.thin=10
   MIN.DAYS.LARGE=30  #minimum number of days at liberty for movement
   Sim.trans.Mat="NO" #show simulated size transition matrix
-  add.conv.tag="YES" #define if using conventional tagging and effort in model
+  add.conv.tag="YES" #define if using conventional tagging and effort in model 
   Move.mode="Individual-based"  #select type of movement modelling approach
   #Move.mode="Population-based"
   conv.tag.all="YES"  #Combine all size classes for tagging model
@@ -881,6 +885,14 @@ PSA.list=PSA.list%>%filter(!Species%in%assessed.elsewhere)
 
 #Show annual catches
 Exprt=handl_OneDrive("Analyses/Population dynamics/PSA")
+
+write.csv(KtCh.method%>%
+              mutate(Year=as.numeric(substr(FINYEAR,1,4)),
+                               Name=capitalize(Name))%>%
+              group_by(Name,Year,Data.set)%>%
+            summarise(catch=sum(LIVEWT.c)),
+          paste(Exprt,'Annual_ktch_by_species.and.data.set.csv',sep='/'),row.names = F)
+
 KtCh.method%>%
   filter(Name%in%PSA.list$Species)%>%
   mutate(Year=as.numeric(substr(FINYEAR,1,4)),
@@ -2114,9 +2126,9 @@ for(l in 1:N.sp)
       if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.monthly=d
       rm(d)
     }
-    if('annual.abundance.basecase.monthly.West'%in%names(Species.data[[l]]))
+    if('annual.abundance.basecase.monthlyWest'%in%names(Species.data[[l]]))
     {
-      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.monthly.West
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.monthlyWest
       if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.monthly.West_relative
       d=d%>%
         mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
@@ -2124,9 +2136,9 @@ for(l in 1:N.sp)
       if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.monthly.West=d
       rm(d)
     }
-    if('annual.abundance.basecase.monthly.Zone1'%in%names(Species.data[[l]]))
+    if('annual.abundance.basecase.monthlyZone1'%in%names(Species.data[[l]]))
     {
-      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.monthly.Zone1
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.monthlyZone1
       if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.monthly.Zone1_relative
       d=d%>%
         mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
@@ -2134,9 +2146,9 @@ for(l in 1:N.sp)
       if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.monthly.Zone1=d
       rm(d)
     }
-    if('annual.abundance.basecase.monthly.Zone2'%in%names(Species.data[[l]]))
+    if('annual.abundance.basecase.monthlyZone2'%in%names(Species.data[[l]]))
     {
-      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.monthly.Zone2
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.monthlyZone2
       if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.monthly.Zone2_relative
       d=d%>%
         mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
@@ -2154,9 +2166,9 @@ for(l in 1:N.sp)
       if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.daily=d
       rm(d)
     }
-    if('annual.abundance.basecase.daily.West'%in%names(Species.data[[l]]))
+    if('annual.abundance.basecase.dailyWest'%in%names(Species.data[[l]]))
     {
-      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.daily.West
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.dailyWest
       if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.daily.West_relative
       d=d%>%
         mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
@@ -2164,9 +2176,9 @@ for(l in 1:N.sp)
       if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.daily.West=d
       rm(d)
     }
-    if('annual.abundance.basecase.daily.Zone1'%in%names(Species.data[[l]]))
+    if('annual.abundance.basecase.dailyZone1'%in%names(Species.data[[l]]))
     {
-      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.daily.Zone1
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.dailyZone1
       if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.daily.Zone1_relative
       d=d%>%
         mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
@@ -2174,9 +2186,9 @@ for(l in 1:N.sp)
       if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.daily.Zone1=d
       rm(d)
     }
-    if('annual.abundance.basecase.daily.Zone2'%in%names(Species.data[[l]]))
+    if('annual.abundance.basecase.dailyZone2'%in%names(Species.data[[l]]))
     {
-      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.daily.Zone2
+      if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$annual.abundance.basecase.dailyZone2
       if(Abundance.error.dist=="Normal") d=Species.data[[l]]$annual.abundance.basecase.daily.Zone2_relative
       d=d%>%
         mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
@@ -4462,6 +4474,70 @@ fn.risk.figure.all.LOE(d=Store.risks%>%filter(!Species%in%capitalize(names(Indic
                        lbl.cols=label_colors,
                        RiskCls=RiskColors)
 ggsave(paste(Rar.path,"Risk_all LoE for each species_non_indicators only.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
+
+
+#Compare MSY estimates by method  
+Catch.only_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Indicator.sp.csv'))
+Catch.only_MSY_Indicator.sp.appendix=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Indicator.sp_Appendix.csv'))
+Catch.only_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp.csv'))
+Catch.only_MSY_Other.sp.appendix=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp_Appendix.csv'))
+JABBA_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 8. JABBA CPUE_estimates_Indicator.sp.csv'))
+JABBA_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 8. JABBA CPUE_estimates_Other.sp.csv'))
+SS_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 11. Age.based_SS_quantities_Indicator.sp.csv'))
+SS_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 11. Age.based_SS_quantities_Other.sp.csv'))
+Catch.only_MSY_Indicator.sp=Catch.only_MSY_Indicator.sp%>%
+                              dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
+                              mutate(Method='CoM_ensemble')
+Catch.only_MSY_Other.sp=Catch.only_MSY_Other.sp%>%
+                            dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
+                            mutate(Method='CoM_ensemble')
+Catch.only_MSY_Indicator.sp.appendix=Catch.only_MSY_Indicator.sp.appendix%>%
+                        mutate(Method=paste0('CoM_',Model))%>%
+                        dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+Catch.only_MSY_Other.sp.appendix=Catch.only_MSY_Other.sp.appendix%>%
+                        mutate(Method=paste0('CoM_',Model))%>%
+                        dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+JABBA_MSY_Indicator.sp=JABBA_MSY_Indicator.sp%>%
+                        filter(Parameter=="MSY")%>%
+                        mutate(Method=paste0('JABBA_',Scenario))%>%
+                        rename(MSY_Lower.95=Lower.95,
+                               MSY_Median=Median,
+                               MSY_Upper.95=Upper.95)%>%
+                    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+JABBA_MSY_Other.sp=JABBA_MSY_Other.sp%>%
+                  filter(Parameter=="MSY")%>%
+                  mutate(Method=paste0('JABBA_',Scenario))%>%
+                  rename(MSY_Lower.95=Lower.95,
+                         MSY_Median=Median,
+                         MSY_Upper.95=Upper.95)%>%
+                  dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+SS_MSY_Indicator.sp=SS_MSY_Indicator.sp%>%
+                    filter(Label=='MSY')%>%
+                    mutate(Method=paste0('SS3_',Scenario),
+                           MSY_Lower.95=Median-1.96*SE,
+                           MSY_Median=Median,
+                           MSY_Upper.95=Median+1.96*SE)%>%
+              dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+SS_MSY_Other.sp=SS_MSY_Other.sp%>%
+                filter(Label=='MSY')%>%
+                mutate(Method=paste0('SS3_',Scenario),
+                       MSY_Lower.95=Median-1.96*SE,
+                       MSY_Median=Median,
+                       MSY_Upper.95=Median+1.96*SE)%>%
+                dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+
+MSY_combined=rbind(Catch.only_MSY_Indicator.sp,Catch.only_MSY_Other.sp,Catch.only_MSY_Indicator.sp.appendix,
+                   Catch.only_MSY_Other.sp.appendix,JABBA_MSY_Indicator.sp,JABBA_MSY_Other.sp,
+                   SS_MSY_Indicator.sp,SS_MSY_Other.sp)%>%
+            arrange(Species,Method)
+write.csv(MSY_combined,paste0(Rar.path,'/Table_Compare MSY estimates.csv'),row.names = F)
+
+fn.compare.MSY(d=MSY_combined%>%filter(Species%in%capitalize(names(Indicator.species))),ncols=2)
+ggsave(paste0(Rar.path,'/Compare MSY estimates_indicators.tiff'), width = 6,height = 6, dpi = 300, compression = "lzw")
+
+fn.compare.MSY(d=MSY_combined%>%filter(!Species%in%capitalize(names(Indicator.species))),
+               ncols=5,xlab.angle=90,xlab.size=8,Str.siz=9)
+ggsave(paste0(Rar.path,'/Compare MSY estimates_other species.tiff'), width = 9,height = 10, dpi = 300, compression = "lzw")
 
 
 

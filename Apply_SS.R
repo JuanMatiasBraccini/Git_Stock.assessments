@@ -636,7 +636,7 @@ for(w in 1:n.SS)
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
-            Out.estimates=Out.quantities=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.probs.f.series=Out.B.Bmsy=
+            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.probs.f.series=Out.B.Bmsy=
               Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
@@ -783,14 +783,7 @@ for(w in 1:n.SS)
               
               if(run_SS_plots) SS_plots(Report,  png=T)
               
-              #d. Store estimates, likelihoods and management quantities
-              Out.quantities[[s]]=Report[["derived_quants"]]%>%
-                filter(Label%in%c("Dead_Catch_MSY",paste0("Bratio_",Last.yr.ktch.numeric)))%>%
-                dplyr::select(Label,Value,StdDev)%>%
-                mutate(Label=case_when(grepl('Bratio',Label)~'Current depletion',
-                                       Label=='Dead_Catch_MSY'~'MSY'),
-                       Scenario=Scens$Scenario[s])
-              
+              #d. Store estimates and likelihoods
               Estims=Report[["estimated_non_dev_parameters"]]
               Out.estimates[[s]]=Estims%>%
                                  mutate(Par=rownames(Estims),
@@ -944,7 +937,6 @@ for(w in 1:n.SS)
                         dummy.store.F.Fmsy=do.call(rbind,Out.F.Fmsy),
                         dummy.store.Kobe.probs=Out.Kobe.probs,  
                         dummy.store.estimates=do.call(rbind,Out.estimates),
-                        dummy.store.quantities=do.call(rbind,Out.quantities),
                         dummy.store.likelihoods=do.call(rbind,Out.likelihoods)  
                         ))
             
@@ -960,7 +952,6 @@ for(w in 1:n.SS)
       
       Age.based[[w]]$sens.table=fn.get.and.name(LISTA=out.species,x='dummy.store.sens.table')
       Age.based[[w]]$estimates=fn.get.and.name(LISTA=out.species,x='dummy.store.estimates')
-      Age.based[[w]]$quantities=fn.get.and.name(LISTA=out.species,x='dummy.store.quantities')
       Age.based[[w]]$rel.biom=fn.get.and.name(LISTA=out.species,x='dummy.store.rel.biom')
       Age.based[[w]]$probs.rel.biom=fn.get.and.name(LISTA=out.species,x='dummy.store.probs.rel.biom')
       Age.based[[w]]$probs.B.Bmsy=fn.get.and.name(LISTA=out.species,x='dummy.store.probs.B.Bmsy') 
@@ -1012,7 +1003,7 @@ for(w in 1:n.SS)
       names(dummy.store)=Keep.species
       dummy.store.estimates=dummy.store.likelihoods=dummy.store.rel.biom=dummy.store.probs.rel.biom=dummy.store.probs.f.series=
         dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
-        dummy.store.sens.table=dummy.store.ensemble=dummy.store.quantities=dummy.store
+        dummy.store.sens.table=dummy.store.ensemble=dummy.store
       
       for(i in 1:length(dummy.store))
       {
@@ -1634,7 +1625,7 @@ for(w in 1:n.SS)
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
-            Out.estimates=Out.quantities=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=Out.probs.f.series=
+            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=Out.probs.f.series=
               Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
@@ -1783,14 +1774,7 @@ for(w in 1:n.SS)
               
               if(run_SS_plots) SS_plots(Report,  png=T)
               
-              #d. Store estimates, likelihoods and management quantities
-              Out.quantities[[s]]=Report[["derived_quants"]]%>%
-                filter(Label%in%c("Dead_Catch_MSY",paste0("Bratio_",Last.yr.ktch.numeric)))%>%
-                dplyr::select(Label,Value,StdDev)%>%
-                mutate(Label=case_when(grepl('Bratio',Label)~'Current depletion',
-                                       Label=='Dead_Catch_MSY'~'MSY'),
-                       Scenario=Scens$Scenario[s])
-              
+              #d. Store estimates
               Estims=Report[["estimated_non_dev_parameters"]]
               Out.estimates[[s]]=Estims%>%
                                   mutate(Par=rownames(Estims),
@@ -1939,7 +1923,6 @@ for(w in 1:n.SS)
             dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
             dummy.store.Kobe.probs[[i]]=Out.Kobe.probs  
             dummy.store.estimates[[i]]=do.call(rbind,Out.estimates)
-            dummy.store.quantities[[i]]=do.call(rbind,Out.quantities)
             dummy.store.likelihoods[[i]]=do.call(rbind,Out.likelihoods)
             
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
@@ -1970,7 +1953,6 @@ for(w in 1:n.SS)
       
       Age.based[[w]]$sens.table=dummy.store.sens.table
       Age.based[[w]]$estimates=dummy.store.estimates
-      Age.based[[w]]$quantities=dummy.store.quantities
       Age.based[[w]]$rel.biom=dummy.store.rel.biom
       Age.based[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
       Age.based[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
@@ -2098,7 +2080,7 @@ for(l in 1: length(Lista.sp.outputs))
   }
 }
 
-#25.2 Table of parameter estimates, likelihoods and quantites of interest by species, scenario and method
+#25.2 Table of parameter estimates and likelihoods by species, scenario and method
 for(l in 1: length(Lista.sp.outputs))
 {
   for(w in 1:length(Age.based))
@@ -2131,24 +2113,6 @@ for(l in 1: length(Lista.sp.outputs))
         relocate(Species)
       write.csv(dummy,paste(Rar.path,paste('Table 11. Age.based_',
                                            names(Age.based)[w],'_likelihoods_',
-                                           names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
-                row.names = F)
-    }
-    
-    #quantities of interest 
-    dummy=Age.based[[w]]$quantities
-    dummy=dummy[match(Lista.sp.outputs[[l]],names(dummy))]
-    dummy=compact(dummy)
-    if(length(dummy)>0)
-    {
-      dummy=do.call(rbind,dummy)%>%
-        rownames_to_column(var = "Species")%>%
-        mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
-        relocate(Species)%>%
-        rename(Median=Value,
-               SE=StdDev)
-      write.csv(dummy,paste(Rar.path,paste('Table 11. Age.based_',
-                                           names(Age.based)[w],'_quantities_',
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
     }

@@ -3404,6 +3404,22 @@ mod.average.scalar=function(dd,Weights,KtcH,approach="Proportions",Ktch.type='di
 
 
 # Display functions  ------------------------------------------------------
+fn.compare.MSY=function(d,ncols,xlab.angle=90,xlab.size=10, Str.siz=12)
+{
+  p=d%>%
+    ggplot(aes(Method,MSY_Median))+
+    geom_point(aes(color=Method),show.legend = FALSE)+
+    geom_errorbar(aes(ymin=MSY_Lower.95, ymax=MSY_Upper.95,color=Method), width=.2,
+                  position=position_dodge(.9),show.legend = FALSE)+
+    geom_text_repel(aes(label=round(MSY_Median),color=Method),show.legend = FALSE)+
+    facet_wrap(~Species,scales='free',ncol=ncols)+
+    ylab('MSY (tonnes)')+xlab('')+
+    ylim(0,NA)+
+    theme_PA(axs.t.siz=xlab.size,strx.siz=Str.siz)+
+    theme(axis.text.x = element_text(angle = xlab.angle, vjust = 0.5, hjust=1))
+  return(p)
+}
+
 fn.prior=function(N=1e4,d,MAX=NULL)
 {
   if(d$dist=='unif')
