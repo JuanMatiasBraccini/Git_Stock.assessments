@@ -91,6 +91,8 @@ library(grid)
 library("gg3D")
 library(ggridges)
 library(janitor)
+library(units)
+library(ggforce)
 
 clear.log <- function(x, env = globalenv()) if(exists(x, envir = env))  rm(list = x, envir = env)
 
@@ -235,7 +237,7 @@ prop.disc.ER=.4
 PSA.min.tons=5
 PSA.min.years=Min.yrs
 PSA.max.ton=50
-Low.risk=2.64  #risk thresholds from Micheli et al 2014
+Low.risk=2.64  #risk thresholds from Hobday et al 2007 & Micheli et al 2014
 medium.risk=3.18
 
 #14. Assumed PCM for reconstructed discards in TDGLDF
@@ -563,6 +565,8 @@ What.Effort="km.gn.hours"  #What effort to display?
 
 
 #---2. Catch and effort data -----   
+
+FisheryCodes=read_excel(handl_OneDrive('Data/Catch and Effort/FisheryCodeTable.xlsx'), sheet = "CAEStoFISHCUBE")
 
 Dat.repository=handl_OneDrive('Analyses/Data_outs/')  #locations where all data are stored
 Dat.repository2=handl_OneDrive('Data/Population dynamics/Data inputs for models')
@@ -1030,7 +1034,7 @@ UniSp=unique(KtCh$Name)
 UniSp=subset(UniSp,!UniSp%in%names(Indicator.species)) 
 
 PSA.list=PSA.list%>%filter(Species%in%UniSp)  
-PSA.out=PSA.fn(d=PSA.list,line.sep=.35,size.low=2.1,size.med=2.15,size.hig=2.5,W=10,H=10)
+PSA.out=PSA.fn(d=PSA.list,line.sep=.45,size.low=2.1,size.med=2.15,size.hig=2.5,W=10,H=10)
 
 Keep.species=tolower(as.character(PSA.out%>%filter(Vulnerability=="High")%>%pull(Species)))
 Keep.species=sort(c(Keep.species,names(Indicator.species)))

@@ -700,6 +700,15 @@ fn.import.catch.data=function(KTCH.UNITS)
 }
 
 # PSA (which species to assess quantitatively)------------------------------------------------------
+PSA.contour.fn=function(y,Risk)
+{
+  d=data.frame(y=y)%>%
+    mutate(x=round(sqrt((Risk^2-y^2)),3))
+  d=d%>%
+    rbind(data.frame(y=c(min(d$y),min(d$y)),
+                     x=c(min(d$x),max(d$x))))
+  return(d)
+}
 PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)  
 {
   set.seed(101)
@@ -757,13 +766,23 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
                               Vulnerability=='High'~size.hig),
            Species=case_when(Species=='Port jackson shark'~'Port Jackson shark',
                              TRUE~Species))
-  cols=c(Low="green",Medium="yellow",High="red")
-  p=ggplot(PSA,
-           aes(Productivity, Susceptibility, label = Species,colour = Vulnerability, fill = Vulnerability)) +
+  cols=c(Low="green",Medium="yellow",High="red") 
+  PSA.contour_low.risk=PSA.contour.fn(y=seq(1,sqrt((Low.risk^2)-1^2),.001),Risk=Low.risk)
+  PSA.contour_medium.risk=PSA.contour.fn(y=seq(1,sqrt((medium.risk^2)-1^2),.001),Risk=medium.risk)
+  MaxY=1.01*unique(PSA%>%filter(Vulnerability.score==max(Vulnerability.score))%>%pull(Susceptibility))
+  MaxX=1.01*unique(PSA%>%filter(Vulnerability.score==max(Vulnerability.score))%>%pull(Productivity))
+  PSA.contour_high.risk=PSA.contour_medium.risk[-((nrow(PSA.contour_medium.risk)-1):nrow(PSA.contour_medium.risk)),]%>%
+    rbind(data.frame(y=rev(c(1,MaxY,MaxY)),x=rev(c(MaxX,MaxX,1))))
+  
+  p=PSA%>%
+    ggplot(aes(Productivity, Susceptibility, label = Species,colour = Vulnerability, fill = Vulnerability)) +
+    geom_polygon(data=PSA.contour_low.risk,inherit.aes = FALSE,aes(x,y),fill=cols[1],alpha=.15)+
+    geom_polygon(data=PSA.contour_medium.risk,inherit.aes = FALSE,aes(x,y),fill=cols[2],alpha=.15)+
+    geom_polygon(data=PSA.contour_high.risk,inherit.aes = FALSE,aes(x,y),fill=cols[3],alpha=.15)+
     geom_point(shape = 21, size = 5,colour="black") + 
     geom_text_repel(aes(size=Fnt.size),show.legend  = F,segment.colour="grey75",col='black',box.padding = line.sep) + 
     scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
-    xlim(1.5,3.15)+ylim(0.85,3.05)+
+    scale_x_continuous(expand = c(1, NA),limits = c(1,3.1)) + scale_y_continuous(expand = c(1, NA),limits = c(0.8,3.1))+
     theme_PA(axs.T.siz=18,axs.t.siz=12,lgT.siz=16,leg.siz=15)+
     theme(panel.background = element_blank(),
           axis.line = element_line(colour = "black"),
@@ -771,19 +790,20 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
           legend.key=element_blank(),
           panel.border = element_rect(colour = "black", fill=NA, size=1))+
     theme(plot.caption = element_text(hjust = 0))+
-    ylab('')+xlab('')+
-    coord_cartesian(clip = 'off')+
-    annotation_custom(segmentsGrob(c(0.80,-0.05), c(-0.05, 0.15), 
-                                   c(0.15, -0.05), c(-0.05, 0.82), gp = gpar(lwd = 3,col='dodgerblue4'),
-                                   arrow = arrow(length = unit(5, 'mm'))))+
-    annotation_custom(textGrob("High Productivity", gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
-                      xmin=1.5,xmax=1.5,ymin=0.63,ymax=0.63)+
-    annotation_custom(textGrob("Low Productivity", gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
-                      xmin=3.15,xmax=3.05,ymin=0.63,ymax=0.63)+
-    annotation_custom(textGrob("Low Susceptibility",rot = 90, gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
-                      xmin=1.325,xmax=1.325,ymin=0.85,ymax=0.85)+
-    annotation_custom(textGrob("High Susceptibility",rot = 90, gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
-                      xmin=1.325,xmax=1.325,ymin=3,ymax=3)
+    xlab(expression((high) %<-% "Productivity"))+
+    ylab(expression("Susceptibility" %->% (high)))+
+    coord_cartesian(clip = 'off')
+  # annotation_custom(segmentsGrob(c(0.80,-0.05), c(-0.05, 0.15), 
+  #                                c(0.15, -0.05), c(-0.05, 0.82), gp = gpar(lwd = 3,col='dodgerblue4'),
+  #                                arrow = arrow(length = unit(5, 'mm'))))+
+  # annotation_custom(textGrob("High Productivity", gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
+  #                   xmin=1.5,xmax=1.5,ymin=0.63,ymax=0.63)+
+  # annotation_custom(textGrob("Low Productivity", gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
+  #                   xmin=3.15,xmax=3.05,ymin=0.63,ymax=0.63)+
+  # annotation_custom(textGrob("Low Susceptibility",rot = 90, gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
+  #                   xmin=1.325,xmax=1.325,ymin=0.85,ymax=0.85)+
+  # annotation_custom(textGrob("High Susceptibility",rot = 90, gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
+  #                   xmin=1.325,xmax=1.325,ymin=3,ymax=3)
   print(p)
   ggsave(paste(Exprt,'Figure_PSA.tiff',sep='/'), width = W,height = H, dpi = 300, compression = "lzw")
   
