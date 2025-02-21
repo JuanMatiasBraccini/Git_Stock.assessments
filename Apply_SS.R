@@ -1710,8 +1710,6 @@ for(w in 1:n.SS)
                              Var.adjust.factor=Var.ad.factr,
                              Future.project=add.ct.future)
                 }
-
-              
               
               #b. Run SS3
                 #run this first time fitting model to define LnRo init value
