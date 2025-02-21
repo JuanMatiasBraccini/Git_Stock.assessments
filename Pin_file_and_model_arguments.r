@@ -454,7 +454,12 @@ for(l in 1:N.sp)
     #4.1.2 Growth
   List.sp[[l]]$Growth.CV_young=max(0.1,Young.CV)  #constant CV 8.5%-10% Tremblay-Boyer et al 2019; 22% Sandbar Sedar; 15% Dogfish SS; 27% BigSkate SS
   List.sp[[l]]$Growth.CV_old=max(0.1,Old.CV)    #12% Sandbar Sedar
-  #if(NeiM%in%c("milk shark","wobbegongs")) List.sp[[l]]$Growth.CV_old=0.15  #widen the CV to allow observed max sizes be within Linf + CV
+  if(NeiM%in%c("milk shark"))
+  {
+    List.sp[[l]]$Growth.CV_young=0.1   #default CVs results in massive Rec Devs prior to start of data and poor fit to length comps
+    List.sp[[l]]$Growth.CV_old=0.05
+  }
+  #if(NeiM%in%c("wobbegongs")) List.sp[[l]]$Growth.CV_old=0.15  #widen the CV to allow observed max sizes be within Linf + CV
   List.sp[[l]]$SS3.estim.growth.pars=FALSE
   List.sp[[l]]$compress.tail=FALSE  #compress the size distribution tail into plus group. 
     

@@ -667,6 +667,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   #growth pars
   ctl$Growth_Age_for_L1=0
   #females
+  if("Eggs/kg_inter_Fem_GP_1"%in%rownames(ctl$MG_parms) & !"Eggs_alpha_Fem_GP_1"%in%rownames(ctl$MG_parms))
+  {
+    rownames(ctl$MG_parms)[match("Eggs/kg_inter_Fem_GP_1",rownames(ctl$MG_parms))]="Eggs_alpha_Fem_GP_1" 
+    rownames(ctl$MG_parms)[match("Eggs/kg_slope_wt_Fem_GP_1",rownames(ctl$MG_parms))]="Eggs_beta_Fem_GP_1"
+  }
   ctl$MG_parms["NatM_p_1_Fem_GP_1", c("INIT","PRIOR")]=rep(Scenario$Mmean,2)
   ctl$MG_parms["NatM_p_1_Fem_GP_1", c("LO","HI")]=c(ctl$MG_parms["NatM_p_1_Fem_GP_1", "INIT"]*.1,ctl$MG_parms["NatM_p_1_Fem_GP_1", "INIT"]*4)
   ctl$MG_parms["L_at_Amin_Fem_GP_1", c("INIT","PRIOR")]=rep(with(life.history,Lzero*a_FL.to.TL+b_FL.to.TL),2)  #size for specified _Age(post-settlement)_for_L1
