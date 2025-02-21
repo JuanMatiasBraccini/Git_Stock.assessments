@@ -593,7 +593,7 @@ for(w in 1:n.SS)
           rownames(flitinfo)=NULL
           
           
-          #9. Run scenarios if available abundance index 
+          #9. Run scenarios if available abundance index or size comps
           len.cpue=length(CPUE)
           len.size.comp=length(Size.compo.SS.format) 
           if(len.cpue>0|len.size.comp>0)
@@ -636,7 +636,7 @@ for(w in 1:n.SS)
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
-            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.probs.f.series=Out.B.Bmsy=
+            Out.estimates=Out.likelihoods=Out.quantities=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.probs.f.series=Out.B.Bmsy=
               Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
@@ -804,6 +804,20 @@ for(w in 1:n.SS)
                                              Scenario=Scens$Scenario[s])%>%
                                       relocate(Scenario,Likelihood)%>%
                                       `rownames<-`( NULL )
+              
+              Bratio_current=paste0('Bratio_',max(ktch$finyear))
+              Out.quantities[[s]]=Report[["derived_quants"]]%>%
+                                    filter(Label%in%c(Bratio_current,"Dead_Catch_MSY"))%>%
+                                    mutate(Label=ifelse(Label==Bratio_current,'Current depletion',
+                                                        ifelse(Label=="Dead_Catch_MSY",'MSY',
+                                                               Label)),
+                                           Species=capitalize(Neim),
+                                           Scenario=Scens$Scenario[s])%>%
+                                    rename(Median=Value,
+                                           SE=StdDev)%>%
+                                    dplyr::select(Species,Label,Median,SE,Scenario)%>%
+                                    `rownames<-`( NULL )
+              
                                     
               #e. Store trajectories
               #note: uncertainty is based on asymptotic error
@@ -937,11 +951,12 @@ for(w in 1:n.SS)
                         dummy.store.F.Fmsy=do.call(rbind,Out.F.Fmsy),
                         dummy.store.Kobe.probs=Out.Kobe.probs,  
                         dummy.store.estimates=do.call(rbind,Out.estimates),
-                        dummy.store.likelihoods=do.call(rbind,Out.likelihoods)  
+                        dummy.store.likelihoods=do.call(rbind,Out.likelihoods),
+                        dummy.store.quantities=do.call(rbind,Out.quantities)
                         ))
             
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,Out.probs.f.series,
-               Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods) 
+               Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods,Out.quantities) 
             
           }
           clear.log("Var.ad.factr")
@@ -960,6 +975,7 @@ for(w in 1:n.SS)
       Age.based[[w]]$F.Fmsy=fn.get.and.name(LISTA=out.species,x='dummy.store.F.Fmsy')
       Age.based[[w]]$Kobe.probs=fn.get.and.name(LISTA=out.species,x='dummy.store.Kobe.probs')
       Age.based[[w]]$likelihoods=fn.get.and.name(LISTA=out.species,x='dummy.store.likelihoods')
+      Age.based[[w]]$quantities=fn.get.and.name(LISTA=out.species,x='dummy.store.quantities')
       
       #plot overall figure with estimates and scenarios
       for(i in 1:N.sp)
@@ -1001,8 +1017,9 @@ for(w in 1:n.SS)
     {
       dummy.store=vector('list',N.sp)
       names(dummy.store)=Keep.species
-      dummy.store.estimates=dummy.store.likelihoods=dummy.store.rel.biom=dummy.store.probs.rel.biom=dummy.store.probs.f.series=
-        dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
+      dummy.store.estimates=dummy.store.likelihoods=dummy.store.quantities=dummy.store.rel.biom=
+        dummy.store.probs.rel.biom=dummy.store.probs.f.series=dummy.store.probs.B.Bmsy=dummy.store.f.series=
+        dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
         dummy.store.sens.table=dummy.store.ensemble=dummy.store
       
       for(i in 1:length(dummy.store))
@@ -1582,7 +1599,7 @@ for(w in 1:n.SS)
           rownames(flitinfo)=NULL
           
           
-          #9. Run scenarios if available abundance index 
+          #9. Run scenarios if available abundance index or size comps 
           len.cpue=length(CPUE)
           len.size.comp=length(Size.compo.SS.format)
           if(len.cpue>0|len.size.comp>0)
@@ -1625,8 +1642,8 @@ for(w in 1:n.SS)
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             Out.Scens=Scens
-            Out.estimates=Out.likelihoods=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=Out.probs.f.series=
-              Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
+            Out.estimates=Out.likelihoods=Out.quantities=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=
+            Out.probs.f.series=Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
             
             #Life history
             Life.history$Fecundity=ceiling(mean(Life.history$Fecundity))
@@ -1793,6 +1810,18 @@ for(w in 1:n.SS)
                                              Scenario=Scens$Scenario[s])%>%
                                       relocate(Scenario,Likelihood)%>%
                                      `rownames<-`( NULL )
+              Bratio_current=paste0('Bratio_',max(ktch$finyear))
+              Out.quantities[[s]]=Report[["derived_quants"]]%>%
+                                    filter(Label%in%c(Bratio_current,"Dead_Catch_MSY"))%>%
+                                    mutate(Label=ifelse(Label==Bratio_current,'Current depletion',
+                                                 ifelse(Label=="Dead_Catch_MSY",'MSY',
+                                                 Label)),
+                                           Species=capitalize(Neim),
+                                           Scenario=Scens$Scenario[s])%>%
+                                    rename(Median=Value,
+                                           SE=StdDev)%>%
+                                    dplyr::select(Species,Label,Median,SE,Scenario)%>%
+                                    `rownames<-`( NULL )
                                 
               #e. Store trajectories
               
@@ -1922,9 +1951,10 @@ for(w in 1:n.SS)
             dummy.store.Kobe.probs[[i]]=Out.Kobe.probs  
             dummy.store.estimates[[i]]=do.call(rbind,Out.estimates)
             dummy.store.likelihoods[[i]]=do.call(rbind,Out.likelihoods)
+            dummy.store.quantities[[i]]=do.call(rbind,Out.quantities)
             
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
-               Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods)
+               Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods,Out.quantities)
             
             #plot overall figure with estimates and scenarios
             yrS=dummy.store.rel.biom[[i]]%>%filter(Scenario=='S1')%>%pull(year)
@@ -1960,11 +1990,13 @@ for(w in 1:n.SS)
       Age.based[[w]]$F.Fmsy=dummy.store.F.Fmsy
       Age.based[[w]]$Kobe.probs=dummy.store.Kobe.probs
       Age.based[[w]]$likelihoods=dummy.store.likelihoods
+      Age.based[[w]]$quantities=dummy.store.quantities
       
       
       rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,dummy.store.probs.f.series,
          dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,dummy.store.probs.B.Bmsy,
-         dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.Kobe.probs,dummy.store.likelihoods)
+         dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.Kobe.probs,dummy.store.likelihoods,
+         dummy.store.quantities)
       
     }
   }
@@ -2061,6 +2093,283 @@ if(SS3.run=='final')
 
 
 #---Generate outputs -------------------------------------------------
+#Get Report file if SS was not run in R session
+if(is.null(Age.based$SS))
+{
+  for(w in 1:n.SS)
+  {
+    # SS3
+    if(names(Age.based)[w]=="SS") 
+    {
+      dummy.store=vector('list',N.sp)
+      names(dummy.store)=Keep.species
+      dummy.store.estimates=dummy.store.likelihoods=dummy.store.quantities=dummy.store.rel.biom=dummy.store.probs.rel.biom=dummy.store.probs.f.series=
+        dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
+        dummy.store.sens.table=dummy.store.ensemble=dummy.store
+      
+      for(i in 1:length(dummy.store))
+      {
+        Neim=names(dummy.store)[i]
+        
+        if((!is.null(Catch.rate.series[[i]]) | Neim%in%Species.with.length.comp) & !(Neim%in%no.empirical.sel.main.fleet))
+        {
+          this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                        capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+          if(!dir.exists(this.wd))dir.create(this.wd)
+          
+          Life.history=List.sp[[i]]
+          
+          #1. Catch
+          ktch=KtCh%>%
+            filter(Name==Neim)%>%
+            mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
+                                 ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                          'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                                        ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
+                                               'Other'))))%>%
+            group_by(SPECIES,Name,finyear,Fishry)%>%
+            summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
+            mutate(Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
+                                    Fishry=="Southern.shark" & finyear>=2006~'Southern.shark_2',
+                                    TRUE~Fishry))
+          Combined.ktch=ktch.combined%>%
+            filter(Name==Neim)%>%
+            rename(Year=finyear,
+                   Total=Tonnes)%>%
+            ungroup()%>%
+            dplyr::select(Year,Total)%>%
+            arrange(Year)%>%
+            data.frame
+          
+          Flits.name=sort(unique(ktch$Fishry))  
+          Flits=1:length(Flits.name)
+          names(Flits)=Flits.name
+          
+          flitinfo=data.frame(fleet=Flits)%>%
+            mutate(type=1,
+                   surveytiming=-1,
+                   area=1,
+                   units=1,
+                   need_catch_mult=0,
+                   fleetname=names(Flits))%>%
+            dplyr::select(-fleet)%>%
+            mutate(type=ifelse(fleetname=="Survey",3,type),
+                   surveytiming=ifelse(fleetname=="Survey",1,surveytiming))
+          rownames(flitinfo)=NULL
+          
+          ktch=ktch%>%
+            spread(Fishry,Tonnes,fill=0)
+          
+          #rename fleets following SS nomenclature
+          names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))
+          
+          #future catches
+          if("SS"%in%future.models)
+          {
+            NN=nrow(ktch)
+            add.ct.future=ktch[1:years.futures,]
+            add.ct.future$finyear=ktch$finyear[NN]+(1:years.futures)
+            if("Survey"%in%names(Flits))
+            {
+              lef.flits=match(Flits[-match("Survey",names(Flits))],colnames(add.ct.future))
+            }else
+            {
+              lef.flits=match(Flits,colnames(add.ct.future))
+            }
+            for(lf in 1:length(lef.flits))
+            {
+              add.ct.future[,lef.flits[lf]]=mean(unlist(ktch[(NN-years.futures+1):NN,lef.flits[lf]]),na.rm=T)
+            }
+          }
+          
+          #Scenarios
+          Scens=Life.history$Sens.test$SS%>%
+            mutate(Species=capitalize(Neim))
+          Store.sens=vector('list',nrow(Scens))
+          names(Store.sens)=Scens$Scenario
+          Out.Scens=Scens
+          Out.estimates=Out.likelihoods=Out.quantities=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=Out.probs.f.series=
+            Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
+          
+          #Get Report from each scenario
+          for(s in 1:length(Store.sens))
+          {
+            this.wd1=paste(this.wd,names(Store.sens)[s],sep='/')
+            COVAR=FORECAST=FALSE
+            if(Arg=="") COVAR=TRUE
+            if("SS"%in%future.models) FORECAST=TRUE
+            Report=SS_output(this.wd1,covar=COVAR,forecast=FORECAST,readwt=F)
+            
+            
+            #d. Store estimates
+            Estims=Report[["estimated_non_dev_parameters"]]
+            Out.estimates[[s]]=Estims%>%
+              mutate(Par=rownames(Estims),
+                     Scenario=Scens$Scenario[s])%>%
+              relocate(Scenario,Par)%>%
+              `rownames<-`( NULL )
+            F.ref.points=fn.get.f.ref.points(Report)                 
+            dummi.F=Out.estimates[[s]][1:length(F.ref.points),]
+            dummi.F[,]=NA
+            dummi.F=dummi.F%>%
+              mutate(Scenario=unique(Out.estimates[[s]]$Scenario),
+                     Par=names(F.ref.points),
+                     Value=unlist(F.ref.points))
+            Out.estimates[[s]]=rbind(Out.estimates[[s]],dummi.F)
+            Likelihoods=Report[["likelihoods_used"]]
+            Out.likelihoods[[s]]=Likelihoods%>%
+              mutate(Likelihood=rownames(Likelihoods),
+                     Scenario=Scens$Scenario[s])%>%
+              relocate(Scenario,Likelihood)%>%
+              `rownames<-`( NULL )
+            Bratio_current=paste0('Bratio_',max(ktch$finyear))
+            Out.quantities[[s]]=Report[["derived_quants"]]%>%
+              filter(Label%in%c(Bratio_current,"Dead_Catch_MSY"))%>%
+              mutate(Label=ifelse(Label==Bratio_current,'Current depletion',
+                                  ifelse(Label=="Dead_Catch_MSY",'MSY',
+                                         Label)),
+                     Species=capitalize(Neim),
+                     Scenario=Scens$Scenario[s])%>%
+              rename(Median=Value,
+                     SE=StdDev)%>%
+              dplyr::select(Species,Label,Median,SE,Scenario)%>%
+              `rownames<-`( NULL )
+            
+            #e. Store trajectories
+            
+            #e.1 relative biomass
+            dummy=fn.integrated.mod.get.timeseries(d=Report,
+                                                   mods="SS3",
+                                                   Type='Depletion',
+                                                   scen=Scens$Scenario[s])
+            Out.rel.biom[[s]]=dummy$Dat
+            Out.probs.rel.biom[[s]]=dummy$Probs   #based on asymptotic error
+            
+            #e.2 F
+            dummy=fn.integrated.mod.get.timeseries(d=Report,
+                                                   mods="SS3",
+                                                   Type='F.series',
+                                                   scen=Scens$Scenario[s])
+            Out.f.series[[s]]=dummy$Dat
+            Out.probs.f.series[[s]]=dummy$Probs
+            
+            #e.3 B/Bmsy
+            dummy=fn.integrated.mod.get.timeseries(d=Report,
+                                                   mods="SS3",
+                                                   Type='B.Bmsy',
+                                                   scen=Scens$Scenario[s],
+                                                   get.uncertainty='CV')
+            Out.B.Bmsy[[s]]=dummy$Dat
+            Out.probs.B.Bmsy[[s]]=dummy$Probs
+            Kobe.stock=dummy$Out.Kobe
+            
+            #e.4 F/Fmsy
+            dummy=fn.integrated.mod.get.timeseries(d=Report,
+                                                   mods="SS3",
+                                                   Type='F.Fmsy',
+                                                   scen=Scens$Scenario[s],
+                                                   get.uncertainty='ratio.first')
+            Out.F.Fmsy[[s]]=dummy$Dat
+            Kobe.harvest=dummy$Out.Kobe
+            
+            
+            #add catch for display purposes
+            Add.katch=Combined.ktch
+            if(any(add.ct.future$finyear%in%unique(Out.rel.biom[[s]]$year)))
+            {
+              TC.future=add.ct.future%>%ungroup()%>%dplyr::select(-c(SPECIES,Name,finyear))%>%rowSums()
+              Add.katch=rbind(Add.katch,data.frame(Year=add.ct.future$finyear,Total=TC.future))
+            }
+            Out.rel.biom[[s]]=Out.rel.biom[[s]]%>%
+              left_join(Add.katch,by=c('year'='Year'))%>%
+              rename(Catch=Total)
+            
+            #Kobe
+            if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=data.frame(stock=Kobe.stock,
+                                                                       harvest=Kobe.harvest)%>%
+              filter(stock>=0 & harvest>=0)
+            
+            
+            print(paste("___________","SS3 Scenario",Scens$Scenario[s],"___________",Neim))
+            
+          } #end s loop
+          Out.Scens=Out.Scens%>%
+            rename(h.mean=Steepness,
+                   h.sd=Steepness.sd)%>%
+            mutate(Mmean=round(Mmean,3),
+                   h.mean=round(h.mean,3),
+                   h.sd=round(h.sd,3))%>%
+            dplyr::select(-c(Model,use_F_ballpark))%>%
+            relocate(Species,Scenario,Mmean,F_ballpark,h.mean,h.sd)
+          
+          #add extra scenario info
+          fec.alpha=Life.history$Fecu_a    #intercept
+          fec.beta=Life.history$Fecu_b     #slope
+          if(is.na(fec.alpha)| is.na(fec.beta))
+          {
+            fec.alpha=mean(Life.history$Fecundity)  #set fec-@-age to mean fec if no relationship available
+            fec.beta=0    
+          }
+          Out.Scens=Out.Scens%>%
+            mutate(TLo=round(with(Life.history,Lzero*a_FL.to.TL+b_FL.to.TL)),
+                   Fem.TL.inf=round(with(Life.history,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)),
+                   Fem.K=Life.history$Growth.F$k,
+                   Fem.awt=Life.history$AwT,
+                   Fem.bwt=Life.history$BwT,
+                   Fem.TL50=round(Life.history$TL.mat.inf.slope[2]),
+                   Fem.fec.a=fec.alpha/mean(Life.history$Breed.cycle),
+                   Fem.fec.b=fec.beta/mean(Life.history$Breed.cycle),
+                   Mal.TL.inf=round(with(Life.history,Growth.M$FL_inf*a_FL.to.TL+b_FL.to.TL)),
+                   Mal.K=Life.history$Growth.M$k,
+                   Mal.awt=Life.history$AwT.M,
+                   Mal.bwt=Life.history$BwT.M,
+                   SR_sigmaR=Life.history$SR_sigmaR,
+                   a_FL.to.TL=Life.history$a_FL.to.TL,
+                   b_FL.to.TL=Life.history$b_FL.to.TL,
+                   Fleets=paste(flitinfo$fleetname,collapse=', '))
+          
+          
+          #5. Store quantities
+          dummy.store.sens.table[[i]]=Out.Scens
+          dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
+          dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
+          dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
+          dummy.store.probs.f.series[[i]]=Out.probs.f.series
+          dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
+          dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
+          dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
+          dummy.store.Kobe.probs[[i]]=Out.Kobe.probs  
+          dummy.store.estimates[[i]]=do.call(rbind,Out.estimates)
+          dummy.store.likelihoods[[i]]=do.call(rbind,Out.likelihoods)
+          dummy.store.quantities[[i]]=do.call(rbind,Out.quantities)
+          
+          rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
+             Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods)
+        }
+      } #end i loop
+      
+      Age.based[[w]]$sens.table=dummy.store.sens.table
+      Age.based[[w]]$estimates=dummy.store.estimates
+      Age.based[[w]]$rel.biom=dummy.store.rel.biom
+      Age.based[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
+      Age.based[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
+      Age.based[[w]]$probs.f.series=dummy.store.probs.f.series
+      Age.based[[w]]$f.series=dummy.store.f.series
+      Age.based[[w]]$B.Bmsy=dummy.store.B.Bmsy
+      Age.based[[w]]$F.Fmsy=dummy.store.F.Fmsy
+      Age.based[[w]]$Kobe.probs=dummy.store.Kobe.probs
+      Age.based[[w]]$likelihoods=dummy.store.likelihoods
+      Age.based[[w]]$quantities=dummy.store.quantities
+      
+      rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,dummy.store.probs.f.series,
+         dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,dummy.store.probs.B.Bmsy,
+         dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.Kobe.probs,dummy.store.likelihoods)
+      
+
+    }
+  }
+}
+
 #25.1 Table of scenarios
 for(l in 1: length(Lista.sp.outputs))    
 {
@@ -2078,7 +2387,7 @@ for(l in 1: length(Lista.sp.outputs))
   }
 }
 
-#25.2 Table of parameter estimates and likelihoods by species, scenario and method
+#25.2 Table of parameter estimates, likelihoods and quantities of interest
 for(l in 1: length(Lista.sp.outputs))
 {
   for(w in 1:length(Age.based))
@@ -2114,6 +2423,19 @@ for(l in 1: length(Lista.sp.outputs))
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
     }
+    
+    #Quantities
+    dummy=Age.based[[w]]$quantities
+    dummy=dummy[match(Lista.sp.outputs[[l]],names(dummy))]
+    dummy=compact(dummy)
+    if(length(dummy)>0)
+    {
+      write.csv(do.call(rbind,dummy),paste(Rar.path,paste('Table 11. Age.based_',
+                                           names(Age.based)[w],'_quantities_',
+                                           names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
+                row.names = F)
+    }
+
   }
 }
 
