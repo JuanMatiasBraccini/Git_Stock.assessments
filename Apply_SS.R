@@ -2863,7 +2863,7 @@ for(l in 1:length(Lista.sp.outputs))
                      NKOL,
                      NRW,
                      do.probs=TRUE)
-    ggsave(paste(Rar.path,'/Kobe_plot_Age.based_SS_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+    ggsave(paste(Rar.path,'/Kobe_plot_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = WIZ,height = 12,compression = "lzw")
     
   }
@@ -2904,7 +2904,7 @@ for(l in 1:length(Lista.sp.outputs))
                                   NKOL,
                                   NRW,
                                   RF=Ref.points)
-    ggsave(paste(Rar.path,'/Kobe_plot_Age.based_SS_WA_Fisheries_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+    ggsave(paste(Rar.path,'/Kobe_plot_SS3 integrated_WA_Fisheries_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = WIZ,height = 12,compression = "lzw")
   }
 }

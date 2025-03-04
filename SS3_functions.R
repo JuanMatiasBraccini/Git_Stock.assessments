@@ -2242,6 +2242,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     Params=profilesummary[["pars"]]
     
     #Plot
+    if(!'replist0'%in%names(profilesummary[["SpawnBioLower"]])) profilesummary[["SpawnBioLower"]]$replist0=profilesummary[["SpawnBioLower"]]$replist1
+    if(!'replist0'%in%names(profilesummary[["SpawnBioUpper"]])) profilesummary[["SpawnBioUpper"]]$replist0=profilesummary[["SpawnBioUpper"]]$replist1
     tiff(file.path(dirname.diagnostics,"Jitter.tiff"), 
          width = 2100, height = 2100,units = "px", res = 300, compression = "lzw")
     sspar(mfrow=c(2,1),labs=T,plot.cex=0.9)
@@ -2279,7 +2281,7 @@ profile_tweaked=function (dir, oldctlfile = "control.ss_new", masterctlfile = li
                               with = "profile(oldctlfile)")
     oldctlfile <- masterctlfile
   }
-  check_exe(exe = exe, dir = dir, verbose = verbose)
+  if(exists('check_exe'))check_exe(exe = exe, dir = dir, verbose = verbose)
   if (is.null(linenum) & is.null(string)) {
     stop("You should input either 'linenum' or 'string' (but not both)")
   }

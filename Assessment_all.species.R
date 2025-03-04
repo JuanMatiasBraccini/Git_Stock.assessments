@@ -2678,6 +2678,7 @@ fn.source1("Pin_file_and_model_arguments.r")
 
 
 #---16. Export .dat, extract SS3 selectivities and some prelim analysis----- 
+#remotes::install_github("r4ss/r4ss")
 library(r4ss)  
 if(First.run=="YES") fn.source1("Organise data.R")
 
