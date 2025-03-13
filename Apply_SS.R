@@ -2925,6 +2925,32 @@ for(i in 1:N.sp)
   }
 }
 
+  #25.7.2 Display combined species  
+for(l in 1:length(Lista.sp.outputs))
+{
+  Nms=names(compact(Age.based$SS$estimates))
+  this.sp=Lista.sp.outputs[[l]]
+  this.sp=this.sp[which(this.sp%in%Nms)]
+  if(length(this.sp)>0)
+  {
+    print(paste("SS3 --- Kobe plot SAFS-----",names(Lista.sp.outputs)[l]))
+    DIMS=n2mfrow(length(this.sp))
+    NKOL=DIMS[2]
+    NRW=DIMS[1]
+    if(NKOL%in%3:4) WIZ=14
+    if(NKOL==2) WIZ=11
+    if(NKOL==1) WIZ=9
+    fn.get.Kobe.plot_SAFS(this.sp,
+                          d=Age.based$SS,
+                          NKOL,
+                          NRW,
+                          RF=Ref.points,
+                          Scen='S1')
+    ggsave(paste(Rar.path,'/Kobe_plot_SS3 integrated_SAFS_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+           width = WIZ,height = 12,compression = "lzw")
+  }
+}
+
 #25.8 Store Consequence and likelihood for WoE 
 get.cons.like.SS=FALSE   #Superseded. Now this is extracted from exported tables
 if(get.cons.like.SS) Store.cons.Like_Age.based=fn.get.cons.like(lista=Age.based) 

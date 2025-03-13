@@ -5636,6 +5636,43 @@ fn.get.Kobe.plot_appendix_SAFS=function(d,sp,Scen='S1',add.sp.nm=FALSE,txt.size=
   print(figure)
   #return(plotlist)
 }
+fn.get.Kobe.plot_SAFS=function(this.sp,d,NKOL,NRW,RF=Ref.points,Scen='S1')
+{
+  id=match(this.sp,names(d$rel.biom))
+  Bmsy=d$rel.biom[id]
+  Fmsy=d$f.series[id]
+  plotlist=vector('list',length(Bmsy))
+  for(x in 1:length(Bmsy))
+  {
+    dis.fmsy=Fmsy[[x]]%>%filter(year<=Last.yr.ktch.numeric)
+    dis.bmsy=Bmsy[[x]]%>%filter(year<=Last.yr.ktch.numeric)
+    if('Scenario'%in%names(dis.fmsy))
+    {
+      dis.fmsy=dis.fmsy%>%filter(Scenario==Scen)
+      dis.bmsy=dis.bmsy%>%filter(Scenario==Scen)
+    }
+    B.ref.points=do.call(rbind,RF[id][[x]])%>%filter(Scenario==Scen)
+    F.ref.points=d$estimates[id][[x]]
+    if(!"Parameter"%in%names(F.ref.points)) F.ref.points=F.ref.points%>%rename(Parameter=Par)
+    if(!"Median"%in%names(F.ref.points)) F.ref.points=F.ref.points%>%rename(Median=Value)
+    F.ref.points=F.ref.points%>%
+      filter(Scenario==Scen & Parameter%in%c('F.target','F.threshold','F.limit'))
+    
+    dd=kobePlot_SAFS(f.traj=dis.fmsy$median[1:length(dis.bmsy$median)],
+                     b.traj=dis.bmsy$median,
+                     Years=dis.bmsy$year,
+                     Titl=capitalize(names(Bmsy)[x]),
+                     YrSize=5,
+                     B.lim=B.ref.points%>%filter(Rf.pt=='Limit')%>%pull(Value),
+                     F.lim=F.ref.points%>%filter(Parameter=='F.limit')%>%pull(Median))
+    plotlist[[x]]=dd+rremove("axis.title")
+  }
+  figure <- ggarrange(plotlist=plotlist,ncol=NKOL,nrow=NRW,common.legend = FALSE)
+  figure=annotate_figure(figure,
+                         bottom = text_grob(expression(B/~B[0]), size=22),
+                         left = text_grob(expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")), rot = 90,size=22))
+  print(figure)
+}
 fn.get.f.ref.points=function(Report,propTar=Tar.prop.bmsny,propLim=Lim.prop.bmsy)
 {
   SSB_MSY=Report$derived_quants%>%filter(Label=='SSB_MSY')%>%pull(Value)
