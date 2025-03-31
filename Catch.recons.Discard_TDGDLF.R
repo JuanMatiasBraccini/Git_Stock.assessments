@@ -183,7 +183,7 @@ for(i in 1:length(DATA_obs))
 
 
 
-# Extract data for Emity-------------------------------------------
+# Extract data for Emily-------------------------------------------
 do.this=FALSE
 if(do.this)
 {
@@ -255,6 +255,35 @@ if(do.this)
     labs(fill = "") +
     facet_wrap(~zone)
   ggsave(handl_OneDrive('Analyses/Reconstruction_catch_commercial/FigureS5.tiff'),width = 10,height = 6,compression = "lzw")
+  
+}
+
+# Check all discarded species to inform new commercial logbook design-------------------------------------------
+do.this=FALSE
+if(do.this)
+{
+  fn.top.discarded.logbook=function(a)
+  {
+    Tab.overall=a%>%
+      group_by(zone,COMMON_NAME,SCIENTIFIC_NAME)%>%
+      summarise(Number=sum(Number))%>%
+      ungroup()%>%
+      group_by(COMMON_NAME,SCIENTIFIC_NAME)%>%
+      summarise(Number=sum(Number))%>%
+      ungroup()%>%
+      arrange(-Number)%>%
+      mutate(Cum=cumsum(Number),
+             Percent=100*Cum/sum(Number))%>%
+      data.frame()
+    
+    return(Tab.overall)
+    
+  }
+  Tab.discard.inform.logbuk=fn.top.discarded.logbook(a=DATA_obs$GN%>%filter(Discarded=='Discarded'))
+  write.csv(Tab.discard.inform.logbuk,'Table_discard_inform_logbook.csv',row.names = F)
+  
+  Tab.discard.inform.logbuk.recent=fn.top.discarded.logbook(a=DATA_obs$GN%>%filter(Discarded=='Discarded' & year>2005))
+  write.csv(Tab.discard.inform.logbuk.recent,'Table_discard_inform_logbook_since_2006.csv',row.names = F)
   
 }
 

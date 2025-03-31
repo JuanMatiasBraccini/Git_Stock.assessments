@@ -38,7 +38,7 @@
 
 #5. Other jurisdictions (AFMA_GAB_WTB, Whaler_SA, Bronze.whaler_NSW, Bronze.whaler_NSW_beach.protection, NT_dusky_sandbar)
 #     see 'Matias\Data\Data requests_other jurisdictions' folder
-
+rm(list=ls(all=TRUE))
 options(dplyr.summarise.inform = FALSE)
 options(stringsAsFactors = FALSE)
 if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
@@ -604,19 +604,23 @@ Whaler_SA_bronzie.prop=1-Whaler_SA_dusky.prop
   #-- 2.2.4 Indonesian illegal fishing in Australia waters
 
 #source: ABC (https://www.abc.net.au/news/2019-11-12/illegal-shark-fishing-northern-territory-fishing-boat/11697036)
+#        not used
 Indo_flesh=60 #flesh (kg)
 Indo_fins=63
 Indo_skins=16
 Indo_prop.shark=8/36   #proportion of apprehended vessels fishing for sharks
 
 #source: Edyvane & Penny 2017 (using all vessels, including MOU because the MOU catch is not accounted for anywhere)
+#        not used
 Indo_sightings=data.frame(year=2000:2013,
                           Total.FFVs.inside.AEEZ=c(4867,5878,3047,9550,6638,9362,7378,4320,
                                                    6827,9117,9517,11822,13979,11455))
+
 #source: Stacey 2007 Boats to Burn: Bajo Fishing Activity in the Australian Fishing Zone. 
 Indo_apprehensions.Stacey=data.frame(year=1975:1999,
                                Apprehensions=c(3,rep(0,4),2,rep(0,4),5,0,1,46,29,43,38,15,
                                                23,111,76,97,122,rep(NA,2)))
+
 #AFMA (brodie.macdonald@afma.gov.au; previously sourced by Rik Buckworth from peter.venslovas@afma.gov.au)
 #note: using Total (i.e. Apprehension and Forfeitures)
 Indo_apprehensions=read_excel(fn.hndl('Indonesia_apprehensions_AFMA.xlsx'), sheet = "Sheet1")%>%
@@ -642,7 +646,7 @@ Indo_jurisdiction.prop=data.frame(Jurisdiction=c('WA',"NT","QLD"),
 Indo_shark.N.vessels=9  # 9 Type 2 vessels sampled over a period of 1 week (8th to 15th May 2015)
 Indo_shark.comp=data.frame(Species=c('Silvertip shark','Bignose shark','Grey reef shark','Pigeye shark',
                                      'Spinner shark','Silky shark','Bull shark','Blacktips',
-                                     'Dusky shark','Sandbar shark','Spot tail shark',
+                                     'Dusky shark','Sandbar shark','Spot-tail shark',
                                      'Tiger shark','Lemon shark',
                                      'Scalloped hammerhead','Great hammerhead',
                                      'Whitetip reef shark'),
@@ -801,6 +805,8 @@ dummy.name=Data.monthly%>%
   filter(!RSCommonName=='')%>%
   rename(dummy.RSCommonName=RSCommonName)
 
+Data.monthly.north=Data.monthly.north%>%
+            mutate(SPECIES=as.numeric(SPECIES))
 dummy.name.north=Data.monthly.north%>%
   mutate(RSCommonName=ifelse(SPECIES==22999,'Sharks',RSCommonName))%>%
   distinct(RSCommonName,SPECIES)%>%
@@ -1856,9 +1862,17 @@ Indo_MOU.Vanesa=Indo_MOU.Vanesa%>%
   rename(Species=Species.Ref_plus.Genetics)%>%
   dplyr::select(Species)%>%
   mutate(Species=paste(Species,"shark"),
-         Species=ifelse(Species=="Hammerhead_unsp shark","Hammerheads",
-                        ifelse(Species=="Guitarfish_unsp shark","Guitarfish",
-                               ifelse(Species=="Blacktip_unsp shark","Blacktips",Species))))
+         Species=case_when(Species=="Hammerhead_unsp shark"~"Hammerheads",
+                           Species=="Guitarfish_unsp shark"~"Guitarfish",
+                           Species=="Silky  shark"~"Silky shark",
+                           Species=="Shark ray shark"~"Shark ray",
+                           Species=="Manta shark"~"Manta shark",
+                           Species=="Spottail shark"~"Spot-tail shark",
+                           Species=="Shortfin mako shark"~"Shortfin mako",
+                           Species=="Great hammerhead shark"~"Great hammerhead",
+                           Species=="Scalloped hammerhead shark"~"Scalloped hammerhead",
+                           Species%in%c("Common_Australian blacktip shark","Blacktip_unsp shark")~"Blacktips",
+                           TRUE~Species))
 Indo_MOU.Vanesa=table(Indo_MOU.Vanesa)   
 Indo_MOU.Vanesa=Indo_MOU.Vanesa/sum(Indo_MOU.Vanesa)
 Indo_MOU.Vanesa=data.frame(Species=names(Indo_MOU.Vanesa),
@@ -1887,14 +1901,13 @@ Indo_shark.comp=Indo_shark.comp%>%
                   mutate(Prop=Prop/sum(Prop))%>%
           dplyr::select(Species,Prop)%>%
                   rename(Proportion=Prop)
-#reapportion 'hammerhead'               
+#reapportion 'hammerhead'     #ACA          
 Indo_shark.comp=Indo_shark.comp%>%
-                mutate(Proportion=ifelse(Species=='Great hammerhead',
-                                         5.659801e-03+1.295742e-02+0.05597481,
-                                   ifelse(Species=='Scalloped hammerhead',
-                                          2.930968e-03+0.00881229,
-                                      Proportion)))%>%
-                filter(!Species%in%c('Great hammerhead shark','Hammerheads'))
+                mutate(Proportion=case_when(Species=='Great hammerhead'~Proportion+2.548347e-02*0.6976514,
+                                            Species=='Scalloped hammerhead'~Proportion+2.548347e-02*0.3023486,
+                                            TRUE~Proportion))%>%
+                filter(!Species%in%c('Hammerheads'," shark"))%>%
+                mutate(Proportion=Proportion/sum(Proportion))
 
 
 #Indonesian. Calculate catch per vessel-day
