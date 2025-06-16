@@ -1901,7 +1901,7 @@ Indo_shark.comp=Indo_shark.comp%>%
                   mutate(Prop=Prop/sum(Prop))%>%
           dplyr::select(Species,Prop)%>%
                   rename(Proportion=Prop)
-#reapportion 'hammerhead'     #ACA          
+#reapportion 'hammerhead'              
 Indo_shark.comp=Indo_shark.comp%>%
                 mutate(Proportion=case_when(Species=='Great hammerhead'~Proportion+2.548347e-02*0.6976514,
                                             Species=='Scalloped hammerhead'~Proportion+2.548347e-02*0.3023486,

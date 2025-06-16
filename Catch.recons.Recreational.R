@@ -36,6 +36,7 @@
 #   may change slightly as there may be some differences between the extract provided and fishcube 
 # The variables Kept, Released and Total have always been estimates with decimals, 
 #   but rounded to integers for publication / release – and should have been rounded in the extract 
+rm(list=ls(all=TRUE))
 options(dplyr.summarise.inform = FALSE)
 
 library(tidyverse)
@@ -51,59 +52,36 @@ Do.recons.rec.fishn.paper="NO"
 Scenarios=data.frame(Scenario=c('Base Case','High','Low'),
                      PCM=c(1,1.5,.5),
                      Weight=c(1,1.5,.5))
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
+
 
 # 1 -------------------DATA SECTION------------------------------------
 
-# FishCube
+#1.1. FishCube
 #Web:                    http://f01-fims-webp01/FishCubeWA/Query.aspx?CubeId=RecreationalISurveyStateLayer
 #Fact sheet:          http://f01-fims-webp01/FishCubeWA/Content/Documents/FishCubeWA%20-%20Recreational%20Fishing%20-%20Fact%20Sheet.pdf
+#Rec.hndl=handl_OneDrive("Data/Catch and Effort/Recreational/I.Survey.")
+#Rec.fish.catch_old=read.csv(paste(Rec.hndl,"csv",sep=''),stringsAsFactors=F) #note: superseded by SQL queries
 
 system.time({Rec.State.Survey.Bio.Catch.Estimate<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQL Server};
-                                                        server=CP-SDBS0001P-19\\RESP01;database=ResearchDataWarehouseQuery;
+                                                        server=reports.dpird.wa.gov.au;database=ResearchDataWarehouseQuery;
                                                         trusted_connection=yes;"), 
                                                             query="SELECT * FROM dbo.fcRecreationalStatewideSurveyBioregionCatchEstimate")})
 system.time({Rec.State.Survey.Catch.Estimate<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQL Server};
-                                                        server=CP-SDBS0001P-19\\RESP01;database=ResearchDataWarehouseQuery;
+                                                        server=reports.dpird.wa.gov.au;database=ResearchDataWarehouseQuery;
                                                         trusted_connection=yes;"), 
                                                         query="SELECT * FROM dbo.fcRecreationalStatewideSurveyStateCatchEstimate")})
 system.time({Rec.State.Survey.Zone.Catch.Estimate<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQL Server};
-                                                        server=CP-SDBS0001P-19\\RESP01;database=ResearchDataWarehouseQuery;
+                                                        server=reports.dpird.wa.gov.au;database=ResearchDataWarehouseQuery;
                                                         trusted_connection=yes;"), 
                                                              query="SELECT * FROM dbo.fcRecreationalStatewideSurveyZoneCatchEstimate")})
 
+Server <-"reports.dpird.wa.gov.au"  #extract species mapping
+conn1=odbcDriverConnect(connection=paste("Driver={SQL Server};server=",Server,";database=ResearchDataWarehouseQuery;trusted_connection=yes;",sep=""))
+Species.mapping <- sqlQuery(conn1, query="SELECT * FROM [dbo].[rsSASSpecies]")
 
-# I-Survey
-if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 
-Rec.hndl=handl_OneDrive("Data/Catch and Effort/Recreational/I.Survey.")
-#Rec.fish.catch.2011.12=read.csv(paste(Rec.hndl,"2011_12.csv",sep=''),stringsAsFactors=F) #Ryan et al 2013    
-#Rec.fish.catch.2013.14=read.csv(paste(Rec.hndl,"2013_14.csv",sep=''),stringsAsFactors=F) #Ryan et al 2015 
-#Rec.fish.catch.2015.16=read.csv(paste(Rec.hndl,"2015_16.csv",sep=''),stringsAsFactors=F) #Ryan et al 2017 
-#Rec.fish.catch=rbind(Rec.fish.catch.2011.12,Rec.fish.catch.2013.14,Rec.fish.catch.2015.16)
-Rec.fish.catch=read.csv(paste(Rec.hndl,"csv",sep=''),stringsAsFactors=F)
-Scien.nm=Rec.fish.catch%>%
-            rename(Common.Name=Lowlevelgrouping,
-                   Scientific.name=ScientificName)%>%
-            dplyr::select(Common.Name,Scientific.name)%>%
-            distinct(Common.Name,.keep_all=T)
-
-Rec.fish.catch=Rec.fish.catch%>%
-            mutate(FinYear=paste(2000+as.numeric(substr(Year,1,2)),substr(Year,3,4),sep="-"),
-                   Bioregion=paste(sapply(strsplit(Rec.fish.catch$RegionReportingGroupName, "_"), "[", 2),
-                                   sapply(strsplit(Rec.fish.catch$RegionReportingGroupName, "_"), "[", 3)),
-                   Common.Name=Lowlevelgrouping,
-                   Scientific.Name=ScientificName,
-                   Kept.Number=ceiling(Kept),
-                   Kept.Number.se=se.Kept,
-                   Rel.Number=ceiling(Released),
-                   Rel.Number.se=se.Released,
-                   RSE=rse.Total,
-                   Sample.size=counts)%>%
-      dplyr::select(FinYear,Bioregion,Sample.size,Common.Name,Scientific.Name,
-                    Kept.Number,Kept.Number.se,Rel.Number,Rel.Number.se,RSE)
-I.survey.years=unique(Rec.fish.catch$FinYear)
-
-# Shore-based
+#1.2. Shore-based
 #notes from Karina:
   #statewide estimated kept, released & total recreational catch for sharks & rays in 2000_01
   #K_SE = standard error associated with Kept
@@ -112,29 +90,35 @@ I.survey.years=unique(Rec.fish.catch$FinYear)
   # R = released, T = Total 
 Shore.based=read.csv(handl_OneDrive("Data/Catch and Effort/Recreational/statewide shark 2000_01.csv"),stringsAsFactors=F)
 
-#Perth metro pilot survey (Claire Smallwood)
+#1.3. Perth metro pilot survey (Claire Smallwood)
 Shore.based.metro.pilot=read.csv(handl_OneDrive('Data/Catch and Effort/Recreational/RawCatch_Sharks_Export.csv'),stringsAsFactors=F)
 
 
-# Charter boats
+#1.4. Charter boats
 #note: run query in the Metdata worksheet
 # Charter=read_excel(handl_OneDrive("Data\\Catch and Effort\\Charter\\Charter.xlsx"),sheet ='Data') superseded by SQL query
 system.time({Charter<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQL Server};
-                                                        server=CP-SDBS0001P-19\\RESP01;database=ResearchDataWarehouseQuery;
+                                                        server=reports.dpird.wa.gov.au;database=ResearchDataWarehouseQuery;
                                                         trusted_connection=yes;"), 
-                                   query="SELECT  * 
+                                query="SELECT  * 
                                           FROM fcTourOperatorCatch c
                                           INNER JOIN rsSpecies sp ON c.SpeciesId = sp.SpeciesId
                                           WHERE  sp.[HighLevelGroup] like 'Sharks & Rays'
                                           ")})
 
+system.time({Charter.size<- sqlQuery(channel=odbcDriverConnect(connection="Driver={SQL Server};
+                                                        server=reports.dpird.wa.gov.au;database=ResearchDataWarehouseQuery;
+                                                        trusted_connection=yes;"), 
+                   query="SELECT  * FROM fcTourOperatorSpeciesLW")})
 
 
-# WA population for rec catch recons (ABS) (Google "What is the population of Western Australia 20xx?")
+
+#1.5.  WA population for rec catch recons (ABS) (Google "What is the population of Western Australia 20xx?")
 #source: https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Dec%202018?OpenDocument
 WA.population=read.csv(handl_OneDrive("Data/AusBureauStatistics.csv"),stringsAsFactors=F)
 
-#Participation rate (Ryan et al 2017)
+
+#1.6. Participation rate (Ryan et al 2017)
 #Part.rate.hist=30
 #Part.rate.89=26.6  
 #Part.rate.00=28.5
@@ -145,7 +129,82 @@ WA.population=read.csv(handl_OneDrive("Data/AusBureauStatistics.csv"),stringsAsF
 #               to 2018/19) was about 29.8%.”"
 Part.rate=29.8
 
+
+#1.7. Life history data
+LH.data=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv'))
+
 # 2 -------------------I-Survey------------------------------------
+Rec.fish.catch=Rec.State.Survey.Bio.Catch.Estimate%>%
+  rename(ResearchSharedSpeciesId=RSSpeciesId,
+         Lowlevelgrouping=RSSpeciesCommonName,
+         counts=nObservations,
+         Kept=nKept,
+         se.Kept='se#Kept',
+         rse.Kept='rse#Kept',
+         Released=nReleased,
+         se.Released='se#Released',
+         rse.Released='rse#Released',
+         Total=nTotal,
+         se.Total='se#Total',
+         rse.Total='rse#Total',
+         Harvest=HarvestKG,          #these 3 will change name in new EyeSurvey
+         se.Harvest='se#HarvestKG',
+         rse.Harvest='rse#HarvestKG')%>%
+  dplyr::select(Year,Bioregion,ResearchSharedSpeciesId,Lowlevelgrouping,
+                counts,Kept,se.Kept,rse.Kept,
+                Released,se.Released,rse.Released,
+                Total,se.Total,rse.Total,
+                Harvest,se.Harvest,rse.Harvest,AverageWeight,AverageWeightSourceCode)
+
+Species.mapping=Species.mapping%>%
+  filter(type=='elasmobranchs')%>%
+  filter(RSSpeciesId%in%unique(Rec.fish.catch$ResearchSharedSpeciesId))%>%
+  rename(ResearchSharedSpeciesId=RSSpeciesId,
+         Highlevelgrouping=type,
+         ScientificName=RSSpeciesScientificName)%>%
+  distinct(ResearchSharedSpeciesId,ScientificName,Highlevelgrouping)
+
+Rec.fish.catch=Rec.fish.catch%>%
+  left_join(Species.mapping,by='ResearchSharedSpeciesId')%>%
+  mutate(ScientificName=case_when(is.na(ScientificName) & ResearchSharedSpeciesId== 67 ~ 'Mustelus stevensi',
+                                  is.na(ScientificName) & ResearchSharedSpeciesId==89 ~ 'Triaenodon obesus',
+                                  TRUE~ScientificName),
+         Highlevelgrouping=case_when(is.na(Highlevelgrouping) & ResearchSharedSpeciesId%in%c(67,89) ~'elasmobranchs',
+                                     TRUE~Highlevelgrouping))%>%
+  filter(Highlevelgrouping=='elasmobranchs')%>%
+  mutate(Lowlevelgrouping=case_when(Lowlevelgrouping=='Gummy Shark'~'Gummy Sharks',
+                                    Lowlevelgrouping=='Hammerhead Sharks'~'Hammerhead Shark',
+                                    Lowlevelgrouping=='Rays & Skates'~'Other Rays Skates',
+                                    Lowlevelgrouping=='Sharks'~'Other Shark',
+                                    Lowlevelgrouping=='Whaler & Weasel Sharks'~'Other Whaler',
+                                    TRUE~Lowlevelgrouping),
+         ScientificName=case_when(ScientificName=='Sphyrnidae - undifferentiated'~'Family Sphyrnidae',
+                                  ScientificName=='Order Rajiformes - undifferentiated'~'Rays - undifferentiated',
+                                  ScientificName=='Orectolobidae - undifferentiated'~'Family Orectolobidae',
+                                  TRUE~ScientificName))
+
+Scien.nm=Rec.fish.catch%>%
+  rename(Common.Name=Lowlevelgrouping,
+         Scientific.name=ScientificName)%>%
+  dplyr::select(Common.Name,Scientific.name)%>%
+  distinct(Common.Name,.keep_all=T)
+
+Rec.fish.catch=Rec.fish.catch%>%
+  mutate(FinYear=paste(2000+as.numeric(substr(Year,1,2)),substr(Year,3,4),sep="-"),
+         Common.Name=Lowlevelgrouping,
+         Scientific.Name=ScientificName,
+         Kept.Number=ceiling(Kept),
+         Kept.Number.se=se.Kept,
+         Rel.Number=ceiling(Released),
+         Rel.Number.se=se.Released,
+         RSE=rse.Total,
+         Sample.size=counts)
+#      dplyr::select(FinYear,Bioregion,Sample.size,Common.Name,Scientific.Name,
+#                    Kept.Number,Kept.Number.se,Rel.Number,Rel.Number.se,RSE)
+I.survey.years=unique(Rec.fish.catch$FinYear)
+
+Rec.fish.catch.original=Rec.fish.catch
+
 Rec.fish.catch=Rec.fish.catch%>%
       mutate(Bioregion=ifelse(Bioregion%in%c("Gasconye","Gascoyne","Gascoyne Coast"),
                               "Gascoyne Coast",Bioregion))%>%
@@ -211,6 +270,71 @@ AVG.WT=data.frame(
                                PCM.rec))))))))%>%  
            arrange(Common.Name)
 AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
+
+AVG.WT=AVG.WT%>%
+  mutate(Common.Name=ifelse(Common.Name=='Wobbegong','Wobbegongs',Common.Name))  
+
+#Replace AVG.WT with Eva's estimates from I-Survey   #ACA
+  #check weights used in charter
+LH.data=LH.data%>%
+          mutate(SpeciesCode=37000000+SPECIES,
+                 SpeciesCode=case_when(SpeciesCode==37013006 ~ 37013000,
+                                       SpeciesCode==37013000 ~37013900,
+                                       TRUE~SpeciesCode))
+Charter.size.ori=Charter.size
+Charter.size=Charter.size%>%
+                filter(SpeciesCode%in% 37005001:37039001)%>%
+          left_join(LH.data%>%distinct(a_w8t,b_w8t,SpeciesCode,Max.TL),by='SpeciesCode')%>%
+          mutate(Max.TL=10*Max.TL,
+                 Max.TL=ifelse(is.na(Max.TL),3500,Max.TL))%>%
+          filter(Length<=Max.TL)%>%
+  mutate(Matias.weight=a_w8t*(Length/10)^b_w8t)
+Tab.length=table(Charter.size$CommonName)
+small.sample=names(Tab.length[which(Tab.length<10)])
+
+Charter.size%>%
+  filter(CommonName%in%small.sample)%>%
+  ggplot(aes(Length,StandardWeight))+
+  geom_point()+
+  facet_wrap(~CommonName)+xlab("Length (mm)")+ylab("Weight (kg)")+
+  geom_line(aes(Length,Matias.weight),color='red')
+ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length_weight_small sample.tiff'),
+       width = 10,height = 8, dpi = 300, compression = "lzw")
+
+Charter.size%>%
+  filter(!CommonName%in%small.sample)%>%
+  ggplot(aes(Length,StandardWeight))+
+  geom_point()+
+  facet_wrap(~CommonName,scales='free')+xlab("Length (mm)")+ylab("Weight (kg)")+
+  geom_line(aes(Length,Matias.weight),color='red')
+ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length_weight.tiff'),
+       width = 8,height = 8, dpi = 300, compression = "lzw") 
+
+
+Charter.size%>%
+  filter(CommonName%in%small.sample)%>%
+  ggplot(aes(Length))+
+  geom_histogram()+
+  facet_wrap(~CommonName,scales='free')+xlab("Length (mm)")
+ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length_small sample.tiff'),
+       width = 10,height = 8, dpi = 300, compression = "lzw") 
+
+Charter.size%>%
+  filter(!CommonName%in%small.sample)%>%
+  ggplot(aes(Length))+
+  geom_histogram()+
+  facet_wrap(~CommonName,scales='free')+xlab("Length (mm)")
+ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length.tiff'),
+       width = 8,height = 8, dpi = 300, compression = "lzw") 
+
+
+
+AVG.WT.Eva=Rec.fish.catch.original%>%
+  mutate(Common.Name=ifelse(Common.Name=='Wobbegong','Wobbegongs',Common.Name))%>%
+  distinct(Common.Name,AverageWeight,AverageWeightSourceCode)
+
+Kmpre=full_join(AVG.WT,AVG.WT.Eva,by='Common.Name')
+
 
 #fix species names
 Rec.fish.catch=Rec.fish.catch%>%
@@ -392,9 +516,6 @@ Rec.fish.catch=Rec.fish.catch%>%
                                   Bioregion%in%c('South Coast','West Coast'),'Spinner Shark',
                         ifelse(Common.Name=="Gummy Shark","Gummy Sharks",Common.Name)))))))))))
           
-AVG.WT=AVG.WT%>%
-        mutate(Common.Name=ifelse(Common.Name=='Wobbegong','Wobbegongs',Common.Name))  
-    
 
   
 # 5 -------------------Reapportion 'hammerheads' across all rec fishing sources------------------------
