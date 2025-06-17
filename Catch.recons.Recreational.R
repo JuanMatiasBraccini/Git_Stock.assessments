@@ -274,66 +274,110 @@ AVG.WT$Common.Name=as.character(AVG.WT$Common.Name)
 AVG.WT=AVG.WT%>%
   mutate(Common.Name=ifelse(Common.Name=='Wobbegong','Wobbegongs',Common.Name))  
 
-#Replace AVG.WT with Eva's estimates from I-Survey   #ACA
-  #check weights used in charter
+#Replace guestimated AVG.WT with Eva's estimates from I-Survey   
+  #a. check weights used in charter
 LH.data=LH.data%>%
           mutate(SpeciesCode=37000000+SPECIES,
                  SpeciesCode=case_when(SpeciesCode==37013006 ~ 37013000,
                                        SpeciesCode==37013000 ~37013900,
-                                       TRUE~SpeciesCode))
-Charter.size.ori=Charter.size
+                                       TRUE~SpeciesCode),
+                 TL_o=LF_o*a_FL.to.TL+b_FL.to.TL)
 Charter.size=Charter.size%>%
                 filter(SpeciesCode%in% 37005001:37039001)%>%
-          left_join(LH.data%>%distinct(a_w8t,b_w8t,SpeciesCode,Max.TL),by='SpeciesCode')%>%
-          mutate(Max.TL=10*Max.TL,
+          left_join(LH.data%>%distinct(a_w8t,b_w8t,SpeciesCode,Max.TL,TL_o),by='SpeciesCode')%>%
+          mutate(TL_o=10*TL_o,
+                 Max.TL=10*Max.TL,
+                 TL_o=ifelse(is.na(TL_o),250,TL_o),
                  Max.TL=ifelse(is.na(Max.TL),3500,Max.TL))%>%
           filter(Length<=Max.TL)%>%
+          filter(Length>=TL_o)%>%
   mutate(Matias.weight=a_w8t*(Length/10)^b_w8t)
 Tab.length=table(Charter.size$CommonName)
 small.sample=names(Tab.length[which(Tab.length<10)])
 
-Charter.size%>%
-  filter(CommonName%in%small.sample)%>%
-  ggplot(aes(Length,StandardWeight))+
-  geom_point()+
-  facet_wrap(~CommonName)+xlab("Length (mm)")+ylab("Weight (kg)")+
-  geom_line(aes(Length,Matias.weight),color='red')
-ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length_weight_small sample.tiff'),
-       width = 10,height = 8, dpi = 300, compression = "lzw")
+do.dis=FALSE
+if(do.dis)
+{
+  Charter.size%>%
+    filter(CommonName%in%small.sample)%>%
+    ggplot(aes(Length,StandardWeight))+
+    geom_point()+
+    facet_wrap(~CommonName)+xlab("Length (mm)")+ylab("Weight (kg)")+
+    geom_line(aes(Length,Matias.weight),color='red')
+  ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length_weight_small sample.tiff'),
+         width = 10,height = 8, dpi = 300, compression = "lzw")
+  
+  Charter.size%>%
+    filter(!CommonName%in%small.sample)%>%
+    ggplot(aes(Length,StandardWeight))+
+    geom_point()+
+    facet_wrap(~CommonName,scales='free')+xlab("Length (mm)")+ylab("Weight (kg)")+
+    geom_line(aes(Length,Matias.weight),color='red')+xlim(0,NA)
+  ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length_weight.tiff'),
+         width = 10,height = 8, dpi = 300, compression = "lzw") 
+  
+  
+  Charter.size%>%
+    filter(CommonName%in%small.sample)%>%
+    ggplot(aes(Length))+
+    geom_histogram()+
+    facet_wrap(~CommonName,scales='free')+xlab("Length (mm)")
+  ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length_small sample.tiff'),
+         width = 10,height = 8, dpi = 300, compression = "lzw") 
+  
+  Charter.size%>%
+    filter(!CommonName%in%small.sample)%>%
+    ggplot(aes(Length))+
+    geom_histogram()+
+    facet_wrap(~CommonName,scales='free')+xlab("Length (mm)")
+  ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length.tiff'),
+         width = 8,height = 8, dpi = 300, compression = "lzw") 
+  
+  Charter.size%>%
+    filter(!CommonName%in%small.sample)%>%
+    ggplot(aes(Matias.weight))+
+    geom_histogram()+
+    facet_wrap(~CommonName,scales='free')+xlab("Weight (kg)")
+  ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_weight.tiff'),
+         width = 8,height = 8, dpi = 300, compression = "lzw") 
+  
+  
+  write.csv(LH.data%>%
+              distinct(SpeciesCode,SNAME,a_w8t,b_w8t,TL_o,Max.TL)%>%
+              filter(SpeciesCode%in%unique(Charter.size$SpeciesCode)),
+            handl_OneDrive('Analyses/Reconstruction_catch_recreational/LH_for_Eva.csv'),row.names = FALSE)
+  
+}
+    #b. get charter average weight by species
+AVG.WT.charter=Charter.size%>%
+                mutate(CommonName=case_when(CommonName=='Wobbegong'~'Wobbegongs',
+                                            CommonName=="Gummy Shark"~'Gummy Sharks',
+                                            TRUE~CommonName))%>%
+                group_by(CommonName)%>%
+                summarise(AVG.wt.charter=mean(Matias.weight,na.rm=T))
 
-Charter.size%>%
-  filter(!CommonName%in%small.sample)%>%
-  ggplot(aes(Length,StandardWeight))+
-  geom_point()+
-  facet_wrap(~CommonName,scales='free')+xlab("Length (mm)")+ylab("Weight (kg)")+
-  geom_line(aes(Length,Matias.weight),color='red')
-ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length_weight.tiff'),
-       width = 8,height = 8, dpi = 300, compression = "lzw") 
-
-
-Charter.size%>%
-  filter(CommonName%in%small.sample)%>%
-  ggplot(aes(Length))+
-  geom_histogram()+
-  facet_wrap(~CommonName,scales='free')+xlab("Length (mm)")
-ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length_small sample.tiff'),
-       width = 10,height = 8, dpi = 300, compression = "lzw") 
-
-Charter.size%>%
-  filter(!CommonName%in%small.sample)%>%
-  ggplot(aes(Length))+
-  geom_histogram()+
-  facet_wrap(~CommonName,scales='free')+xlab("Length (mm)")
-ggsave(handl_OneDrive('Analyses/Reconstruction_catch_recreational/charter_length.tiff'),
-       width = 8,height = 8, dpi = 300, compression = "lzw") 
-
-
-
-AVG.WT.Eva=Rec.fish.catch.original%>%
-  mutate(Common.Name=ifelse(Common.Name=='Wobbegong','Wobbegongs',Common.Name))%>%
-  distinct(Common.Name,AverageWeight,AverageWeightSourceCode)
-
-Kmpre=full_join(AVG.WT,AVG.WT.Eva,by='Common.Name')
+AVG.WT=left_join(AVG.WT,AVG.WT.charter,by=c('Common.Name'='CommonName'))%>%
+  mutate(AVG.wt.charter=case_when(is.na(AVG.wt.charter) & 
+                                    Common.Name%in%c('Bignose Shark','Blue Shark','Bull Shark',
+                                                     'Oceanic Whitetip Shark','Pigeye Shark',
+                                                     'Silky Shark','Thresher Shark')~ 9.5,
+                                  is.na(AVG.wt.charter) & Common.Name%in%c('Dogfishes')~ 1.18,
+                                  is.na(AVG.wt.charter) & Common.Name%in%c('Sawsharks')~ 1.27,
+                                  is.na(AVG.wt.charter) & 
+                                    Common.Name%in%c('Grey Reef Shark','Nervous Shark',
+                                                     'Silvertip Shark','Whitetip Reef Shark')~ 5.11,
+                                  is.na(AVG.wt.charter) & Common.Name%in%c('Rays & Skates')~15.27 ,
+                                  is.na(AVG.wt.charter) & Common.Name%in%c('Sawfishes')~ 42.80,
+                                  is.na(AVG.wt.charter) & 
+                                    Common.Name%in%c('Scalloped hammerhead','Smooth hammerhead')~ 15.08,
+                                  is.na(AVG.wt.charter) & Common.Name%in%c('Sliteye Shark')~ 3,
+                                  is.na(AVG.wt.charter) & Common.Name%in%c('Tawny Shark','Zebra Shark')~ 5,
+                                  TRUE~AVG.wt.charter))
+  
+  #c. replace guestimate with charter observations
+AVG.WT=AVG.WT%>%
+  dplyr::select(-AVG.wt)%>%
+  rename(AVG.wt=AVG.wt.charter)
 
 
 #fix species names
@@ -647,7 +691,8 @@ Rec.ktch.Upper=Rec.ktch$High
 Rec.ktch.Lower=Rec.ktch$Low
 Rec.ktch=Rec.ktch$`Base Case`
 
-
+Rec.ktch=Rec.ktch%>%
+  filter(!(Common.Name=="Gummy Sharks" & zone%in%c("Gascoyne Coast","North Coast")))   #previously, gummy and wester gummy were combined, now they are separated
 
 
 # 7 -------------------EXPORT CATCH DATA------------------------------------
