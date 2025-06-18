@@ -21,7 +21,7 @@ fn.ktch.sex.ratio.zone=function(size.data)
            Zone=gsub("\\..*","",str_remove(Zone,'Size_composition_')))%>%
     filter(!is.na(SEX))%>%
     group_by(Zone,year,SEX)%>%
-    summarise(n=sum(N))%>%
+    tally()%>%
     ungroup()%>%
     spread(SEX,n,fill=0)%>%
     mutate(Total=F+M,
@@ -32,8 +32,9 @@ fn.ktch.sex.ratio.zone=function(size.data)
     print(size.data%>%
             ggplot(aes(year,Prop.female,color=log(Total)))+
             geom_point()+
-            facet_wrap(~Zone,ncol=1))+
-      theme_PA()
+            facet_wrap(~Zone,ncol=1)+theme_PA()+ylim(0,1)+
+            geom_hline(yintercept=0.5, linetype="dashed", color = "red"))
+      
     return(size.data%>%group_by(Zone)%>%summarise(Prop.female=mean(Prop.female)))
   }
 }
@@ -836,12 +837,11 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
 }
 
 # Contrast catch and cpue series   ------------------------------------------------------
-fn.ktch.cpue=function(ktch,cpue)
+fn.ktch.cpue=function(ktch,cpue,HandL)
 {
   if(!is.null(cpue))
   {
-    fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(unique(ktch$Name)),"/",AssessYr,
+    fn.fig(paste(HandL,capitalize(unique(ktch$Name)),"/",AssessYr,
                  "/1_Inputs/Visualise data/Total catch vs cpues",sep=''),2400,2000) 
     par(las=1,oma=c(1,1,1,2))
     plot(ktch$finyear,ktch$Tonnes,type='o',pch=19,main=capitalize(unique(ktch$Name)),

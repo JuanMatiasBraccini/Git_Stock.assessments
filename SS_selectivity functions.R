@@ -136,7 +136,7 @@ wrapper.fn=function(x,a.dn,b.dn,c.dn,d.dn,e.dn,f.dn,a.log,b.log,out.logis=TRUE,o
   par(xpd=T)
   plot(x,Sel.dn,ylab='Selectivity',xlab=XLAB,type='l',col=Col.DN)
   lines(x,Sel.log,col=Col.logis)
-  legend('topleft',c(Lgn.DN,Lgn.Logis), inset=0.05,lty=1,col=c(Col.DN,Col.logis),bty='n')
+  legend('topleft',c(Lgn.DN,Lgn.Logis), inset=0.05,lty=1,col=c(Col.DN,Col.logis),bty='n',cex=0.75)
   
 }
 #wrapper.fn(x=40:160,a.dn=70,b.dn=-7,c.dn=6,d.dn=7,e.dn=-999,f.dn=-999,a.log=325,b.log=20,out.logis=FALSE)
@@ -255,4 +255,65 @@ doubleNorm24.fn_fit <- function(x, a, b, c, d) {
     sel[(j2 + 1):length(x)] <- sel[j2]
   }
   return(sel)
+}
+
+
+fun.compare.sel.obs.size.comp=function(TL,SEL,SEl.sens_NSF,size.comps,Flts)
+{
+  smart.par(length(Flts),c(1,1.5,1,1),c(1,1,1,1),c(3, 1, 0))
+  for(x in 1:length(Flts))
+  {
+    FLiT=Flts[x]
+    if(FLiT=="Pilbara_Trawl") FLiT='Other'
+    Sel=SEL%>%filter(Fleet==FLiT)
+    Sel.ori=SS_selectivity_init_pars%>%filter(Species==names(List.sp)[i])
+    a.log=1e5
+    b.log=0
+    OUT.LOGIS=FALSE
+    OUT.DOUBLE.N=TRUE
+    if(all(is.na(Sel[,c('P_3', 'P_4', 'P_5', 'P_6')])))
+    {
+      a.log=Sel$P_1
+      b.log=Sel$P_2
+      Sel[,c('P_1', 'P_2','P_3', 'P_4', 'P_5', 'P_6')]=c(10,100,-10,-10,0,0) 
+      OUT.LOGIS=TRUE
+      OUT.DOUBLE.N=FALSE
+      
+    }
+    with(Sel,wrapper.fn(x=TL,a.dn=P_1,b.dn=P_2,c.dn=P_3,d.dn=P_4,e.dn=P_5,f.dn=P_6,
+                        a.log=a.log,b.log=b.log,out.logis=OUT.LOGIS,out.DN=OUT.DOUBLE.N,XLAB='TL (cm)'))
+    if(FLiT%in%c('Northern.shark','Survey') & !is.null(SEl.sens_NSF))
+    {
+      par=SEl.sens_NSF%>%filter(Fleet==FLiT)
+      lines(TL,logistic1.fn(TL,par$P_1,par$P_2),lty=2,col='red')
+      text(min(TL)+1,.05,'alternative',col='red',pos=4)
+    }
+    dd=size.comps%>%
+      filter(Fleet==Flts[x])
+    if(nrow(dd)>2)
+    {
+      dd$bin=TL.bins.cm*floor(dd$TL/TL.bins.cm)
+      y=table(dd$bin)
+      y=y/max(y)
+      points(as.numeric(names(y)),y,type='h',col="forestgreen",lwd=1.5)
+      d <- density(dd$TL)
+      # lines(d$x,d$y/max(d$y),col="forestgreen",lwd=2)
+    }
+    #legend('bottomleft','size composition',lwd=2,col="forestgreen",bty='n')
+    text(quantile(TL,.5),.5,Flts[x],cex=3,col='grey80')
+  }
+}
+
+fun.check.mean.weight=function(TL,a,b,Mean.weight,SD.Mean.weight,Sel,NM)
+{
+  PP=data.frame(TL=TL,TWT=a*TL^b)
+  with(Sel,wrapper.fn(x=TL,a.dn=P_1,b.dn=P_2,c.dn=P_3,d.dn=P_4,e.dn=P_5,f.dn=P_6,a.log=1e5,b.log=0,out.logis=FALSE))
+  MeanTL=PP$TL[which.min(abs(PP$TWT-Mean.weight))]
+  SDMeanTL.low=PP$TL[which.min(abs(PP$TWT-(Mean.weight-SD.Mean.weight)))]
+  SDMeanTL.high=PP$TL[which.min(abs(PP$TWT-(Mean.weight+SD.Mean.weight)))]
+  abline(v=MeanTL,lwd=2,col=2)
+  abline(v=SDMeanTL.low,lty=3,lwd=1.5,col='grey30')
+  abline(v=SDMeanTL.high,lty=3,lwd=1.5,col='grey30')
+  text(PP$TL[which.min(abs(PP$TWT-Mean.weight))],0,"TL at mean meanbodywt input for SS",pos=4,srt=90,col=2)
+  mtext(NM)
 }

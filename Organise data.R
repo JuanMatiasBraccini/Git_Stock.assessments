@@ -661,7 +661,8 @@ fn.table.shots=function(dat,FSHRY)
 }
 
 fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,Min.shts,
-                       What.Efrt,Bin.size,Yr.assess,Dat,LH.par,remove.old.figures=FALSE)   
+                       What.Efrt,Bin.size,Yr.assess,Dat,LH.par,remove.old.figures=FALSE,
+                       HandL)   
 {
   #---DATA SECTION--- 
   
@@ -1149,7 +1150,6 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   
 
   #4. Set working directory for outputting figures
-  HandL=handl_OneDrive("Analyses/Population dynamics/1.")
   DiR=paste(HandL,capitalize(Name),"/",Yr.assess,"/1_Inputs/Visualise data",sep='')
   if(!file.exists(DiR))
   {
@@ -1981,13 +1981,15 @@ for(l in 1:N.sp)
                 Bin.size=TL.bins.cm,
                 Yr.assess=AssessYr,
                 Dat=Species.data[[l]],
-                LH.par=LH.data%>%filter(SPECIES==List.sp[[l]]$Species)) 
+                LH.par=LH.data%>%filter(SPECIES==List.sp[[l]]$Species),
+                HandL=HandL.out) 
   
   
   #Output total catch and abundance indices to see contrast 
   fn.ktch.cpue(ktch=ktch.combined%>%
-                 filter(Name==names(Catch.rate.series)[l]),
-               cpue=Catch.rate.series[[l]])
+                      filter(Name==names(Catch.rate.series)[l]),
+               cpue=Catch.rate.series[[l]],
+               HandL=HandL.out)
   
   
   #Create .dat & .ctl for bespoke integrated assessments

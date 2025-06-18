@@ -18,42 +18,46 @@ if(Do.bespoke)
 
 #Final depletion
 #note: modify depletion levels for species with negligible catches in recent years (based on generation time and r)
-for(i in 1:N.sp)
+if(do.Ktch.only.pin)
 {
-  G=round(store.species.G_M.age.invariant[[i]]$mean) #generation time
-  R=store.species.r_M.age.invariant[[i]]$mean        #r
-  ktch=ktch.combined%>%
-    filter(Name==Keep.species[i])%>%
-    mutate(Rel.ktch=Tonnes/max(Tonnes),
-           yr.index=row_number(),
-           rel.ktch.id=ifelse(Rel.ktch>0.15,0,1))
-  id.yr=which(ktch$Rel.ktch==1)
-  id.G=(nrow(ktch)-G+1):nrow(ktch)
-  ktch=ktch%>%mutate(G.yr=ifelse(yr.index%in%id.G,1,0))
-  
-  ktch=ktch[id.yr:nrow(ktch),]%>%
-    filter(rel.ktch.id==1)%>%
-    mutate(Depletion=0.2)
-  if(nrow(ktch)>0)
+  for(i in 1:N.sp)
   {
-    alpha=R*.85
-    if(nrow(ktch)>1)for(q in 2:nrow(ktch)) ktch$Depletion[q]=(ktch$Depletion[q-1]+ktch$Depletion[q-1]*R)*exp(-alpha*ktch$Depletion[q-1])
-    ktch=ktch%>%filter(G.yr==1)
+    G=round(store.species.G_M.age.invariant[[i]]$mean) #generation time
+    R=store.species.r_M.age.invariant[[i]]$mean        #r
+    ktch=ktch.combined%>%
+      filter(Name==Keep.species[i])%>%
+      mutate(Rel.ktch=Tonnes/max(Tonnes),
+             yr.index=row_number(),
+             rel.ktch.id=ifelse(Rel.ktch>0.15,0,1))
+    id.yr=which(ktch$Rel.ktch==1)
+    id.G=(nrow(ktch)-G+1):nrow(ktch)
+    ktch=ktch%>%mutate(G.yr=ifelse(yr.index%in%id.G,1,0))
     
-    if(tweak.Final.Bio_low)
+    ktch=ktch[id.yr:nrow(ktch),]%>%
+      filter(rel.ktch.id==1)%>%
+      mutate(Depletion=0.2)
+    if(nrow(ktch)>0)
     {
-      if(ktch$Depletion[nrow(ktch)]>=0.8) updated.FINALBIO1=0.6
-      if(ktch$Depletion[nrow(ktch)]>=0.6 & ktch$Depletion[nrow(ktch)]<0.8) updated.FINALBIO1=0.4
-      if(ktch$Depletion[nrow(ktch)]<0.6)  updated.FINALBIO1=Depletion.levels%>%filter(Species==Keep.species[i])%>%pull(FINALBIO1)
-      if(Depletion.levels$Species[i]=="narrow sawfish" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.3
-      if(Depletion.levels$Species[i]=="scalloped hammerhead" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.2
-      if(Depletion.levels$Species[i]%in%c("green sawfish","snaggletooth","weasel shark","tiger shark","zebra shark") & updated.FINALBIO1==0.6) updated.FINALBIO1=0.3
-      Depletion.levels[i,]=Depletion.levels[i,]%>%
-        mutate(FINALBIO1=ifelse(Species==Keep.species[i],updated.FINALBIO1,
-                                FINALBIO1))
+      alpha=R*.85
+      if(nrow(ktch)>1)for(q in 2:nrow(ktch)) ktch$Depletion[q]=(ktch$Depletion[q-1]+ktch$Depletion[q-1]*R)*exp(-alpha*ktch$Depletion[q-1])
+      ktch=ktch%>%filter(G.yr==1)
+      
+      if(tweak.Final.Bio_low)
+      {
+        if(ktch$Depletion[nrow(ktch)]>=0.8) updated.FINALBIO1=0.6
+        if(ktch$Depletion[nrow(ktch)]>=0.6 & ktch$Depletion[nrow(ktch)]<0.8) updated.FINALBIO1=0.4
+        if(ktch$Depletion[nrow(ktch)]<0.6)  updated.FINALBIO1=Depletion.levels%>%filter(Species==Keep.species[i])%>%pull(FINALBIO1)
+        if(Depletion.levels$Species[i]=="narrow sawfish" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.3
+        if(Depletion.levels$Species[i]=="scalloped hammerhead" & updated.FINALBIO1==0.4) updated.FINALBIO1=0.2
+        if(Depletion.levels$Species[i]%in%c("green sawfish","snaggletooth","weasel shark","tiger shark","zebra shark") & updated.FINALBIO1==0.6) updated.FINALBIO1=0.3
+        Depletion.levels[i,]=Depletion.levels[i,]%>%
+          mutate(FINALBIO1=ifelse(Species==Keep.species[i],updated.FINALBIO1,
+                                  FINALBIO1))
+      }
     }
   }
 }
+
 
 #Get CVs young and old
 fun.cv_young_old=function(d,NM)
@@ -61,21 +65,27 @@ fun.cv_young_old=function(d,NM)
   if('age_length' %in% names(d))
   {
     d=d$age_length
-    d%>%
-      ggplot(aes(round(Age),FL,col=Sex))+geom_point()
+    p=d%>%
+      ggplot(aes(round(Age),FL,col=Sex))+geom_point()+theme_PA()+theme(legend.position = 'top')+xlab('Age')
     A.max=max(d$Age)
-    return(d%>%
-             mutate(Age.group=ifelse(Age<=3,'1.young',ifelse(Age>0.8*A.max,'3.old','2.mid')))%>%
-             group_by(Age.group)%>%
-             summarise(mean=mean(FL),
-                       sd=sd(FL))%>%
-             ungroup()%>%
-             mutate(CV=sd/mean,
-                    Species=NM))
+    d1=d%>%
+      mutate(Age.group=ifelse(Age<=3,'1.young',ifelse(Age>quantile(d$Age,probs = 0.7),'3.old','2.mid')))%>%
+      group_by(Age.group)%>%
+      summarise(mean=mean(FL),
+                sd=sd(FL))%>%
+      ungroup()%>%
+      mutate(CV=sd/mean,
+             Species=NM)
+    return(list(p=p,d=d1))
   }
 }
 Get.CV_youn_old=vector('list',N.sp)
-for(i in 1:N.sp) Get.CV_youn_old[[i]]=fun.cv_young_old(d=Species.data[[i]],NM=names(Species.data)[i])
+for(i in 1:N.sp)
+{
+  d=fun.cv_young_old(d=Species.data[[i]],NM=names(Species.data)[i])
+  print(d$p)
+  Get.CV_youn_old[[i]]=d$d
+}
 Get.CV_youn_old=do.call(rbind,Get.CV_youn_old)
 Young.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='1.young')%>%pull(CV)),2)
 Old.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='3.old')%>%pull(CV)),2)
@@ -180,186 +190,191 @@ for(l in 1:N.sp)
 
   
   # 2...Catch-only arguments and sensitivity tests
-  Depl.lvl=Depletion.levels%>%filter(Species==NeiM)
-  
-  List.sp[[l]]$STARTBIO=c(List.sp[[l]]$B.init*.95,List.sp[[l]]$B.init)   #low initial depletion because starting time series prior to any fishing
-  FINALBIO=c(Depl.lvl$FINALBIO1,Depl.lvl$FINALBIO2)       #uncertain though ranges informed by fitting SSS and excluding B.final cases with poor fit
-  List.sp[[l]]$FINALBIO=FINALBIO
-  List.sp[[l]]$Do.sim.test=Do.sim.Test  #simulation test Catch-MSY for small and large catches
-  bmsyK=0.5   #Schaefer
-  #if(NeiM=="lemon shark") bmsyK=0.45    #to improve convergence of DBSRA
-  BmsyK.Cortes=BmsyK.species%>%filter(Species==names(List.sp)[l])%>%pull(BmsyK)
-  if(tweak.BmsyK.Cortes)
+  if(do.Ktch.only.pin)
   {
-    if(NeiM%in%c("angel sharks","lemon shark")) BmsyK.Cortes=0.4   
-    if(NeiM=="grey nurse shark") BmsyK.Cortes=0.49
-    if(NeiM=="milk shark") BmsyK.Cortes=0.375
-    if(NeiM=="pigeye shark") BmsyK.Cortes=0.45
-    if(NeiM=="sawsharks") BmsyK.Cortes=0.475
-    if(NeiM=="sandbar shark") BmsyK.Cortes=0.49
-  }
-  
-  #2.1 DBSRA scenarios
-  AgeMat=List.sp[[l]]$Age.50.mat[1]
-
-  ktch=ktch.combined%>%
-    filter(Name==List.sp[[l]]$Name)  
-  Klow=k.fun(ktch$Tonnes,Depl.lvl%>%pull(K_times_max_ktch_min)) 
-  if(NeiM=="angel sharks") Klow=2000  #to allow enough COMs samples to be accepted
-  Kup=max(K_min,k.fun(ktch$Tonnes,Depl.lvl%>%pull(K_times_max_ktch_max)))  
-  fmsy.m=0.41                 # Zhou et al 2012 fmsy/M=0.41 for chondrichthyans
-  fmsy.m2=Fmsy.M.scaler[[l]]  #Cortes & Brooks 2018
-  
-  #2.2 CMSY scenarios
-  r.mean=store.species.r_M.age.invariant[[l]]$mean
-  r.mean2=store.species.r_M.at.age[[l]]$mean
-  # if(NeiM%in%c("dusky shark","sandbar shark","grey nurse shark","spurdogs"))
-  # {
-  #   r.mean2=r.mean*0.6  #r.mean2 couldn't be estimated due to life history mis-specification so 
-  #                       # set at fraction of r.mean based on other species ratio
-  # }
-  r.mean=round(r.mean,3)
-  r.mean2=round(r.mean2,3)
-  r.mean.sd=store.species.r_M.age.invariant[[l]]$sd
-  r.mean.sd2=store.species.r_M.at.age[[l]]$sd
-  names(r.mean)=names(r.mean2)=names(r.mean.sd)=names(r.mean.sd2)=NULL
-  r.mean_lower=round(r.mean*.9,3)
-  r.mean_upper=round(r.mean*1.2,3)
-  ensims.csmy=ensims.CSMY
-  Kup.spcfik=Kup
-  Klow.spcfik=Klow
-  Proc.error.cmsy=Proc.Error.1
-
-  #2.3 JABBA - catch only scenarios
-  r.CV.multiplier=1
-  Ktch.CV=0.1   #Winker et al 2019 set it at 0.2 for uncertain reconstructed school shark catches
-  
-  #2.4 Scenarios 
-  #combine all input pars and assumptions in list 
-  if(Simplified.scenarios)
-  {
-    List.sp[[l]]$Sens.test=list(
-      DBSRA=data.frame(Scenario=paste("S",1:2,sep=''),
-                       Sims=ensims, 
-                       AgeMat=AgeMat,
-                       Mmean=c(Mmean,Mmean.mean),
-                       Msd=Msd,
-                       Klow=Klow,
-                       Kup=Kup.spcfik,
-                       fmsy.m=fmsy.m,    
-                       bmsyk=BmsyK.Cortes),    
-      CMSY=data.frame(Scenario=paste("S",1:2,sep=''),
-                      Sims=ensims.csmy, 
-                      r=c(r.mean,r.mean2),
-                      r.sd=r.mean.sd,
-                      r.prob.min=r.prob.min,  
-                      r.prob.max=r.prob.max,
-                      Klow=Klow.spcfik,
-                      Kup=Kup.spcfik,
-                      Proc.error=Proc.Error),
-      JABBA_catch.only=data.frame(Scenario=paste("S",1:2,sep=''),
-                                  Sims=ensims.JABBA,
-                                  r=c(r.mean,r.mean2),
-                                  r.sd=r.mean.sd,
-                                  r.CV.multiplier=r.CV.multiplier,
-                                  K.mean=mean(c(Klow.spcfik,Kup.spcfik)), 
-                                  K.CV=k.cv,
-                                  Proc.error=Proc.Error,
-                                  Ktch.CV=Ktch.CV,
-                                  bmsyk=BmsyK.Cortes),      
-      SS3=data.frame(Scenario=paste('S',1:2,sep=''),
-                     Model='SSS',
-                     Mmean=Mmean.mean,  #using Mmean.mean as base case because h.M_mean2 is used as basecase (both using Mmean.mean)    
-                     Msd=Msd,
-                     Final.dpl=mean(FINALBIO),
-                     Steepness=c(h.M_mean,h.M_mean2),
-                     Steepness.sd=h.sd,
-                     F_ballpark=1e-3,
-                     use_F_ballpark=FALSE,
-                     Sims=SSS.sims,
-                     Ln_R0_min=Min.logR0,
-                     Ln_R0_max=Upper.bound.LnR0))
-    if(List.sp[[l]]$Sens.test$SS3$Steepness[1]==List.sp[[l]]$Sens.test$SS3$Steepness[2])
+    Depl.lvl=Depletion.levels%>%filter(Species==NeiM)
+    
+    List.sp[[l]]$STARTBIO=c(List.sp[[l]]$B.init*.95,List.sp[[l]]$B.init)   #low initial depletion because starting time series prior to any fishing
+    FINALBIO=c(Depl.lvl$FINALBIO1,Depl.lvl$FINALBIO2)       #uncertain though ranges informed by fitting SSS and excluding B.final cases with poor fit
+    List.sp[[l]]$FINALBIO=FINALBIO
+    List.sp[[l]]$Do.sim.test=Do.sim.Test  #simulation test Catch-MSY for small and large catches
+    bmsyK=0.5   #Schaefer
+    #if(NeiM=="lemon shark") bmsyK=0.45    #to improve convergence of DBSRA
+    BmsyK.Cortes=BmsyK.species%>%filter(Species==names(List.sp)[l])%>%pull(BmsyK)
+    if(tweak.BmsyK.Cortes)
     {
-      List.sp[[l]]$Sens.test$SS3=List.sp[[l]]$Sens.test$SS3[1,]
+      if(NeiM%in%c("angel sharks","lemon shark")) BmsyK.Cortes=0.4   
+      if(NeiM=="grey nurse shark") BmsyK.Cortes=0.49
+      if(NeiM=="milk shark") BmsyK.Cortes=0.375
+      if(NeiM=="pigeye shark") BmsyK.Cortes=0.45
+      if(NeiM=="sawsharks") BmsyK.Cortes=0.475
+      if(NeiM=="sandbar shark") BmsyK.Cortes=0.49
     }
-  }else
-  {
-    List.sp[[l]]$Sens.test=list(
-      DBSRA=data.frame(Scenario=paste("S",1:4,sep=''),
-                       Sims=rep(ensims,4), 
-                       AgeMat=rep(AgeMat,4),
-                       Mmean=c(rep(Mmean,3),Mmean.mean),
-                       Msd=rep(Msd,4),
-                       Klow=rep(Klow,4),
-                       Kup=rep(Kup.spcfik,4),
-                       fmsy.m=c(fmsy.m,fmsy.m2,rep(fmsy.m,2)),    
-                       bmsyk=c(rep(0.5,2),BmsyK.Cortes,0.5)),    #Winker et al 2020 Bmsy/K=0.55 for mako shark
-      CMSY=data.frame(Scenario=paste("S",1:3,sep=''),
-                      Sims=rep(ensims.csmy,3), 
-                      r=c(rep(r.mean,2),r.mean2),
-                      r.sd=c(rep(r.mean.sd,2),r.mean.sd2),
-                      r.prob.min=rep(r.prob.min,3),  
-                      r.prob.max=rep(r.prob.max,3),
-                      Klow=rep(Klow.spcfik,3),
-                      Kup=rep(Kup.spcfik,3),
-                      Proc.error=c(Proc.Error,Proc.error.cmsy,Proc.Error)),
-      JABBA_catch.only=data.frame(Scenario=paste("S",1:4,sep=''),
-                                  Sims=rep(ensims.JABBA,4),
-                                  r=c(r.mean,r.mean2,rep(r.mean,2)),
-                                  r.sd=c(r.mean.sd,r.mean.sd2,rep(r.mean.sd,2)),
-                                  r.CV.multiplier=rep(r.CV.multiplier,4),
-                                  K.mean=rep(mean(c(Klow.spcfik,Kup.spcfik)),4), #Winker et al 2019 mean k set at 20 times max catch
-                                  K.CV=rep(2,4),
-                                  Proc.error=c(rep(Proc.Error,2),Proc.error.cmsy,Proc.Error),
-                                  Ktch.CV=rep(Ktch.CV,4),
-                                  bmsyk=c(rep(0.5,3),BmsyK.Cortes)),      #Winker et al 2020 Bmsy/K=0.55 for mako shark
-      SS3=data.frame(Scenario=paste('S',1:4,sep=''),
-                     Model=rep('SSS',4),
-                     Mmean=c(rep(Mmean.mean,3),Mmean),      #using Mmean.mean as base case because h.M_mean2 is used as basecase (both using Mmean.mean)
-                     Final.dpl=c(mean(FINALBIO)),
-                     Steepness=c(h.M_mean,h.M_mean2,h.M.mean_low,h.M_mean),
-                     Steepness.sd=rep(store.species.steepness_M.age.invariant[[l]]$sd,4),
-                     F_ballpark=rep(1e-3,4),
-                     use_F_ballpark=rep(FALSE,4),
-                     Sims=rep(SSS.sims,4),
-                     Ln_R0_min=rep(Min.logR0,4),
-                     Ln_R0_max=rep(Upper.bound.LnR0,4))
-    ) 
+    
+    #2.1 DBSRA scenarios
+    AgeMat=List.sp[[l]]$Age.50.mat[1]
+    
+    ktch=ktch.combined%>%
+      filter(Name==List.sp[[l]]$Name)  
+    Klow=k.fun(ktch$Tonnes,Depl.lvl%>%pull(K_times_max_ktch_min)) 
+    if(NeiM=="angel sharks") Klow=2000  #to allow enough COMs samples to be accepted
+    Kup=max(K_min,k.fun(ktch$Tonnes,Depl.lvl%>%pull(K_times_max_ktch_max)))  
+    fmsy.m=0.41                 # Zhou et al 2012 fmsy/M=0.41 for chondrichthyans
+    fmsy.m2=Fmsy.M.scaler[[l]]  #Cortes & Brooks 2018
+    
+    #2.2 CMSY scenarios
+    r.mean=store.species.r_M.age.invariant[[l]]$mean
+    r.mean2=store.species.r_M.at.age[[l]]$mean
+    # if(NeiM%in%c("dusky shark","sandbar shark","grey nurse shark","spurdogs"))
+    # {
+    #   r.mean2=r.mean*0.6  #r.mean2 couldn't be estimated due to life history mis-specification so 
+    #                       # set at fraction of r.mean based on other species ratio
+    # }
+    r.mean=round(r.mean,3)
+    r.mean2=round(r.mean2,3)
+    r.mean.sd=store.species.r_M.age.invariant[[l]]$sd
+    r.mean.sd2=store.species.r_M.at.age[[l]]$sd
+    names(r.mean)=names(r.mean2)=names(r.mean.sd)=names(r.mean.sd2)=NULL
+    r.mean_lower=round(r.mean*.9,3)
+    r.mean_upper=round(r.mean*1.2,3)
+    ensims.csmy=ensims.CSMY
+    Kup.spcfik=Kup
+    Klow.spcfik=Klow
+    Proc.error.cmsy=Proc.Error.1
+    
+    #2.3 JABBA - catch only scenarios
+    r.CV.multiplier=1
+    Ktch.CV=0.1   #Winker et al 2019 set it at 0.2 for uncertain reconstructed school shark catches
+    
+    #2.4 Scenarios 
+    #combine all input pars and assumptions in list 
+    if(Simplified.scenarios)
+    {
+      List.sp[[l]]$Sens.test=list(
+        DBSRA=data.frame(Scenario=paste("S",1:2,sep=''),
+                         Sims=ensims, 
+                         AgeMat=AgeMat,
+                         Mmean=c(Mmean,Mmean.mean),
+                         Msd=Msd,
+                         Klow=Klow,
+                         Kup=Kup.spcfik,
+                         fmsy.m=fmsy.m,    
+                         bmsyk=BmsyK.Cortes),    
+        CMSY=data.frame(Scenario=paste("S",1:2,sep=''),
+                        Sims=ensims.csmy, 
+                        r=c(r.mean,r.mean2),
+                        r.sd=r.mean.sd,
+                        r.prob.min=r.prob.min,  
+                        r.prob.max=r.prob.max,
+                        Klow=Klow.spcfik,
+                        Kup=Kup.spcfik,
+                        Proc.error=Proc.Error),
+        JABBA_catch.only=data.frame(Scenario=paste("S",1:2,sep=''),
+                                    Sims=ensims.JABBA,
+                                    r=c(r.mean,r.mean2),
+                                    r.sd=r.mean.sd,
+                                    r.CV.multiplier=r.CV.multiplier,
+                                    K.mean=mean(c(Klow.spcfik,Kup.spcfik)), 
+                                    K.CV=k.cv,
+                                    Proc.error=Proc.Error,
+                                    Ktch.CV=Ktch.CV,
+                                    bmsyk=BmsyK.Cortes),      
+        SS3=data.frame(Scenario=paste('S',1:2,sep=''),
+                       Model='SSS',
+                       Mmean=Mmean.mean,  #using Mmean.mean as base case because h.M_mean2 is used as basecase (both using Mmean.mean)    
+                       Msd=Msd,
+                       Final.dpl=mean(FINALBIO),
+                       Steepness=c(h.M_mean,h.M_mean2),
+                       Steepness.sd=h.sd,
+                       F_ballpark=1e-3,
+                       use_F_ballpark=FALSE,
+                       Sims=SSS.sims,
+                       Ln_R0_min=Min.logR0,
+                       Ln_R0_max=Upper.bound.LnR0))
+      if(List.sp[[l]]$Sens.test$SS3$Steepness[1]==List.sp[[l]]$Sens.test$SS3$Steepness[2])
+      {
+        List.sp[[l]]$Sens.test$SS3=List.sp[[l]]$Sens.test$SS3[1,]
+      }
+    }else
+    {
+      List.sp[[l]]$Sens.test=list(
+        DBSRA=data.frame(Scenario=paste("S",1:4,sep=''),
+                         Sims=rep(ensims,4), 
+                         AgeMat=rep(AgeMat,4),
+                         Mmean=c(rep(Mmean,3),Mmean.mean),
+                         Msd=rep(Msd,4),
+                         Klow=rep(Klow,4),
+                         Kup=rep(Kup.spcfik,4),
+                         fmsy.m=c(fmsy.m,fmsy.m2,rep(fmsy.m,2)),    
+                         bmsyk=c(rep(0.5,2),BmsyK.Cortes,0.5)),    #Winker et al 2020 Bmsy/K=0.55 for mako shark
+        CMSY=data.frame(Scenario=paste("S",1:3,sep=''),
+                        Sims=rep(ensims.csmy,3), 
+                        r=c(rep(r.mean,2),r.mean2),
+                        r.sd=c(rep(r.mean.sd,2),r.mean.sd2),
+                        r.prob.min=rep(r.prob.min,3),  
+                        r.prob.max=rep(r.prob.max,3),
+                        Klow=rep(Klow.spcfik,3),
+                        Kup=rep(Kup.spcfik,3),
+                        Proc.error=c(Proc.Error,Proc.error.cmsy,Proc.Error)),
+        JABBA_catch.only=data.frame(Scenario=paste("S",1:4,sep=''),
+                                    Sims=rep(ensims.JABBA,4),
+                                    r=c(r.mean,r.mean2,rep(r.mean,2)),
+                                    r.sd=c(r.mean.sd,r.mean.sd2,rep(r.mean.sd,2)),
+                                    r.CV.multiplier=rep(r.CV.multiplier,4),
+                                    K.mean=rep(mean(c(Klow.spcfik,Kup.spcfik)),4), #Winker et al 2019 mean k set at 20 times max catch
+                                    K.CV=rep(2,4),
+                                    Proc.error=c(rep(Proc.Error,2),Proc.error.cmsy,Proc.Error),
+                                    Ktch.CV=rep(Ktch.CV,4),
+                                    bmsyk=c(rep(0.5,3),BmsyK.Cortes)),      #Winker et al 2020 Bmsy/K=0.55 for mako shark
+        SS3=data.frame(Scenario=paste('S',1:4,sep=''),
+                       Model=rep('SSS',4),
+                       Mmean=c(rep(Mmean.mean,3),Mmean),      #using Mmean.mean as base case because h.M_mean2 is used as basecase (both using Mmean.mean)
+                       Final.dpl=c(mean(FINALBIO)),
+                       Steepness=c(h.M_mean,h.M_mean2,h.M.mean_low,h.M_mean),
+                       Steepness.sd=rep(store.species.steepness_M.age.invariant[[l]]$sd,4),
+                       F_ballpark=rep(1e-3,4),
+                       use_F_ballpark=rep(FALSE,4),
+                       Sims=rep(SSS.sims,4),
+                       Ln_R0_min=rep(Min.logR0,4),
+                       Ln_R0_max=rep(Upper.bound.LnR0,4))
+      ) 
+    }
   }
-  
+
   #2.5 JABBA - cpue scenarios
-  List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA_catch.only[1,]%>%
-                                        mutate(Proc.error=Proc.Error.cpue)   
-  tested.r=c(r.mean,r.mean2,rep(r.mean,5))
-  List.sp[[l]]$Sens.test$JABBA=do.call("rbind", replicate(length(tested.r), List.sp[[l]]$Sens.test$JABBA, simplify = FALSE))%>%
-                                  mutate(r=tested.r,
-                                         Scenario=paste('S',row_number(),sep=''),
-                                         Klow=NA,
-                                         Kup=NA)
-  List.sp[[l]]$Sens.test$JABBA$Proc.error[4]=Proc.Error.cpue2
-  List.sp[[l]]$Sens.test$JABBA$Kdist=KDIST
-  List.sp[[l]]$Sens.test$JABBA$Kdist[5]="range"
-  List.sp[[l]]$Sens.test$JABBA$K.mean[5]=NA  
-  List.sp[[l]]$Sens.test$JABBA$K.CV[5]=NA
-  List.sp[[l]]$Sens.test$JABBA$Klow[5]=Klow.spcfik
-  List.sp[[l]]$Sens.test$JABBA$Kup[5]=Kup.spcfik
-  List.sp[[l]]$Sens.test$JABBA$Daily.cpues=c(rep(drop.daily.cpue,2),NA,rep(drop.daily.cpue,4))
-  if(NeiM%in%c("gummy shark","whiskery shark")) List.sp[[l]]$Sens.test$JABBA$K.mean=6000  #improve K mean as very wide range used for catch only
-  if(NeiM=="tiger shark") List.sp[[l]]$Sens.test$JABBA$K.mean=9000
-  if(NeiM=="smooth hammerhead") List.sp[[l]]$Sens.test$JABBA$K.mean=1500
-  List.sp[[l]]$Sens.test$JABBA$use.these.abundances=NA
-  List.sp[[l]]$Sens.test$JABBA$model.type=c(rep("Pella_m",nrow(List.sp[[l]]$Sens.test$JABBA)-2),"Schaefer", "Fox")
-  if(NeiM%in%c("dusky shark"))
+  if(do.JABBA.pin)
   {
-    List.sp[[l]]$Sens.test$JABBA$use.these.abundances=c('Survey') # Due to selectivity, TDGDLF catches small juveniles not spawning stock "Survey_TDGDLF.monthly"
-    List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%   #redundant scenario as daily cpue not used
-                                    filter(!is.na(Daily.cpues))
+    List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA_catch.only[1,]%>%
+      mutate(Proc.error=Proc.Error.cpue)   
+    tested.r=c(r.mean,r.mean2,rep(r.mean,5))
+    List.sp[[l]]$Sens.test$JABBA=do.call("rbind", replicate(length(tested.r), List.sp[[l]]$Sens.test$JABBA, simplify = FALSE))%>%
+      mutate(r=tested.r,
+             Scenario=paste('S',row_number(),sep=''),
+             Klow=NA,
+             Kup=NA)
+    List.sp[[l]]$Sens.test$JABBA$Proc.error[4]=Proc.Error.cpue2
+    List.sp[[l]]$Sens.test$JABBA$Kdist=KDIST
+    List.sp[[l]]$Sens.test$JABBA$Kdist[5]="range"
+    List.sp[[l]]$Sens.test$JABBA$K.mean[5]=NA  
+    List.sp[[l]]$Sens.test$JABBA$K.CV[5]=NA
+    List.sp[[l]]$Sens.test$JABBA$Klow[5]=Klow.spcfik
+    List.sp[[l]]$Sens.test$JABBA$Kup[5]=Kup.spcfik
+    List.sp[[l]]$Sens.test$JABBA$Daily.cpues=c(rep(drop.daily.cpue,2),NA,rep(drop.daily.cpue,4))
+    if(NeiM%in%c("gummy shark","whiskery shark")) List.sp[[l]]$Sens.test$JABBA$K.mean=6000  #improve K mean as very wide range used for catch only
+    if(NeiM=="tiger shark") List.sp[[l]]$Sens.test$JABBA$K.mean=9000
+    if(NeiM=="smooth hammerhead") List.sp[[l]]$Sens.test$JABBA$K.mean=1500
+    List.sp[[l]]$Sens.test$JABBA$use.these.abundances=NA
+    List.sp[[l]]$Sens.test$JABBA$model.type=c(rep("Pella_m",nrow(List.sp[[l]]$Sens.test$JABBA)-2),"Schaefer", "Fox")
+    if(NeiM%in%c("dusky shark"))
+    {
+      List.sp[[l]]$Sens.test$JABBA$use.these.abundances=c('Survey') # Due to selectivity, TDGDLF catches small juveniles not spawning stock "Survey_TDGDLF.monthly"
+      List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%   #redundant scenario as daily cpue not used
+        filter(!is.na(Daily.cpues))
+    }
+    if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%filter(!is.na(Daily.cpues))
+    List.sp[[l]]$Sens.test$JABBA$Scenario=paste0('S',1:nrow(List.sp[[l]]$Sens.test$JABBA)) 
   }
-  if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%filter(!is.na(Daily.cpues))
-  List.sp[[l]]$Sens.test$JABBA$Scenario=paste0('S',1:nrow(List.sp[[l]]$Sens.test$JABBA))
-  
-  
+
   # 3... Catch curve and dynamic catch and size model
   InRec=NULL
   if(NeiM=="smooth hammerhead") InRec= 15000
@@ -392,8 +407,26 @@ for(l in 1:N.sp)
   #-- 4.1 SS
   
   #4.1.1 Scenarios
+  if(!'Sens.test'%in%names(List.sp[[l]]))
+  {
+    List.sp[[l]]$Sens.test=list(SS3=data.frame(Scenario=paste('S',1:2,sep=''),
+                                               Model='SSS',
+                                               Final.dpl=NA,
+                                               Sims=NA,
+                                               Mmean=Mmean.mean,  
+                                               Msd=Msd,
+                                               Steepness=c(h.M_mean,h.M_mean2),
+                                               Steepness.sd=h.sd,
+                                               F_ballpark=1e-3,
+                                               use_F_ballpark=FALSE,                                                                                                         Ln_R0_min=Min.logR0,
+                                               Ln_R0_max=Upper.bound.LnR0))
+    if(List.sp[[l]]$Sens.test$SS3$Steepness[1]==List.sp[[l]]$Sens.test$SS3$Steepness[2])
+    {
+      List.sp[[l]]$Sens.test$SS3=List.sp[[l]]$Sens.test$SS3[1,]
+    }
+  }
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS3[1,]%>%
-                              mutate(NSF.selectivity=NA)
+    mutate(NSF.selectivity=NA)
   tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,h.min,List.sp[[l]]$Sens.test$SS$Steepness[1])
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
   tested.h=unique(tested.h)
@@ -1443,7 +1476,10 @@ for(l in 1:N.sp)
       }
     } # end Indicator.species
   } #end Bespoked
-
+  
+  #Remove simple SS sensitivities if not doing catch only
+  if(!do.Ktch.only.pin) List.sp[[l]]$Sens.test=List.sp[[l]]$Sens.test[-fn.mtch('SS3',List.sp[[l]]$Sens.test)]
+    
   rm(NeiM)
 }
 

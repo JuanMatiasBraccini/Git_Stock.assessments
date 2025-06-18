@@ -136,6 +136,7 @@ New.assessment="NO"
   #2.1 Level 1
 Do.Ktch.only=FALSE
 Simplified.scenarios=TRUE  #simplified version of COM sensitivity tests
+do.Ktch.only.pin=do.JABBA.pin=TRUE
 
   #2.2 Other lines of evidence
 Do.Spatio.temporal.catch.effort=FALSE
@@ -2680,7 +2681,12 @@ fn.source1("Pin_file_and_model_arguments.r")
 #---16. Export .dat, extract SS3 selectivities and some prelim analysis----- 
 #remotes::install_github("r4ss/r4ss")
 library(r4ss)  
-if(First.run=="YES") fn.source1("Organise data.R")
+if(First.run=="YES")
+{
+  HandL.out=handl_OneDrive("Analyses/Population dynamics/1.")
+  fn.source1("Organise data.R")
+}
+  
 
 #Compare empirical selectivity with observed size composition 
 if(First.run=="YES")
@@ -2811,51 +2817,6 @@ if(Extract.SS.parameters) fn.source1('Re fit SS3 selectivity.R')
 if(First.run=="YES")
 {
   fn.source1("SS_selectivity functions.R")
-  fun.compare.sel.obs.size.comp=function(TL,SEL,SEl.sens_NSF,size.comps,Flts)
-  {
-    smart.par(length(Flts),c(1,1.5,1,1),c(1,1,1,1),c(3, 1, 0))
-    for(x in 1:length(Flts))
-    {
-      FLiT=Flts[x]
-      if(FLiT=="Pilbara_Trawl") FLiT='Other'
-      Sel=SEL%>%filter(Fleet==FLiT)
-      Sel.ori=SS_selectivity_init_pars%>%filter(Species==names(List.sp)[i])
-      a.log=1e5
-      b.log=0
-      OUT.LOGIS=FALSE
-      OUT.DOUBLE.N=TRUE
-      if(all(is.na(Sel[,c('P_3', 'P_4', 'P_5', 'P_6')])))
-      {
-        a.log=Sel$P_1
-        b.log=Sel$P_2
-        Sel[,c('P_1', 'P_2','P_3', 'P_4', 'P_5', 'P_6')]=c(10,100,-10,-10,0,0) 
-        OUT.LOGIS=TRUE
-        OUT.DOUBLE.N=FALSE
-        
-      }
-      with(Sel,wrapper.fn(x=TL,a.dn=P_1,b.dn=P_2,c.dn=P_3,d.dn=P_4,e.dn=P_5,f.dn=P_6,
-                          a.log=a.log,b.log=b.log,out.logis=OUT.LOGIS,out.DN=OUT.DOUBLE.N,XLAB='TL (cm)'))
-      if(FLiT%in%c('Northern.shark','Survey') & !is.null(SEl.sens_NSF))
-      {
-        par=SEl.sens_NSF%>%filter(Fleet==FLiT)
-        lines(TL,logistic1.fn(TL,par$P_1,par$P_1),lty=2,col='red')
-        text(max(TL)*.99,.95,'alternative',col='red')
-      }
-      dd=size.comps%>%
-        filter(Fleet==Flts[x])
-      if(nrow(dd)>2)
-      {
-        dd$bin=TL.bins.cm*floor(dd$TL/TL.bins.cm)
-        y=table(dd$bin)
-        y=y/max(y)
-        points(as.numeric(names(y)),y,type='h',col="forestgreen",lwd=1.5)
-        d <- density(dd$TL)
-        # lines(d$x,d$y/max(d$y),col="forestgreen",lwd=2)
-      }
-      legend('bottomleft','size composition',lwd=2,col="forestgreen",bty='n')
-      text(quantile(TL,.5),.5,Flts[x],cex=3,col='grey80')
-    }
-  }
   for(i in 1:length(Species.data))
   {
     print(paste("Compare observed size comp and assumed SS selectivity --------",names(Species.data)[i]))
@@ -3028,21 +2989,6 @@ if(First.run=="YES")
 # Check that meanbodywt used in SS occurs ~ at peak of selectivity
 if(First.run=="YES")
 {
-  fn.source1("SS_selectivity functions.R")
-  fun.check.mean.weight=function(TL,a,b,Mean.weight,SD.Mean.weight,Sel,NM)
-  {
-    PP=data.frame(TL=TL,TWT=a*TL^b)
-    with(Sel,wrapper.fn(x=TL,a.dn=P_1,b.dn=P_2,c.dn=P_3,d.dn=P_4,e.dn=P_5,f.dn=P_6,a.log=1e5,b.log=0))
-    MeanTL=PP$TL[which.min(abs(PP$TWT-Mean.weight))]
-    SDMeanTL.low=PP$TL[which.min(abs(PP$TWT-(Mean.weight-SD.Mean.weight)))]
-    SDMeanTL.high=PP$TL[which.min(abs(PP$TWT-(Mean.weight+SD.Mean.weight)))]
-    abline(v=MeanTL,lwd=2)
-    abline(v=SDMeanTL.low,lty=3,lwd=1.5,col='grey30')
-    abline(v=SDMeanTL.high,lty=3,lwd=1.5,col='grey30')
-    text(PP$TL[which.min(abs(PP$TWT-Mean.weight))],0,"TL at mean meanbodywt input for SS",pos=4,srt=90)
-    mtext(NM)
-  }
-  
   for(i in 1:length(Species.data))
   {
     if(any(grepl('annual.mean.size',names(Species.data[[i]]))))
@@ -3052,7 +2998,9 @@ if(First.run=="YES")
        tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
                       "/",AssessYr,"/1_Inputs/Visualise data","/Meanbodywt VS selectivity used in SS.tiff",sep=''),
            width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-      fun.check.mean.weight(TL=with(List.sp[[i]],seq(round(Lzero*a_FL.to.TL+b_FL.to.TL),TLmax)),
+       TL=with(List.sp[[i]],seq(round(Lzero*a_FL.to.TL+b_FL.to.TL),TLmax))
+       TL=c(seq(0,(min(TL)-1)),TL)
+       fun.check.mean.weight(TL=TL,
                             a=List.sp[[i]]$AwT,
                             b=List.sp[[i]]$BwT,
                             Mean.weight=mean(Species.data[[i]]$annual.mean.size$mean),
@@ -3113,7 +3061,6 @@ if(First.run=="YES")
         mutate(Nsamps=n())%>%
         ungroup()%>%
         mutate(month=7,
-               Sex=ifelse(Sex=='Male',2,ifelse(Sex=='Female',1,0)),
                part=0,
                ageErr=-1,   #- assumes no ageing error
                Fleet=Flits[match('Southern.shark',names(Flits))])%>%
@@ -3124,7 +3071,7 @@ if(First.run=="YES")
       dd%>%
         ggplot(aes(Age,TL,color=year))+
         geom_point()+
-        facet_wrap(~Sex,ncol=1)
+        facet_wrap(~Sex,ncol=1)+theme_PA()+ylim(0,NA)+xlim(0,NA)
       HandL=handl_OneDrive("Analyses/Population dynamics/1.")
       DiR=paste(HandL,capitalize(Keep.species[i]),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
       ggsave(paste(DiR,'Conditional age at length.tiff',sep='/'), width = 6,height = 6, dpi = 300, compression = "lzw")
