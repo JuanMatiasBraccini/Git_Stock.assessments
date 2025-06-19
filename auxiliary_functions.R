@@ -775,7 +775,7 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
   PSA.contour_high.risk=PSA.contour_medium.risk[-((nrow(PSA.contour_medium.risk)-1):nrow(PSA.contour_medium.risk)),]%>%
     rbind(data.frame(y=rev(c(1,MaxY,MaxY)),x=rev(c(MaxX,MaxX,1))))
   
-  p=PSA%>%
+  p1=PSA%>%
     ggplot(aes(Productivity, Susceptibility, label = Species,colour = Vulnerability, fill = Vulnerability)) +
     geom_polygon(data=PSA.contour_low.risk,inherit.aes = FALSE,aes(x,y),fill=cols[1],alpha=.15)+
     geom_polygon(data=PSA.contour_medium.risk,inherit.aes = FALSE,aes(x,y),fill=cols[2],alpha=.15)+
@@ -805,8 +805,6 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
   #                   xmin=1.325,xmax=1.325,ymin=0.85,ymax=0.85)+
   # annotation_custom(textGrob("High Susceptibility",rot = 90, gp=gpar(fontsize=12, fontface="bold",col='dodgerblue4')),
   #                   xmin=1.325,xmax=1.325,ymin=3,ymax=3)
-  print(p)
-  ggsave(paste(Exprt,'Figure_PSA.tiff',sep='/'), width = W,height = H, dpi = 300, compression = "lzw")
   
   #Table PSA scores
   Table.PSA=d
@@ -833,7 +831,7 @@ PSA.fn=function(d,line.sep,size.low,size.med,size.hig,W,H)
               by='Species')%>%
     mutate(Vulnerability.score=round(Vulnerability.score,2))
   write.csv(Table.PSA,paste(Exprt,'Table S2_PSA scores.csv',sep='/'),row.names=F)
-  return(PSA)
+  return(list(p=p1,PSA=PSA))
 }
 
 # Contrast catch and cpue series   ------------------------------------------------------

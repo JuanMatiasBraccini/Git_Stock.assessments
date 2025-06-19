@@ -23,8 +23,7 @@ for(w in 1:n.SS)
         
         if((!is.null(Catch.rate.series[[i]]) | Neim%in%Species.with.length.comp) & !(Neim%in%no.empirical.sel.main.fleet))
         {
-          this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                        capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+          this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
           if(!dir.exists(this.wd))dir.create(this.wd)
           
           Life.history=List.sp[[i]]
@@ -700,7 +699,7 @@ for(w in 1:n.SS)
               if(Life.history$drop.length.comp) Size.compo.SS.format=NULL
               if(Life.history$drop.cpue) Abundance.SS.format=NULL
               
-              #a. Create input files
+              #a. Create SS input files  
               if(create.SS.inputs)
               {
                 fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
@@ -767,7 +766,7 @@ for(w in 1:n.SS)
                 
                 rm(ramp_years,out,tune_info)
               }
-                #run this to estimate parameters
+                #run SS to estimate population parameters
               if(!Calculate.ramp.years)
               {
                 fn.run.SS(where.inputs=this.wd1,
@@ -961,7 +960,7 @@ for(w in 1:n.SS)
           }
           clear.log("Var.ad.factr")
         }
-      }
+      } #end i loop
       stopCluster(cl)
       names(out.species)=Keep.species
       
@@ -1012,7 +1011,8 @@ for(w in 1:n.SS)
 
       rm(out.species)
       
-    } 
+    }
+    
     if(!do.parallel.SS)
     {
       dummy.store=vector('list',N.sp)
@@ -1028,8 +1028,7 @@ for(w in 1:n.SS)
         
         if((!is.null(Catch.rate.series[[i]]) | Neim%in%Species.with.length.comp) & !(Neim%in%no.empirical.sel.main.fleet))
         {
-          this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                        capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+          this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
           if(!dir.exists(this.wd))dir.create(this.wd)
           
           Life.history=List.sp[[i]]
@@ -2027,7 +2026,7 @@ if(do.SS3.diagnostics)
   out=foreach(l= 1:N.sp,.options.snow = opts,.packages=c('Hmisc','tidyverse','r4ss','ss3diags')) %dopar%
     {
       Neim=Keep.species[l]
-      this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+      this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
       this.wd1=paste(this.wd,"S1",sep='/')
       if(file.exists(this.wd1))
       {
@@ -2065,8 +2064,7 @@ if(SS3.run=='final')
   for(i in 1:N.sp)
   {
     Neim=Keep.species[i]
-    this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                  capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+    this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
     if(file.exists(this.wd))
     {
       print(paste("Compare scenarios for ------------",Neim))
@@ -2113,8 +2111,7 @@ if(is.null(Age.based$SS))
         
         if((!is.null(Catch.rate.series[[i]]) | Neim%in%Species.with.length.comp) & !(Neim%in%no.empirical.sel.main.fleet))
         {
-          this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                        capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+          this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
           if(!dir.exists(this.wd))dir.create(this.wd)
           
           Life.history=List.sp[[i]]
@@ -2381,7 +2378,7 @@ for(l in 1: length(Lista.sp.outputs))
     d.tbl=do.call(rbind,dummy)%>%relocate(Species)
     if(!evaluate.07.08.cpue) d.tbl=d.tbl%>%dplyr::select(-Daily.cpues)
     write.csv(d.tbl,
-              paste(Rar.path,paste('Table 10. Age.based_',names(Age.based)[w],'_scenarios_',
+              paste(HandL.out.RAR,paste('Table 10. Age.based_',names(Age.based)[w],'_scenarios_',
                                    names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
               row.names = F)
   }
@@ -2402,7 +2399,7 @@ for(l in 1: length(Lista.sp.outputs))
         rownames_to_column(var = "Species")%>%
         mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
         relocate(Species)
-      write.csv(dummy,paste(Rar.path,paste('Table 11. Age.based_',
+      write.csv(dummy,paste(HandL.out.RAR,paste('Table 11. Age.based_',
                                            names(Age.based)[w],'_estimates_',
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
@@ -2418,7 +2415,7 @@ for(l in 1: length(Lista.sp.outputs))
         rownames_to_column(var = "Species")%>%
         mutate(Species=capitalize(str_extract(Species, "[^.]+")))%>%
         relocate(Species)
-      write.csv(dummy,paste(Rar.path,paste('Table 11. Age.based_',
+      write.csv(dummy,paste(HandL.out.RAR,paste('Table 11. Age.based_',
                                            names(Age.based)[w],'_likelihoods_',
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
@@ -2430,7 +2427,7 @@ for(l in 1: length(Lista.sp.outputs))
     dummy=compact(dummy)
     if(length(dummy)>0)
     {
-      write.csv(do.call(rbind,dummy),paste(Rar.path,paste('Table 11. Age.based_',
+      write.csv(do.call(rbind,dummy),paste(HandL.out.RAR,paste('Table 11. Age.based_',
                                            names(Age.based)[w],'_quantities_',
                                            names(Lista.sp.outputs)[l],'.csv',sep=''),sep='/'),
                 row.names = F)
@@ -2459,8 +2456,7 @@ for(i in 1:N.sp)
     if(!is.null(a))
     {
       #export graph
-      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                   capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_relative_biomass.tiff",sep=''),
+      ggsave(paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_relative_biomass.tiff",sep=''),
              width = 6,height = 10,compression = "lzw")
       
       #export current depletion probabilities
@@ -2469,15 +2465,13 @@ for(i in 1:N.sp)
                   mutate(Species=Keep.species[i],
                          Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                   arrange(Scenario,Range),
-                paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                      capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_current_depletion_probabilities.csv",sep=''),
+                paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_current_depletion_probabilities.csv",sep=''),
                 row.names = F)
       
       #export current depletion 
       xx=Age.based$SS$rel.biom[[i]]
       write.csv(xx,
-                paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                      capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_depletion.csv",sep=''),
+                paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_depletion.csv",sep=''),
                 row.names = F)
       
       Ref.points[[i]]=a$Ref.points$SS
@@ -2500,8 +2494,7 @@ if(do.F.series)
                            YLAB=expression(paste(plain("Fishing mortality (years") ^ plain("-1"),")",sep="")))
       if(!is.null(a))
       {
-        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                     capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_fishing_mortality.tiff",sep=''),
+        ggsave(paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_fishing_mortality.tiff",sep=''),
                width = 8,height = 10,compression = "lzw")
       }
     }
@@ -2522,8 +2515,7 @@ if(do.B.over.Bmsy.series)
                            YLAB='B/Bmsy')
       if(!is.null(a))
       {
-        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                     capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_B_Bmsy.tiff",sep=''),
+        ggsave(paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_B_Bmsy.tiff",sep=''),
                width = 8,height = 10,compression = "lzw")
       }
     }
@@ -2544,8 +2536,7 @@ if(do.F.over.Fmsy.series)
                            YLAB='F/Fmsy')
       if(!is.null(a))
       {
-        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                     capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_F_Fmsy.tiff",sep=''),
+        ggsave(paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_time_series_F_Fmsy.tiff",sep=''),
                width = 8,height = 10,compression = "lzw")
       }
     }
@@ -2570,7 +2561,7 @@ for(l in 1:length(Lista.sp.outputs))
                                 Kach=Age.based$SS$rel.biom)
   WIDt=10
   if(length(compact(Age.based$SS$sens.table))<=3) WIDt=7
-  if(!is.null(a))ggsave(paste(Rar.path,'/Relative.biomass_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+  if(!is.null(a))ggsave(paste(HandL.out.RAR,'/Relative.biomass_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
                         width = WIDt,height = 10,compression = "lzw")
 }
     #table 
@@ -2608,7 +2599,7 @@ for(l in 1:length(Lista.sp.outputs))
                 mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                 spread(Species,Probability)%>%
                 arrange(Range),
-              paste(Rar.path,'/Table 12. Age.based_SS_current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+              paste(HandL.out.RAR,'/Table 12. Age.based_SS_current.depletion_',names(Lista.sp.outputs)[l],'.csv',sep=''),
               row.names=F)
     rm(dummy.mod)
     
@@ -2631,7 +2622,7 @@ if(do.B.over.Bmsy.series)
                                   Kach=Age.based$SS$rel.biom)
     WIDt=10
     if(length(compact(Age.based$SS$sens.table))<=3) WIDt=7
-    if(!is.null(a))ggsave(paste(Rar.path,'/B.over.Bmsy_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+    if(!is.null(a))ggsave(paste(HandL.out.RAR,'/B.over.Bmsy_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
                           width = WIDt,height = 10,compression = "lzw")
   }
   #table 
@@ -2669,7 +2660,7 @@ if(do.B.over.Bmsy.series)
                   mutate(Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                   spread(Species,Probability)%>%
                   arrange(Range),
-                paste(Rar.path,'/Table 12. Age.based_SS_Current.B.over.Bmsy_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+                paste(HandL.out.RAR,'/Table 12. Age.based_SS_Current.B.over.Bmsy_',names(Lista.sp.outputs)[l],'.csv',sep=''),
                 row.names=F)
       rm(dummy.mod)
       
@@ -2694,7 +2685,7 @@ if(do.F.over.Fmsy.series)
                                   Kach=Age.based$SS$rel.biom)
     WIDt=10
     if(length(compact(Age.based$SS$sens.table))<=3) WIDt=7
-    if(!is.null(a))ggsave(paste(Rar.path,'/F.over.Fmsy_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+    if(!is.null(a))ggsave(paste(HandL.out.RAR,'/F.over.Fmsy_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
                           width = WIDt,height = 10,compression = "lzw")
   }
 }
@@ -2715,7 +2706,7 @@ if(do.F.series)
                                   Kach=Age.based$SS$rel.biom)
     WIDt=10
     if(length(compact(Age.based$SS$sens.table))<=3) WIDt=7
-    if(!is.null(a))ggsave(paste(Rar.path,'/F.series_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+    if(!is.null(a))ggsave(paste(HandL.out.RAR,'/F.series_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
                           width = WIDt,height = 10,compression = "lzw")
   }
   
@@ -2754,7 +2745,7 @@ if(do.F.series)
                   mutate(Range=factor(Range,levels=c(">lim","lim.thr","thr.tar","<tar")))%>%
                   spread(Species,Probability)%>%
                   arrange(Range),
-                paste(Rar.path,'/Table 12. Age.based_SS_Current.f_',names(Lista.sp.outputs)[l],'.csv',sep=''),
+                paste(HandL.out.RAR,'/Table 12. Age.based_SS_Current.f_',names(Lista.sp.outputs)[l],'.csv',sep=''),
                 row.names=F)
       rm(dummy.mod)
       
@@ -2776,7 +2767,7 @@ for(l in 1:length(Lista.sp.outputs))
   HEIT=8
   WIDt=8
   if(length(which(Lista.sp.outputs[[l]]%in%disspisis))<=3) WIDt=6
-  if(!is.null(a))ggsave(paste(Rar.path,'/Relative.biomass_SS3 integrated_',names(Lista.sp.outputs)[l],'_sensitivity.tiff',sep=''),
+  if(!is.null(a))ggsave(paste(HandL.out.RAR,'/Relative.biomass_SS3 integrated_',names(Lista.sp.outputs)[l],'_sensitivity.tiff',sep=''),
                         width = WIDt,height = HEIT,compression = "lzw")
 }
 
@@ -2794,8 +2785,7 @@ for(l in 1:length(Lista.sp.outputs))
     for(q in 1:length(this.sp))
     {
       i=match(this.sp[q],Keep.species)
-      this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                    capitalize(List.sp[[i]]$Name),"/",AssessYr,"/SS3 integrated",sep='')
+      this.wd=paste(HandL.out,capitalize(List.sp[[i]]$Name),"/",AssessYr,"/SS3 integrated",sep='')
       if(file.exists(this.wd))
       {
         Scens=List.sp[[i]]$Sens.test$SS$Scenario 
@@ -2817,7 +2807,7 @@ for(l in 1:length(Lista.sp.outputs))
     }
     figure <- ggarrange(plotlist=stor.plt,ncol=1,nrow=length(this.sp),common.legend = TRUE)
     figure=annotate_figure(figure,bottom = text_grob('Scenario', size=22),left = text_grob('Value',rot = 90, size=22))
-    ggsave(paste(Rar.path,'/GoodnessFit per scenario_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+    ggsave(paste(HandL.out.RAR,'/GoodnessFit per scenario_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = 5,height = 8,compression = "lzw")
   }
 }
@@ -2835,8 +2825,7 @@ for(i in 1:N.sp)
     store.kobes[[i]]=fn.get.Kobe.plot_appendix(d=Age.based,
                                                sp=Keep.species[i],
                                                do.probs=TRUE)
-    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot.tiff",sep=''),
+    ggsave(paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot.tiff",sep=''),
            width = 9,height = 14, dpi = 300,compression = "lzw")
   }
   
@@ -2863,7 +2852,7 @@ for(l in 1:length(Lista.sp.outputs))
                      NKOL,
                      NRW,
                      do.probs=TRUE)
-    ggsave(paste(Rar.path,'/Kobe_plot_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+    ggsave(paste(HandL.out.RAR,'/Kobe_plot_SS3 integrated_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = WIZ,height = 12,compression = "lzw")
     
   }
@@ -2879,8 +2868,7 @@ for(i in 1:N.sp)
     fn.get.Kobe.plot_appendix_WA.Fisheries(d=Age.based,
                                            sp=Keep.species[i],
                                            RF=Ref.points)
-    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot_WA_Fisheries.tiff",sep=''),
+    ggsave(paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot_WA_Fisheries.tiff",sep=''),
            width = 10,height = 10, dpi = 300,compression = "lzw")
   }
 }
@@ -2904,7 +2892,7 @@ for(l in 1:length(Lista.sp.outputs))
                                   NKOL,
                                   NRW,
                                   RF=Ref.points)
-    ggsave(paste(Rar.path,'/Kobe_plot_SS3 integrated_WA_Fisheries_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+    ggsave(paste(HandL.out.RAR,'/Kobe_plot_SS3 integrated_WA_Fisheries_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = WIZ,height = 12,compression = "lzw")
   }
 }
@@ -2919,8 +2907,7 @@ for(i in 1:N.sp)
     fn.get.Kobe.plot_appendix_SAFS(d=Age.based,
                                    sp=Keep.species[i],
                                    RF=Ref.points)
-    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot_SAFS.tiff",sep=''),
+    ggsave(paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot_SAFS.tiff",sep=''),
            width = 10,height = 10, dpi = 300,compression = "lzw")
   }
 }
@@ -2946,7 +2933,7 @@ for(l in 1:length(Lista.sp.outputs))
                           NRW,
                           RF=Ref.points,
                           Scen='S1')
-    ggsave(paste(Rar.path,'/Kobe_plot_SS3 integrated_SAFS_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
+    ggsave(paste(HandL.out.RAR,'/Kobe_plot_SS3 integrated_SAFS_',names(Lista.sp.outputs)[l],'.tiff',sep=''),
            width = WIZ,height = 12,compression = "lzw")
   }
 }

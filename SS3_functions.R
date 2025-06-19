@@ -429,13 +429,14 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     dat$fleetinfo=fleetinfo  
     
     #cpue
+    names(dat$CPUEinfo)=capitalize(names(dat$CPUEinfo))
     ddumy=dat$CPUEinfo%>%
-      rownames_to_column('fleetname')%>%
-      mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-                              ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-                                     fleetname)))%>%
-      filter(fleetname%in%dis.flits)%>%
-      mutate(Fleet=row_number())
+            rownames_to_column('fleetname')%>%
+            mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
+                             ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
+                                    fleetname)))%>%
+            filter(fleetname%in%dis.flits)%>%
+            mutate(Fleet=row_number())
     if(Abundance.error.dist=='Normal') ddumy$Errtype=-1  
     if(Abundance.error.dist=='Lognormal') ddumy$Errtype=0
     rownames(ddumy)=ddumy$fleetname

@@ -83,7 +83,7 @@ Get.CV_youn_old=vector('list',N.sp)
 for(i in 1:N.sp)
 {
   d=fun.cv_young_old(d=Species.data[[i]],NM=names(Species.data)[i])
-  print(d$p)
+  if(First.run=='YES') print(d$p)
   Get.CV_youn_old[[i]]=d$d
 }
 Get.CV_youn_old=do.call(rbind,Get.CV_youn_old)
@@ -1481,7 +1481,7 @@ for(l in 1:N.sp)
   if(!do.Ktch.only.pin) List.sp[[l]]$Sens.test=List.sp[[l]]$Sens.test[-fn.mtch('SS3',List.sp[[l]]$Sens.test)]
     
   rm(NeiM)
-}
+} #end l loop
 
 #remove duplicated objects from multiple runs of List.sp loops
 for(l in 1:N.sp) List.sp[[l]]=List.sp[[l]][!duplicated(names(List.sp[[l]]))]
@@ -1509,6 +1509,7 @@ fn.fit.log.infl=function(pars)
 }
 for(l in 1:N.sp)
 {
+  set.seed(666)
   dat=data.frame(x=with(List.sp[[l]],(Lzero*a_FL.to.TL+b_FL.to.TL):List.sp[[l]]$TLmax))%>%
     mutate(y=with(List.sp[[l]],1/(1+exp(-log(19)*((x-TL.50.mat)/(TL.95.mat-TL.50.mat))))),
            x=base::jitter(x,50),

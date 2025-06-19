@@ -890,94 +890,103 @@ PSA.list=PSA.list%>%filter(!Species%in%assessed.elsewhere)
 
 #Show annual catches
 Exprt=handl_OneDrive("Analyses/Population dynamics/PSA")
-
-write.csv(KtCh.method%>%
+if(First.run=="YES")
+{
+  write.csv(KtCh.method%>%
               mutate(Year=as.numeric(substr(FINYEAR,1,4)),
-                               Name=capitalize(Name))%>%
+                     Name=capitalize(Name))%>%
               group_by(Name,Year,Data.set)%>%
-            summarise(catch=sum(LIVEWT.c)),
-          paste(Exprt,'Annual_ktch_by_species.and.data.set.csv',sep='/'),row.names = F)
+              summarise(catch=sum(LIVEWT.c)),
+            paste(Exprt,'Annual_ktch_by_species.and.data.set.csv',sep='/'),row.names = F)
 
-KtCh.method%>%
-  filter(Name%in%PSA.list$Species)%>%
-  mutate(Year=as.numeric(substr(FINYEAR,1,4)),
-         Gear=ifelse(is.na(Gear),'unidentified',Gear),
-         Gear=capitalize(Gear),
-         Name=capitalize(Name))%>%
-  group_by(Name,Year,Gear)%>%
-  summarise(catch=sum(LIVEWT.c))%>%
-  ggplot(aes(Year,catch))+
-  geom_point(aes(colour = Gear),size = .8)+ylab("Catch (tonnes)")+
-  facet_wrap( ~ Name, scales = "free_y")+ expand_limits(y = 0)+
-  theme_PA(strx.siz=8,leg.siz=12,axs.t.siz=6.5)+
-  theme(legend.position="top",
-        legend.title = element_blank(),
-        legend.key=element_blank(),
-        title=element_text(size=12),
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  guides(colour = guide_legend(override.aes = list(size=5)))+
-  xlab("Financial year")
-ggsave(paste(Exprt,'Annual_ktch_by_species.used.in.PSA.tiff',sep='/'), width = 17,height = 7.5, dpi = 300, compression = "lzw")
+  KtCh.method%>%
+    filter(Name%in%PSA.list$Species)%>%
+    mutate(Year=as.numeric(substr(FINYEAR,1,4)),
+           Gear=ifelse(is.na(Gear),'unidentified',Gear),
+           Gear=capitalize(Gear),
+           Name=capitalize(Name))%>%
+    group_by(Name,Year,Gear)%>%
+    summarise(catch=sum(LIVEWT.c))%>%
+    ggplot(aes(Year,catch))+
+    geom_point(aes(colour = Gear),size = .8)+ylab("Catch (tonnes)")+
+    facet_wrap( ~ Name, scales = "free_y")+ expand_limits(y = 0)+
+    theme_PA(strx.siz=8,leg.siz=12,axs.t.siz=6.5)+
+    theme(legend.position="top",
+          legend.title = element_blank(),
+          legend.key=element_blank(),
+          title=element_text(size=12),
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+    guides(colour = guide_legend(override.aes = list(size=5)))+
+    xlab("Financial year")
+  ggsave(paste(Exprt,'Annual_ktch_by_species.used.in.PSA.tiff',sep='/'), width = 17,height = 7.5, dpi = 300, compression = "lzw")
+  
+}
 
 #Export table of species identified in the catch by fishery  (all species including indicator species)
-write.csv(Get.ktch$Table1%>%
-            filter(!is.na(Name))%>%left_join(All.species.names%>%dplyr::select(SPECIES,Scien.nm),by='Scien.nm')%>%
-            relocate(c(SPECIES))%>%
-            arrange(SPECIES),
-          paste(Exprt,'Table S1_All.species.caught.by.fishery.csv',sep='/'),row.names = F)
+if(First.run=="YES")
+{
+  write.csv(Get.ktch$Table1%>%
+              filter(!is.na(Name))%>%left_join(All.species.names%>%dplyr::select(SPECIES,Scien.nm),by='Scien.nm')%>%
+              relocate(c(SPECIES))%>%
+              arrange(SPECIES),
+            paste(Exprt,'Table S1_All.species.caught.by.fishery.csv',sep='/'),row.names = F)
+}
 
 #Export species word cloud 
-Word.cloud=Get.ktch$Table1%>%
-  data.frame%>%
-  mutate(Tot=rowSums(across(where(is.numeric))))%>%
-  dplyr::select(Name,Scien.nm,Tot)%>%
-  left_join(All.species.names%>%
-              distinct(Scien.nm,.keep_all=T),
-            by='Scien.nm')%>%
-  filter(!is.na(Scien.nm))%>%
-  mutate(CITES=ifelse(CITES%in%c("") |is.na(CITES),NA,"CITES"),
-         CMS=ifelse(CMS%in%c("") |is.na(CMS),NA,"CMS"),
-         EPBC=ifelse(EPBC%in%c("") |is.na(EPBC),NA,"EPBC"),
-         SAFS=ifelse(SAFS%in%c("") |is.na(SAFS),NA,"SAFS"),
-         WA_BC_Act=ifelse(WA_BC_Act%in%c("") |is.na(WA_BC_Act),NA,"WA BC Act"),
-         Indicators=ifelse(Name%in%capitalize(names(Indicator.species)),'Indicators','Non.indicators'))%>%
-  unite(col='Protection',CITES,CMS,EPBC,WA_BC_Act,sep=',',na.rm = TRUE)%>%
-  mutate(Listed=ifelse(!Protection=="",'Listed (CITES, CMS, EPBC, WA BC Act)',"Not listed"))
-
-p=Word.cloud%>%
-  ggplot(aes(label = Name, size = Tot,color=Indicators))+
-  geom_text_wordcloud() +
-  scale_size_area(max_size = 20) +
-  theme_minimal()+
-  scale_color_manual(values=c(Non.indicators = "black", Indicators = "steelblue"))
-ggsave(paste(Exprt,'Catch_word_cloud.tiff',sep='/'), width = 10,height = 10, dpi = 300, compression = "lzw")
-
-p1=Word.cloud%>%
-  filter(Listed=='Not listed')%>%
-  mutate(dummy='dummy')%>%
-  ggplot(aes(label = Name, size = Tot,color=dummy))+
-  geom_text_wordcloud(show.legend = FALSE, family="Purisa") +
-  scale_size_area(max_size = 20) +
-  theme_minimal()+
-  guides(size = "none")+
-  ggtitle("Not listed")+
-  theme(plot.title = element_text(size=28,hjust=0.5,vjust = -8))+
-  scale_color_manual(values=c(dummy = "grey50"))
-
-p2=Word.cloud%>%
-  filter(!Listed=='Not listed')%>%
-  ggplot(aes(label = Name, size = Tot,color=Protection))+
-  geom_text_wordcloud(show.legend = FALSE, family="Purisa") +
-  scale_size_area(max_size = 20) +
-  theme_minimal()+
-  guides(size = "none")+
-  ggtitle("Listed (CITES, CMS, EPBC, WA BC Act)")+
-  theme(plot.title = element_text(size=28,hjust=0.5,vjust = -8))
-
-
-ggarrange(p1,p2,nrow=2)+theme(plot.margin = unit(c(-1,-1,-1,-1), 'lines'))
-ggsave(paste(Exprt,'Catch_word_cloud_protection.tiff',sep='/'),
-       width = 250,height = 250,units = "mm", dpi = 300, compression = "lzw")
+if(First.run=="YES")
+{
+  Word.cloud=Get.ktch$Table1%>%
+    data.frame%>%
+    mutate(Tot=rowSums(across(where(is.numeric))))%>%
+    dplyr::select(Name,Scien.nm,Tot)%>%
+    left_join(All.species.names%>%
+                distinct(Scien.nm,.keep_all=T),
+              by='Scien.nm')%>%
+    filter(!is.na(Scien.nm))%>%
+    mutate(CITES=ifelse(CITES%in%c("") |is.na(CITES),NA,"CITES"),
+           CMS=ifelse(CMS%in%c("") |is.na(CMS),NA,"CMS"),
+           EPBC=ifelse(EPBC%in%c("") |is.na(EPBC),NA,"EPBC"),
+           SAFS=ifelse(SAFS%in%c("") |is.na(SAFS),NA,"SAFS"),
+           WA_BC_Act=ifelse(WA_BC_Act%in%c("") |is.na(WA_BC_Act),NA,"WA BC Act"),
+           Indicators=ifelse(Name%in%capitalize(names(Indicator.species)),'Indicators','Non.indicators'))%>%
+    unite(col='Protection',CITES,CMS,EPBC,WA_BC_Act,sep=',',na.rm = TRUE)%>%
+    mutate(Listed=ifelse(!Protection=="",'Listed (CITES, CMS, EPBC, WA BC Act)',"Not listed"))
+  
+  p=Word.cloud%>%
+    ggplot(aes(label = Name, size = Tot,color=Indicators))+
+    geom_text_wordcloud() +
+    scale_size_area(max_size = 20) +
+    theme_minimal()+
+    scale_color_manual(values=c(Non.indicators = "black", Indicators = "steelblue"))
+  ggsave(paste(Exprt,'Catch_word_cloud.tiff',sep='/'), width = 10,height = 10, dpi = 300, compression = "lzw")
+  
+  p1=Word.cloud%>%
+    filter(Listed=='Not listed')%>%
+    mutate(dummy='dummy')%>%
+    ggplot(aes(label = Name, size = Tot,color=dummy))+
+    geom_text_wordcloud(show.legend = FALSE, family="Purisa") +
+    scale_size_area(max_size = 20) +
+    theme_minimal()+
+    guides(size = "none")+
+    ggtitle("Not listed")+
+    theme(plot.title = element_text(size=28,hjust=0.5,vjust = -8))+
+    scale_color_manual(values=c(dummy = "grey50"))
+  
+  p2=Word.cloud%>%
+    filter(!Listed=='Not listed')%>%
+    ggplot(aes(label = Name, size = Tot,color=Protection))+
+    geom_text_wordcloud(show.legend = FALSE, family="Purisa") +
+    scale_size_area(max_size = 20) +
+    theme_minimal()+
+    guides(size = "none")+
+    ggtitle("Listed (CITES, CMS, EPBC, WA BC Act)")+
+    theme(plot.title = element_text(size=28,hjust=0.5,vjust = -8))
+  
+  
+  ggarrange(p1,p2,nrow=2)+theme(plot.margin = unit(c(-1,-1,-1,-1), 'lines'))
+  ggsave(paste(Exprt,'Catch_word_cloud_protection.tiff',sep='/'),
+         width = 250,height = 250,units = "mm", dpi = 300, compression = "lzw")
+}
 
 clear.log('Get.ktch')
 clear.log('WAislands')  
@@ -985,10 +994,10 @@ clear.log('WAcoast')
 
 #which species meet PSA criteria (and hence availability and encounterability not set to 1)? 
 psa.ktch=KtCh.method%>%
-  filter(Name%in%PSA.list$Species)%>%
-  group_by(Name,FINYEAR)%>%
-  summarise(catch=sum(LIVEWT.c))%>%
-  spread(Name,catch,fill=0)
+            filter(Name%in%PSA.list$Species)%>%
+            group_by(Name,FINYEAR)%>%
+            summarise(catch=sum(LIVEWT.c))%>%
+            spread(Name,catch,fill=0)
 aa=as.matrix(psa.ktch[,-1])
 psa.species.max.ever=names(which(apply(aa,2,max)>=PSA.max.ton))
 aa[aa<=PSA.min.tons]=0
@@ -999,18 +1008,18 @@ species.meeting.criteria=intersect(psa.species.series,psa.species.max.ever)
 
 #replace missing gear info with most common value
 Agg=KtCh.method%>%
-  group_by(FishCubeCode) %>%
-  arrange(FishCubeCode, is.na(Gear)) %>% # in case to keep non- NA elements for a tie
-  mutate(Gear = ifelse(is.na(Gear),Mode(Gear),Gear),
-         Gear=ifelse(is.na(Gear) & FishCubeCode %in% c('Historic','Indo','WTB','SA MSF'),'line',
-              ifelse(is.na(Gear) & FishCubeCode %in% c('GAB','PFT','SBSC'),'trawl',
-              Gear)))
+        group_by(FishCubeCode) %>%
+        arrange(FishCubeCode, is.na(Gear)) %>% # in case to keep non- NA elements for a tie
+        mutate(Gear = ifelse(is.na(Gear),Mode(Gear),Gear),
+               Gear=ifelse(is.na(Gear) & FishCubeCode %in% c('Historic','Indo','WTB','SA MSF'),'line',
+                    ifelse(is.na(Gear) & FishCubeCode %in% c('GAB','PFT','SBSC'),'trawl',
+                    Gear)))
 Agg.PSA=Agg%>%
-  filter(!is.na(Gear))%>%
-  group_by(Name,Gear,FINYEAR)%>%
-  summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
-  spread(FINYEAR,LIVEWT.c,fill=0)%>%
-  data.frame
+      filter(!is.na(Gear))%>%
+      group_by(Name,Gear,FINYEAR)%>%
+      summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+      spread(FINYEAR,LIVEWT.c,fill=0)%>%
+      data.frame
 names(Agg.PSA)[-(1:2)]=substr(names(Agg.PSA)[-(1:2)],2,5)
 Agg.sp=unique(Agg.PSA$Name)
 KIP=vector('list',length(Agg.sp))
@@ -1036,7 +1045,12 @@ UniSp=subset(UniSp,!UniSp%in%names(Indicator.species))
 
 PSA.list=PSA.list%>%filter(Species%in%UniSp)  
 PSA.out=PSA.fn(d=PSA.list,line.sep=.45,size.low=2.1,size.med=2.15,size.hig=2.5,W=10,H=10)
-
+if(First.run=="YES")
+{
+  PSA.out$p
+  ggsave(paste(Exprt,'Figure_PSA.tiff',sep='/'), width = W,height = H, dpi = 300, compression = "lzw")
+}
+PSA.out=PSA.out$PSA
 Keep.species=tolower(as.character(PSA.out%>%filter(Vulnerability=="High")%>%pull(Species)))
 Keep.species=sort(c(Keep.species,names(Indicator.species)))
 Drop.species=UniSp[which(!UniSp%in%Keep.species)]
@@ -2669,7 +2683,7 @@ for(l in 1:N.sp) #get shape parameter of production models based on Cortes et al
   BmsyK.species$m[l]=x$minimum 
 }
 
-#---15. Export .pin files and define modelling arguments  ----- 
+#---15. Create list with modelling arguments  ----- 
 #note: For integrated model, all pars calculated in log space.
 #       ln_RZERO is in 1,000 individuals so do 10 times the largest catch divided by 
 #       average weight and divided by 1,000. Best units to work in are 1,000 individuals for 
@@ -3175,11 +3189,11 @@ for(i in 1:N.sp)
       rm(Life.history)
     }
   }
-}
+} #end i loop
 Species.with.length.comp=c(do.call(rbind,Species.with.length.comp)) 
 #not.fitting.SS3=c("pigeye shark","lemon shark")  #no Hessian 
 #Species.with.length.comp=subset(Species.with.length.comp,!Species.with.length.comp%in%not.fitting.SS3)
-write.csv(paste('1.',capitalize(Species.with.length.comp),sep=''),paste(Rar.path,'Species.with.length.comp.csv',sep='/'),row.names = F) 
+if(First.run=="YES") write.csv(paste('1.',capitalize(Species.with.length.comp),sep=''),paste(Rar.path,'Species.with.length.comp.csv',sep='/'),row.names = F) 
 
 #Display total catch VS cpue
 if(First.run=="YES")
@@ -3428,9 +3442,12 @@ if(First.run=="YES")
 
 #export catch year index for reporting
 fut.yr=as.numeric(substr(Last.yr.ktch,1,4))+years.futures
-write.csv(data.frame(year.current=Last.yr.ktch,
-                     year.future=paste(fut.yr,substr(fut.yr+1,3,4),sep='-')),
-          paste(Rar.path,'year_current_future.csv',sep='/'),row.names = FALSE)
+if(First.run=="YES")
+{
+  write.csv(data.frame(year.current=Last.yr.ktch,
+                       year.future=paste(fut.yr,substr(fut.yr+1,3,4),sep='-')),
+            paste(Rar.path,'year_current_future.csv',sep='/'),row.names = FALSE)
+}
 
 #Display available time series by species
 if(First.run=='YES')
@@ -4006,6 +4023,8 @@ clear.log('State.Space.SPM')
 
 #---25. Integrated Stock Synthesis (Age-based) Model-------------------------------------------------
   #Run Stock Synthesis
+HandL.out=handl_OneDrive("Analyses/Population dynamics/1.")
+HandL.out.RAR=Rar.path
 if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours
 
   #Get Consequence and likelihoods 
