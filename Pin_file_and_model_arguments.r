@@ -455,8 +455,14 @@ for(l in 1:N.sp)
   
     #Cpues
   N.rowSS=nrow(List.sp[[l]]$Sens.test$SS)
-  if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,N.rowSS)
-  if(evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS$Daily.cpues=c(rep(drop.daily.cpue,N.rowSS-1),NA)
+  List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,N.rowSS)
+  if(evaluate.07.08.cpue)
+  {
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Daily.cpues=NA,
+             Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
   List.sp[[l]]$drop.monthly.cpue=NULL
   if(NeiM%in%c("gummy shark")) List.sp[[l]]$drop.monthly.cpue=1975:1985
   

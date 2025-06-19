@@ -1080,12 +1080,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       if(!is.null(dat$len_info)) dat$len_info=dat$len_info[match(rownames(dat$CPUEinfo),rownames(dat$len_info)),]
       dat$age_info=dat$age_info[match(rownames(dat$CPUEinfo),rownames(dat$age_info)),]
     }
+    
+    #sawsharks other fleet
     if(life.history$Name=="sawsharks")
     {
       ddumy=ddumy%>%
               mutate(Pattern=ifelse(fleetname=='Other',24,Pattern),
                      Special=ifelse(fleetname=='Other',0,Special))
     }
+    
     ctl$size_selex_types=ddumy%>%dplyr::select(-fleetname,-Fleet)  
     
     Sel.ptrn=ctl$size_selex_types$Pattern
@@ -1195,8 +1198,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     
     #allocated species specific values to sel pars 
     Mirrored.sels=rownames(ctl$size_selex_types%>%filter(Pattern==15))
-    life.history$SS_selectivity=life.history$SS_selectivity%>%
-      filter(Fleet%in%dis.flits)
+    life.history$SS_selectivity=life.history$SS_selectivity%>%filter(Fleet%in%dis.flits)
     if(length(Mirrored.sels)>0) life.history$SS_selectivity=life.history$SS_selectivity%>%filter(!Fleet%in%Mirrored.sels)
     id.fleets=fn.get.in.betwee(x=rownames(ctl$size_selex_parms))
     pis=unique(id.fleets)
@@ -1335,6 +1337,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         }
       }
     }
+    
     #set NSF and Survey to logistic if specified in scenario 
     if(!is.na(Scenario$NSF.selectivity))
     {
@@ -1440,12 +1443,10 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     
     #Male offset 
-    if('SS_offset_selectivity'%in%names(life.history))
+    if('SS_offset_selectivity'%in%names(life.history) & is.na(Scenario$NSF.selectivity))  
     {
-      xx=life.history$SS_offset_selectivity%>%
-        select_if(~ !any(is.na(.)))
-      xx.phase=life.history$SS_offset_selectivity_phase%>%
-        select_if(~ !any(is.na(.)))
+      xx=life.history$SS_offset_selectivity%>%select_if(~ !any(is.na(.)))
+      xx.phase=life.history$SS_offset_selectivity_phase%>%select_if(~ !any(is.na(.)))
       
       ctl$size_selex_types$Male[match(xx$Fleet,rownames(ctl$size_selex_types))]=3
       ctl$size_selex_types=ctl$size_selex_types%>%mutate(Male=ifelse(Pattern==15,0,Male))
@@ -2536,7 +2537,7 @@ function.goodness.fit_SS=function(Rep)
       mutate(residuals = ifelse(is.na(Obs), NA, log(Obs) -log(Exp)))%>%pull(residuals)
   }
   Res.mnwgt=NA  
-  if(!is.na(Rep$mnwgt))
+  if(!is.null(nrow(Rep$mnwgt)))
   {
     if(nrow(Rep$mnwgt)>0)
     {

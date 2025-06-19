@@ -408,6 +408,7 @@ create.SS.inputs=FALSE       #set to FALSE once happy with SS input files and on
 run_SS_plots=FALSE          #set to TRUE once happy with model and want to plot outputs
 if(SS3.run=='final') run_SS_plots=TRUE
 Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
+Run.SS=FALSE                 #switch to TRUE if want to run parameter estimation
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
                                   # for all 4 species observations were collected over multiple years

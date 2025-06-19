@@ -767,7 +767,7 @@ for(w in 1:n.SS)
                 rm(ramp_years,out,tune_info)
               }
                 #run SS to estimate population parameters
-              if(!Calculate.ramp.years)
+              if(Run.SS)
               {
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=handl_OneDrive('SS3/ss_win.exe'),
@@ -991,19 +991,35 @@ for(w in 1:n.SS)
             filter(Par=='SR_LN(R0)')%>%
             dplyr::select(Par,Value,Min,Max,Init,Status,Gradient)%>%
             `rownames<-`( NULL )
+          TAB.scen=Age.based[[w]]$sens.table[[i]]
+          this.col=rep('no',ncol(TAB.scen))
+          for(u in 1:ncol(TAB.scen)) if(length(unique(TAB.scen[,u]))>1) this.col[u]='Yes'
           p=Age.based[[w]]$rel.biom[[i]]%>%
             ggplot(aes(year,median,color=Scenario))+
-            annotation_custom(tableGrob(Age.based[[w]]$sens.table[[i]]%>%
-                                          dplyr::select(Scenario,Mmean,h.mean)),
-                              xmin=xmin+5, xmax=xmax+5, ymin=0.45, ymax=0.65)+
-            annotation_custom(tableGrob(TAB),xmin=xmin+2, xmax=xmax, ymin=0 , ymax=0.3)+
-            geom_line(size=2)+
-            geom_line(aes(year,upper.95),linetype=2)+
-            geom_line(aes(year,lower.95),linetype=2)+
+            annotation_custom(tableGrob(TAB.scen[,which(this.col=='Yes')]),
+                              xmin=xmin+2, xmax=xmax, ymin=0, ymax=0.3)+
+            annotation_custom(tableGrob(TAB),xmin=xmin, xmax=xmax, ymin=0.4 , ymax=0.6)+
+            geom_line(size=2,alpha=0.6)+
+            geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
+            geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
             ggtitle(Keep.species[i])+ylim(0,1)+
-            theme_PA()+theme(legend.position = 'bottom')
+            theme_PA()+theme(legend.position = 'bottom')+ylab('Relative biomass')+xlab('Year')
           print(p)
-          ggsave(paste(this.wd,"/Rel.biomass&estimates.tiff",sep=''),compression = "lzw")  
+          ggsave(paste(this.wd,"/Rel.biomass&estimates.tiff",sep=''),width=10,height=7,compression = "lzw")  
+          
+          p=Age.based[[w]]$B.Bmsy[[i]]%>%
+            ggplot(aes(year,median,color=Scenario))+
+            annotation_custom(tableGrob(TAB.scen[,which(this.col=='Yes')]),
+                              xmin=xmin+2, xmax=xmax, ymin=0.2, ymax=0.5)+
+            annotation_custom(tableGrob(TAB),xmin=xmin, xmax=xmax, ymin=1.2 , ymax=1.5)+
+            geom_line(size=2,alpha=0.6)+
+            geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
+            geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
+            ggtitle(Keep.species[i])+ylim(0,NA)+
+            theme_PA()+theme(legend.position = 'bottom')+ylab('B/Bmsy')+xlab('Year')
+          print(p)
+          ggsave(paste(this.wd,"/B.over.BMSY&estimates.tiff",sep=''),width=10,height=7,compression = "lzw")  
+          
           rm(TAB)
           
         }
@@ -1772,7 +1788,7 @@ for(w in 1:n.SS)
                 rm(ramp_years,out,tune_info)
               }
                 #run this to estimate parameters
-              if(!Calculate.ramp.years)
+              if(Run.SS)
               {
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=handl_OneDrive('SS3/ss_win.exe'),
@@ -2003,9 +2019,10 @@ for(w in 1:n.SS)
 toc(log = TRUE, quiet = TRUE)
 computation.time <- tic.log(format = TRUE)
 tic.clearlog()
+run.with.hess=ifelse(Arg=='','with Hessian estimation',ifelse(Arg=="-nohess","without Hessian estimation",NA))
 send.email(TO=Send.email.to,
            CC='',
-           Subject=paste("SS3 models finished running at",Sys.time()),
+           Subject=paste("SS3 models",run.with.hess,"finished running at",Sys.time()),
            Body= paste("Computation",computation.time),  
            Attachment=NULL) 
 
