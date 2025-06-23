@@ -980,6 +980,7 @@ for(w in 1:n.SS)
       for(i in 1:N.sp)
       {
         print(paste("SS3 rel biom figure and estimates ____",Keep.species[i]))
+        this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated",sep='')
         if(!is.null(Age.based[[w]]$rel.biom[[i]]))
         {
           yrS=Age.based[[w]]$rel.biom[[i]]%>%filter(Scenario=='S1')%>%pull(year)
@@ -2035,43 +2036,44 @@ if(do.SS3.diagnostics)
 {
   tic("timer")
   set.seed(1234)
-  progress <- function(n) cat(sprintf(": SS3 fit diagnostics complete for -----------", n),Keep.species[n],"\n")
-  #progress <- function(n) setTxtProgressBar(txtProgressBar(max = N.sp, style = 3), n)
-  opts <- list(progress = progress)
-  cl <- makeCluster(detectCores()-1)
-  registerDoSNOW(cl)
-  out=foreach(l= 1:N.sp,.options.snow = opts,.packages=c('Hmisc','tidyverse','r4ss','ss3diags')) %dopar%
+  pb <- txtProgressBar(min = 0,max =N.sp, style = 3,width = 50)
+  for(l in 1:N.sp)
+  {
+    Neim=Keep.species[l]
+    this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+    this.wd1=paste(this.wd,"S1",sep='/')
+    if(file.exists(this.wd1))
     {
-      Neim=Keep.species[l]
-      this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
-      this.wd1=paste(this.wd,"S1",sep='/')
-      if(file.exists(this.wd1))
-      {
-          MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
-          Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
-          R0.range=seq(Estim.LnRo*(1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=Number.of.likelihood.profiles)
-          fn.fit.diag_SS3(WD=this.wd1,
-                          do.like.prof=TRUE,
-                          disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
-                          R0.vec=R0.range,
-                          exe_path=handl_OneDrive('SS3/ss_win.exe'),
-                          start.retro=Retro_start,
-                          end.retro=Retro_end,
-                          do.retros=TRUE,
-                          do.jitter=TRUE,
-                          numjitter=Number.of.jitters)
-          rm(MLE,this.wd1,R0.range,Estim.LnRo)
-        }
+      MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
+      Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
+      R0.range=seq(Estim.LnRo*(1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=Number.of.likelihood.profiles)
+      fn.fit.diag_SS3(WD=this.wd1,
+                      do.like.prof=TRUE,
+                      disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
+                      R0.vec=R0.range,
+                      exe_path=handl_OneDrive('SS3/ss_win.exe'),
+                      start.retro=Retro_start,
+                      end.retro=Retro_end,
+                      do.retros=TRUE,
+                      do.jitter=TRUE,
+                      numjitter=Number.of.jitters,
+                      run.in.parallel=TRUE,
+                      flush.files=FALSE)
+      rm(MLE,this.wd1,R0.range,Estim.LnRo)
     }
-  stopCluster(cl)
+    setTxtProgressBar(pb, l)
+    cat(paste(" completed --- Species:", Neim))
+  }
+  
   toc(log = TRUE, quiet = TRUE)
   computation.time <- tic.log(format = TRUE)
   tic.clearlog()
   send.email(TO=Send.email.to,
              CC='',
              Subject=paste("SS3 model diagnostics finished running at",Sys.time()),
-             Body= paste("Computation",computation.time),  
-             Attachment=NULL) 
+             Body= paste("Computation time was",computation.time),  
+             Attachment=NULL)
+  close(pb)
 }
 
 
