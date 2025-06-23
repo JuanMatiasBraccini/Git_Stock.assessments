@@ -1894,7 +1894,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=FALSE)
 {
-  Report=SS_output(dir=WD,covar=T)
+  Report=SS_output(dir=WD,covar=T,verbose=FALSE,printstats=FALSE)
   
   dirname.diagnostics <- paste(WD,"Diagnostics",sep='/')
   if(!dir.exists(dirname.diagnostics)) dir.create(path=dirname.diagnostics, showWarnings = TRUE, recursive = TRUE)
@@ -1910,8 +1910,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   tiff(file.path(dirname.diagnostics,"jabbaresidual.tiff"),
        width = 1500, height = 2000,units = "px", res = 300, compression = "lzw")
   sspar(mfrow=c(NrowS,1),labs=T,plot.cex=0.9)
-  if(cpue.series>0) ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "cpue",add=TRUE)
-  if(length.series>0) ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "len",add=TRUE)
+  if(cpue.series>0) ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "cpue",add=TRUE,verbose=FALSE)
+  if(length.series>0) ss3diags::SSplotJABBAres(ss3rep=Report,subplots = "len",add=TRUE,verbose=FALSE)
   dev.off()
   
   #1.2. runs test
@@ -2026,7 +2026,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     
     # Make sure the prior likelihood is calculated for non-estimated quantities
     starter$prior_like <- 1                           
-    SS_writestarter(starter, dir=mydir, overwrite=TRUE)
+    SS_writestarter(starter, dir=mydir, overwrite=TRUE,verbose = FALSE)
     
     #Run SS_profile command 
     if(like.prof.case=='standard') 
@@ -2038,11 +2038,12 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
         
       }
       Like.profile <- profile(dir=mydir, 
-                                      oldctlfile="control.ss_new",
-                                      newctlfile="control_modified.ss",
-                                      string="SR_LN(R0)",
-                                      profilevec=R0.vec,
-                                      exe=exe_path)
+                              oldctlfile="control.ss_new",
+                              newctlfile="control_modified.ss",
+                              string="SR_LN(R0)",
+                              profilevec=R0.vec,
+                              exe=exe_path,
+                              verbose = FALSE)
       future::plan(future::sequential)
     }
     if(like.prof.case=='faster')
@@ -2094,7 +2095,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
                   components = mainlike_components, 
                   component.labels = mainlike_components_labels,
                   add_cutoff = TRUE,
-                  cutoff_prob = 0.95)
+                  cutoff_prob = 0.95,
+                  verbose = FALSE)
     Baseval <- round(Report$parameters$Value[grep("R0",Report$parameters$Label)],2)
     abline(v = Baseval, lty=2,col='orange',lwd=2)
     legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
@@ -2103,8 +2105,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     # make timeseries plots comparing models in profile
     labs <- paste("SR_Ln(R0) = ",R0.vec)
     labs[which(round(R0.vec,2)==Baseval)] <- paste("SR_Ln(R0) = ",Baseval,"(Base model)")
-    SSplotComparisons(prof.R0.summary,legendlabels=labs,
-                      pheight=4.5,plot = FALSE,png=TRUE,plotdir=plotdir,legendloc='bottomleft')
+    SSplotComparisons(prof.R0.summary,legendlabels=labs,pheight=4.5,plot = FALSE,png=TRUE,
+                      plotdir=plotdir,legendloc='bottomleft',verbose = FALSE)
     
     ###Piner plot
         #Size comp
@@ -2118,7 +2120,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
                 component = "Length_like",
                 main = "Changes in length-composition likelihoods by fleet",
                 add_cutoff = TRUE,
-                cutoff_prob = 0.95)
+                cutoff_prob = 0.95,verbose = FALSE)
       abline(v = Baseval, lty=2,col='orange',lwd=2)
       legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
       dev.off()
@@ -2131,7 +2133,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       par(mar=c(5,4,1,1))
       PinerPlot(prof.R0.summary, profile.string = "R0", component = "Surv_like",main = "Changes in Index likelihoods by fleet",
                 add_cutoff = TRUE,
-                cutoff_prob = 0.95, legendloc="topleft")
+                cutoff_prob = 0.95, legendloc="topleft",verbose = FALSE)
       abline(v = Baseval, lty=2,col='orange',lwd=2)
       legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
       dev.off()
@@ -2163,7 +2165,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     }
     retro(dir = dirname.Retrospective,
           years = start.retro:-end.retro,
-          exe=exe_path)
+          exe=exe_path,verbose = FALSE)
     future::plan(future::sequential)
     retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
     if(any(is.na(retroModels)))retroModels=retroModels[-which(is.na(retroModels))]
@@ -2179,7 +2181,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
                       plot = FALSE,
                       png=TRUE,
                       plotdir=plots.Retrospective,
-                      legendlabels = paste("Data", start.retro:-end.retro, "years"))
+                      legendlabels = paste("Data", start.retro:-end.retro, "years"),
+                      verbose = FALSE)
     tiff(file.path(dirname.diagnostics,"retro_Mohns_Rho.tiff"),
          width = 2000, height = 1800,units = "px", res = 300, compression = "lzw")
     sspar(mfrow=c(2,2),plot.cex=0.8)
@@ -2194,16 +2197,16 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     #Get MASE as metric of prediction skill  
     if(cpue.series>0)
     {
-      hcI = SSmase(retroSummary)
+      hcI = SSmase(retroSummary,verbose = FALSE)
       out.MASE=hcI
       write.csv(out.MASE,paste(dirname.diagnostics,"retro_hcxval_MASE.csv",sep='/'),row.names = FALSE)
-      write.csv(SShcbias(retroSummary),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
+      write.csv(SShcbias(retroSummary,verbose=FALSE),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
       if(exists('retroComp'))
       {
-        hcL = SSmase(retroSummary=retroComp,quants = "len")
+        hcL = SSmase(retroSummary=retroComp,quants = "len",verbose = FALSE)
         out.MASE=rbind(out.MASE,hcL)
         write.csv(out.MASE,paste(dirname.diagnostics,"retro_hcxval_MASE.csv",sep='/'),row.names = FALSE)
-        write.csv(SShcbias(retroSummary),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
+        write.csv(SShcbias(retroSummary,verbose = FALSE),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
       }
       
       #Hindcasting cross validation  
@@ -2257,12 +2260,13 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     jit.likes <- r4ss::jitter(dir = dirname.Jitter,
                               Njitter = numjitter,
                               jitter_fraction =0.1 ,  #0.05
-                              exe=exe_path)
+                              exe=exe_path,
+                              verbose = FALSE)
     future::plan(future::sequential)
     
     #Read in results using other r4ss functions
     keyvec_1=0 #0 is basecase
-    profilemodels <- SSgetoutput(dirvec = dirname.Jitter, keyvec = keyvec_1:numjitter, getcovar = FALSE) 
+    profilemodels <- SSgetoutput(dirvec = dirname.Jitter, keyvec = keyvec_1:numjitter, getcovar = FALSE,verbose=FALSE) 
     if(any(is.na(profilemodels)))profilemodels=profilemodels[-which(is.na(profilemodels))]
     profilesummary <- SSsummarize(profilemodels,verbose = FALSE)
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
@@ -2300,7 +2304,7 @@ profile_tweaked=function (dir, oldctlfile = "control.ss_new", masterctlfile = li
                           string = NULL, profilevec = NULL, usepar = FALSE, globalpar = FALSE, 
                           parlinenum = NULL, parstring = NULL, saveoutput = TRUE, overwrite = TRUE, 
                           whichruns = NULL, prior_check = TRUE, read_like = TRUE, exe = "ss3", 
-                          verbose = TRUE, ...) 
+                          verbose = FALSE, ...) 
 {
   orig_wd <- getwd()
   on.exit(setwd(orig_wd))
