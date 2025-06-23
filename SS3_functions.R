@@ -1891,7 +1891,8 @@ fn.compare.prior.post=function(d,Par,prior_type)
 #Fit diagnostic functions ------------------------------------------------------
 #note: this follows Carvalho et al 2021
 fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
-                         do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,outLength.Cross.Val=FALSE)
+                         do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
+                         outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=FALSE)
 {
   Report=SS_output(dir=WD,covar=T)
   
@@ -1949,13 +1950,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   
   #2. Model consistency  
     #2.1. Likelihood profile on Ro
-  if(do.like.prof) # very time consuming, takes 2.5 minutes per R0 value
+  if(do.like.prof) # very time consuming
   {
-    #library(doParallel)
-    #cl=parallel::makeCluster(detectCores()-1)
-    #doParallel::registerDoParallel(detectCores()-1)
-    #doParallel::stopImplicitCluster()
-    
     # Step 1. Identify a directory for the profile likelihood model run(s)
     dirname.base <- paste(dirname.diagnostics,"R0_profile",sep='/')
     
@@ -2035,21 +2031,34 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     #Run SS_profile command 
     if(like.prof.case=='standard') 
     {
+      if(run.in.parallel)
+      {
+        ncores <- parallelly::availableCores(omit = 1)
+        future::plan(future::multisession, workers = ncores)
+        
+      }
       Like.profile <- profile(dir=mydir, 
                                       oldctlfile="control.ss_new",
                                       newctlfile="control_modified.ss",
                                       string="SR_LN(R0)",
                                       profilevec=R0.vec,
                                       exe=exe_path)
+      future::plan(future::sequential)
     }
     if(like.prof.case=='faster')
     {
+      if(run.in.parallel)
+      {
+        ncores <- parallelly::availableCores(omit = 1)
+        future::plan(future::multisession, workers = ncores)
+      }
       Like.profile <- profile_tweaked(dir=mydir, 
                                       oldctlfile="control.ss_new",
                                       newctlfile="control_modified.ss",
                                       string="SR_LN(R0)",
                                       profilevec=R0.vec,
                                       exe=exe_path)
+      future::plan(future::sequential)
     }
     
     write.csv(Like.profile,file.path(dirname.diagnostics,"R0_profile_summary_table.csv"),row.names = FALSE)
@@ -2128,27 +2137,34 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       dev.off()
     }
     
-    #parallel::stopCluster(cl)
-    
     #remove prof likelihood files
-    setwd(WD)
-    dropfiles=list.files(dirname.R0.profile)
-    dropfiles=subset(dropfiles,!dropfiles=='Figures & Tables')
-    for(f in 1:length(dropfiles)) file.remove(paste(dirname.R0.profile, dropfiles[f], sep="/"),recursive = TRUE)
+    if(flush.files) 
+    {
+      setwd(WD)
+      dropfiles=list.files(dirname.R0.profile)
+      dropfiles=subset(dropfiles,!dropfiles=='Figures & Tables')
+      for(f in 1:length(dropfiles)) unlink(paste(dirname.R0.profile, dropfiles[f], sep="/"), recursive = TRUE, force = TRUE) 
+    }
     
   }
   
     #2.2. Retrospective analysis and Predicting skills
-  if(do.retros)      #took 9 mins for 5 years
+  if(do.retros)      
   {
     dirname.Retrospective <- paste(dirname.diagnostics,"Retrospective",sep='/')
     if(!dir.exists(dirname.Retrospective)) dir.create(path=dirname.Retrospective, showWarnings = TRUE, recursive = TRUE)
     plots.Retrospective <- paste(dirname.Retrospective,"Plots",sep='/')
     if(!dir.exists(plots.Retrospective)) dir.create(path=plots.Retrospective, showWarnings = TRUE, recursive = TRUE)
     file.copy(Sys.glob(paste(WD, "*.*", sep="/"), dirmark = FALSE),dirname.Retrospective)
+    if(run.in.parallel)
+    {
+      ncores <- parallelly::availableCores(omit = 1)
+      future::plan(future::multisession, workers = ncores)
+    }
     retro(dir = dirname.Retrospective,
           years = start.retro:-end.retro,
           exe=exe_path)
+    future::plan(future::sequential)
     retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
     if(any(is.na(retroModels)))retroModels=retroModels[-which(is.na(retroModels))]
     if(Neim=='milk shark') retroModels=retroModels[-1]   
@@ -2211,12 +2227,15 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
         }
       }
     }
+    
     #remove retro files
-    unlink(paste(WD, "Diagnostics/Retrospective/retrospectives", sep="/"), recursive = TRUE, force = TRUE)
-    setwd(WD)
-    dropfiles=list.files(dirname.Retrospective)
-    dropfiles=subset(dropfiles,!dropfiles%in%c('Plots','retrospectives'))
-    if(length(dropfiles)>0)for(f in 1:length(dropfiles)) file.remove(paste(dirname.Retrospective, dropfiles[f], sep="/"),recursive = TRUE) 
+    if(flush.files)
+    {
+      setwd(WD)
+      dropfiles=list.files(dirname.Retrospective)
+      dropfiles=subset(dropfiles,!dropfiles%in%c('Plots','retrospectives'))
+      if(length(dropfiles)>0)for(f in 1:length(dropfiles)) unlink(paste(dirname.Retrospective, dropfiles[f], sep="/"), recursive = TRUE, force = TRUE) 
+    }
    }
   
   
@@ -2229,11 +2248,17 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     if(!dir.exists(dirname.Jitter)) dir.create(path=dirname.Jitter, showWarnings = TRUE, recursive = TRUE)
     file.copy(Sys.glob(paste(WD, "*.*", sep="/"), dirmark = FALSE),dirname.Jitter)
     
-    #Run jitter   
+    #Run jitter in parallel
+    if(run.in.parallel)
+    {
+      ncores <- parallelly::availableCores(omit = 1)
+      future::plan(future::multisession, workers = ncores)
+    }
     jit.likes <- r4ss::jitter(dir = dirname.Jitter,
                               Njitter = numjitter,
                               jitter_fraction =0.1 ,  #0.05
                               exe=exe_path)
+    future::plan(future::sequential)
     
     #Read in results using other r4ss functions
     keyvec_1=0 #0 is basecase
@@ -2265,7 +2290,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     dev.off()
     
     #remove jitter files
-    unlink(paste(WD, "Diagnostics/Jitter", sep="/"), recursive = TRUE, force = TRUE)  
+    if(flush.files) unlink(paste(WD, "Diagnostics/Jitter", sep="/"), recursive = TRUE, force = TRUE)
+      
   }
   
 }
