@@ -2058,7 +2058,8 @@ if(do.SS3.diagnostics)
                       do.jitter=TRUE,
                       numjitter=Number.of.jitters,
                       run.in.parallel=TRUE,
-                      flush.files=FALSE)
+                      flush.files=FALSE,
+                      COVAR=FALSE)
       rm(MLE,this.wd1,R0.range,Estim.LnRo)
     }
     setTxtProgressBar(pb, l)

@@ -1892,9 +1892,10 @@ fn.compare.prior.post=function(d,Par,prior_type)
 #note: this follows Carvalho et al 2021
 fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
-                         outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=FALSE)
+                         outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=FALSE,
+                         COVAR=FALSE)
 {
-  Report=SS_output(dir=WD,covar=T,verbose=FALSE,printstats=FALSE)
+  Report=SS_output(dir=WD,covar=COVAR,verbose=FALSE,printstats=FALSE)
   
   dirname.diagnostics <- paste(WD,"Diagnostics",sep='/')
   if(!dir.exists(dirname.diagnostics)) dir.create(path=dirname.diagnostics, showWarnings = TRUE, recursive = TRUE)
@@ -1939,11 +1940,11 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
       tiff(file.path(dirname.diagnostics,paste0("runs_tests_",dis.dat[pp],".tiff")),
            width = 2000, height = 2000,units = "px", res = 300, compression = "lzw")
       sspar(mfrow=n2mfrow(nRws),labs=T,plot.cex=0.9)
-      ss3diags::SSplotRunstest(ss3rep=Report,subplots = dis.dat[[pp]],add=TRUE)
+      ss3diags::SSplotRunstest(ss3rep=Report,subplots = dis.dat[[pp]],add=TRUE,verbose =FALSE)
       dev.off()
     }
     runs.test.value=vector('list',length(dis.dat))
-    for(pp in 1:length(dis.dat))  runs.test.value[[pp]]=SSrunstest(Report,quants =  dis.dat[[pp]])
+    for(pp in 1:length(dis.dat))  runs.test.value[[pp]]=SSrunstest(Report,quants =  dis.dat[[pp]],verbose = FALSE)
     write.csv(do.call(rbind,runs.test.value),paste(dirname.diagnostics,"runs_tests.csv",sep='/'),row.names = FALSE)
   }
   
