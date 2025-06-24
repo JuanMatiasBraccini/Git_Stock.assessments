@@ -764,13 +764,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(ctl$SR_parms["SR_BH_steep", "PR_type"]==1) ctl$SR_parms["SR_BH_steep", "PR_SD"]=0.5  #increase CV to avoid bounds
     if(is.null(abundance)) ctl$SR_parms["SR_BH_steep", "PHASE"]=-4
   }
-  if(Scenario$Model=='SS') SR_sigmaR=life.history$SR_sigmaR
+  if(Scenario$Model=='SS') SR_sigmaR=Scenario$SR_sigmaR  
   ctl$SR_parms["SR_sigmaR", c('LO','HI','INIT')]=c(.01,1,SR_sigmaR) #Spiny dogfish SS assessment
   
   if(Scenario$Model=='SSS') ctl$do_recdev=0  #do_recdev:  0=none; 1=devvector; 2=simple deviations
   if(Scenario$Model=='SS')
   {
-    ctl$do_recdev=1 #0=none; 1=devvector (R=F(SSB)+dev); 2=deviations (R=F(SSB)+dev); 3=deviations (R=R0*dev; dev2=R-f(SSB)); 4=like 3 with sum(dev2) adding penalty
+    ctl$do_recdev=Scenario$do_recdev   # 0=none; 1=devvector (R=F(SSB)+dev); 2=deviations (R=F(SSB)+dev); 3=deviations (R=R0*dev; dev2=R-f(SSB)); 4=like 3 with sum(dev2) adding penalty
     RecDev_Phase=life.history$RecDev_Phase
     ctl$recdev_phase=RecDev_Phase
      
@@ -1668,7 +1668,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   
   fore$basis_for_fcast_catch_tuning=2 #2=total catch biomass; 3=retained catch biomass; 5=total catch numbers; 6=retained total numbers
   fore$N_allocation_groups=0   
-  fore$InputBasis=2 #-1 = Read basis with each observation, 2 = Dead catch (retained + discarded),3 = Retained catch, 99 = Input apical F
+  if(Scenario$Forecasting=='catch') fore$InputBasis=2 #-1 = Read basis with each observation, 2 = Dead catch (retained + discarded),3 = Retained catch, 99 = Input apical F
+  if(Scenario$Forecasting=='F') fore$InputBasis=99
   if(!is.null(Future.project))  # future catch
   {
     if(Scenario$Model=='SSS')

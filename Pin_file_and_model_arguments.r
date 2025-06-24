@@ -15,7 +15,6 @@ if(Do.bespoke)
   MOv.par.phz=c("log_p11","log_p22","log_p21","log_p33")
 }
 
-
 #Final depletion
 #note: modify depletion levels for species with negligible catches in recent years (based on generation time and r)
 if(do.Ktch.only.pin)
@@ -57,7 +56,6 @@ if(do.Ktch.only.pin)
     }
   }
 }
-
 
 #Get CVs young and old
 fun.cv_young_old=function(d,NM)
@@ -405,6 +403,8 @@ for(l in 1:N.sp)
   # 4... Integrated models
   
   #-- 4.1 SS
+  sigmaR=0.2 #Default (Spiny dogfish SS assessment)
+  if(!is.na(ramp.yrs$SR_sigmaR)) sigmaR=min(ramp.yrs$SR_sigmaR,Max.SR_sigmaR.shark)#from Report$sigma_R_info$alternative_sigma_R
   
   #4.1.1 Scenarios
   if(!'Sens.test'%in%names(List.sp[[l]]))
@@ -426,7 +426,10 @@ for(l in 1:N.sp)
     }
   }
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS3[1,]%>%
-    mutate(NSF.selectivity=NA)
+                                mutate(NSF.selectivity=NA,
+                                       do_recdev=1,
+                                       SR_sigmaR=sigmaR,
+                                       Forecasting='catch')
   tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,h.min,List.sp[[l]]$Sens.test$SS$Steepness[1])
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
   tested.h=unique(tested.h)
@@ -473,13 +476,6 @@ for(l in 1:N.sp)
     #Always calculate extra SD for Q or only when CV is small
   List.sp[[l]]$Sens.test$SS$extra.SD.Q='NO' #set to 'YES' if not calculating Francis CVs otherwise if using both it blows it
   
-    #Remove SSS inputs
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
-                                  mutate(Model='SS')%>%
-                                  dplyr::select(-c(Final.dpl,Sims))
-  
-  if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
-  
     #Alternative selectivity for NSF and survey
   SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
   if(NeiM%in%alternative.NSF.selectivity)
@@ -489,6 +485,47 @@ for(l in 1:N.sp)
                      Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
+  
+  #Alternative SR_sigmaR
+  if(NeiM%in%alternative.sigmaR)
+  {
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+                mutate(SR_sigmaR=0.2,
+                Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
+    add.dumi2=add.dumi%>%
+                mutate(SR_sigmaR=0.4,
+                       Scenario=paste0('S',as.numeric(str_remove(add.dumi$Scenario,"S"))+1))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi,add.dumi2)
+  }
+  
+  #Alternative do_recdev
+  if(NeiM%in%alternative.do_recdev)
+  {
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+                  mutate(do_recdev=2,
+                         Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+    
+  }
+  
+  #Forecasting
+  if(NeiM%in%alternative.forecasting)
+  {
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Forecasting="F",
+             Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+    List.sp[[l]]$F.forecasting.value=F.forecasting.values[[match(NeiM,names(F.forecasting.values))]] 
+    
+  }
+  
+  #Remove SSS inputs
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
+    mutate(Model='SS')%>%
+    dplyr::select(-c(Final.dpl,Sims))
+  
+  if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
+  
   
     #4.1.2 Growth
   List.sp[[l]]$Growth.CV_young=max(0.1,Young.CV)  #constant CV 8.5%-10% Tremblay-Boyer et al 2019; 22% Sandbar Sedar; 15% Dogfish SS; 27% BigSkate SS
@@ -842,8 +879,7 @@ for(l in 1:N.sp)
   List.sp[[l]]$Steepness_Phase=-4    
   if(!is.na(ramp.yrs$Steepness_Phase)) List.sp[[l]]$Steepness_Phase=ramp.yrs$Steepness_Phase 
   
-  List.sp[[l]]$SR_sigmaR=0.2    #Default (Spiny dogfish SS assessment)
-  if(!is.na(ramp.yrs$SR_sigmaR)) List.sp[[l]]$SR_sigmaR=min(ramp.yrs$SR_sigmaR,Max.SR_sigmaR.shark) #from Report$sigma_R_info$alternative_sigma_R
+  List.sp[[l]]$SR_sigmaR=sigmaR
   List.sp[[l]]$last_early_yr_nobias_adj_in_MPD=ramp.yrs$last_early_yr_nobias_adj_in_MPD
   List.sp[[l]]$first_yr_fullbias_adj_in_MPD=ramp.yrs$first_yr_fullbias_adj_in_MPD
   List.sp[[l]]$last_yr_fullbias_adj_in_MPD=ramp.yrs$last_yr_fullbias_adj_in_MPD

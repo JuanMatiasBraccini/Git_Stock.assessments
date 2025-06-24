@@ -659,7 +659,7 @@ for(w in 1:n.SS)
             #rename fleets following SS nomenclature
             names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))
             
-            #future catches
+            #future catches/F
             if("SS"%in%future.models)
             {
               NN=nrow(ktch)
@@ -675,7 +675,7 @@ for(w in 1:n.SS)
               for(lf in 1:length(lef.flits))
               {
                 add.ct.future[,lef.flits[lf]]=mean(unlist(ktch[(NN-years.futures+1):NN,lef.flits[lf]]),na.rm=T)
-              }  
+              } 
             }
 
             
@@ -699,6 +699,25 @@ for(w in 1:n.SS)
               if(Life.history$drop.length.comp) Size.compo.SS.format=NULL
               if(Life.history$drop.cpue) Abundance.SS.format=NULL
               
+              #Set future F instead of catch if required by scenario  
+              if(exists('add.ct.future'))
+              {
+                add.ct.or.F_future=add.ct.future
+                if(Scens[s,'Forecasting']=="F")
+                {
+                  Nms=names(add.ct.or.F_future)
+                  mutate.these.fleets=subset(Nms,!Nms%in%c("SPECIES","Name","finyear"))
+                  id.mutate.these.fleets=which(!Nms%in%c("SPECIES","Name","finyear"))
+                  for(mu in 1:length(mutate.these.fleets))
+                  {
+                    id.mu=match(names(Life.history$F.forecasting.value)[mu],flitinfo$fleetname)
+                    F.val=Life.history$F.forecasting.value[id.mu]
+                    mu.id=match(id.mu,Nms)
+                    add.ct.or.F_future[,mu.id]=ifelse(add.ct.or.F_future[,mu.id]>0,F.val,0)
+                  }
+                }
+              }
+              
               #a. Create SS input files  
               if(create.SS.inputs)
               {
@@ -719,7 +738,7 @@ for(w in 1:n.SS)
                              MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
                              Lamdas=Lamdas.SS.lambdas,
                              Var.adjust.factor=Var.ad.factr,
-                             Future.project=add.ct.future)
+                             Future.project=add.ct.or.F_future)    
               }
               
               #b. Run SS3
@@ -985,21 +1004,21 @@ for(w in 1:n.SS)
         {
           yrS=Age.based[[w]]$rel.biom[[i]]%>%filter(Scenario=='S1')%>%pull(year)
           if(length(yrS)<50) delta=10 else
-            delta=17
+            delta=5
           xmin=min(yrS)+delta
-          xmax=xmin+delta
+          xmax=max(yrS)-delta
           TAB=Age.based[[w]]$estimates[[i]]%>%
-            filter(Par=='SR_LN(R0)')%>%
-            dplyr::select(Par,Value,Min,Max,Init,Status,Gradient)%>%
-            `rownames<-`( NULL )
+                          filter(Par=='SR_LN(R0)')%>%
+                          dplyr::select(Par,Value,Min,Max,Init,Status,Gradient)%>%
+                          `rownames<-`( NULL )
           TAB.scen=Age.based[[w]]$sens.table[[i]]
           this.col=rep('no',ncol(TAB.scen))
           for(u in 1:ncol(TAB.scen)) if(length(unique(TAB.scen[,u]))>1) this.col[u]='Yes'
+          TAB.scen=TAB.scen[,which(this.col=='Yes')]
           p=Age.based[[w]]$rel.biom[[i]]%>%
             ggplot(aes(year,median,color=Scenario))+
-            annotation_custom(tableGrob(TAB.scen[,which(this.col=='Yes')]),
-                              xmin=xmin+2, xmax=xmax, ymin=0, ymax=0.3)+
-            annotation_custom(tableGrob(TAB),xmin=xmin, xmax=xmax, ymin=0.4 , ymax=0.6)+
+            annotation_custom(tableGrob(cbind(TAB.scen,TAB),rows=NULL, theme = ttheme_default(base_size = 10)),
+                              xmin=xmin, xmax=xmax, ymin=0, ymax=0.3)+
             geom_line(size=2,alpha=0.6)+
             geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
             geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
@@ -1010,9 +1029,8 @@ for(w in 1:n.SS)
           
           p=Age.based[[w]]$B.Bmsy[[i]]%>%
             ggplot(aes(year,median,color=Scenario))+
-            annotation_custom(tableGrob(TAB.scen[,which(this.col=='Yes')]),
+            annotation_custom(tableGrob(cbind(TAB.scen,TAB),rows=NULL, theme = ttheme_default(base_size = 10)),
                               xmin=xmin+2, xmax=xmax, ymin=0.2, ymax=0.5)+
-            annotation_custom(tableGrob(TAB),xmin=xmin, xmax=xmax, ymin=1.2 , ymax=1.5)+
             geom_line(size=2,alpha=0.6)+
             geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
             geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
@@ -1721,6 +1739,25 @@ for(w in 1:n.SS)
               if(Life.history$drop.length.comp) Size.compo.SS.format=NULL
               if(Life.history$drop.cpue) Abundance.SS.format=NULL
               
+              #Set future F instead of catch if required by scenario  
+              if(exists('add.ct.future'))
+              {
+                add.ct.or.F_future=add.ct.future
+                if(Scens[s,'Forecasting']=="F")
+                {
+                  Nms=names(add.ct.or.F_future)
+                  mutate.these.fleets=subset(Nms,!Nms%in%c("SPECIES","Name","finyear"))
+                  id.mutate.these.fleets=which(!Nms%in%c("SPECIES","Name","finyear"))
+                  for(mu in 1:length(mutate.these.fleets))
+                  {
+                    id.mu=match(names(Life.history$F.forecasting.value)[mu],flitinfo$fleetname)
+                    F.val=Life.history$F.forecasting.value[id.mu]
+                    mu.id=match(id.mu,Nms)
+                    add.ct.or.F_future[,mu.id]=ifelse(add.ct.or.F_future[,mu.id]>0,F.val,0)
+                  }
+                }
+              }
+              
               #a. Create input files
               if(create.SS.inputs)
               {
@@ -1741,7 +1778,7 @@ for(w in 1:n.SS)
                              MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
                              Lamdas=Lamdas.SS.lambdas,
                              Var.adjust.factor=Var.ad.factr,
-                             Future.project=add.ct.future)
+                             Future.project=add.ct.or.F_future)
                 }
               
               #b. Run SS3
@@ -2046,7 +2083,10 @@ if(do.SS3.diagnostics)
     {
       MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
       Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
+      std.LnRo=MLE$std[grep("SR_parm",MLE$names)]
       R0.range=seq(Estim.LnRo*(1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=Number.of.likelihood.profiles)
+      #h.range=   #ACA
+     #M.range=  
       fn.fit.diag_SS3(WD=this.wd1,
                       do.like.prof=TRUE,
                       disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
