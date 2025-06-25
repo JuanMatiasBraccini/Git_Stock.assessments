@@ -630,6 +630,7 @@ for(w in 1:n.SS)
             }
             
             #Scenarios
+            if(!do.all.sensitivity.tests) Life.history$Sens.test$SS=Life.history$Sens.test$SS%>%filter(Scenario=='S1')
             Scens=Life.history$Sens.test$SS%>%
               mutate(Species=capitalize(Neim))
             Store.sens=vector('list',nrow(Scens))
@@ -952,7 +953,6 @@ for(w in 1:n.SS)
                      Mal.K=Life.history$Growth.M$k,
                      Mal.awt=Life.history$AwT.M,
                      Mal.bwt=Life.history$BwT.M,
-                     SR_sigmaR=Life.history$SR_sigmaR,
                      a_FL.to.TL=Life.history$a_FL.to.TL,
                      b_FL.to.TL=Life.history$b_FL.to.TL,
                      Fleets=paste(flitinfo$fleetname,collapse=', '))
@@ -1009,17 +1009,25 @@ for(w in 1:n.SS)
           xmax=max(yrS)-delta
           TAB=Age.based[[w]]$estimates[[i]]%>%
                           filter(Par=='SR_LN(R0)')%>%
-                          dplyr::select(Par,Value,Min,Max,Init,Status,Gradient)%>%
+                          dplyr::select(Par,Value,Init,Parm_StDev,Status,Gradient)%>%
                           `rownames<-`( NULL )
           TAB.scen=Age.based[[w]]$sens.table[[i]]
           this.col=rep('no',ncol(TAB.scen))
           for(u in 1:ncol(TAB.scen)) if(length(unique(TAB.scen[,u]))>1) this.col[u]='Yes'
           TAB.scen=TAB.scen[,which(this.col=='Yes')]
+          Tab.combined=cbind(TAB.scen,TAB)
+          Fnt.size=10
+          yMIN=0; yMAX=0.3
+          if(ncol(Tab.combined)>10) Fnt.size=7
+          if(nrow(Tab.combined)>6)
+          {
+            yMIN=0.05; yMAX=0.4
+          }
           p=Age.based[[w]]$rel.biom[[i]]%>%
             ggplot(aes(year,median,color=Scenario))+
-            annotation_custom(tableGrob(cbind(TAB.scen,TAB),rows=NULL, theme = ttheme_default(base_size = 10)),
-                              xmin=xmin, xmax=xmax, ymin=0, ymax=0.3)+
-            geom_line(size=2,alpha=0.6)+
+            annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
+                              xmin=xmin, xmax=xmax, ymin=yMIN, ymax=yMAX)+
+            geom_line(linewidth=2,alpha=0.6)+
             geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
             geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
             ggtitle(Keep.species[i])+ylim(0,1)+
@@ -1027,11 +1035,15 @@ for(w in 1:n.SS)
           print(p)
           ggsave(paste(this.wd,"/Rel.biomass&estimates.tiff",sep=''),width=10,height=7,compression = "lzw")  
           
+          if(nrow(Tab.combined)>6)
+          {
+            yMIN=0.2; yMAX=1
+          }
           p=Age.based[[w]]$B.Bmsy[[i]]%>%
             ggplot(aes(year,median,color=Scenario))+
-            annotation_custom(tableGrob(cbind(TAB.scen,TAB),rows=NULL, theme = ttheme_default(base_size = 10)),
-                              xmin=xmin+2, xmax=xmax, ymin=0.2, ymax=0.5)+
-            geom_line(size=2,alpha=0.6)+
+            annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
+                              xmin=xmin+2, xmax=xmax, ymin=yMIN, ymax=yMAX)+
+            geom_line(linewidth=2,alpha=0.6)+
             geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
             geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
             ggtitle(Keep.species[i])+ylim(0,NA)+
@@ -1671,6 +1683,7 @@ for(w in 1:n.SS)
             }
             
             #Scenarios
+            if(!do.all.sensitivity.tests) Life.history$Sens.test$SS=Life.history$Sens.test$SS%>%filter(Scenario=='S1')
             Scens=Life.history$Sens.test$SS%>%
               mutate(Species=capitalize(Neim))
             Store.sens=vector('list',nrow(Scens))
@@ -1986,7 +1999,6 @@ for(w in 1:n.SS)
                      Mal.K=Life.history$Growth.M$k,
                      Mal.awt=Life.history$AwT.M,
                      Mal.bwt=Life.history$BwT.M,
-                     SR_sigmaR=Life.history$SR_sigmaR,
                      a_FL.to.TL=Life.history$a_FL.to.TL,
                      b_FL.to.TL=Life.history$b_FL.to.TL,
                      Fleets=paste(flitinfo$fleetname,collapse=', '))
@@ -2074,23 +2086,32 @@ if(do.SS3.diagnostics)
   tic("timer")
   set.seed(1234)
   pb <- txtProgressBar(min = 0,max =N.sp, style = 3,width = 50)
+  SCEN="S1"
   for(l in 1:N.sp)
   {
     Neim=Keep.species[l]
     this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
-    this.wd1=paste(this.wd,"S1",sep='/')
+    this.wd1=paste(this.wd,SCEN,sep='/')
     if(file.exists(this.wd1))
     {
       MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
       Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
       std.LnRo=MLE$std[grep("SR_parm",MLE$names)]
-      R0.range=seq(Estim.LnRo*(1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=Number.of.likelihood.profiles)
-      #h.range=   #ACA
-     #M.range=  
+      R0.range=seq(Estim.LnRo*(1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=(Number.of.likelihood.profiles-1))
+      R0.range=sort(c(R0.range,Estim.LnRo))
+      Input.h=List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Steepness)
+      h.range=seq(Min.h.shark*.8,min(Input.h*1.5,1),length.out=(Number.of.likelihood.profiles.h-1))
+      h.range=sort(c(h.range,Input.h))
+      Input.M=List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Mmean)
+      M.range=seq(Input.M*.5,min(Input.M*3,0.6),length.out=(Number.of.likelihood.profiles.h-1))#ACA
+      M.range=sort(c(M.range,Input.M))
+      
       fn.fit.diag_SS3(WD=this.wd1,
                       do.like.prof=TRUE,
                       disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
                       R0.vec=R0.range,
+                      h.vec=h.range,
+                      M.vec=M.range,
                       exe_path=handl_OneDrive('SS3/ss_win.exe'),
                       start.retro=Retro_start,
                       end.retro=Retro_end,
@@ -2099,7 +2120,9 @@ if(do.SS3.diagnostics)
                       numjitter=Number.of.jitters,
                       run.in.parallel=TRUE,
                       flush.files=FALSE,
-                      COVAR=FALSE)
+                      COVAR=TRUE,
+                      h.input=Input.h,
+                      M.input=Input.M)
       rm(MLE,this.wd1,R0.range,Estim.LnRo)
     }
     setTxtProgressBar(pb, l)
@@ -2380,7 +2403,6 @@ if(is.null(Age.based$SS))
                    Mal.K=Life.history$Growth.M$k,
                    Mal.awt=Life.history$AwT.M,
                    Mal.bwt=Life.history$BwT.M,
-                   SR_sigmaR=Life.history$SR_sigmaR,
                    a_FL.to.TL=Life.history$a_FL.to.TL,
                    b_FL.to.TL=Life.history$b_FL.to.TL,
                    Fleets=paste(flitinfo$fleetname,collapse=', '))

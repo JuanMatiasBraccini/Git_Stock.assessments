@@ -1891,10 +1891,10 @@ fn.compare.prior.post=function(d,Par,prior_type)
 
 #Fit diagnostic functions ------------------------------------------------------
 #note: this follows Carvalho et al 2021
-fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
+fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,end.retro=5,
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=FALSE,
-                         COVAR=FALSE)
+                         COVAR=FALSE,h.input=NULL,M.input=NULL)
 {
   Report=SS_output(dir=WD,covar=COVAR,verbose=FALSE,printstats=FALSE)
   
@@ -1951,205 +1951,27 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   
   
   #2. Model consistency  
-    #2.1. Likelihood profile on Ro
-  if(do.like.prof) # very time consuming
+    #2.1. Likelihood profile on selected parameters or quantities
+  if(do.like.prof) # very time consuming is not running in parallel and not setting '-nohess'
   {
-    # Step 1. Identify a directory for the profile likelihood model run(s)
-    dirname.base <- paste(dirname.diagnostics,"R0_profile",sep='/')
-    
-    # Step 2. Identify a directory where the completed base model run is located
-    dirname.completed.model.run<-WD
-    
-    # Step 3. Create a "R0_profile" subdirectory and set as the working directory
-    dirname.R0.profile <- dirname.base
-    if(!dir.exists(dirname.R0.profile)) dir.create(path=dirname.R0.profile, showWarnings = TRUE, recursive = TRUE)
-    mydir <- dirname.R0.profile
-    setwd(dirname.R0.profile)
-    
-    # Step 4. Create a "Figures_Tables" subdirectory
-    plotdir=paste0(dirname.R0.profile, "/Figures & Tables")
-    if(!dir.exists(plotdir)) dir.create(path=plotdir, showWarnings = TRUE, recursive = TRUE)
-    
-    
-    # Step 5. Create a "Reference_run" subdirectory and copy completed base model output to this directory
-    #reference.dir <- paste0(mydir,'/Reference_run') 
-    #if(!dir.exists(reference.dir)) dir.create(path=reference.dir, showWarnings = TRUE, recursive = TRUE)
-    #file.copy(from=Sys.glob(paste(dirname.completed.model.run, "*.*", sep="/"), dirmark = FALSE),
-    #          to=reference.dir)
-    #for(nn in disfiles){file.copy(paste(dirname.completed.model.run,"/", nn, sep='')  ,     to=reference.dir)}
-    
-    
-    # Step 6. Copy necessary files from the "Reference_run" subdirectory to the "R0_profile" working directory 
-    copylst<-disfiles[-match("Report.sso",disfiles)]
-    #copylst <-  c("control.ss_new", "data.ss",  "forecast.ss",  "ss.exe", "starter.ss")
-    #for(nn in copylst){file.copy(  paste(reference.dir,"/", nn, sep='')  ,     file.path(dirname.R0.profile))}
-    for(nn in copylst){file.copy(  paste(WD,"/", nn, sep='')  ,     file.path(dirname.R0.profile))}
-    
-    # Step 7. Edit "control.ss" in the "R0_profile" working directory to estimate at least one parameter in each phase
-    # E.g., 
-    control.file <- readLines(paste(dirname.R0.profile, "/control.ss_new", sep=""))
-    linen <- NULL
-    linen <- grep("#_recdev phase", control.file)
-    control.file[linen] <- paste0("1 #_recdev phase")
-    write(control.file, paste(dirname.R0.profile, "/control.ss_new", sep=""))
-    
-    # Step 8. Edit "starter.ss" in the "R0_profile" working directory to read from init values from control_modified.ss
-    starter.file <- readLines(paste(dirname.R0.profile, "/starter.ss", sep=""))
-    linen <- NULL
-    linen <- grep(paste(c("# 0=use init values in control file; 1=use ss.par","#_init_values_src"),collapse='|'), starter.file)
-    starter.file[linen] <- paste0("0 # 0=use init values in control file; 1=use ss.par")
-    if(like.prof.case=='faster') starter.file[grep("#_converge_criterion", starter.file)] <- paste0("0.001 #_converge_criterion")
-    write(starter.file, paste(dirname.R0.profile, "/starter.ss", sep=""))
-
-    
-    # Step 9. Begin Likelihood profile_R0_example.R
-    
-    ###Working directory
-    setwd(dirname.R0.profile)
-    
-    ####Set the plotting directory
-    plotdir=paste0(dirname.R0.profile, "/Figures & Tables")
-    
-    
-    #########################################################
-    ### R0 or any other parameter profile
-    #########################################################
-    
-    # vector of values to profile over
-    Nprof.R0 <- length(R0.vec)
-    #Define directory
-    #mydir <- mydir
-    
-    #Define the starter file
-    starter <- SS_readstarter(file.path(mydir, "starter.ss"))
-    
-    #Change control file name in the starter file
-    starter$ctlfile <- "control_modified.ss" 
-    
-    # Make sure the prior likelihood is calculated for non-estimated quantities
-    starter$prior_like <- 1                           
-    SS_writestarter(starter, dir=mydir, overwrite=TRUE,verbose = FALSE)
-    
-    #Run SS_profile command 
-    if(like.prof.case=='standard') 
+    Par_var_profile=c("R0","h","M")
+    Par_var.vec_profile=list(R0.vec,h.vec,data.frame(M1vec=M.vec,M2vec=M.vec))
+    Par_var_string_profile=list("SR_LN(R0)","SR_BH_steep",c("NatM_uniform_Fem_GP_1", "NatM_uniform_Mal_GP_1"))
+    names(Par_var.vec_profile)=names(Par_var_string_profile)=Par_var_profile
+    for(pp in 1:length(Par_var_profile))
     {
-      if(run.in.parallel)
-      {
-        ncores <- parallelly::availableCores(omit = 1)
-        future::plan(future::multisession, workers = ncores)
-        
-      }
-      Like.profile <- profile(dir=mydir, 
-                              oldctlfile="control.ss_new",
-                              newctlfile="control_modified.ss",
-                              string="SR_LN(R0)",
-                              profilevec=R0.vec,
-                              exe=exe_path,
-                              verbose = FALSE)
-      future::plan(future::sequential)
+      baseval=NULL
+      if(Par_var_profile[pp]=="R0") baseval <- round(Report$parameters$Value[grep(Par_var_profile[pp],Report$parameters$Label)],2)
+      if(Par_var_profile[pp]=="h") baseval <- round(h.input,2)   
+      if(Par_var_profile[pp]=="M") baseval <- round(M.input,2)
+      fn.profile.wrapper(Par_var=Par_var_profile[pp],
+                         Par_var.vec=Par_var.vec_profile[[pp]],
+                         Par_var_string=Par_var_string_profile[[pp]],
+                         Baseval=baseval,
+                         dirname.diagnostics=dirname.diagnostics,
+                         length.series=length.series,
+                         cpue.series=cpue.series)
     }
-    if(like.prof.case=='faster')
-    {
-      if(run.in.parallel)
-      {
-        ncores <- parallelly::availableCores(omit = 1)
-        future::plan(future::multisession, workers = ncores)
-      }
-      Like.profile <- profile_tweaked(dir=mydir, 
-                                      oldctlfile="control.ss_new",
-                                      newctlfile="control_modified.ss",
-                                      string="SR_LN(R0)",
-                                      profilevec=R0.vec,
-                                      exe=exe_path)
-      future::plan(future::sequential)
-    }
-    
-    write.csv(Like.profile,file.path(dirname.diagnostics,"R0_profile_summary_table.csv"),row.names = FALSE)
-    
-    # read the output files (with names like Report1.sso, Report2.sso, etc.)
-    prof.R0.models <- SSgetoutput(dirvec=mydir, keyvec=c('',1:Nprof.R0), getcovar = FALSE) 
-    if(any(is.na(prof.R0.models)))prof.R0.models=prof.R0.models[-which(is.na(prof.R0.models))]  #remove empty list elements (no convergence)
-    
-    
-    # Step 10.  summarize output
-    prof.R0.summary <- SSsummarize(prof.R0.models,verbose = FALSE)
-    
-    # Likelihood components 
-    mainlike_components         <- c('TOTAL',"Survey", "Catch", 'Length_comp',
-                                     "Age_comp","Mean_body_wt",'Recruitment') 
-    
-    mainlike_components_labels  <- c('Total likelihood','Index likelihood',"Catch",'Length likelihood',
-                                     "Age likelihood","Mean body weight",'Recruitment likelihood') 
-    
-    # END OPTIONAL COMMANDS
-    
-    # plot profile using summary created above
-    tiff(file.path(dirname.diagnostics,"R0_profile_plot.tiff"),
-         width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-    par(mar=c(5,4,1,1))
-    SSplotProfile(prof.R0.summary,           # summary object
-                  profile.string = "R0",     # substring of profile parameter
-                  profile.label=expression(log(italic(R)[0])),
-                  minfraction = 0.001,
-                  pheight=4.5, 
-                  print=FALSE, 
-                  plotdir=plotdir, 
-                  components = mainlike_components, 
-                  component.labels = mainlike_components_labels,
-                  add_cutoff = TRUE,
-                  cutoff_prob = 0.95,
-                  verbose = FALSE)
-    Baseval <- round(Report$parameters$Value[grep("R0",Report$parameters$Label)],2)
-    abline(v = Baseval, lty=2,col='orange',lwd=2)
-    legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
-    dev.off()
-    
-    # make timeseries plots comparing models in profile
-    labs <- paste("SR_Ln(R0) = ",R0.vec)
-    labs[which(round(R0.vec,2)==Baseval)] <- paste("SR_Ln(R0) = ",Baseval,"(Base model)")
-    SSplotComparisons(prof.R0.summary,legendlabels=labs,pheight=4.5,plot = FALSE,png=TRUE,
-                      plotdir=plotdir,legendloc='bottomleft',verbose = FALSE)
-    
-    ###Piner plot
-        #Size comp
-    if(length.series>0)
-    {
-      tiff(file.path(dirname.diagnostics,"R0_profile_plot_Length_like.tiff"),
-           width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-      par(mar=c(5,4,1,1))
-      PinerPlot(prof.R0.summary, 
-                profile.string = "R0", 
-                component = "Length_like",
-                main = "Changes in length-composition likelihoods by fleet",
-                add_cutoff = TRUE,
-                cutoff_prob = 0.95,verbose = FALSE)
-      abline(v = Baseval, lty=2,col='orange',lwd=2)
-      legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
-      dev.off()
-    }
-        #Survey
-    if(cpue.series>0)
-    {
-      tiff(file.path(dirname.diagnostics,"R0_profile_plot_Survey_like.tiff"),
-           width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-      par(mar=c(5,4,1,1))
-      PinerPlot(prof.R0.summary, profile.string = "R0", component = "Surv_like",main = "Changes in Index likelihoods by fleet",
-                add_cutoff = TRUE,
-                cutoff_prob = 0.95, legendloc="topleft",verbose = FALSE)
-      abline(v = Baseval, lty=2,col='orange',lwd=2)
-      legend('bottomright','Base value',lty = 2,col='orange',lwd=2)
-      dev.off()
-    }
-    
-    #remove prof likelihood files
-    if(flush.files) 
-    {
-      setwd(WD)
-      dropfiles=list.files(dirname.R0.profile)
-      dropfiles=subset(dropfiles,!dropfiles=='Figures & Tables')
-      for(f in 1:length(dropfiles)) unlink(paste(dirname.R0.profile, dropfiles[f], sep="/"), recursive = TRUE, force = TRUE) 
-    }
-    
   }
   
     #2.2. Retrospective analysis and Predicting skills
@@ -2167,7 +1989,9 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
     }
     retro(dir = dirname.Retrospective,
           years = start.retro:-end.retro,
-          exe=exe_path,verbose = FALSE)
+          exe=exe_path,
+          verbose = FALSE,
+          extras="-nohess")
     future::plan(future::sequential)
     retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
     if(any(is.na(retroModels)))retroModels=retroModels[-which(is.na(retroModels))]
@@ -2263,7 +2087,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
                               Njitter = numjitter,
                               jitter_fraction =0.1 ,  #0.05
                               exe=exe_path,
-                              verbose = FALSE)
+                              verbose = FALSE,
+                              extras=NULL) # 5 times faster with "-nohess" but not uncertainty
     future::plan(future::sequential)
     
     #Read in results using other r4ss functions
@@ -2301,248 +2126,192 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,exe_path,start.retro=0,end.retro=5,
   }
   
 }
-profile_tweaked=function (dir, oldctlfile = "control.ss_new", masterctlfile = lifecycle::deprecated(), 
-                          newctlfile = "control_modified.ss", linenum = NULL, 
-                          string = NULL, profilevec = NULL, usepar = FALSE, globalpar = FALSE, 
-                          parlinenum = NULL, parstring = NULL, saveoutput = TRUE, overwrite = TRUE, 
-                          whichruns = NULL, prior_check = TRUE, read_like = TRUE, exe = "ss3", 
-                          verbose = FALSE, ...) 
+fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,Baseval=NULL,dirname.diagnostics,length.series,cpue.series)
 {
-  orig_wd <- getwd()
-  on.exit(setwd(orig_wd))
-  if (lifecycle::is_present(masterctlfile)) {
-    lifecycle::deprecate_warn(when = "1.46.0", what = "profile(masterctlfile)", 
-                              with = "profile(oldctlfile)")
-    oldctlfile <- masterctlfile
-  }
-  if(exists('check_exe'))check_exe(exe = exe, dir = dir, verbose = verbose)
-  if (is.null(linenum) & is.null(string)) {
-    stop("You should input either 'linenum' or 'string' (but not both)")
-  }
-  if (!is.null(linenum) & !is.null(string)) {
-    stop("You should input either 'linenum' or 'string' (but not both)")
-  }
-  if (usepar) {
-    if (is.null(parlinenum) & is.null(parstring)) {
-      stop("Using par file. You should input either 'parlinenum' or ", 
-           "'parstring' (but not both)")
-    }
-    if (!is.null(parlinenum) & !is.null(parstring)) {
-      stop("Using par file. You should input either 'parlinenum' or ", 
-           "'parstring' (but not both)")
-    }
-  }
-  if (!is.null(linenum)) {
-    npars <- length(linenum)
-  }
-  if (!is.null(string)) {
-    npars <- length(string)
-  }
-  if (usepar) {
-    if (!is.null(parlinenum)) {
-      npars <- length(parlinenum)
-    }
-    if (!is.null(parstring)) {
-      npars <- length(parstring)
-    }
-  }
-  if (is.na(npars) || npars < 1) {
-    stop("Problem with the number of parameters to profile over. npars = ", 
-         npars)
-  }
-  if (is.null(profilevec)) {
-    stop("Missing input 'profilevec'")
-  }
-  if (npars == 1)
+  # Step 1. Identify a directory for the profile likelihood model run(s)
+  dirname.base <- paste(dirname.diagnostics,paste0(Par_var,"_profile"),sep='/')
+  
+  # Step 2. Identify a directory where the completed base model run is located
+  dirname.completed.model.run<-WD
+  
+  # Step 3. Create a "x_profile" subdirectory and set as the working directory
+  dirname.Par_var.profile<- dirname.base
+  if(!dir.exists(dirname.Par_var.profile)) dir.create(path=dirname.Par_var.profile, showWarnings = TRUE, recursive = TRUE)
+  mydir <- dirname.Par_var.profile
+  setwd(dirname.Par_var.profile)
+  
+  # Step 4. Create a "Figures_Tables" subdirectory
+  plotdir=paste0(dirname.Par_var.profile, "/Figures & Tables")
+  if(!dir.exists(plotdir)) dir.create(path=plotdir, showWarnings = TRUE, recursive = TRUE)
+  
+  
+  # Step 5. Create a "Reference_run" subdirectory and copy completed base model output to this directory
+  #reference.dir <- paste0(mydir,'/Reference_run') 
+  #if(!dir.exists(reference.dir)) dir.create(path=reference.dir, showWarnings = TRUE, recursive = TRUE)
+  #file.copy(from=Sys.glob(paste(dirname.completed.model.run, "*.*", sep="/"), dirmark = FALSE),
+  #          to=reference.dir)
+  #for(nn in disfiles){file.copy(paste(dirname.completed.model.run,"/", nn, sep='')  ,     to=reference.dir)}
+  
+  
+  # Step 6. Copy necessary files from the "Reference_run" subdirectory to the "x_profile" working directory 
+  copylst<-disfiles[-match("Report.sso",disfiles)]
+  #copylst <-  c("control.ss_new", "data.ss",  "forecast.ss",  "ss.exe", "starter.ss")
+  #for(nn in copylst){file.copy(  paste(reference.dir,"/", nn, sep='')  ,     file.path(dirname.Par_var.profile))}
+  for(nn in copylst){file.copy(  paste(WD,"/", nn, sep='')  ,     file.path(dirname.Par_var.profile))}
+  
+  # Step 7. Edit "control.ss" in the working directory to estimate at least one parameter in each phase
+  # E.g., 
+  control.file <- readLines(paste(dirname.Par_var.profile, "/control.ss_new", sep=""))
+  linen <- NULL
+  linen <- grep("#_recdev phase", control.file)
+  control.file[linen] <- paste0("1 #_recdev phase")
+  write(control.file, paste(dirname.Par_var.profile, "/control.ss_new", sep=""))
+  
+  # Step 8. Edit "starter.ss" in the working directory to read from init values from control_modified.ss
+  starter.file <- readLines(paste(dirname.Par_var.profile, "/starter.ss", sep=""))
+  linen <- NULL
+  linen <- grep(paste(c("# 0=use init values in control file; 1=use ss.par","#_init_values_src"),collapse='|'), starter.file)
+  starter.file[linen] <- paste0("0 # 0=use init values in control file; 1=use ss.par")
+ #if(like.prof.case=='faster') starter.file[grep("#_converge_criterion", starter.file)] <- paste0("0.001 #_converge_criterion")
+  write(starter.file, paste(dirname.Par_var.profile, "/starter.ss", sep=""))
+  
+  
+  # Step 9. Begin Likelihood profile_x_example.R
+  
+  ###Working directory
+  setwd(dirname.Par_var.profile)
+  
+  ####Set the plotting directory
+  plotdir=paste0(dirname.Par_var.profile, "/Figures & Tables")
+  
+  
+  #########################################################
+  ### Parameter profile
+  #########################################################
+  
+  # vector of values to profile over
+  Nprof <- length(Par_var.vec)  
+  #Define directory
+  #mydir <- mydir
+  
+  #Define the starter file
+  starter <- SS_readstarter(file.path(mydir, "starter.ss"))
+  
+  #Change control file name in the starter file
+  starter$ctlfile <- "control_modified.ss" 
+  
+  # Make sure the prior likelihood is calculated for non-estimated quantities
+  starter$prior_like <- 1                           
+  SS_writestarter(starter, dir=mydir, overwrite=TRUE,verbose = FALSE)
+  
+  #Run SS_profile command
+  if(run.in.parallel)
   {
-    n <- length(profilevec)
-  }else
+    ncores <- parallelly::availableCores(omit = 1)
+    future::plan(future::multisession, workers = ncores)
+    
+  }
+  Like.profile <- profile(dir=mydir, 
+                          oldctlfile="control.ss_new",
+                          newctlfile="control_modified.ss",
+                          string=Par_var_string,
+                          profilevec=Par_var.vec,
+                          exe=exe_path,
+                          verbose = FALSE,
+                          extras = "-nohess") 
+  future::plan(future::sequential)
+
+  write.csv(Like.profile,
+            file.path(dirname.diagnostics,paste0(Par_var,"_profile_summary_table.csv")),
+            row.names = FALSE)
+  
+  # read the output files (with names like Report1.sso, Report2.sso, etc.)
+  prof.models <- SSgetoutput(dirvec=mydir, keyvec=c('',1:Nprof), getcovar = FALSE) 
+  if(any(is.na(prof.models)))prof.models=prof.models[-which(is.na(prof.models))]  #remove empty list elements (no convergence)
+  
+  
+  # Step 10.  summarize output
+  prof.summary <- SSsummarize(prof.models,verbose = FALSE)
+  
+  # Likelihood components 
+  mainlike_components <- c('TOTAL',"Survey", "Catch", 'Length_comp',
+                           "Age_comp","Mean_body_wt",'Recruitment') 
+  
+  mainlike_components_labels  <- c('Total likelihood','Index likelihood',"Catch",'Length likelihood',
+                                   "Age likelihood","Mean body weight",'Recruitment likelihood') 
+  
+  # END OPTIONAL COMMANDS
+  
+  # plot profile using summary created above
+  tiff(file.path(dirname.diagnostics,paste0(Par_var,"_profile_plot.tiff")),
+       width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+  par(mar=c(5,4,1,1))
+  SSplotProfile(prof.summary,           # summary object
+                profile.string = Par_var,     # substring of profile parameter
+                profile.label=expression(log(italic(R)[0])),
+                minfraction = 0.001,
+                pheight=4.5, 
+                print=FALSE, 
+                plotdir=plotdir, 
+                components = mainlike_components, 
+                component.labels = mainlike_components_labels,
+                add_cutoff = TRUE,
+                cutoff_prob = 0.95,
+                verbose = FALSE)
+  if(!is.null(Baseval)) abline(v = Baseval, lty=2,col='orange',lwd=2)
+  legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
+  dev.off()
+  
+  # make timeseries plots comparing models in profile
+  labs <- paste0(Par_var_string,"= ",Par_var.vec)
+  if(!is.null(Baseval))labs[which(round(Par_var.vec,2)==Baseval)] <- paste0(Par_var_string,"= ",Baseval,"(Base model)")
+  SSplotComparisons(prof.summary,legendlabels=labs,pheight=4.5,plot = FALSE,png=TRUE,
+                    plotdir=plotdir,legendloc='bottomleft',verbose = FALSE)
+  
+  ###Piner plot
+  #Size comp
+  if(length.series>0)
   {
-    if ((!is.data.frame(profilevec) & !is.matrix(profilevec)) || 
-        ncol(profilevec) != npars) {
-      stop("'profilevec' should be a data.frame or a matrix with ", 
-           npars, " columns")
-    }
-    n <- length(profilevec[[1]])
-    if (any(unlist(lapply(profilevec, FUN = length)) != n)) {
-      stop("Each element in the 'profilevec' list should have length ", 
-           n)
-    }
-    if (verbose) {
-      if (!is.null(string)) {
-        profilevec_df <- data.frame(profilevec)
-        names(profilevec_df) <- string
-        message("Profiling over ", npars, " parameters\n", 
-                paste0(profilevec_df, collapse = "\n"))
-      }
-    }
+    tiff(file.path(dirname.diagnostics,paste0(Par_var,"_profile_plot_Length_like.tiff")),
+         width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+    par(mar=c(5,4,1,1))
+    PinerPlot(prof.summary, 
+              profile.string = Par_var, 
+              component = "Length_like",
+              main = "Changes in length-composition likelihoods by fleet",
+              add_cutoff = TRUE,
+              cutoff_prob = 0.95,verbose = FALSE)
+    if(!is.null(Baseval))abline(v = Baseval, lty=2,col='orange',lwd=2)
+    legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
+    dev.off()
   }
-  if (is.null(whichruns))
+  #Survey
+  if(cpue.series>0)
   {
-    whichruns <- 1:n
-  }else
+    tiff(file.path(dirname.diagnostics,paste0(Par_var,"_profile_plot_Survey_like.tiff")),
+         width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+    par(mar=c(5,4,1,1))
+    PinerPlot(prof.summary,
+              profile.string = Par_var,
+              component = "Surv_like",
+              main = "Changes in Index likelihoods by fleet",
+              add_cutoff = TRUE,
+              cutoff_prob = 0.95, legendloc="topleft",verbose = FALSE)
+    if(!is.null(Baseval))abline(v = Baseval, lty=2,col='orange',lwd=2)
+    legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
+    dev.off()
+  }
+  
+  #remove prof likelihood files
+  if(flush.files) 
   {
-    if (!all(whichruns %in% 1:n)) {
-      stop("input whichruns should be NULL or a subset of 1:", 
-           n, "\n", sep = "")
-    }
+    setwd(WD)
+    dropfiles=list.files(dirname.Par_var.profile)
+    dropfiles=subset(dropfiles,!dropfiles=='Figures & Tables')
+    for(f in 1:length(dropfiles)) unlink(paste(dirname.Par_var.profile, dropfiles[f], sep="/"), recursive = TRUE, force = TRUE) 
   }
-  if (verbose) {
-    message("Doing runs: ", paste(whichruns, collapse = ", "), 
-            ",\n  out of n = ", n)
-  }
-  converged <- rep(NA, n)
-  totallike <- rep(NA, n)
-  liketable <- NULL
-  if (verbose) {
-    message("Changing working directory to ", dir, 
-            ",\n", " but will be changed back on exit from function.")
-  }
-  setwd(dir)
-  stdfile <- file.path(dir, "ss.std")
-  #parfile <- get_par_name(dir)
-  parfile='ss.par'
-  starter.file <- dir()[tolower(dir()) == "starter.ss"]
-  if (length(starter.file) == 0) {
-    stop("starter.ss not found in", dir)
-  }
-  starter <- SS_readstarter(starter.file, verbose = FALSE)
-  if (starter[["ctlfile"]] != newctlfile) {
-    stop("starter file should be changed to change\n", 
-         "'", starter[["ctlfile"]], "' to '", 
-         newctlfile, "'")
-  }
-  if (prior_check & starter[["prior_like"]] == 0) {
-    stop("for likelihood profile, you should change the starter file value of\n", 
-         " 'Include prior likelihood for non-estimated parameters'\n", 
-         " from 0 to 1 and re-run the estimation.\n")
-  }
-  if (usepar & starter[["init_values_src"]] == 0) {
-    stop("With setting 'usepar=TRUE', change the starter file value", 
-         " for initial value source from 0 (ctl file) to 1 (par file).\n")
-  }
-  if (!usepar & starter[["init_values_src"]] == 1) {
-    stop("Change the starter file value for initial value source", 
-         " from 1 (par file) to 0 (par file) or change to", 
-         " profile(..., usepar = TRUE).")
-  }
-  if (usepar) {
-    file.copy(parfile, "parfile_original_backup.sso")
-  }
-  for (i in whichruns) {
-    newrepfile <- paste("Report", i, ".sso", 
-                        sep = "")
-    if (!overwrite & file.exists(newrepfile)) {
-      message("skipping profile i=", i, "/", 
-              n, " because overwrite=FALSE\n", "  and file exists: ", 
-              newrepfile)
-    }
-    else {
-      message("running profile i=", i, "/", 
-              n)
-      if (npars == 1) {
-        newvals <- profilevec[i]
-      }
-      else {
-        newvals <- as.numeric(profilevec[i, ])
-      }
-      SS_changepars(dir = NULL, ctlfile = oldctlfile, newctlfile = newctlfile, 
-                    linenums = linenum, strings = string, newvals = newvals, 
-                    estimate = FALSE, verbose = TRUE, repeat.vals = TRUE)
-      ctltable_new <- SS_parlines(ctlfile = newctlfile)
-      if (!any(ctltable_new[["PHASE"]] == 1)) {
-        warning("At least one parameter needs to be estimated in phase 1.\n", 
-                "Edit control file to add a parameter\n", 
-                "which isn't being profiled over to phase 1.")
-      }
-      if (usepar) {
-        if (globalpar) {
-          par <- readLines("parfile_original_backup.sso")
-        }
-        else {
-          par <- readLines(parfile)
-        }
-        for (ipar in 1:npars) {
-          if (!is.null(parstring)) {
-            parlinenum <- grep(parstring[ipar], par, 
-                               fixed = TRUE) + 1
-          }
-          if (length(parlinenum) == 0) {
-            stop("Problem with input parstring = '", 
-                 parstring[ipar], "'")
-          }
-          parline <- par[parlinenum[ipar]]
-          parval <- as.numeric(parline)
-          if (is.na(parval)) {
-            stop("Problem with parlinenum or parstring for par file.\n", 
-                 "line as read: ", parline)
-          }
-          par[parlinenum[ipar]] <- ifelse(npars > 1, 
-                                          profilevec[i, ipar], profilevec[i])
-        }
-        note <- c(paste("# New par file created by profile() with the value on line number", 
-                        linenum), paste("# changed from", parval, 
-                                        "to", profilevec[i]))
-        par <- c(par, "#", note)
-        message(paste0(note, collapse = "\n"))
-        writeLines(par, paste0("ss_input_par", 
-                               i, ".ss"))
-        writeLines(par, parfile)
-      }
-      if (file.exists(stdfile)) {
-        file.remove(stdfile)
-      }
-      if (file.exists("Report.sso")) {
-        file.remove("Report.sso")
-      }
-      #run(dir = dir, verbose = TRUE, exe = exe, extras="-nohess")
-      fn.run.SS(where.inputs=dir, where.exe=exe,args='-nohess')
-      converged[i] <- file.exists(stdfile)
-      onegood <- FALSE
-      if (read_like && file.exists("Report.sso") & 
-          file.info("Report.sso")$size > 0) {
-        onegood <- TRUE
-        Rep <- readLines("Report.sso", n = 400)
-        skip <- grep("LIKELIHOOD", Rep)[2]
-        nrows <- grep("Crash_Pen", Rep) - skip - 
-          1
-        like <- read.table("Report.sso", skip = skip, 
-                           nrows = nrows, header = TRUE, fill = TRUE)
-        liketable <- rbind(liketable, as.numeric(like[["logL.Lambda"]]))
-      }
-      else {
-        liketable <- rbind(liketable, rep(NA, 10))
-      }
-      if (saveoutput) {
-        file.copy("Report.sso", paste("Report", 
-                                      i, ".sso", sep = ""), overwrite = overwrite)
-        file.copy("CompReport.sso", paste("CompReport", 
-                                          i, ".sso", sep = ""), overwrite = overwrite)
-        file.copy("covar.sso", paste("covar", 
-                                     i, ".sso", sep = ""), overwrite = overwrite)
-        file.copy("warning.sso", paste("warning", 
-                                       i, ".sso", sep = ""), overwrite = overwrite)
-        file.copy("admodel.hes", paste("admodel", 
-                                       i, ".hes", sep = ""), overwrite = overwrite)
-        file.copy(parfile, paste(parfile, "_", 
-                                 i, ".sso", sep = ""), overwrite = overwrite)
-      }
-    }
-  }
-  if (onegood) {
-    liketable <- as.data.frame(liketable)
-    names(liketable) <- like[["Component"]]
-    bigtable <- cbind(profilevec[whichruns], converged[whichruns], 
-                      liketable)
-    names(bigtable)[1] <- "Value"
-    return(bigtable)
-  }
-  else {
-    stop("Error: no good Report.sso files created in profile")
-  }
+  
 }
-
-
 function.goodness.fit_SS=function(Rep)
 {
   Res.cpue=NA  

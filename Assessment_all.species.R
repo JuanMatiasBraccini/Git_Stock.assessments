@@ -402,7 +402,8 @@ evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
 
 #21. Integrated age-based model 
 Integrated.age.based='SS'   # define model types used
-do.parallel.SS=TRUE         #do SS in parallel or not 
+do.parallel.SS=TRUE         #do SS in parallel or not
+do.all.sensitivity.tests=TRUE #set to FALSE as per required
 SS3.run='final' #'test'     # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, MCMC, etc)
 create.SS.inputs=FALSE       #set to FALSE once happy with SS input files and only need to run the model
 run_SS_plots=FALSE          #set to TRUE once happy with model and want to plot outputs
@@ -509,8 +510,9 @@ Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analy
 Number.of.jitters=50              
 Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.
-like.prof.case='faster'  #faster run, no hessian estimation
-#like.prof.case='standard'  #as per r4ss
+Number.of.likelihood.profiles.h=6
+#like.prof.case='faster'  #faster run, no hessian estimation
+#like.prof.case='standard'  #as per r4ss (not estimating Hessian by setting extras)
 
 #22. Bespoke Integrated size-based model 
 if(Do.bespoke)

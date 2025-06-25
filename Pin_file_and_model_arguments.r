@@ -507,6 +507,16 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
     
   }
+  #Alternative do_recdev & SR_sigmaR
+  if(NeiM%in%alternative.sigmaR & NeiM%in%alternative.do_recdev)
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=rbind(List.sp[[l]]$Sens.test$SS[1,],List.sp[[l]]$Sens.test$SS[1,])%>%
+      mutate(do_recdev=2,
+             SR_sigmaR=c(0.2,0.4),
+             Scenario=paste0('S',(nnN+1):(nnN+2)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
   
   #Forecasting
   if(NeiM%in%alternative.forecasting)
