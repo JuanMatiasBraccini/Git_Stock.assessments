@@ -1381,8 +1381,9 @@ for(l in 1:N.sp)
 for(l in 1:N.sp)
 {
   print(paste("---------Set up input parameters for --",names(List.sp)[l]))
-  
   LH=LH.data%>%filter(SPECIES==List.sp[[l]]$Species)
+  if(names(List.sp)[l]=="sandbar shark") LH$Fecu_a=LH$Fecu_b=NA  #non significant relationship  NEW
+  if(!is.na(LH$Fecu_mean)) LH$Fecu_min=LH$Fecu_max=LH$Fecu_mean
   List.sp[[l]]=list.append(List.sp[[l]],
                            pup.sx.ratio=0.5,
                            Growth.F=data.frame(k=LH$K,FL_inf=LH$FL_inf,to=LH$to,k.sd=LH$k.sd,FL_inf.sd=LH$FL_inf.sd),
@@ -1393,8 +1394,6 @@ for(l in 1:N.sp)
                            TL.50.mat=LH$TL.50.mat,
                            TL.95.mat=LH$TL.95.mat,
                            Fecundity=c(LH$Fecu_min,LH$Fecu_max),
-                           Fecu_mean=LH$Fecu_mean,
-                           Fecu_sd=LH$Fecu_sd,
                            Fecu_a=LH$Fecu_a,
                            Fecu_b=LH$Fecu_b,
                            Fecu_type_SS=LH$Fecu_type_SS,
