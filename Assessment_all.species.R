@@ -1393,6 +1393,8 @@ for(l in 1:N.sp)
                            TL.50.mat=LH$TL.50.mat,
                            TL.95.mat=LH$TL.95.mat,
                            Fecundity=c(LH$Fecu_min,LH$Fecu_max),
+                           Fecu_mean=LH$Fecu_mean,
+                           Fecu_sd=LH$Fecu_sd,
                            Fecu_a=LH$Fecu_a,
                            Fecu_b=LH$Fecu_b,
                            Fecu_type_SS=LH$Fecu_type_SS,

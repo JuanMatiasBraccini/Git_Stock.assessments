@@ -107,12 +107,19 @@ for(l in 1:N.sp)
   h.min=max(Min.h.shark,round(min(store.species.steepness.S2[[l]],store.species.steepness_M.at.age[[l]]$mean),3))
   h.M_mean2=round(max(Min.h.shark,store.species.steepness.S2[[l]]),3)
   h.M_mean=round(store.species.steepness_M.at.age[[l]]$mean,3)
+  h.M_meanM.age.invariant=round(store.species.steepness_M.age.invariant[[l]]$mean,3)
   if(NeiM%in%h_too.long.converge) h.M_mean=h.M_mean2
   h.M.mean_low=round(max(Min.h.shark,h.M_mean*.9),3)
   h.M_mean=round(max(Min.h.shark,h.M_mean),3)
   h.sd=round(store.species.steepness_M.at.age[[l]]$sd,3)
   if(NeiM=='shortfin mako') h.M_mean=h.M_mean2=0.3 #to improve SS convergence  
+  if(NeiM%in%c('sandbar shark'))  #bump up Sandbar shark h to allow random rec_devs, otherwise model tries to compensate for lower productivity
+  {
+    h.M_mean2=h.M_mean
+    h.M_mean=h.M_meanM.age.invariant
+  }
     
+  
     #Effective sample size (Francis method as default)
   List.sp[[l]]$tuned_size_comp=NULL
   tuned_size_comp=SS3.tune_size_comp_effective_sample%>%
@@ -430,7 +437,7 @@ for(l in 1:N.sp)
                                        do_recdev=1,
                                        SR_sigmaR=sigmaR,
                                        Forecasting='catch')
-  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,h.min,List.sp[[l]]$Sens.test$SS$Steepness[1])
+  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,h.min,List.sp[[l]]$Sens.test$SS$Steepness[1],h.M_mean*1.2)
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
   tested.h=unique(tested.h)
   List.sp[[l]]$Sens.test$SS=do.call("rbind", replicate(length(tested.h), List.sp[[l]]$Sens.test$SS, simplify = FALSE))%>%
@@ -540,6 +547,11 @@ for(l in 1:N.sp)
     #4.1.2 Growth
   List.sp[[l]]$Growth.CV_young=max(0.1,Young.CV)  #constant CV 8.5%-10% Tremblay-Boyer et al 2019; 22% Sandbar Sedar; 15% Dogfish SS; 27% BigSkate SS
   List.sp[[l]]$Growth.CV_old=max(0.1,Old.CV)    #12% Sandbar Sedar
+  if(NeiM%in%c("sandbar shark"))
+  {
+    List.sp[[l]]$Growth.CV_young=0.1   #large CVs not consistent with Geraghty growth data and results in large Rec_dves
+    List.sp[[l]]$Growth.CV_old=0.05
+  }
   if(NeiM%in%c("milk shark"))
   {
     List.sp[[l]]$Growth.CV_young=0.1   #default CVs results in massive Rec Devs prior to start of data and poor fit to length comps
