@@ -1,3 +1,4 @@
+colfunc1 <- colorRampPalette(c("aquamarine", "coral3"))
 #---Run models -------------------------------------------------
 n.SS=length(Integrated.age.based)  
 Age.based=vector('list',n.SS)
@@ -1018,12 +1019,16 @@ for(w in 1:n.SS)
           Tab.combined=cbind(TAB.scen,TAB)
           Fnt.size=10
           yMIN=0; yMAX=0.3
-          if(ncol(Tab.combined)>10) Fnt.size=7
+          if(ncol(Tab.combined)>10) Fnt.size=6
           if(nrow(Tab.combined)>6)
           {
-            yMIN=0.05; yMAX=0.4
+            yMIN=0.1; yMAX=0.4
           }
-          p=Age.based[[w]]$rel.biom[[i]]%>%
+          Levls=(unique(Age.based[[w]]$rel.biom[[i]]$Scenario))
+          cols=colfunc1(length(Levls))
+          names(cols)=Levls
+          p=Age.based[[w]]$rel.biom[[i]]%>% 
+            mutate(Scenario=factor(Scenario,levels=Levls))%>%
             ggplot(aes(year,median,color=Scenario))+
             annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
                               xmin=xmin, xmax=xmax, ymin=yMIN, ymax=yMAX)+
@@ -1031,15 +1036,22 @@ for(w in 1:n.SS)
             geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
             geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
             ggtitle(Keep.species[i])+ylim(0,1)+
-            theme_PA()+theme(legend.position = 'bottom')+ylab('Relative biomass')+xlab('Year')
+            theme_PA(leg.siz=9)+
+            theme(legend.position = 'bottom',
+                  legend.title = element_blank())+
+            ylab('Relative biomass')+xlab('Year')+
+            guides(colour = guide_legend(nrow = 1))+
+            scale_color_manual(values = cols)
           print(p)
           ggsave(paste(this.wd,"/Rel.biomass&estimates.tiff",sep=''),width=10,height=7,compression = "lzw")  
           
           if(nrow(Tab.combined)>6)
           {
             yMIN=0.2; yMAX=1
+            if(nrow(Tab.combined)>10) yMAX=2
           }
           p=Age.based[[w]]$B.Bmsy[[i]]%>%
+            mutate(Scenario=factor(Scenario,levels=Levls))%>%
             ggplot(aes(year,median,color=Scenario))+
             annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
                               xmin=xmin+2, xmax=xmax, ymin=yMIN, ymax=yMAX)+
@@ -1047,7 +1059,12 @@ for(w in 1:n.SS)
             geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
             geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
             ggtitle(Keep.species[i])+ylim(0,NA)+
-            theme_PA()+theme(legend.position = 'bottom')+ylab('B/Bmsy')+xlab('Year')
+            theme_PA(leg.siz=9)+
+            theme(legend.position = 'bottom',
+                  legend.title = element_blank())+
+           ylab('B/Bmsy')+xlab('Year')+
+            guides(colour = guide_legend(nrow = 1))+
+            scale_color_manual(values = cols)
           print(p)
           ggsave(paste(this.wd,"/B.over.BMSY&estimates.tiff",sep=''),width=10,height=7,compression = "lzw")  
           
@@ -2095,17 +2112,36 @@ if(do.SS3.diagnostics)
     if(file.exists(this.wd1))
     {
       MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
+      
+      #get Ro, h and M sequence for profile likelihoods
       Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
       std.LnRo=MLE$std[grep("SR_parm",MLE$names)]
-      R0.range=seq(Estim.LnRo*(1-delta.likelihood.profiles),Estim.LnRo*(1.3+delta.likelihood.profiles),length.out=(Number.of.likelihood.profiles-1))
-      R0.range=sort(c(R0.range,Estim.LnRo))
-      Input.h=List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Steepness)
-      h.range=seq(Min.h.shark*.8,min(Input.h*1.5,1),length.out=(Number.of.likelihood.profiles.h-1))
-      h.range=sort(c(h.range,Input.h))
-      Input.M=List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Mmean)
-      M.range=seq(Input.M*.5,min(Input.M*3,0.6),length.out=(Number.of.likelihood.profiles.h-1))#ACA
-      M.range=sort(c(M.range,Input.M))
+      R0.range=fn.like.range(Par.mle=Estim.LnRo,
+                             min.par=2,
+                             Par.SE=std.LnRo,
+                             up=delta.likelihood.profiles,
+                             low=delta.likelihood.profiles,
+                             ln.out=Number.of.likelihood.profiles,
+                             seq.approach=Approach.like.prof)
       
+      Input.h=List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Steepness)
+      h.range=fn.like.range(Par.mle=Input.h,
+                            min.par=Min.h.shark,
+                            Par.SE=0.06,
+                            up=0.4,
+                            low=0.4,
+                            ln.out=Number.of.likelihood.profiles.h,
+                            seq.approach='min.plus')
+      
+      Input.M=List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Mmean)
+      M.range=fn.like.range(Par.mle=Input.M,
+                            min.par=0.01,
+                            Par.SE=0.06,
+                            up=0.8,
+                            low=0.4,
+                            ln.out=Number.of.likelihood.profiles.h,
+                            seq.approach='min.plus')
+
       fn.fit.diag_SS3(WD=this.wd1,
                       do.like.prof=TRUE,
                       disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),

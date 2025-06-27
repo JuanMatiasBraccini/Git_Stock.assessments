@@ -510,7 +510,9 @@ Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analy
 Number.of.jitters=50              
 Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.
+Approach.like.prof='SE' #set to 'min.plus' for sequence between [MLE -Number.of.likelihood.profiles] and [MLE +Number.of.likelihood.profiles]
 Number.of.likelihood.profiles.h=6
+diag.extras="-nohess"  #set to "" for hessian estimation (much slower)
 #like.prof.case='faster'  #faster run, no hessian estimation
 #like.prof.case='standard'  #as per r4ss (not estimating Hessian by setting extras)
 

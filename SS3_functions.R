@@ -1891,9 +1891,21 @@ fn.compare.prior.post=function(d,Par,prior_type)
 
 #Fit diagnostic functions ------------------------------------------------------
 #note: this follows Carvalho et al 2021
+fn.like.range=function(Par.mle,min.par,Par.SE,up,low,ln.out,seq.approach='SE')
+{
+  if(seq.approach=='min.plus')
+  {
+    Rango=seq(max(min.par,Par.mle)*(1-up),Par.mle*(1+up),length.out=ln.out-1)
+  }
+  if(seq.approach=='SE')
+  {
+    Rango=seq(max(min.par,Par.mle)-1.96*Par.SE,Par.mle+1.96*Par.SE,length.out=ln.out-1)
+  }
+  return(sort(unique(c(Rango,round(Par.mle,2)))))
+}
 fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,end.retro=5,
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
-                         outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=FALSE,
+                         outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=TRUE,
                          COVAR=FALSE,h.input=NULL,M.input=NULL)
 {
   Report=SS_output(dir=WD,covar=COVAR,verbose=FALSE,printstats=FALSE)
@@ -1952,12 +1964,14 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,e
   
   #2. Model consistency  
     #2.1. Likelihood profile on selected parameters or quantities
-  if(do.like.prof) # very time consuming is not running in parallel and not setting '-nohess'
+  if(do.like.prof) # 60 secs per iteration per parameter is in parallel and with hessian; 
   {
     Par_var_profile=c("R0","h","M")
     Par_var.vec_profile=list(R0.vec,h.vec,data.frame(M1vec=M.vec,M2vec=M.vec))
     Par_var_string_profile=list("SR_LN(R0)","SR_BH_steep",c("NatM_uniform_Fem_GP_1", "NatM_uniform_Mal_GP_1"))
-    names(Par_var.vec_profile)=names(Par_var_string_profile)=Par_var_profile
+    Par_prof_string=list("R0",'steep',"M")
+    Par_prof_label=list(expression(log(italic(R)[0])),'h',"M")
+    names(Par_var.vec_profile)=names(Par_var_string_profile)=names(Par_prof_string)=names(Par_prof_label)=Par_var_profile
     for(pp in 1:length(Par_var_profile))
     {
       baseval=NULL
@@ -1967,6 +1981,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,e
       fn.profile.wrapper(Par_var=Par_var_profile[pp],
                          Par_var.vec=Par_var.vec_profile[[pp]],
                          Par_var_string=Par_var_string_profile[[pp]],
+                         prof_string=Par_prof_string[[pp]],
+                         prof_label=Par_prof_label[[pp]],
                          Baseval=baseval,
                          dirname.diagnostics=dirname.diagnostics,
                          length.series=length.series,
@@ -1991,7 +2007,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,e
           years = start.retro:-end.retro,
           exe=exe_path,
           verbose = FALSE,
-          extras="-nohess")
+          extras= diag.extras)
     future::plan(future::sequential)
     retroModels <- SSgetoutput(dirvec = file.path(dirname.Retrospective, "retrospectives", paste("retro", start.retro:-end.retro, sep = "")))
     if(any(is.na(retroModels)))retroModels=retroModels[-which(is.na(retroModels))]
@@ -2060,7 +2076,6 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,e
     #remove retro files
     if(flush.files)
     {
-      setwd(WD)
       dropfiles=list.files(dirname.Retrospective)
       dropfiles=subset(dropfiles,!dropfiles%in%c('Plots','retrospectives'))
       if(length(dropfiles)>0)for(f in 1:length(dropfiles)) unlink(paste(dirname.Retrospective, dropfiles[f], sep="/"), recursive = TRUE, force = TRUE) 
@@ -2088,7 +2103,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,e
                               jitter_fraction =0.1 ,  #0.05
                               exe=exe_path,
                               verbose = FALSE,
-                              extras=NULL) # 5 times faster with "-nohess" but not uncertainty
+                              extras=diag.extras) # 5 times faster with "-nohess" but not uncertainty
     future::plan(future::sequential)
     
     #Read in results using other r4ss functions
@@ -2126,10 +2141,11 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,e
   }
   
 }
-fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,Baseval=NULL,dirname.diagnostics,length.series,cpue.series)
+fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_label,
+                            Baseval=NULL,dirname.diagnostics,length.series,cpue.series)
 {
   # Step 1. Identify a directory for the profile likelihood model run(s)
-  dirname.base <- paste(dirname.diagnostics,paste0(Par_var,"_profile"),sep='/')
+  dirname.base <- paste(dirname.diagnostics,paste0("Profile_",Par_var),sep='/')
   
   # Step 2. Identify a directory where the completed base model run is located
   dirname.completed.model.run<-WD
@@ -2155,9 +2171,7 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,Baseval=NULL,dirn
   
   # Step 6. Copy necessary files from the "Reference_run" subdirectory to the "x_profile" working directory 
   copylst<-disfiles[-match("Report.sso",disfiles)]
-  #copylst <-  c("control.ss_new", "data.ss",  "forecast.ss",  "ss.exe", "starter.ss")
-  #for(nn in copylst){file.copy(  paste(reference.dir,"/", nn, sep='')  ,     file.path(dirname.Par_var.profile))}
-  for(nn in copylst){file.copy(  paste(WD,"/", nn, sep='')  ,     file.path(dirname.Par_var.profile))}
+  for(nn in copylst){file.copy(paste(WD,"/", nn, sep=''),file.path(dirname.Par_var.profile))}
   
   # Step 7. Edit "control.ss" in the working directory to estimate at least one parameter in each phase
   # E.g., 
@@ -2211,18 +2225,18 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,Baseval=NULL,dirn
     future::plan(future::multisession, workers = ncores)
     
   }
-  Like.profile <- profile(dir=mydir, 
+  Like.profile <- r4ss::profile(dir=mydir, 
                           oldctlfile="control.ss_new",
                           newctlfile="control_modified.ss",
                           string=Par_var_string,
                           profilevec=Par_var.vec,
                           exe=exe_path,
                           verbose = FALSE,
-                          extras = "-nohess") 
+                          extras = diag.extras) 
   future::plan(future::sequential)
 
   write.csv(Like.profile,
-            file.path(dirname.diagnostics,paste0(Par_var,"_profile_summary_table.csv")),
+            file.path(dirname.diagnostics,paste0("profile_summary_table_",Par_var,".csv")),
             row.names = FALSE)
   
   # read the output files (with names like Report1.sso, Report2.sso, etc.)
@@ -2243,12 +2257,12 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,Baseval=NULL,dirn
   # END OPTIONAL COMMANDS
   
   # plot profile using summary created above
-  tiff(file.path(dirname.diagnostics,paste0(Par_var,"_profile_plot.tiff")),
+  tiff(file.path(dirname.diagnostics,paste0("profile_plot_",Par_var,".tiff")),
        width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
   par(mar=c(5,4,1,1))
-  SSplotProfile(prof.summary,           # summary object
-                profile.string = Par_var,     # substring of profile parameter
-                profile.label=expression(log(italic(R)[0])),
+  SSplotProfile(prof.summary,           
+                profile.string = prof_string, 
+                profile.label=prof_label,
                 minfraction = 0.001,
                 pheight=4.5, 
                 print=FALSE, 
@@ -2269,14 +2283,14 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,Baseval=NULL,dirn
                     plotdir=plotdir,legendloc='bottomleft',verbose = FALSE)
   
   ###Piner plot
-  #Size comp
+    #Size comp
   if(length.series>0)
   {
-    tiff(file.path(dirname.diagnostics,paste0(Par_var,"_profile_plot_Length_like.tiff")),
+    tiff(file.path(dirname.diagnostics,paste0("profile_plot_",Par_var,"_Length_like.tiff")),
          width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
     par(mar=c(5,4,1,1))
     PinerPlot(prof.summary, 
-              profile.string = Par_var, 
+              profile.string = prof_string, 
               component = "Length_like",
               main = "Changes in length-composition likelihoods by fleet",
               add_cutoff = TRUE,
@@ -2285,14 +2299,14 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,Baseval=NULL,dirn
     legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
     dev.off()
   }
-  #Survey
+    #Survey
   if(cpue.series>0)
   {
-    tiff(file.path(dirname.diagnostics,paste0(Par_var,"_profile_plot_Survey_like.tiff")),
+    tiff(file.path(dirname.diagnostics,paste0("profile_plot_",Par_var,"_Survey_like.tiff")),
          width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
     par(mar=c(5,4,1,1))
     PinerPlot(prof.summary,
-              profile.string = Par_var,
+              profile.string = prof_string,
               component = "Surv_like",
               main = "Changes in Index likelihoods by fleet",
               add_cutoff = TRUE,
@@ -2305,7 +2319,6 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,Baseval=NULL,dirn
   #remove prof likelihood files
   if(flush.files) 
   {
-    setwd(WD)
     dropfiles=list.files(dirname.Par_var.profile)
     dropfiles=subset(dropfiles,!dropfiles=='Figures & Tables')
     for(f in 1:length(dropfiles)) unlink(paste(dirname.Par_var.profile, dropfiles[f], sep="/"), recursive = TRUE, force = TRUE) 
