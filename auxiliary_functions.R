@@ -3422,6 +3422,9 @@ mod.average.scalar=function(dd,Weights,KtcH,approach="Proportions",Ktch.type='di
 
 
 # Display functions  ------------------------------------------------------
+colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
+colfunc1 <- colorRampPalette(c("azure","cadetblue","cyan1","dodgerblue4"))
+
 fn.compare.MSY=function(d,ncols,xlab.angle=90,xlab.size=10, Str.siz=12)
 {
   p=d%>%
@@ -4450,6 +4453,7 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
       }
       Nfacets=1
       if(length(unique(Var$Scenario))>6) Nfacets=2
+      Var=Var%>%mutate(Scenario=factor(Scenario,levels=unique(Var$Scenario)))
       store.plots[[m]]=fn.ribbon(Dat=Var,  
                                  YLAB='',
                                  XLAB="",
@@ -4787,6 +4791,8 @@ fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,
     enSpi=length(unique(ach$Species))
     if(enSpi>3 & enSpi<9) nKL=2
     if(enSpi>9) nKL=3
+    ach=ach%>%mutate(Scenario=factor(Scenario,levels=unique(ach$Scenario)))
+    nScens=length(unique(ach$Scenario))
     figure=ach%>%
       ggplot(aes(year,median,color=Scenario))+
       facet_wrap(~Species,ncol=nKL)+
@@ -4801,6 +4807,7 @@ fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,
       geom_hline(aes(yintercept=Limit), size=1.05,alpha=0.35,color=col.Limit)+
       geom_hline(aes(yintercept=Threshold), size=1.05,alpha=0.35,color=col.Threshold)+
       geom_hline(aes(yintercept=Target), size=1.05,alpha=0.35,color=col.Target)
+    if(nScens>8) figure=figure+guides(fill=guide_legend(nrow=2,byrow=TRUE))
     figure=annotate_figure(figure,
                            bottom = text_grob('Financial year',size=26,vjust =-0.15),
                            left = text_grob("Relative biomass",size=26,rot = 90,vjust=0.8)) +

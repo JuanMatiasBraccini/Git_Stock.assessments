@@ -1,4 +1,3 @@
-colfunc1 <- colorRampPalette(c("aquamarine", "coral3"))
 #---Run models -------------------------------------------------
 n.SS=length(Integrated.age.based)  
 Age.based=vector('list',n.SS)
@@ -2944,7 +2943,7 @@ for(i in 1:N.sp)
                                                sp=Keep.species[i],
                                                do.probs=TRUE)
     ggsave(paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_Kobe_plot.tiff",sep=''),
-           width = 9,height = 14, dpi = 300,compression = "lzw")
+           width = 10,height = 10, dpi = 300,compression = "lzw")
   }
   
 }

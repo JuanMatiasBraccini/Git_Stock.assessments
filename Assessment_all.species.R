@@ -106,7 +106,6 @@ source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Plot.Map.R"))
 source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/MS.Office.outputs.R")) 
 source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/send.emails.R"))
 smart.par=function(n.plots,MAR,OMA,MGP) return(par(mfrow=n2mfrow(n.plots),mar=MAR,oma=OMA,las=1,mgp=MGP))
-colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
 fun.find.in.list=function(x,Drop=NULL)   #drop stuff from list
 {
   x=x%>%purrr::discard(is.null)
