@@ -722,6 +722,19 @@ for(w in 1:n.SS)
               #a. Create SS input files  
               if(create.SS.inputs)
               {
+                #need to reset rec pars for tuning
+                if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
+                {
+                  Life.history$SR_sigmaR=0.2
+                  Life.history$RecDev_Phase=3
+                  Life.history$last_early_yr_nobias_adj_in_MPD=1993
+                  Life.history$first_yr_fullbias_adj_in_MPD=1999
+                  Life.history$last_yr_fullbias_adj_in_MPD=2019
+                  Life.history$first_recent_yr_nobias_adj_in_MPD=2021
+                  Life.history$max_bias_adj_in_MPD=0.8 
+                  
+                  Var.ad.factr=NULL
+                }
                 fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
                              new.path=this.wd1,
                              Scenario=Scens[s,]%>%
@@ -759,7 +772,7 @@ for(w in 1:n.SS)
                 #run this to tune model and calculate RAMP years
               if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
-                #tune ramp years
+                #tune ramp years (blue and red lines should match)
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=handl_OneDrive('SS3/ss_win.exe'),
                           args='')
@@ -2111,9 +2124,14 @@ if(do.SS3.diagnostics)
     if(file.exists(this.wd1))
     {
       MLE=read.admbFit(paste(this.wd1,'ss',sep='/'))
+      dat_temp <- SS_readdat(file.path(this.wd1, "data.dat"), verbose = FALSE)
+      ctl_temp <- SS_readctl(file = file.path(this.wd1, "control.ctl"), datlist = dat_temp, verbose = FALSE)
+      replist <- SS_output(dir = this.wd1,verbose = FALSE,printstats = FALSE,covar = TRUE)
+      derived_quants <- replist$derived_quants
       
-      #get Ro, h and M sequence for profile likelihoods
+      #get sequenced for profile likelihoods
       Estim.LnRo=MLE$est[grep("SR_parm",MLE$names)]
+        #Ro
       std.LnRo=MLE$std[grep("SR_parm",MLE$names)]
       R0.range=fn.like.range(Par.mle=Estim.LnRo,
                              min.par=2,
@@ -2122,7 +2140,7 @@ if(do.SS3.diagnostics)
                              low=delta.likelihood.profiles,
                              ln.out=Number.of.likelihood.profiles,
                              seq.approach=Approach.like.prof)
-      
+        #h
       Input.h=List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Steepness)
       h.range=fn.like.range(Par.mle=Input.h,
                             min.par=Min.h.shark,
@@ -2131,15 +2149,32 @@ if(do.SS3.diagnostics)
                             low=0.4,
                             ln.out=Number.of.likelihood.profiles.h,
                             seq.approach='min.plus')
-      
-      Input.M=List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Mmean)
-      M.range=fn.like.range(Par.mle=Input.M,
+        #Ma
+      M.range=fn.like.range(Par.mle=unlist(ctl_temp$natM[1,]),
                             min.par=0.01,
-                            Par.SE=0.06,
-                            up=0.8,
-                            low=0.4,
+                            Par.SE=3*List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Msd),
+                            up=0.03,
+                            low=0.03,
                             ln.out=Number.of.likelihood.profiles.h,
-                            seq.approach='min.plus')
+                            seq.approach='SE')
+  
+        #Current depletion
+      Depl.range=fn.like.range(Par.mle=derived_quants[paste0("Bratio_",replist$endyr),2],
+                               min.par=0.1,
+                               Par.SE=derived_quants[paste0("Bratio_",replist$endyr),3],
+                               up=0.4,
+                               low=0.4,
+                               ln.out=Number.of.likelihood.profiles,
+                               seq.approach='SE')
+        
+        #Current spawning biomass
+      CurSB.range=fn.like.range(Par.mle=derived_quants[paste0("SSB_",replist$endyr),2],
+                                min.par=0.1,
+                                Par.SE=derived_quants[paste0("SSB_",replist$endyr),3],
+                                up=0.4,
+                                low=0.4,
+                                ln.out=Number.of.likelihood.profiles,
+                                seq.approach='SE')
 
       fn.fit.diag_SS3(WD=this.wd1,
                       do.like.prof=TRUE,
@@ -2147,12 +2182,15 @@ if(do.SS3.diagnostics)
                       R0.vec=R0.range,
                       h.vec=h.range,
                       M.vec=M.range,
+                      depl.vec=Depl.range,
+                      curSB.vec=CurSB.range,
                       exe_path=handl_OneDrive('SS3/ss_win.exe'),
                       start.retro=Retro_start,
                       end.retro=Retro_end,
                       do.retros=TRUE,
                       do.jitter=TRUE,
                       numjitter=Number.of.jitters,
+                      outLength.Cross.Val=FALSE,
                       run.in.parallel=TRUE,
                       flush.files=FALSE,
                       COVAR=TRUE,

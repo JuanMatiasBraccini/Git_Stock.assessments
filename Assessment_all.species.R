@@ -446,12 +446,12 @@ alternative.do_recdev=NULL  #Sensitivity for do_recdev method (effect on rec_dev
 #alternative.do_recdev="sandbar shark"
 
 alternative.forecasting=NULL  #forecasting F rather than catch
-alternative.forecasting="sandbar shark"
-F.forecasting.values=list("sandbar shark"=c('Northern.shark'=1.83343e-04,  #get from Report (EXPLOITATION report:14)
-                                            'Other'=2.11086e-02,
-                                            'Southern.shark_1'=0,
-                                            'Southern.shark_2'=1.04784e-02))  
-
+#alternative.forecasting="sandbar shark"
+# F.forecasting.values=list("sandbar shark"=c('Northern.shark'=1.83343e-04,  #get from Report (EXPLOITATION report:14)
+#                                             'Other'=2.11086e-02,
+#                                             'Southern.shark_1'=0,
+#                                             'Southern.shark_2'=1.04784e-02))  
+alternative.like.weigthing=NULL  #test alternative lambdas for survey and length comps
 
   #21.1 Set WRL as a separate fleet for these species
 WRL.species=c("copper shark","dusky shark","shortfin mako",

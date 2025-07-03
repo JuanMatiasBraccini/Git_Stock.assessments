@@ -536,6 +536,22 @@ for(l in 1:N.sp)
     
   }
   
+  #Likelihood weighting
+  if(NeiM%in%alternative.like.weigthing)
+  {
+    List.sp[[l]]$Sens.test$SS$like_comp.w=NA
+    List.sp[[l]]$Sens.test$SS$like_comp_fleet.w=NA
+    List.sp[[l]]$Sens.test$SS$like_comp.w.val=NA
+    
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=rbind(List.sp[[l]]$Sens.test$SS[1,],List.sp[[l]]$Sens.test$SS[1,])%>%
+      mutate(like_comp.w=c(1,4), 
+             like_comp_fleet.w=c(5,5),
+             like_comp.w.val=c(0.1,0.1),
+             Scenario=paste0('S',(nnN+1):(nnN+2)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
   #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%

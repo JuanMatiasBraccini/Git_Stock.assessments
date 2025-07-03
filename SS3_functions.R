@@ -1623,6 +1623,10 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         mutate(value=ifelse(!is.na(new.value),new.value,value))%>%
         dplyr::select(-new.value)
     }
+    if(!is.na(Scenario$like_comp.w))
+    {
+      Like_comp[which( Like_comp$like_comp ==Scenario$like_comp.w & Like_comp$fleet==Scenario$like_comp_fleet.w),'value']=Scenario$like_comp.w.val
+    }
     ctl$lambdas=Like_comp
     ctl$N_lambdas=nrow(ctl$lambdas)
   }
@@ -1893,17 +1897,39 @@ fn.compare.prior.post=function(d,Par,prior_type)
 #note: this follows Carvalho et al 2021
 fn.like.range=function(Par.mle,min.par,Par.SE,up,low,ln.out,seq.approach='SE')
 {
-  if(seq.approach=='min.plus')
+  if(length(Par.mle)==1)
   {
-    Rango=seq(max(min.par,Par.mle)*(1-up),Par.mle*(1+up),length.out=ln.out-1)
-  }
-  if(seq.approach=='SE')
+    if(seq.approach=='min.plus')
+    {
+      Rango=seq(max(min.par,Par.mle)*(1-up),Par.mle*(1+up),length.out=ln.out-1)
+    }
+    if(seq.approach=='SE')
+    {
+      Rango=seq(max(min.par,Par.mle)-1.96*Par.SE,Par.mle+1.96*Par.SE,length.out=ln.out-1)
+    }
+    return(sort(unique(c(Rango,round(Par.mle,2)))))
+  }else
   {
-    Rango=seq(max(min.par,Par.mle)-1.96*Par.SE,Par.mle+1.96*Par.SE,length.out=ln.out-1)
+    if(seq.approach=='min.plus') offsets <- seq(-up,low, length.out=ln.out-1)
+    if(seq.approach=='SE') offsets <- seq(-Par.SE, Par.SE, length.out=ln.out-1)
+    if(0 %in%offsets)
+    {
+      offsets=subset(offsets,!offsets==0)
+      offsets=c(offsets,offsets[length(offsets)]*1.1)
+    }
+    Rango <- offsets %>%
+      purrr::map(~ Par.mle + .x)
+    Rango =do.call(rbind,Rango)
+    Rango=rbind(Rango,Par.mle)
+    row.names(Rango)=NULL
+    Rango=Rango[order(Rango[,1], decreasing = TRUE),]
+
+    return(Rango)
   }
-  return(sort(unique(c(Rango,round(Par.mle,2)))))
+
 }
-fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,end.retro=5,
+fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
+                         exe_path,start.retro=0,end.retro=5,
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=TRUE,
                          COVAR=FALSE,h.input=NULL,M.input=NULL)
@@ -1966,18 +1992,26 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,exe_path,start.retro=0,e
     #2.1. Likelihood profile on selected parameters or quantities
   if(do.like.prof) # 60 secs per iteration per parameter is in parallel and with hessian; 
   {
-    Par_var_profile=c("R0","h","M")
-    Par_var.vec_profile=list(R0.vec,h.vec,data.frame(M1vec=M.vec,M2vec=M.vec))
-    Par_var_string_profile=list("SR_LN(R0)","SR_BH_steep",c("NatM_uniform_Fem_GP_1", "NatM_uniform_Mal_GP_1"))
-    Par_prof_string=list("R0",'steep',"M")
-    Par_prof_label=list(expression(log(italic(R)[0])),'h',"M")
+    Par_var_profile=c("R0","h","M","Depl","CurSB")
+    Par_var.vec_profile=list(R0.vec,
+                             h.vec,
+                             data.frame(M1vec=M.vec,M2vec=M.vec),
+                             depl.vec,
+                             curSB.vec)
+    Par_var_string_profile=list("SR_LN(R0)",
+                                "SR_BH_steep",
+                                c("NatM_uniform_Fem_GP_1", "NatM_uniform_Mal_GP_1"),
+                                "Depl",
+                                "CurSB")
+    Par_prof_string=list("R0",'steep',"M","Depl","CurSB")
+    Par_prof_label=list(expression(log(italic(R)[0])),'h',"M","Depl","CurSB")
     names(Par_var.vec_profile)=names(Par_var_string_profile)=names(Par_prof_string)=names(Par_prof_label)=Par_var_profile
     for(pp in 1:length(Par_var_profile))
     {
       baseval=NULL
       if(Par_var_profile[pp]=="R0") baseval <- round(Report$parameters$Value[grep(Par_var_profile[pp],Report$parameters$Label)],2)
       if(Par_var_profile[pp]=="h") baseval <- round(h.input,2)   
-      if(Par_var_profile[pp]=="M") baseval <- round(M.input,2)
+      if(Par_var_profile[pp]=="M") baseval <- round(M.input,2) #ACA, change to vector, add Depl and CurSB
       fn.profile.wrapper(Par_var=Par_var_profile[pp],
                          Par_var.vec=Par_var.vec_profile[[pp]],
                          Par_var_string=Par_var_string_profile[[pp]],
