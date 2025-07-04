@@ -1932,7 +1932,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
                          exe_path,start.retro=0,end.retro=5,
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=TRUE,
-                         COVAR=FALSE,h.input=NULL,M.input=NULL)
+                         COVAR=FALSE,h.input=NULL)
 {
   Report=SS_output(dir=WD,covar=COVAR,verbose=FALSE,printstats=FALSE)
   
@@ -1995,7 +1995,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
     Par_var_profile=c("R0","h","M","Depl","CurSB")
     Par_var.vec_profile=list(R0.vec,
                              h.vec,
-                             data.frame(M1vec=M.vec,M2vec=M.vec),
+                             data.frame(M.vec),
                              depl.vec,
                              curSB.vec)
     Par_var_string_profile=list("SR_LN(R0)",
@@ -2004,14 +2004,13 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
                                 "Depl",
                                 "CurSB")
     Par_prof_string=list("R0",'steep',"M","Depl","CurSB")
-    Par_prof_label=list(expression(log(italic(R)[0])),'h',"M","Depl","CurSB")
+    Par_prof_label=list(expression(log(italic(R)[0])),'h',expression(italic(M)[a]),"Current depletion","Current SB")
     names(Par_var.vec_profile)=names(Par_var_string_profile)=names(Par_prof_string)=names(Par_prof_label)=Par_var_profile
     for(pp in 1:length(Par_var_profile))
     {
       baseval=NULL
-      if(Par_var_profile[pp]=="R0") baseval <- round(Report$parameters$Value[grep(Par_var_profile[pp],Report$parameters$Label)],2)
+      if(Par_var_profile[pp]%in%c("R0")) baseval <- round(Report$parameters$Value[grep(Par_var_profile[pp],Report$parameters$Label)],2)
       if(Par_var_profile[pp]=="h") baseval <- round(h.input,2)   
-      if(Par_var_profile[pp]=="M") baseval <- round(M.input,2) #ACA, change to vector, add Depl and CurSB
       fn.profile.wrapper(Par_var=Par_var_profile[pp],
                          Par_var.vec=Par_var.vec_profile[[pp]],
                          Par_var_string=Par_var_string_profile[[pp]],
@@ -2020,7 +2019,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
                          Baseval=baseval,
                          dirname.diagnostics=dirname.diagnostics,
                          length.series=length.series,
-                         cpue.series=cpue.series)
+                         cpue.series=cpue.series,
+                         arg='')
     }
   }
   
@@ -2176,8 +2176,10 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
   
 }
 fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_label,
-                            Baseval=NULL,dirname.diagnostics,length.series,cpue.series)
+                            Baseval=NULL,dirname.diagnostics,length.series,cpue.series,
+                            arg='',saveoutput=TRUE,overwrite=TRUE,use_par_file=TRUE)
 {
+ 
   # Step 1. Identify a directory for the profile likelihood model run(s)
   dirname.base <- paste(dirname.diagnostics,paste0("Profile_",Par_var),sep='/')
   
@@ -2220,7 +2222,7 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_
   linen <- NULL
   linen <- grep(paste(c("# 0=use init values in control file; 1=use ss.par","#_init_values_src"),collapse='|'), starter.file)
   starter.file[linen] <- paste0("0 # 0=use init values in control file; 1=use ss.par")
- #if(like.prof.case=='faster') starter.file[grep("#_converge_criterion", starter.file)] <- paste0("0.001 #_converge_criterion")
+  #if(like.prof.case=='faster') starter.file[grep("#_converge_criterion", starter.file)] <- paste0("0.001 #_converge_criterion")
   write(starter.file, paste(dirname.Par_var.profile, "/starter.ss", sep=""))
   
   
@@ -2229,18 +2231,20 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_
   ###Working directory
   setwd(dirname.Par_var.profile)
   
-  ####Set the plotting directory
-  plotdir=paste0(dirname.Par_var.profile, "/Figures & Tables")
-  
-  
-  #########################################################
-  ### Parameter profile
-  #########################################################
+
+  # Step 10. Parameter profile
   
   # vector of values to profile over
-  Nprof <- length(Par_var.vec)  
-  #Define directory
-  #mydir <- mydir
+  if(is.vector(Par_var.vec))
+  {
+    Nprof <- length(Par_var.vec)
+    profilevec=Par_var.vec
+  }else
+  {
+    Nprof <- nrow(Par_var.vec)
+    profilevec=Par_var.vec[,1]
+  }
+  names(profilevec)=paste0('replist',1:Nprof)
   
   #Define the starter file
   starter <- SS_readstarter(file.path(mydir, "starter.ss"))
@@ -2257,18 +2261,225 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_
   {
     ncores <- parallelly::availableCores(omit = 1)
     future::plan(future::multisession, workers = ncores)
-    
   }
-  Like.profile <- r4ss::profile(dir=mydir, 
-                          oldctlfile="control.ss_new",
-                          newctlfile="control_modified.ss",
-                          string=Par_var_string,
-                          profilevec=Par_var.vec,
-                          exe=exe_path,
-                          verbose = FALSE,
-                          extras = diag.extras) 
+  if(Par_var%in%c("R0","h"))
+  {
+    Like.profile <- r4ss::profile(dir=mydir, 
+                                  oldctlfile="control.ss_new",
+                                  newctlfile="control_modified.ss",
+                                  string=Par_var_string,
+                                  profilevec=Par_var.vec,
+                                  exe=exe_path,
+                                  verbose = FALSE,
+                                  extras = diag.extras)
+  }
+  if(Par_var%in%c("M","Depl","CurSB"))
+  {
+    whichruns=1:Nprof
+    
+    #Create all iteration folder
+    for(n in whichruns)
+    {
+      run_dir=paste(mydir,paste0('profile',n),sep='/')
+      dir.create(run_dir, showWarnings = FALSE, recursive = TRUE)
+      FILEs=list.files(run_dir)
+      if("ss.par"%in%FILEs)
+      {
+        for(f in 1:length(FILEs)) unlink(paste(run_dir, FILEs[f], sep="/"), recursive = TRUE, force = TRUE) 
+      }
+      for(nn in copylst){file.copy(paste(file.path(dirname.Par_var.profile),"/", nn, sep=''),run_dir)}
+      if(Par_var%in%c("Depl","CurSB")) file.copy(paste(file.path(WD),"/", "ss.par", sep=''),run_dir)
+      
+       
+      #Modify value of profiled quantity
+      dat_temp <- SS_readdat(file.path(run_dir, "data.dat"), verbose = FALSE)
+      ctl_temp <- SS_readctl(file = file.path(run_dir, "control.ss_new"),datlist = dat_temp,verbose = FALSE)
+      
+      if(Par_var=="M")  ctl_temp$natM["natM1", ]=ctl_temp$natM["natM2", ] = Par_var.vec[n,]
+      
+      if(Par_var%in%c("Depl","CurSB"))
+      {
+        # --- Modify data file ---
+        dat_temp$Nfleets <- dat_temp$Nfleets + 1
+        new_fleet_num <- dat_temp$Nfleets
+        
+        # Add fleet info (duplicating a survey is a safe way)
+        dat_temp$fleetinfo <- rbind(dat_temp$fleetinfo, dat_temp$fleetinfo[1, ])
+        dat_temp$fleetinfo[new_fleet_num, "fleetname"] <- "Depletion_Survey"
+        dat_temp$fleetinfo[new_fleet_num, "type"] <- 3
+        
+        # Make sure its fishery_timing is 1
+        dat_temp$fleetinfo[new_fleet_num, "surveytiming"] <- 1
+        
+        # determine which unit for indices, 34 = depletion, 30= CurSB
+        indices_units <- ifelse(Par_var == "Depl",34,30)
+        
+        # Add CPUE info
+        dat_temp$CPUEinfo <- rbind(as.data.frame(dat_temp$CPUEinfo), 
+                                   c(new_fleet_num, indices_units, 0, 0)) 
+        
+        # Add settings row for the new fleet to lencomp and agecomp info
+        new_comp_info_row <- data.frame(
+          mintailcomp = -1, addtocomp = 0.001, combine_M_F = 0,
+          CompressBins = 0, CompError = 0, ParmSelect = 0, minsamplesize = 0.001)
+        row.names(new_comp_info_row) <- "Depletion_Survey"
+        dat_temp$len_info <- rbind(dat_temp$len_info, new_comp_info_row)
+        dat_temp$age_info <- rbind(dat_temp$age_info, new_comp_info_row)
+        
+        # Add the actual index data lines, using the value from the profile vector `vec`
+        if (Par_var %in% c("Depl"))
+        {
+          new_indices <- data.frame(
+            year = c(dat_temp$styr - 1, dat_temp$endyr), month = 1,
+            index = new_fleet_num, obs = c(1.0, vec[i]), se_log = 0.0001)
+        }
+        if (Par_var %in% c("CurSB"))
+        {
+          new_indices <- data.frame(
+            year = dat_temp$endyr, month = 1,
+            index = new_fleet_num, obs = vec[i], se_log = 0.0001)
+        }
+        dat_temp$CPUE <- rbind(dat_temp$CPUE, new_indices)
+        SS_writedat(dat_temp, file.path(run_dir, "data.dat"), overwrite = TRUE, verbose = FALSE)
+        
+        # --- Modify control file ---
+        # ctl_temp$Q_options <- rbind(ctl_temp$Q_options, c(new_fleet_num, 1, 0, 0, 0, 0))
+        
+        # Create the vector with the correct column names
+        new_q_row <- c(new_fleet_num, 1, 0, 0, 0, 0)
+        names(new_q_row) <- names(ctl_temp$Q_options)
+        
+        # Add the row to the data frame and assign the row name in one step
+        ctl_temp$Q_options <- rbind(ctl_temp$Q_options, Depletion_Survey = new_q_row)
+        new_q_parm <- c(-15, 15, 0, 0, 1, 0, -1, 0, 0, 0, 0, 0, 0, 0) # Phase -1 makes it non-estimated
+        ctl_temp$Q_parms <- rbind(ctl_temp$Q_parms, Depletion_Survey = new_q_parm)
+        ctl_temp$size_selex_types <- rbind(ctl_temp$size_selex_types, Depletion_Survey = c(0, 0, 0, 0)) # Non-selective
+        ctl_temp$age_selex_types <- rbind(ctl_temp$age_selex_types, Depletion_Survey = c(0, 0, 0, 0))   # Non-selective
+        
+        # --- Modify par file --- 
+        starter <- SS_readstarter(file.path(run_dir, "starter.ss"), verbose = FALSE)
+        if(use_par_file)
+        {
+          starter[["init_values_src"]] <- 1 # use par file as initial values instead of ctl file
+          SS_writestarter(starter, dir = run_dir, overwrite = TRUE, verbose = FALSE)
+          
+          # read the par file
+          # 2. Read all lines from the original file
+          lines <- readLines(file.path(run_dir, "ss.par"))
+          
+          # 3. Find the indices of all lines containing a Q_parm entry
+          q_parm_indices <- grep("# Q_parm\\[", lines)
+          
+          # Check if any Q_parm lines were found
+          if (length(q_parm_indices) > 0)
+          {
+            # 4. Get the index and content of the *last* Q_parm line
+            last_q_parm_label_index <- tail(q_parm_indices, 1)
+            last_q_parm_label_line <- lines[last_q_parm_label_index]
+            
+            # 5. Extract the number from the last Q_parm line and increment it
+            # This regular expression extracts the digits from inside "[ ]"
+            last_q_number <- as.numeric(gsub(".*Q_parm\\[(\\d+)\\].*", "\\1", last_q_parm_label_line))
+            new_q_number <- last_q_number + 1
+            
+            # 6. Create the new lines to be added
+            new_content <- c(paste0("# Q_parm[", new_q_number, "]:"),"0")
+            
+            # 7. Insert the new content right after the value of the last Q_parm
+            # The insertion point is after the last Q_parm's value line
+            insertion_point <- last_q_parm_label_index + 1
+            modified_lines <- append(lines, new_content, after = insertion_point)
+            
+            # 8. Write the modified lines to a new file
+            writeLines(modified_lines, file.path(run_dir, "ss.par"))
+            
+            #cat("Successfully added '# Q_parm[", new_q_number, "]' to the file '", file.path(run_dir, "ss3.par"), "'.\n", sep = "")
+            
+          }else
+          {
+            cat("No '# Q_parm' entries were found in the file. No changes were made.\n")
+          }
+        }
+      }
+      
+      SS_writectl(ctl_temp, file.path(run_dir, "control_modified.ss"), overwrite = TRUE, verbose = FALSE)
+      
+    }
+    
+    #Run estimation in parallel
+    res <- furrr::future_map(whichruns, function(i)
+    {
+      run_dir=paste(mydir,paste0('profile',i),sep='/')
+      fn.run.SS(where.inputs=run_dir,where.exe=handl_OneDrive('SS3/ss_win.exe'),args=arg)
+      #run(dir = profile_dir, verbose = FALSE, exe = handl_OneDrive('SS3/ss_win.exe'),...)
+      repfile_loc <- file.path(run_dir, "Report.sso")
+      if (file.exists(repfile_loc) & file.info(repfile_loc)[["size"]] > 0)
+      {
+        goodrep <- TRUE
+        Rep <- readLines(repfile_loc, n = 400)
+        convergence_line <- grep("Convergence_Level",Rep)
+        max_grad <- as.numeric(stringr::str_extract(Rep[convergence_line], 
+                                                    "[[:digit:]|\\.|\\-|e]{2,}"))
+        converged <- max_grad <= 1e-4
+        skip <- grep("LIKELIHOOD", Rep)[2]
+        nrows <- grep("Crash_Pen", Rep) - skip - 1
+        like <- read.table(repfile_loc, skip = skip, 
+                           nrows = nrows, header = TRUE, fill = TRUE)
+        likevec <- as.numeric(like[["logL.Lambda"]])
+        names(likevec) <- like[["Component"]]
+      } else
+      {
+        goodrep <- FALSE
+        converged <- FALSE
+        max_grad <- NA
+        likevec <- rep(NA, 10)
+      }
+      return(list(goodrep = goodrep, converged = converged, max_grad = max_grad, likevec = likevec))
+      
+    })
+    
+    if (saveoutput) {
+      purrr::walk(whichruns, function(i) {
+        profile_dir <- file.path(mydir, paste0("profile", i))
+        if (file.exists(file.path(profile_dir, "Report.sso")) & 
+            file.info(file.path(profile_dir, "Report.sso"))[["size"]] > 0)
+        {
+          file.copy(file.path(profile_dir, "Report.sso"), 
+                    file.path(mydir, paste0("Report", i, ".sso")), 
+                    overwrite = overwrite)
+          file.copy(file.path(profile_dir, "CompReport.sso"), 
+                    file.path(mydir, paste0("CompReport", i, ".sso")), 
+                    overwrite = overwrite)
+          file.copy(file.path(profile_dir, "covar.sso"), 
+                    file.path(mydir, paste0("covar", i, ".sso")), 
+                    overwrite = overwrite)
+          file.copy(file.path(profile_dir, "warning.sso"), 
+                    file.path(mydir, paste0("warning", i, ".sso")), 
+                    overwrite = overwrite)
+          file.copy(file.path(profile_dir, "admodel.hes"), 
+                    file.path(mydir, paste0("admodel", i, ".hes")), 
+                    overwrite = overwrite)
+          # file.copy(file.path(profile_dir, parfile), 
+          #            file.path(mydir,paste0(parfile, "_", i, ".sso")), overwrite = overwrite)
+        }
+      })
+    }
+    purrr::walk(whichruns, ~unlink(file.path(mydir, paste0("profile",.x)), recursive = TRUE))
+    
+    res_keep <- which(!sapply(res, is.null))
+    res_clean <- res[res_keep]
+    goodrep <- sapply(res_clean, function(x) x[["goodrep"]])
+    if (!any(goodrep)) 
+      stop("Error: no good Report.sso files created in profile")
+    liketable <- as.data.frame(t(sapply(res_clean, function(x) x[["likevec"]])))
+    Like.profile <- cbind(Value = profilevec[whichruns[res_keep]], 
+                          converged = sapply(res_clean, function(x) x[["converged"]]), 
+                          liketable, max_grad = sapply(res_clean, function(x) x[["max_grad"]]))
+  }
+  
   future::plan(future::sequential)
-
+  
+  # export like prof stats
   write.csv(Like.profile,
             file.path(dirname.diagnostics,paste0("profile_summary_table_",Par_var,".csv")),
             row.names = FALSE)
@@ -2278,7 +2489,7 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_
   if(any(is.na(prof.models)))prof.models=prof.models[-which(is.na(prof.models))]  #remove empty list elements (no convergence)
   
   
-  # Step 10.  summarize output
+  # Step 11.  summarize output
   prof.summary <- SSsummarize(prof.models,verbose = FALSE)
   
   # Likelihood components 
@@ -2288,69 +2499,82 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_
   mainlike_components_labels  <- c('Total likelihood','Index likelihood',"Catch",'Length likelihood',
                                    "Age likelihood","Mean body weight",'Recruitment likelihood') 
   
-  # END OPTIONAL COMMANDS
   
-  # plot profile using summary created above
+  # Plot profile using summary created above
+  PR_st=prof_string
+  PR_la=prof_label
+  VEC.prof=NULL
+  if(Par_var%in%c("M","Depl","CurSB"))
+  {
+    PR_st="R0"
+    VEC.prof=profilevec
+  }
+    
   tiff(file.path(dirname.diagnostics,paste0("profile_plot_",Par_var,".tiff")),
        width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
   par(mar=c(5,4,1,1))
-  SSplotProfile(prof.summary,           
-                profile.string = prof_string, 
-                profile.label=prof_label,
-                minfraction = 0.001,
-                pheight=4.5, 
-                print=FALSE, 
-                plotdir=plotdir, 
-                components = mainlike_components, 
-                component.labels = mainlike_components_labels,
-                add_cutoff = TRUE,
-                cutoff_prob = 0.95,
-                verbose = FALSE)
+  SSplotProfile1(summaryoutput=prof.summary,
+                 profile.string = PR_st,
+                 profile.label=PR_la,
+                 Xvec=VEC.prof,
+                 minfraction = 0.001,
+                 pheight=4.5,
+                 print=FALSE,
+                 plotdir=plotdir,
+                 components = mainlike_components,
+                 component.labels = mainlike_components_labels,
+                 add_cutoff = TRUE,
+                 cutoff_prob = 0.95,
+                 verbose = FALSE)
   if(!is.null(Baseval)) abline(v = Baseval, lty=2,col='orange',lwd=2)
   legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
   dev.off()
   
-  # make timeseries plots comparing models in profile
-  labs <- paste0(Par_var_string,"= ",Par_var.vec)
-  if(!is.null(Baseval))labs[which(round(Par_var.vec,2)==Baseval)] <- paste0(Par_var_string,"= ",Baseval,"(Base model)")
-  SSplotComparisons(prof.summary,legendlabels=labs,pheight=4.5,plot = FALSE,png=TRUE,
-                    plotdir=plotdir,legendloc='bottomleft',verbose = FALSE)
-  
-  ###Piner plot
-    #Size comp
-  if(length.series>0)
+  if(Par_var%in%c("R0"))
   {
-    tiff(file.path(dirname.diagnostics,paste0("profile_plot_",Par_var,"_Length_like.tiff")),
-         width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-    par(mar=c(5,4,1,1))
-    PinerPlot(prof.summary, 
-              profile.string = prof_string, 
-              component = "Length_like",
-              main = "Changes in length-composition likelihoods by fleet",
-              add_cutoff = TRUE,
-              cutoff_prob = 0.95,verbose = FALSE)
-    if(!is.null(Baseval))abline(v = Baseval, lty=2,col='orange',lwd=2)
-    legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
-    dev.off()
+    # make timeseries plots comparing models in profile
+    labs <- paste0(Par_var_string,"= ",Par_var.vec)
+    if(!is.null(Baseval))labs[which(round(Par_var.vec,2)==Baseval)] <- paste0(Par_var_string,"= ",Baseval,"(Base model)")
+    SSplotComparisons(prof.summary,legendlabels=labs,pheight=4.5,plot = FALSE,png=TRUE,
+                      plotdir=plotdir,legendloc='bottomleft',verbose = FALSE)
+    
+    #Piner plot
+      #Size comp
+    if(length.series>0)
+    {
+      tiff(file.path(dirname.diagnostics,paste0("profile_plot_",Par_var,"_Length_like.tiff")),
+           width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+      par(mar=c(5,4,1,1))
+      PinerPlot(prof.summary, 
+                profile.string = PR_st, 
+                component = "Length_like",
+                main = "Changes in length-composition likelihoods by fleet",
+                add_cutoff = TRUE,
+                cutoff_prob = 0.95,verbose = FALSE)
+      if(!is.null(Baseval))abline(v = Baseval, lty=2,col='orange',lwd=2)
+      legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
+      dev.off()
+    }
+      #Survey
+    if(cpue.series>0)
+    {
+      tiff(file.path(dirname.diagnostics,paste0("profile_plot_",Par_var,"_Survey_like.tiff")),
+           width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+      par(mar=c(5,4,1,1))
+      PinerPlot(prof.summary,
+                profile.string = PR_st,
+                component = "Surv_like",
+                main = "Changes in Index likelihoods by fleet",
+                add_cutoff = TRUE,
+                cutoff_prob = 0.95, legendloc="topleft",verbose = FALSE)
+      if(!is.null(Baseval))abline(v = Baseval, lty=2,col='orange',lwd=2)
+      legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
+      dev.off()
+    }
   }
-    #Survey
-  if(cpue.series>0)
-  {
-    tiff(file.path(dirname.diagnostics,paste0("profile_plot_",Par_var,"_Survey_like.tiff")),
-         width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
-    par(mar=c(5,4,1,1))
-    PinerPlot(prof.summary,
-              profile.string = prof_string,
-              component = "Surv_like",
-              main = "Changes in Index likelihoods by fleet",
-              add_cutoff = TRUE,
-              cutoff_prob = 0.95, legendloc="topleft",verbose = FALSE)
-    if(!is.null(Baseval))abline(v = Baseval, lty=2,col='orange',lwd=2)
-    legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
-    dev.off()
-  }
+
   
-  #remove prof likelihood files
+  #Remove prof likelihood files
   if(flush.files) 
   {
     dropfiles=list.files(dirname.Par_var.profile)
@@ -2358,6 +2582,240 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_
     for(f in 1:length(dropfiles)) unlink(paste(dirname.Par_var.profile, dropfiles[f], sep="/"), recursive = TRUE, force = TRUE) 
   }
   
+}
+SSplotProfile1=function (summaryoutput, plot = TRUE, print = FALSE, models = "all", 
+                         profile.string = "steep", profile.label = NULL, Xvec=NULL, exact = FALSE, 
+                         ylab = "Change in -log-likelihood", components = c("TOTAL", 
+                                                                            "Catch", "Equil_catch", "Survey", "Discard", "Mean_body_wt", 
+                                                                            "Length_comp", "Age_comp", "Size_at_age", "SizeFreq", 
+                                                                            "Morphcomp", "Tag_comp", "Tag_negbin", "Recruitment", 
+                                                                            "InitEQ_Regime", "Forecast_Recruitment", "Parm_priors", 
+                                                                            "Parm_softbounds", "Parm_devs", "F_Ballpark", "Crash_Pen"), 
+                         component.labels = c("Total", "Catch", "Equilibrium catch", 
+                                              "Index data", "Discard", "Mean body weight", "Length data", 
+                                              "Age data", "Size-at-age data", "Generalized size data", 
+                                              "Morph composition data", "Tag recapture distribution", 
+                                              "Tag recapture total", "Recruitment", "Initital equilibrium recruitment", 
+                                              "Forecast recruitment", "Priors", "Soft bounds", "Parameter deviations", 
+                                              "F Ballpark", "Crash penalty"), minfraction = 0.01, sort.by.max.change = TRUE, 
+                         col = "default", pch = "default", lty = 1, lty.total = 1, 
+                         lwd = 2, lwd.total = 3, cex = 1, cex.total = 1.5, xlim = "default", 
+                         ymax = "default", xaxs = "r", yaxs = "r", type = "o", legend = TRUE, 
+                         legendloc = "topright", pwidth = 6.5, pheight = 5, punits = "in", 
+                         res = 300, ptsize = 10, cex.main = 1, plotdir = NULL, add_cutoff = FALSE, 
+                         cutoff_prob = 0.95, add_no_prior_line = TRUE, verbose = TRUE, 
+                         ...) 
+{
+  if (print) {
+    if (is.null(plotdir)) {
+      stop("to print PNG files, you must supply a directory as 'plotdir'")
+    }
+    if (!file.exists(plotdir)) {
+      if (verbose) {
+        message("creating directory:", plotdir)
+      }
+      dir.create(plotdir, recursive = TRUE)
+    }
+  }
+  if (length(components) != length(component.labels))
+  {
+    stop("Inputs 'components' and 'component.labels' should have equal length")
+  }
+  n <- summaryoutput[["n"]]
+  likelihoods <- summaryoutput[["likelihoods"]]
+  if (is.null(likelihoods)) {
+    stop("Input 'summaryoutput' needs to be a list output from SSsummarize\n", 
+         "and have an element named 'likelihoods'.")
+  }
+  pars <- summaryoutput[["pars"]]
+  par_prior_likes <- summaryoutput[["par_prior_likes"]]
+  if (models[1] == "all")
+  {
+    models <- 1:n
+  }else
+  {
+    if (!all(models %in% 1:n)) {
+      stop("Input 'models' should be a vector of values from 1 to n=", 
+           n, " (for your inputs).\n")
+    }
+  }
+  if (exact)
+  {
+    parnumber <- match(profile.string, pars[["Label"]])
+  }else {
+    parnumber <- grep(profile.string, pars[["Label"]])
+  }
+  if (length(parnumber) <= 0) {
+    stop("No parameters matching profile.string='", profile.string, 
+         "'", sep = "")
+  }
+  parlabel <- pars[["Label"]][parnumber]
+  if (length(parlabel) > 1) {
+    stop("Multiple parameters matching profile.string='", 
+         profile.string, "':\n", paste(parlabel, collapse = ", "), 
+         "\nYou may need to use 'exact=TRUE'.", sep = "")
+  }
+  parvec <- as.numeric(pars[pars[["Label"]] == parlabel, models])
+  names(parvec)=paste0('replist',1:length(parvec))
+  if (verbose) {
+    message("Parameter matching profile.string=", profile.string, 
+            ": ", parlabel)
+    message("Parameter values (after subsetting based on input 'models'): ", 
+            paste0(parvec, collapse = ", "))
+  }
+  par_prior_like_vec <- as.numeric(par_prior_likes[par_prior_likes[["Label"]] == 
+                                                     parlabel, models])
+  if (all(is.na(par_prior_like_vec))) {
+    add_no_prior_line <- FALSE
+  }
+  par_prior_like_vec[is.na(par_prior_like_vec)] <- 0
+  if (all(par_prior_like_vec == 0)) {
+    add_no_prior_line <- FALSE
+  }
+  if (verbose & add_no_prior_line) {
+    message("Parameter prior likelihoods: ", paste0(par_prior_like_vec, 
+                                                    collapse = ", "))
+  }
+  if (xlim[1] == "default") 
+    xlim <- range(parvec)
+  prof.table <- data.frame(t(likelihoods[likelihoods[["Label"]] %in% 
+                                           components, models]))
+  names(prof.table) <- likelihoods[likelihoods[["Label"]] %in% 
+                                     components, ncol(likelihoods)]
+  component.labels.good <- rep("", ncol(prof.table))
+  for (icol in 1:ncol(prof.table)) {
+    ilabel <- which(components == names(prof.table)[icol])
+    component.labels.good[icol] <- component.labels[ilabel]
+  }
+  TOTAL_no_prior <- prof.table[["TOTAL"]] - par_prior_like_vec
+  subset <- parvec >= xlim[1] & parvec <= xlim[2]
+  for (icol in 1:ncol(prof.table))
+  {
+    prof.table[, icol] <- prof.table[, icol] - min(prof.table[subset,icol])
+  }
+  TOTAL_no_prior <- TOTAL_no_prior - min(TOTAL_no_prior)
+  if (ymax == "default") {
+    ymax <- 1.1 * max(prof.table[subset, ])
+  }
+  ylim <- c(0, ymax)
+  column.max <- apply(prof.table[subset, ], 2, max)
+  change.fraction <- column.max/column.max[1]
+  include <- change.fraction >= minfraction
+  nlines <- sum(include)
+  if (verbose) {
+    message("Likelihood components showing max change as fraction of total change.\n", 
+            "To change which components are included, change input 'minfraction'.\n")
+    print(data.frame(frac_change = round(change.fraction, 
+                                         4), include = include, label = component.labels.good))
+  }
+  if (nlines == 0) {
+    stop("No components included, 'minfraction' should be smaller.")
+  }
+  component.labels.used <- component.labels.good[include]
+  prof.table <- prof.table[order(parvec), include]
+  TOTAL_no_prior <- TOTAL_no_prior[order(parvec)]
+  parvec <- parvec[order(parvec)]
+  change.fraction <- change.fraction[include]
+  if (nlines > 1) {
+    if (sort.by.max.change) {
+      neworder <- c(1, 1 + order(change.fraction[-1], decreasing = TRUE))
+      prof.table <- prof.table[, neworder]
+      component.labels.used <- component.labels.used[neworder]
+    }
+  }
+  prof.table <- data.frame(prof.table, TOTAL_no_prior)
+  if (add_no_prior_line) {
+    component.labels.used <- c(component.labels.used, "Total without prior")
+  }
+  if (col[1] == "default") {
+    col <- rich.colors.short(nlines)
+  }
+  if (pch[1] == "default") {
+    pch <- 1:nlines
+  }
+  if (add_no_prior_line) {
+    col <- c(col, col[1])
+    pch <- c(pch, NA)
+  }
+  lwd <- c(lwd.total, rep(lwd, nlines - 1), switch(add_no_prior_line + 
+                                                     1, NULL, lwd))
+  cex <- c(cex.total, rep(cex, nlines - 1), switch(add_no_prior_line + 
+                                                     1, NULL, cex.total))
+  lty <- c(lty.total, rep(lty, nlines - 1), switch(add_no_prior_line + 
+                                                     1, NULL, 2))
+  if (is.null(profile.label)) {
+    if (grepl("steep", parlabel)) {
+      profile.label <- "Spawner-recruit steepness (h)"
+    }
+    if (grepl("R0", parlabel)) {
+      profile.label <- paste0("Log of unfished equilibrium recruitment, ", 
+                              expression(log(R[0])))
+    }
+    if (grepl("NatM", parlabel) && grepl("Fem", parlabel)) {
+      profile.label <- "Female natural mortality (M)"
+    }
+    if (grepl("NatM", parlabel) && grepl("Mal", parlabel)) {
+      profile.label <- "Male natural mortality (M)"
+    }
+    if (grepl("LnQ", parlabel)) {
+      profile.label <- paste0("Log of catchability, ", 
+                              expression(log(q)))
+    }
+    if (grepl("sigmaR", parlabel)) {
+      profile.label <- "SigmaR"
+    }
+    if (grepl("L_at_Amax", parlabel) && grepl("Fem", parlabel)) {
+      profile.label <- "Female length at Amax"
+    }
+    if (grepl("L_at_Amax", parlabel) && grepl("Mal", parlabel)) {
+      profile.label <- "Male length at Amax"
+    }
+    if (is.null(profile.label)) {
+      profile.label <- parlabel
+      message("The input profile.label = NULL and the parameter label doesn't ", 
+              "correspond to an automatically generated label. ", 
+              "Setting profile.label equal to the parameter label.")
+    }
+  }
+  if(!is.null(Xvec))
+  {
+    Xvec=Xvec[match(names(Xvec),names(parvec))]
+    xlim=range(Xvec)
+  }
+  if(is.null(Xvec)) Xvec=parvec
+  plotprofile <- function() {
+    plot(0, type = "n", xlim = xlim, ylim = ylim, xlab = profile.label, 
+         ylab = ylab, yaxs = yaxs, xaxs = xaxs, ...)
+    abline(h = 0, col = "grey")
+    if (add_cutoff) {
+      abline(h = 0.5 * qchisq(p = cutoff_prob, df = 1), 
+             lty = 2)
+    }
+    matplot(x = Xvec, y = prof.table, type = type, pch = pch, 
+            col = col, cex = cex, lty = lty, lwd = lwd, add = T)
+    if (legend) {
+      legend(legendloc, bty = "n", legend = component.labels.used, 
+             lwd = lwd, pt.cex = cex, lty = lty, pch = pch, 
+             col = col)
+    }
+    box()
+  }
+  if (plot) 
+  {
+    plotprofile()
+  }
+  
+  if (print)
+  {
+    save_png(plotinfo = NULL, file = "profile_plot_likelihood.png", 
+             plotdir = plotdir, pwidth = pwidth, pheight = pheight, 
+             punits = punits, res = res, ptsize = ptsize)
+    plotprofile()
+    dev.off()
+  }
+  out <- data.frame(parvec = parvec, prof.table)
+  names(out)[1] <- parlabel
+  return(invisible(out))
 }
 function.goodness.fit_SS=function(Rep)
 {

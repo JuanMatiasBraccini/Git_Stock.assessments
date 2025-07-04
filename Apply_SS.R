@@ -2194,8 +2194,7 @@ if(do.SS3.diagnostics)
                       run.in.parallel=TRUE,
                       flush.files=FALSE,
                       COVAR=TRUE,
-                      h.input=Input.h,
-                      M.input=Input.M)
+                      h.input=Input.h)
       rm(MLE,this.wd1,R0.range,Estim.LnRo)
     }
     setTxtProgressBar(pb, l)
