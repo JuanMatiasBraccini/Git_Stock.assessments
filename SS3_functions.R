@@ -1894,7 +1894,7 @@ fn.compare.prior.post=function(d,Par,prior_type)
 }
 
 #Fit diagnostic functions ------------------------------------------------------
-#note: this follows Carvalho et al 2021
+#note: this analysis follows Carvalho et al 2021
 fn.like.range=function(Par.mle,min.par,Par.SE,up,low,ln.out,seq.approach='SE')
 {
   if(length(Par.mle)==1)
@@ -1932,7 +1932,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
                          exe_path,start.retro=0,end.retro=5,
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=TRUE,
-                         COVAR=FALSE,h.input=NULL)
+                         COVAR=FALSE,h.input=NULL,drop_LP_CurSB=TRUE)
 {
   Report=SS_output(dir=WD,covar=COVAR,verbose=FALSE,printstats=FALSE)
   
@@ -1990,7 +1990,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
   
   #2. Model consistency  
     #2.1. Likelihood profile on selected parameters or quantities
-  if(do.like.prof) # 60 secs per iteration per parameter is in parallel and with hessian; 
+  if(do.like.prof) # 30 secs per species-parameter-iteration if in parallel and with hessian; 
   {
     Par_var_profile=c("R0","h","M","Depl","CurSB")
     Par_var.vec_profile=list(R0.vec,
@@ -2006,11 +2006,23 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
     Par_prof_string=list("R0",'steep',"M","Depl","CurSB")
     Par_prof_label=list(expression(log(italic(R)[0])),'h',expression(italic(M)[a]),"Current depletion","Current SB")
     names(Par_var.vec_profile)=names(Par_var_string_profile)=names(Par_prof_string)=names(Par_prof_label)=Par_var_profile
+    
+    if(drop_LP_CurSB)
+    {
+      drop.this=match("CurSB",Par_var_profile)
+      Par_var_profile=Par_var_profile[-drop.this]
+      Par_var.vec_profile=Par_var.vec_profile[-drop.this]
+      Par_var_string_profile=Par_var_string_profile[-drop.this]
+      Par_prof_string=Par_prof_string[-drop.this]
+      Par_prof_label=Par_prof_label[-drop.this]
+    }
     for(pp in 1:length(Par_var_profile))
     {
       baseval=NULL
       if(Par_var_profile[pp]%in%c("R0")) baseval <- round(Report$parameters$Value[grep(Par_var_profile[pp],Report$parameters$Label)],2)
-      if(Par_var_profile[pp]=="h") baseval <- round(h.input,2)   
+      if(Par_var_profile[pp]=="h") baseval <- round(h.input,2) 
+      if(Par_var_profile[pp]=="M") baseval <- Report$Natural_Mortality[1,match(0,names(Report$Natural_Mortality))]
+      if(Par_var_profile[pp]=="Depl") baseval<- Report$derived_quants[paste0("Bratio_",Report$endyr),'Value']
       fn.profile.wrapper(Par_var=Par_var_profile[pp],
                          Par_var.vec=Par_var.vec_profile[[pp]],
                          Par_var_string=Par_var_string_profile[[pp]],
@@ -2020,8 +2032,27 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
                          dirname.diagnostics=dirname.diagnostics,
                          length.series=length.series,
                          cpue.series=cpue.series,
-                         arg='')
+                         arg=diag.extras)
     }
+    
+    #display M.vec
+    pi=M.vec%>%
+      data.frame()%>%
+      mutate(Profile=as.character(1:nrow(M.vec)))%>%
+      gather(Age,M,-Profile)%>%
+      mutate(Age=as.numeric(substr(Age,5,7)))
+    pi=rbind(pi,
+             Report$Natural_Mortality[1,match(unique(pi$Age),names(Report$Natural_Mortality))]%>%
+               mutate(Profile='Base value')%>%
+               gather(Age,M,-Profile)%>%
+               mutate(Age=as.numeric(Age)))
+    pi%>%
+      ggplot(aes(Age,M,color=Profile))+
+      geom_line()+
+      geom_point(size=2.5)+
+      theme_PA()+theme(legend.position = 'top')
+    ggsave(file.path(dirname.diagnostics,"profile_M_vec.tiff"),width = 8,height = 8,compression = "lzw")
+    
   }
   
     #2.2. Retrospective analysis and Predicting skills
@@ -2111,7 +2142,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
     if(flush.files)
     {
       dropfiles=list.files(dirname.Retrospective)
-      dropfiles=subset(dropfiles,!dropfiles%in%c('Plots','retrospectives'))
+      dropfiles=subset(dropfiles,!dropfiles%in%c('Plots'))
       if(length(dropfiles)>0)for(f in 1:length(dropfiles)) unlink(paste(dirname.Retrospective, dropfiles[f], sep="/"), recursive = TRUE, force = TRUE) 
     }
    }
@@ -2135,9 +2166,10 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
     jit.likes <- r4ss::jitter(dir = dirname.Jitter,
                               Njitter = numjitter,
                               jitter_fraction =0.1 ,  #0.05
+                              init_values_src = 0,
                               exe=exe_path,
                               verbose = FALSE,
-                              extras=diag.extras) # 5 times faster with "-nohess" but not uncertainty
+                              extras=diag.extras) # 5 times faster with "-nohess" but no uncertainty estim
     future::plan(future::sequential)
     
     #Read in results using other r4ss functions
@@ -2147,7 +2179,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
     profilesummary <- SSsummarize(profilemodels,verbose = FALSE)
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
     Params=profilesummary[["pars"]]
-    
+    Base.model.like=Report[["likelihoods_used"]][match("TOTAL",rownames(Report[["likelihoods_used"]])),'values']
     #Plot
     if(!'replist0'%in%names(profilesummary[["SpawnBioLower"]])) profilesummary[["SpawnBioLower"]]$replist0=profilesummary[["SpawnBioLower"]]$replist1
     if(!'replist0'%in%names(profilesummary[["SpawnBioUpper"]])) profilesummary[["SpawnBioUpper"]]$replist0=profilesummary[["SpawnBioUpper"]]$replist1
@@ -2162,10 +2194,13 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
             col='grey60')
     CL=rainbow(length(dis.cols))
     for(x in dis.cols)lines(profilesummary[["SpawnBio"]]$Yr,profilesummary[["SpawnBio"]][,x],col=CL[x])
+    
+    YLIM=c(min(Total.likelihoods)*.9,min(Total.likelihoods)*1.1)
     First.jit=-1
     plot(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],
-         xlab='Jitter runs at a converged solution',ylab='Total likelihood')
-    abline(h=Total.likelihoods[1],lty=2,col=2)
+         xlab='Jitter runs at a converged solution',ylab='Total likelihood',ylim=YLIM)
+    abline(h=Base.model.like,lty=2,col=2)
+    Report[["likelihoods_used"]]
     points(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],cex=2,pch=19)
     dev.off()
     
@@ -2326,18 +2361,18 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_
         dat_temp$len_info <- rbind(dat_temp$len_info, new_comp_info_row)
         dat_temp$age_info <- rbind(dat_temp$age_info, new_comp_info_row)
         
-        # Add the actual index data lines, using the value from the profile vector `vec`
+        # Add the actual index data lines, using the value from the profile vector `vec` #ACA
         if (Par_var %in% c("Depl"))
         {
           new_indices <- data.frame(
             year = c(dat_temp$styr - 1, dat_temp$endyr), month = 1,
-            index = new_fleet_num, obs = c(1.0, vec[i]), se_log = 0.0001)
+            index = new_fleet_num, obs = c(1.0, Par_var.vec[n]), se_log = 0.0001)
         }
         if (Par_var %in% c("CurSB"))
         {
           new_indices <- data.frame(
             year = dat_temp$endyr, month = 1,
-            index = new_fleet_num, obs = vec[i], se_log = 0.0001)
+            index = new_fleet_num, obs = Par_var.vec[n], se_log = 0.0001)
         }
         dat_temp$CPUE <- rbind(dat_temp$CPUE, new_indices)
         SS_writedat(dat_temp, file.path(run_dir, "data.dat"), overwrite = TRUE, verbose = FALSE)

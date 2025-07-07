@@ -1009,81 +1009,85 @@ for(w in 1:n.SS)
       Age.based[[w]]$quantities=fn.get.and.name(LISTA=out.species,x='dummy.store.quantities')
       
       #plot overall figure with estimates and scenarios
-      for(i in 1:N.sp)
+      if(do.all.sensitivity.tests)
       {
-        print(paste("SS3 rel biom figure and estimates ____",Keep.species[i]))
-        this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated",sep='')
-        if(!is.null(Age.based[[w]]$rel.biom[[i]]))
+        for(i in 1:N.sp)
         {
-          yrS=Age.based[[w]]$rel.biom[[i]]%>%filter(Scenario=='S1')%>%pull(year)
-          if(length(yrS)<50) delta=10 else
-            delta=5
-          xmin=min(yrS)+delta
-          xmax=max(yrS)-delta
-          TAB=Age.based[[w]]$estimates[[i]]%>%
-                          filter(Par=='SR_LN(R0)')%>%
-                          dplyr::select(Par,Value,Init,Parm_StDev,Status,Gradient)%>%
-                          `rownames<-`( NULL )
-          TAB.scen=Age.based[[w]]$sens.table[[i]]
-          this.col=rep('no',ncol(TAB.scen))
-          for(u in 1:ncol(TAB.scen)) if(length(unique(TAB.scen[,u]))>1) this.col[u]='Yes'
-          TAB.scen=TAB.scen[,which(this.col=='Yes')]
-          Tab.combined=cbind(TAB.scen,TAB)
-          Fnt.size=10
-          yMIN=0; yMAX=0.3
-          if(ncol(Tab.combined)>10) Fnt.size=6
-          if(nrow(Tab.combined)>6)
+          print(paste("SS3 rel biom figure and estimates ____",Keep.species[i]))
+          this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated",sep='')
+          if(!is.null(Age.based[[w]]$rel.biom[[i]]))
           {
-            yMIN=0.1; yMAX=0.4
+            yrS=Age.based[[w]]$rel.biom[[i]]%>%filter(Scenario=='S1')%>%pull(year)
+            if(length(yrS)<50) delta=10 else
+              delta=5
+            xmin=min(yrS)+delta
+            xmax=max(yrS)-delta
+            TAB=Age.based[[w]]$estimates[[i]]%>%
+              filter(Par=='SR_LN(R0)')%>%
+              dplyr::select(Par,Value,Init,Parm_StDev,Status,Gradient)%>%
+              `rownames<-`( NULL )
+            TAB.scen=Age.based[[w]]$sens.table[[i]]
+            this.col=rep('no',ncol(TAB.scen))
+            for(u in 1:ncol(TAB.scen)) if(length(unique(TAB.scen[,u]))>1) this.col[u]='Yes'
+            TAB.scen=TAB.scen[,which(this.col=='Yes')]
+            Tab.combined=cbind(TAB.scen,TAB)
+            Fnt.size=10
+            yMIN=0; yMAX=0.3
+            if(ncol(Tab.combined)>10) Fnt.size=6
+            if(nrow(Tab.combined)>6)
+            {
+              yMIN=0.1; yMAX=0.4
+            }
+            Levls=(unique(Age.based[[w]]$rel.biom[[i]]$Scenario))
+            cols=colfunc1(length(Levls))
+            names(cols)=Levls
+            p=Age.based[[w]]$rel.biom[[i]]%>% 
+              mutate(Scenario=factor(Scenario,levels=Levls))%>%
+              ggplot(aes(year,median,color=Scenario))+
+              annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
+                                xmin=xmin, xmax=xmax, ymin=yMIN, ymax=yMAX)+
+              geom_line(linewidth=2,alpha=0.6)+
+              geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
+              geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
+              ggtitle(Keep.species[i])+ylim(0,1)+
+              theme_PA(leg.siz=9)+
+              theme(legend.position = 'bottom',
+                    legend.title = element_blank())+
+              ylab('Relative biomass')+xlab('Year')+
+              guides(colour = guide_legend(nrow = 1))+
+              scale_color_manual(values = cols)
+            print(p)
+            ggsave(paste(this.wd,"/Rel.biomass&estimates.tiff",sep=''),width=10,height=7,compression = "lzw")  
+            
+            if(nrow(Tab.combined)>6)
+            {
+              yMIN=0.2; yMAX=1
+              if(nrow(Tab.combined)>10) yMAX=2
+            }
+            p=Age.based[[w]]$B.Bmsy[[i]]%>%
+              mutate(Scenario=factor(Scenario,levels=Levls))%>%
+              ggplot(aes(year,median,color=Scenario))+
+              annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
+                                xmin=xmin+2, xmax=xmax, ymin=yMIN, ymax=yMAX)+
+              geom_line(linewidth=2,alpha=0.6)+
+              geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
+              geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
+              ggtitle(Keep.species[i])+ylim(0,NA)+
+              theme_PA(leg.siz=9)+
+              theme(legend.position = 'bottom',
+                    legend.title = element_blank())+
+              ylab('B/Bmsy')+xlab('Year')+
+              guides(colour = guide_legend(nrow = 1))+
+              scale_color_manual(values = cols)
+            print(p)
+            ggsave(paste(this.wd,"/B.over.BMSY&estimates.tiff",sep=''),width=10,height=7,compression = "lzw")  
+            
+            rm(TAB)
+            
           }
-          Levls=(unique(Age.based[[w]]$rel.biom[[i]]$Scenario))
-          cols=colfunc1(length(Levls))
-          names(cols)=Levls
-          p=Age.based[[w]]$rel.biom[[i]]%>% 
-            mutate(Scenario=factor(Scenario,levels=Levls))%>%
-            ggplot(aes(year,median,color=Scenario))+
-            annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
-                              xmin=xmin, xmax=xmax, ymin=yMIN, ymax=yMAX)+
-            geom_line(linewidth=2,alpha=0.6)+
-            geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
-            geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
-            ggtitle(Keep.species[i])+ylim(0,1)+
-            theme_PA(leg.siz=9)+
-            theme(legend.position = 'bottom',
-                  legend.title = element_blank())+
-            ylab('Relative biomass')+xlab('Year')+
-            guides(colour = guide_legend(nrow = 1))+
-            scale_color_manual(values = cols)
-          print(p)
-          ggsave(paste(this.wd,"/Rel.biomass&estimates.tiff",sep=''),width=10,height=7,compression = "lzw")  
-          
-          if(nrow(Tab.combined)>6)
-          {
-            yMIN=0.2; yMAX=1
-            if(nrow(Tab.combined)>10) yMAX=2
-          }
-          p=Age.based[[w]]$B.Bmsy[[i]]%>%
-            mutate(Scenario=factor(Scenario,levels=Levls))%>%
-            ggplot(aes(year,median,color=Scenario))+
-            annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
-                              xmin=xmin+2, xmax=xmax, ymin=yMIN, ymax=yMAX)+
-            geom_line(linewidth=2,alpha=0.6)+
-            geom_line(aes(year,upper.95),linetype=2,alpha=0.6)+
-            geom_line(aes(year,lower.95),linetype=2,alpha=0.6)+
-            ggtitle(Keep.species[i])+ylim(0,NA)+
-            theme_PA(leg.siz=9)+
-            theme(legend.position = 'bottom',
-                  legend.title = element_blank())+
-           ylab('B/Bmsy')+xlab('Year')+
-            guides(colour = guide_legend(nrow = 1))+
-            scale_color_manual(values = cols)
-          print(p)
-          ggsave(paste(this.wd,"/B.over.BMSY&estimates.tiff",sep=''),width=10,height=7,compression = "lzw")  
-          
-          rm(TAB)
-          
         }
-       }
+      }
+
 
       rm(out.species)
       
@@ -2159,18 +2163,18 @@ if(do.SS3.diagnostics)
                             seq.approach='SE')
   
         #Current depletion
-      Depl.range=fn.like.range(Par.mle=derived_quants[paste0("Bratio_",replist$endyr),2],
+      Depl.range=fn.like.range(Par.mle=derived_quants[paste0("Bratio_",replist$endyr),'Value'],
                                min.par=0.1,
-                               Par.SE=derived_quants[paste0("Bratio_",replist$endyr),3],
+                               Par.SE=derived_quants[paste0("Bratio_",replist$endyr),'StdDev'],
                                up=0.4,
                                low=0.4,
                                ln.out=Number.of.likelihood.profiles,
                                seq.approach='SE')
         
         #Current spawning biomass
-      CurSB.range=fn.like.range(Par.mle=derived_quants[paste0("SSB_",replist$endyr),2],
+      CurSB.range=fn.like.range(Par.mle=derived_quants[paste0("SSB_",replist$endyr),'Value'],
                                 min.par=0.1,
-                                Par.SE=derived_quants[paste0("SSB_",replist$endyr),3],
+                                Par.SE=derived_quants[paste0("SSB_",replist$endyr),'StdDev'],
                                 up=0.4,
                                 low=0.4,
                                 ln.out=Number.of.likelihood.profiles,
@@ -2192,7 +2196,7 @@ if(do.SS3.diagnostics)
                       numjitter=Number.of.jitters,
                       outLength.Cross.Val=FALSE,
                       run.in.parallel=TRUE,
-                      flush.files=FALSE,
+                      flush.files=TRUE,
                       COVAR=TRUE,
                       h.input=Input.h)
       rm(MLE,this.wd1,R0.range,Estim.LnRo)

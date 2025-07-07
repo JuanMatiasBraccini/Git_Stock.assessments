@@ -511,7 +511,7 @@ Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.
 Approach.like.prof='SE' #set to 'min.plus' for sequence between [MLE -Number.of.likelihood.profiles] and [MLE +Number.of.likelihood.profiles]
 Number.of.likelihood.profiles.h=6
-diag.extras="-nohess"  #set to "" for hessian estimation (much slower)
+diag.extras=""  #set to '"-nohess" to remove hessian estimation (much faster but no uncertainty)
 #like.prof.case='faster'  #faster run, no hessian estimation
 #like.prof.case='standard'  #as per r4ss (not estimating Hessian by setting extras)
 
