@@ -25,8 +25,8 @@ for(w in 1:n.SS)
         {
           this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
           if(!dir.exists(this.wd))dir.create(this.wd)
-          
           Life.history=List.sp[[i]]
+          
           
           #1. Catch
           ktch=KtCh%>%
@@ -444,7 +444,8 @@ for(w in 1:n.SS)
             }
            }
           
-          #Add size comp effective sample size bias adjustment    
+          
+          #5. Add size comp effective sample size bias adjustment    
           #note: a Value of 0 means no effect
           if(!is.null(Var.ad.factr))
           {
@@ -458,7 +459,7 @@ for(w in 1:n.SS)
           }
           
           
-          #5. F from tagging studies on TDGDLF (1994-95 and 2001-03)
+          #6. F from tagging studies on TDGDLF (1994-95 and 2001-03)
           F.SS.format=NULL  
           if(any(grepl('Fishing.mortality.TDGDLF',names(Species.data[[i]]))) & length(CPUE)>0)
           {
@@ -478,7 +479,7 @@ for(w in 1:n.SS)
           }
           
           
-          #6. Conditional age at length
+          #7. Conditional age at length
           Cond.age.len.SS.format=NULL
           if(do.Cond.age.len.SS.format)
           {
@@ -524,7 +525,7 @@ for(w in 1:n.SS)
           }
           
           
-          #7. MeanSize at Age obs
+          #8. MeanSize at Age obs
           MeanSize.at.Age.obs.SS.format=NULL
           if(any(grepl('age_length',names(Species.data[[i]]))) & names(Species.data)[i]%in%Mean.Size.at.age.species)
           {
@@ -578,7 +579,7 @@ for(w in 1:n.SS)
           }
           
           
-          #8. Fleet info
+          #9. Fleet info
           flitinfo=data.frame(fleet=Flits)%>%
             mutate(type=1,
                    surveytiming=-1,
@@ -592,7 +593,7 @@ for(w in 1:n.SS)
           rownames(flitinfo)=NULL
           
           
-          #9. Run scenarios if available abundance index or size comps
+          #10. Run scenarios if available abundance index or size comps
           len.cpue=length(CPUE)
           len.size.comp=length(Size.compo.SS.format) 
           if(len.cpue>0|len.size.comp>0)
@@ -657,10 +658,10 @@ for(w in 1:n.SS)
               Lamdas.SS.lambdas$fleet=match(Lamdas.SS.lambdas$fleet,flitinfo$fleetname)
             }
             
-            #rename fleets following SS nomenclature
+            #Rename fleets following SS nomenclature
             names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))
             
-            #future catches/F
+            #Future catches/F
             if("SS"%in%future.models)
             {
               NN=nrow(ktch)
@@ -679,7 +680,6 @@ for(w in 1:n.SS)
               } 
             }
 
-            
             #Execute SS
             for(s in 1:length(Store.sens))
             {
@@ -854,7 +854,7 @@ for(w in 1:n.SS)
               #e. Store trajectories
               #note: uncertainty is based on asymptotic error
               
-                #e.1 relative biomass
+                #e.1 relative biomass  #ACA
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                      mods="SS3",
                                                      Type='Depletion',
@@ -1088,9 +1088,7 @@ for(w in 1:n.SS)
         }
       }
 
-
       rm(out.species)
-      
     }
     
     if(!do.parallel.SS)
@@ -2621,6 +2619,7 @@ for(i in 1:N.sp)
       write.csv(a$store.probs%>%
                   spread(Model,Probability)%>%
                   mutate(Species=Keep.species[i],
+                         Scenario=factor(Scenario,levels=unique(a$store.probs$Scenario)),
                          Range=factor(Range,levels=c("<lim","lim.thr","thr.tar",">tar")))%>%
                   arrange(Scenario,Range),
                 paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/SS3_integrated_current_depletion_probabilities.csv",sep=''),

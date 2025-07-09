@@ -4039,7 +4039,7 @@ fn.integrated.mod.get.timeseries=function(d,mods,Type,add.50=FALSE,scen,Nsims=1e
     if(Type=='Depletion')
     {
       Quant="Bratio"
-      thrshol=dum[grep('B_MSY/SSB_unfished',dum$Label),'Value']
+      thrshol=max(Biomass.threshold.min,dum[grep('B_MSY/SSB_unfished',dum$Label),'Value'])
     }
     if(Type=='F.series')
     {
@@ -5681,7 +5681,10 @@ fn.get.Kobe.plot_SAFS=function(this.sp,d,NKOL,NRW,RF=Ref.points,Scen='S1')
 fn.get.f.ref.points=function(Report,propTar=Tar.prop.bmsny,propLim=Lim.prop.bmsy)
 {
   SSB_MSY=Report$derived_quants%>%filter(Label=='SSB_MSY')%>%pull(Value)
-  
+  if(Biomass.threshold.min>Report$derived_quants%>%filter(Label=='B_MSY/SSB_unfished')%>%pull(Value))
+  {
+    SSB_MSY=SSB_MSY*Biomass.threshold.min/Report$derived_quants%>%filter(Label=='B_MSY/SSB_unfished')%>%pull(Value)
+  }
   B.threshold=SSB_MSY
   B.target=SSB_MSY*propTar
   B.limit=SSB_MSY*propLim

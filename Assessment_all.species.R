@@ -280,7 +280,9 @@ do.random.h=TRUE  #take a random sample of h and M for SS or use empirical distr
 
 #17. Reference points
 #note: Historically, there was a single unspecified reference point (40% unexploited biomass)
+#      Currently, 0.4 is used as threshold, not BMSY
 Biomass.threshold='Bmsy'  #MSC sets threshold to Bmsy and limit to 0.5 Bmsy (Clinton Syers)
+Biomass.threshold.min=0.4  #Andre advices against using BMSY estimates from integrated models and uses 0.4 as proxy
 Tar.prop.bmsny=1.2    # Target and Limit proportions of 'Biomass.threshold' 
 Lim.prop.bmsy=0.5    #    source: Haddon et al 2014. 'Technical Reviews of Formal Harvest Strategies'.
 #Fmsy.emp=function(M) 0.41*M     #Zhou et al 2012 but see Cortes & Brooks 2018
