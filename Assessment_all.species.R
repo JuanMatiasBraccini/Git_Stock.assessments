@@ -156,7 +156,7 @@ Do.sim.Test="NO" #do simulation testing bespoke size-based model
 do.Andre.model=FALSE
 
   #2.6 Outputs
-do.F.series=TRUE   #output Fishing mortality time series
+do.F.series=FALSE   #output Fishing mortality time series
 do.B.over.Bmsy.series=TRUE
 do.F.over.Fmsy.series=TRUE
 
@@ -1341,7 +1341,14 @@ for(s in 1:N.sp)
   if(length(iid)>0) Species.data[[s]]=Species.data[[s]][-iid]
 }
 
-  #6.10 Look at growth Cvs
+  #6.10 Remove F series from TDGDLF due to structural uncertainty (different growth and M estimation) and sample size
+for(s in 1:N.sp)
+{
+  iid=grep('Fishing.mortality.TDGDLF',names(Species.data[[s]]))
+  if(length(iid)>0) Species.data[[s]]=Species.data[[s]][-iid]
+}
+
+  #6.11 Look at growth Cvs
 Growth.CVs=vector('list',N.sp)
 names(Growth.CVs)=Keep.species
 for(i in 1:N.sp)

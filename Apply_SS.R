@@ -2177,16 +2177,18 @@ if(do.SS3.diagnostics)
                                 low=0.4,
                                 ln.out=Number.of.likelihood.profiles,
                                 seq.approach='SE')
-
-      fn.fit.diag_SS3(WD=this.wd1,
+      WD=this.wd1
+      disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso")
+      exe_path=handl_OneDrive('SS3/ss_win.exe')
+      fn.fit.diag_SS3(WD=WD,
                       do.like.prof=TRUE,
-                      disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
+                      disfiles=disfiles,
                       R0.vec=R0.range,
                       h.vec=h.range,
                       M.vec=M.range,
                       depl.vec=Depl.range,
                       curSB.vec=CurSB.range,
-                      exe_path=handl_OneDrive('SS3/ss_win.exe'),
+                      exe_path=exe_path,
                       start.retro=Retro_start,
                       end.retro=Retro_end,
                       do.retros=TRUE,
@@ -2197,7 +2199,7 @@ if(do.SS3.diagnostics)
                       flush.files=TRUE,
                       COVAR=TRUE,
                       h.input=Input.h)
-      rm(MLE,this.wd1,R0.range,Estim.LnRo)
+      rm(MLE,this.wd1,WD,R0.range,Estim.LnRo)
     }
     setTxtProgressBar(pb, l)
     cat(paste(" completed --- Species:", Neim))

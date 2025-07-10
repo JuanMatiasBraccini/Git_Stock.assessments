@@ -2212,14 +2212,16 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
 }
 fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_label,
                             Baseval=NULL,dirname.diagnostics,length.series,cpue.series,
-                            arg='',saveoutput=TRUE,overwrite=TRUE,use_par_file=TRUE)
+                            arg='',saveoutput=TRUE,overwrite=TRUE,use_par_file=TRUE,
+                            wd=WD,dfile=disfiles,run.in.parallel=TRUE,flush.files=TRUE,
+                            drop_LP_CurSB=TRUE)
 {
  
   # Step 1. Identify a directory for the profile likelihood model run(s)
   dirname.base <- paste(dirname.diagnostics,paste0("Profile_",Par_var),sep='/')
   
   # Step 2. Identify a directory where the completed base model run is located
-  dirname.completed.model.run<-WD
+  dirname.completed.model.run<-wd
   
   # Step 3. Create a "x_profile" subdirectory and set as the working directory
   dirname.Par_var.profile<- dirname.base
@@ -2237,12 +2239,12 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_
   #if(!dir.exists(reference.dir)) dir.create(path=reference.dir, showWarnings = TRUE, recursive = TRUE)
   #file.copy(from=Sys.glob(paste(dirname.completed.model.run, "*.*", sep="/"), dirmark = FALSE),
   #          to=reference.dir)
-  #for(nn in disfiles){file.copy(paste(dirname.completed.model.run,"/", nn, sep='')  ,     to=reference.dir)}
+  #for(nn in dfile){file.copy(paste(dirname.completed.model.run,"/", nn, sep='')  ,     to=reference.dir)}
   
   
   # Step 6. Copy necessary files from the "Reference_run" subdirectory to the "x_profile" working directory 
-  copylst<-disfiles[-match("Report.sso",disfiles)]
-  for(nn in copylst){file.copy(paste(WD,"/", nn, sep=''),file.path(dirname.Par_var.profile))}
+  copylst<-dfile[-match("Report.sso",dfile)]
+  for(nn in copylst){file.copy(paste(wd,"/", nn, sep=''),file.path(dirname.Par_var.profile))}
   
   # Step 7. Edit "control.ss" in the working directory to estimate at least one parameter in each phase
   # E.g., 
@@ -2323,7 +2325,7 @@ fn.profile.wrapper=function(Par_var,Par_var.vec,Par_var_string,prof_string,prof_
         for(f in 1:length(FILEs)) unlink(paste(run_dir, FILEs[f], sep="/"), recursive = TRUE, force = TRUE) 
       }
       for(nn in copylst){file.copy(paste(file.path(dirname.Par_var.profile),"/", nn, sep=''),run_dir)}
-      if(Par_var%in%c("Depl","CurSB")) file.copy(paste(file.path(WD),"/", "ss.par", sep=''),run_dir)
+      if(Par_var%in%c("Depl","CurSB")) file.copy(paste(file.path(wd),"/", "ss.par", sep=''),run_dir)
       
        
       #Modify value of profiled quantity
