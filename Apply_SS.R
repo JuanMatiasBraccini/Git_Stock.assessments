@@ -854,7 +854,7 @@ for(w in 1:n.SS)
               #e. Store trajectories
               #note: uncertainty is based on asymptotic error
               
-                #e.1 relative biomass  #ACA
+                #e.1 relative biomass  
               dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                      mods="SS3",
                                                      Type='Depletion',
@@ -2112,8 +2112,10 @@ send.email(TO=Send.email.to,
 #notes: 
         # runs test only displays for series with >1 year
         # Hindcasting cross-validation only available for species with abundance series
+        # takes ~30 mins per species (in parallel)
 if(do.SS3.diagnostics)
 {
+  options(warn=-1)
   tic("timer")
   set.seed(1234)
   pb <- txtProgressBar(min = 0,max =N.sp, style = 3,width = 50)
@@ -2121,6 +2123,8 @@ if(do.SS3.diagnostics)
   for(l in 1:N.sp)
   {
     Neim=Keep.species[l]
+    setTxtProgressBar(pb, l)
+    cat(paste(" completed --- Species:", Neim))
     this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
     this.wd1=paste(this.wd,SCEN,sep='/')
     if(file.exists(this.wd1))
@@ -2177,18 +2181,15 @@ if(do.SS3.diagnostics)
                                 low=0.4,
                                 ln.out=Number.of.likelihood.profiles,
                                 seq.approach='SE')
-      WD=this.wd1
-      disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso")
-      exe_path=handl_OneDrive('SS3/ss_win.exe')
-      fn.fit.diag_SS3(WD=WD,
+      fn.fit.diag_SS3(WD=this.wd1,
                       do.like.prof=TRUE,
-                      disfiles=disfiles,
+                      disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
                       R0.vec=R0.range,
                       h.vec=h.range,
                       M.vec=M.range,
                       depl.vec=Depl.range,
                       curSB.vec=CurSB.range,
-                      exe_path=exe_path,
+                      exe_path=handl_OneDrive('SS3/ss_win.exe'),
                       start.retro=Retro_start,
                       end.retro=Retro_end,
                       do.retros=TRUE,
@@ -2199,12 +2200,10 @@ if(do.SS3.diagnostics)
                       flush.files=TRUE,
                       COVAR=TRUE,
                       h.input=Input.h)
-      rm(MLE,this.wd1,WD,R0.range,Estim.LnRo)
+      rm(MLE,this.wd1,R0.range,Estim.LnRo)
     }
-    setTxtProgressBar(pb, l)
-    cat(paste(" completed --- Species:", Neim))
   }
-  
+  close(pb)
   toc(log = TRUE, quiet = TRUE)
   computation.time <- tic.log(format = TRUE)
   tic.clearlog()
@@ -2213,7 +2212,7 @@ if(do.SS3.diagnostics)
              Subject=paste("SS3 model diagnostics finished running at",Sys.time()),
              Body= paste("Computation time was",computation.time),  
              Attachment=NULL)
-  close(pb)
+  options(warn=0)
 }
 
 
