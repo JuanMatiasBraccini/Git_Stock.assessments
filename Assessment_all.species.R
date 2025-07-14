@@ -1091,6 +1091,7 @@ if(do.steepness) fn.source("Steepness.R")
 
 #---6. Import species-specific data -----
 #note: this brings in any available data (cpue, abundance, selectivity, size composition, tagging, etc)
+#      'age_length' cannot be used as conditional age-at-length data because it comes from different gears, fleets, etc
 Species.data=vector('list',length=N.sp)
 names(Species.data)=Keep.species
 for(s in 1:N.sp) 
@@ -1364,6 +1365,25 @@ for(i in 1:N.sp)
     }
     Growth.CVs[[i]]=data.frame(Age=Agess,CV=siVis)
   }
+}
+
+  #6.12 Display annual proportional effort by zone and mesh
+if(First.run=="YES")
+{
+  mesh.prop.effort%>%
+    filter(!Zone=='Combined')%>%
+    gather(Mesh,Prop,-c(finyear,Zone))%>%
+    mutate(Mesh=ifelse(Mesh=='X165','6.5',ifelse(Mesh=='X178','7',NA)),
+           year=as.numeric(substr(finyear,1,4)))%>%
+    ggplot(aes(year,Prop,color=Mesh))+
+    geom_point(size=3)+
+    geom_line(linewidth=1.25)+
+    facet_wrap(~Zone,ncol=1)+
+    theme_PA()+
+    theme(legend.position = 'top')+ylab('Proportion of effort')+xlab('Financial year')
+  ggsave(handl_OneDrive('Analyses/Population dynamics/mesh prop effort.tiff'),
+         width = 6,height = 6, dpi = 300, compression = "lzw")
+  
 }
 
 #---7. Create list of life history parameter inputs -----

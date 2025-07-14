@@ -29,6 +29,7 @@ for(w in 1:n.SS)
           
           
           #1. Catch
+            #1.1. zones together
           ktch=KtCh%>%
             filter(Name==Neim)%>%
             mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
@@ -41,6 +42,50 @@ for(w in 1:n.SS)
             mutate(Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
                                     Fishry=="Southern.shark" & finyear>=2006~'Southern.shark_2',
                                     TRUE~Fishry))
+            #1.2. by zone
+          ktch.zone=KtCh.zone%>%
+            ungroup()%>%
+            filter(Name==Neim)
+          #allocated historic Southern.shark to zones
+          if('Historic'%in%unique(ktch.zone$FishCubeCode))
+          {
+            historic=ktch.zone%>%
+              filter(FishCubeCode=='Historic')%>%
+              dplyr::select(-zone)
+            ktch.zone=ktch.zone%>%filter(!FishCubeCode=='Historic')
+            First.year.k=ktch.zone%>%filter(FishCubeCode%in%c("JASDGDL","WCDGDL"))
+            Dis.Yr=min(First.year.k$finyear)
+            if(Neim=='sandbar shark') Dis.Yr=1985
+            prop.k=First.year.k%>%
+              filter(finyear==Dis.Yr)%>%
+              group_by(zone)%>%
+              summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+              mutate(Prop=LIVEWT.c/sum(LIVEWT.c))%>%
+              dplyr::select(-LIVEWT.c)
+            dum=expand.grid(finyear=historic%>%distinct(finyear)%>%pull(finyear),
+                            zone=unique(prop.k$zone))
+            prop.k=full_join(prop.k,dum,by='zone')%>%arrange(finyear)
+            historic=full_join(historic,prop.k,by='finyear')%>%
+              mutate(LIVEWT.c=LIVEWT.c*Prop)%>%
+              dplyr::select(-Prop)%>%
+              relocate(names(ktch.zone))
+            ktch.zone=rbind(ktch.zone,historic)
+            
+          }
+          ktch.zone=ktch.zone%>%
+            mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
+                                 ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                          'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                                        ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
+                                               'Other'))),
+                   Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
+                                    Fishry=="Southern.shark" & finyear>=2006~'Southern.shark_2',
+                                    TRUE~Fishry),
+                   Fishry=ifelse(grepl('Southern.shark',Fishry),paste(Fishry,zone,sep='_'),Fishry))%>%
+            group_by(SPECIES,Name,finyear,Fishry)%>%
+            summarise(Tonnes=sum(LIVEWT.c,na.rm=T))
+          
+          #1.3 combined catch for displaying only
           Combined.ktch=ktch.combined%>%
                           filter(Name==Neim)%>%
                           rename(Year=finyear,
@@ -50,6 +95,8 @@ for(w in 1:n.SS)
                           arrange(Year)%>%
                           data.frame
           
+            #fleets
+          #zones together
           Flits.name=sort(unique(ktch$Fishry))  
           Flits=1:length(Flits.name)
           names(Flits)=Flits.name
@@ -59,7 +106,6 @@ for(w in 1:n.SS)
           {
             Flits.and.survey=Flits.and.survey%>%filter(!Fleet.name=="Survey")
           }
-            
           if("Survey"%in% names(Catch.rate.series[[i]]) | "Size_composition_Survey"%in%names(Species.data[[i]]))
           {
             Flits=c(Flits,length(Flits)+1)
@@ -68,9 +114,28 @@ for(w in 1:n.SS)
           ktch=ktch%>%
             spread(Fishry,Tonnes,fill=0)
           
+          #by zone
+          Flits.name.zone=sort(unique(ktch.zone$Fishry))  
+          Flits.zone=1:length(Flits.name.zone)
+          names(Flits.zone)=Flits.name.zone
+          Flits.and.survey.zone=data.frame(Fleet.number=c(Flits.zone,1+length(Flits.zone)),
+                                           Fleet.name=c(names(Flits.zone),"Survey"))
+          if(!"Survey"%in% names(Catch.rate.series[[i]]) & !"Size_composition_Survey"%in%names(Species.data[[i]]))
+          {
+            Flits.and.survey.zone=Flits.and.survey.zone%>%filter(!Fleet.name=="Survey")
+          }
+          if("Survey"%in% names(Catch.rate.series[[i]]) | "Size_composition_Survey"%in%names(Species.data[[i]]))
+          {
+            Flits.zone=c(Flits.zone,length(Flits.zone)+1)
+            names(Flits.zone)[length(Flits.zone)]="Survey"
+          }
+          ktch.zone=ktch.zone%>%
+            spread(Fishry,Tonnes,fill=0)
+          
           
           #2. Size composition   
           #note: commercial catch and survey. Nsamp set at number of shots
+            #zones together
           Size.compo.SS.format=NULL
           if(any(grepl('Size_composition',names(Species.data[[i]]))))
           {
@@ -314,7 +379,263 @@ for(w in 1:n.SS)
                 
               }
             }
-
+          }
+            # by zones 
+          Size.compo.SS.format.zone=NULL
+          if(any(grepl('Size_composition',names(Species.data[[i]]))))
+          {
+            d.list.n.shots=Species.data[[i]][grep(paste(c("Size_composition_Survey_Observations","Size_composition_Observations",
+                                                          "Size_composition_Other_Observations"),collapse="|"),
+                                                  names(Species.data[[i]]))]
+            d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
+                                          names(Species.data[[i]]))]
+            if(length(d.list)>0)
+            {
+              if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
+              if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
+              
+              for(s in 1:length(d.list))
+              {
+                NM=names(d.list)[s]
+                d.list[[s]]=d.list[[s]]%>%
+                  filter(FL>=Life.history$Lzero*1.05)%>%
+                  mutate(fishry=ifelse(grepl("NSF.LONGLINE",NM),'NSF',
+                                       ifelse(grepl("Survey",NM),'Survey',
+                                              ifelse(grepl("Other",NM),'Other',
+                                                     'TDGDLF'))),
+                         year=as.numeric(substr(FINYEAR,1,4)),
+                         TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
+                         size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+                  filter(TL<=with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))%>%
+                  dplyr::rename(sex=SEX)%>%
+                  filter(!is.na(sex))%>%
+                  group_by(year,fishry,sex,size.class)%>%
+                  summarise(n=n())%>%
+                  ungroup()
+                if(grepl(paste(c('West','Zone1','Zone2'),collapse='|'),NM))
+                {
+                  ZnE=sub("\\..*", "", str_remove(NM,"Size_composition_"))
+                  d.list[[s]]=d.list[[s]]%>%
+                    mutate(fishry=paste(fishry,ZnE,sep='_'))
+                }
+                
+                
+                #add extra bins for smooth fit to size comps
+                Maximum_size=10*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
+                Mx.size=max(d.list[[s]]$size.class)
+                extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
+                if(length(extra.bins))
+                {
+                  add.dumi.size=d.list[[s]][1:length(extra.bins),]%>%
+                    mutate(size.class=extra.bins,
+                           n=0)
+                  d.list[[s]]=rbind(d.list[[s]],add.dumi.size)
+                }
+              }
+              d.list <- d.list[!is.na(d.list)]
+              d.list=do.call(rbind,d.list)   
+              if(Neim%in%combine_NSF_Survey) #assume same sel NSF and survey so combined to increase sample size
+              {
+                d.list=d.list%>%
+                  mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
+              }
+              if(Neim%in%combine.sexes)
+              {
+                if(Neim%in%combine.sexes.survey)
+                {
+                  d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
+                }
+                if(Neim%in%combine.sexes.tdgdlf)
+                {
+                  d.list=d.list%>%mutate(sex=ifelse(grepl("TDGDLF",fishry),0,sex))
+                }
+                if(Neim%in%combine.sexes.tdgdlf.daily)
+                {
+                  d.list=d.list%>%mutate(sex=ifelse(grepl("TDGDLF",fishry) & year>2005,0,sex))
+                }
+                if(!Neim%in%c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily))
+                {
+                  d.list$sex=0 
+                }
+              }
+              d.list=d.list%>%
+                group_by(year,fishry,sex,size.class)%>%
+                summarise(n=sum(n))%>%
+                ungroup()%>%
+                filter(!is.na(year))%>%
+                filter(!is.na(fishry))
+              
+              MAXX=max(d.list$size.class)
+              Tab.si.kl=table(d.list$size.class)
+              if(sum(Tab.si.kl[(length(Tab.si.kl)-1):length(Tab.si.kl)])/sum(Tab.si.kl)>.05) MAXX=MAXX*1.2
+              MAXX=min(MAXX,30*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/30))
+              size.classes=seq(min(d.list$size.class),MAXX,by=TL.bins.cm)
+              missing.size.classes=size.classes[which(!size.classes%in%unique(d.list$size.class))]
+              if(fill.in.zeros & length(missing.size.classes)>0)
+              {
+                d.list=rbind(d.list,d.list[1:length(missing.size.classes),]%>%
+                               mutate(size.class=missing.size.classes,
+                                      n=0))
+              }
+              if(Neim%in%names(Indicator.species))
+              {
+                Min.size=Min.annual.obs.ktch
+              }else
+              {
+                Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+              }
+              Table.n=d.list%>%group_by(year,fishry,sex)%>%
+                summarise(N=sum(n))%>%
+                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,Min.annual.obs.ktch_survey))%>%
+                filter(N>=Min.accepted.N)%>%
+                mutate(dummy=paste(year,fishry,sex))
+              
+              if(nrow(Table.n)>0)
+              {
+                vars.head=c('year','Seas','Fleet','Sex','Part','Nsamp')
+                if(Life.history$compress.tail)
+                {
+                  compressed=d.list%>%
+                    spread(size.class,n,fill=0)
+                  KolSam=colSums(compressed%>%dplyr::select(-c(year,fishry,sex)))
+                  
+                  compressed=d.list%>%
+                    dplyr::select(size.class,n)%>%
+                    group_by(size.class)%>%
+                    summarise(n=sum(n))%>%
+                    ungroup()%>%
+                    mutate(Plus.group=size.class[which.min(abs(0.99-cumsum(n)/sum(n)))],
+                           Plus.group=ifelse(size.class<Plus.group,size.class,Plus.group))
+                  
+                  d.list=d.list%>%
+                    left_join(compressed%>%dplyr::select(-n),
+                              by='size.class')%>%
+                    group_by(year,fishry,sex,Plus.group)%>%
+                    summarise(n=sum(n))%>%
+                    rename(size.class=Plus.group)%>%
+                    ungroup()
+                }
+                
+                d.list=d.list%>%
+                  spread(size.class,n,fill=0)%>%
+                  mutate(month=1)
+                
+                for(pai in 1:length(d.list.n.shots))
+                {
+                  dd=d.list.n.shots[[pai]]
+                  iii=length(grep('Survey',names(d.list.n.shots)[pai]))
+                  if(iii>0)dd$Method='LL'
+                  if(!'zone'%in%names(dd)) dd$zone=NA
+                  dd=dd%>%
+                    mutate(fishry=ifelse(Method=='GN',paste('TDGDLF',zone,sep='_'),
+                                         ifelse(Method=='LL' & zone!='SA','NSF',
+                                                ifelse(zone%in%c('SA','GAB.trawl'),'Other',
+                                                       NA))),
+                           year=as.numeric(substr(FINYEAR,1,4)))%>%
+                    group_by(year,fishry)%>%
+                    summarise(Nsamp=sum(N.shots))
+                  if(iii>0) dd$fishry='Survey'
+                  d.list.n.shots[[pai]]=dd
+                  rm(dd)
+                }
+                d.list.n.shots=do.call(rbind,d.list.n.shots)
+                
+                d.list=left_join(d.list,d.list.n.shots,by=c('year','fishry'))%>%
+                  mutate(Part=0)%>%
+                  dplyr::rename(Fleet=fishry,
+                                Sex=sex,
+                                Seas=month)%>%
+                  relocate(all_of(vars.head))
+                
+                d.list=d.list%>%
+                  mutate(dummy2=paste(year,Fleet,Sex))%>%
+                  filter(dummy2%in%unique(Table.n$dummy))%>%
+                  dplyr::select(-dummy2)%>%
+                  mutate(Sex=ifelse(Sex=='F',1,
+                                    ifelse(Sex=='M',2,
+                                           0)))
+                d.list=d.list%>%
+                  mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
+                         Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
+                  dplyr::select(-dumi.n)
+                size.flits.zone=Flits.and.survey.zone
+                if(!"Survey"%in% names(Catch.rate.series[[i]]) & "Survey"%in%unique(d.list$Fleet))
+                {
+                  ddummis=size.flits.zone[1,]%>%mutate(Fleet.number=1+size.flits.zone$Fleet.number[nrow(size.flits.zone)],
+                                                       Fleet.name="Survey")
+                  rownames(ddummis)="Survey"
+                  if(!'Survey'%in%size.flits.zone$Fleet.name) size.flits.zone=rbind(size.flits.zone,ddummis)
+                }
+                d.list=d.list%>%
+                  mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
+                                               Fleet=="Other"~'Other',
+                                               Fleet=="TDGDLF_West" & year<2006~'Southern.shark_1_West',
+                                               Fleet=="TDGDLF_West" & year>=2006~'Southern.shark_2_West',
+                                               Fleet=="TDGDLF_Zone1" & year<2006~'Southern.shark_1_Zone1',
+                                               Fleet=="TDGDLF_Zone1" & year>=2006~'Southern.shark_2_Zone1',
+                                               Fleet=="TDGDLF_Zone2" & year<2006~'Southern.shark_1_Zone2',
+                                               Fleet=="TDGDLF_Zone2" & year>=2006~'Southern.shark_2_Zone2',
+                                               Fleet=="Survey"~'Survey'))%>%
+                  left_join(size.flits.zone,by=c('dummy.fleet'='Fleet.name'))%>%
+                  mutate(Fleet=Fleet.number)%>%
+                  dplyr::select(-c(dummy.fleet,Fleet.number))%>%
+                  arrange(Sex,Fleet,year)
+                
+                d.list.0=d.list%>%filter(Sex==0)%>%arrange(year)
+                d.list.f=d.list%>%filter(Sex==1)%>%arrange(year)  
+                d.list.m=d.list%>%filter(Sex==2)%>%arrange(year)
+                
+                id.var.nms=which(names(d.list.f)%in%vars.head)
+                id.var.nms.f=which(!names(d.list.f)%in%vars.head)
+                id.var.nms.m=length(id.var.nms.f)+which(!names(d.list.m)%in%vars.head)
+                
+                dummy.zeros.0=d.list.0[,-match(vars.head,names(d.list.0))]
+                dummy.zeros.0[,]=0
+                dummy.zeros.f=d.list.f[,-match(vars.head,names(d.list.f))]
+                dummy.zeros.f[,]=0
+                dummy.zeros.m=d.list.m[,-match(vars.head,names(d.list.m))]
+                dummy.zeros.m[,]=0
+                
+                if(nrow(d.list.0)>0)  
+                {
+                  dummy.Size.compo.SS.format_Sex0=cbind(d.list.0,dummy.zeros.0)
+                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f],sep='')
+                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m],sep='')
+                }
+                if(nrow(d.list.f)>0)
+                {
+                  dummy.Size.compo.SS.format_Sex=rbind(cbind(d.list.f,dummy.zeros.f),
+                                                       cbind(d.list.m[,match(vars.head,names(d.list.m))],
+                                                             dummy.zeros.m,
+                                                             d.list.m[,-match(vars.head,names(d.list.m))]))
+                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f],sep='')
+                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m],sep='')
+                }  
+                if(!exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=dummy.Size.compo.SS.format_Sex
+                }
+                if(exists('dummy.Size.compo.SS.format_Sex0') & !exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=dummy.Size.compo.SS.format_Sex0
+                }
+                if(exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=rbind(dummy.Size.compo.SS.format_Sex0,dummy.Size.compo.SS.format_Sex)
+                }
+                clear.log('dummy.Size.compo.SS.format_Sex0')
+                clear.log('dummy.Size.compo.SS.format_Sex')
+                dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
+                  arrange(Fleet,year,Sex)
+                
+                min.nsamp=Min.Nsamp
+                if(!Neim%in%Indicator.species) min.nsamp=min.nsamp/2
+                dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
+                  filter(year<=max(ktch$finyear) & Nsamp>=min.nsamp)  
+                if(nrow(dummy.Size.compo.SS.format)>0) Size.compo.SS.format.zone=dummy.Size.compo.SS.format
+                
+              }
+            }
           }
             #keep only observations for fleets with more than 1 year of data
           if(Drop.single.year.size.comp)
@@ -330,10 +651,22 @@ for(w in 1:n.SS)
               Size.compo.SS.format=Size.compo.SS.format%>%
                 filter(Fleet%in%Fleet.more.one.year.obs)
             }
+            if(!is.null(Size.compo.SS.format.zone))
+            {
+              Fleet.more.one.year.obs=Size.compo.SS.format.zone%>%
+                distinct(Fleet,year)%>%
+                group_by(Fleet)%>%
+                tally()%>%
+                filter(n>1)%>%
+                pull(Fleet)
+              Size.compo.SS.format.zone=Size.compo.SS.format.zone%>%
+                filter(Fleet%in%Fleet.more.one.year.obs)
+            }
           }
 
           
           #3. meanbodywt
+            #zones together
           meanbodywt.SS.format=NULL
           if(any(grepl('annual.mean.size',names(Species.data[[i]]))))
           {
@@ -370,9 +703,58 @@ for(w in 1:n.SS)
                                                Fleet=unique(meanbodywt.SS.format$fleet),
                                                Value=NewCVs$CV.var.adj)
           }
+            # by zones 
+          meanbodywt.SS.format.zone=NULL
+          if(any(grepl('annual.mean.size',names(Species.data[[i]]))))
+          {
+            xxx=Species.data[[i]][grep('annual.mean.size',names(Species.data[[i]]))]
+            xxx=xxx[-match("annual.mean.size",names(xxx))]
+            for(y in 1:length(xxx))
+            {
+              ZnE=capitalize(str_remove(names(xxx)[y],"annual.mean.size_"))
+              xxx[[y]]=xxx[[y]]%>%
+                mutate(year=as.numeric(substr(Finyear,1,4)),
+                       month=1,
+                       Fleet=paste('Southern.shark_2',ZnE,sep='_'),
+                       part=0,   #0, combined; 1: discard only; 2: retained only
+                       type=2)%>%
+                filter(year<=max(ktch.zone$finyear))%>%
+                dplyr::select(-Finyear)
+            }
+            
+            
+            meanbodywt.SS.format.zone=do.call(rbind,xxx)%>%
+              left_join(Flits.and.survey.zone,by=c('Fleet'='Fleet.name'))%>%
+              mutate(fleet=Fleet.number)%>%
+              dplyr::select(-c(Fleet.number,Fleet))%>%
+              relocate(year,month,fleet,part,type,mean,CV)
+            
+            #reset very low CVs
+            NewCVs=Francis.function(cipiuis=meanbodywt.SS.format.zone%>%
+                                      dplyr::select(year,mean,fleet)%>%
+                                      spread(fleet,mean),
+                                    cvs=meanbodywt.SS.format.zone%>%
+                                      dplyr::select(year,CV,fleet)%>%
+                                      spread(fleet,CV),
+                                    mininum.mean.CV=default.Mean.weight.CV)
+            if(mean(meanbodywt.SS.format.zone$CV,na.rm=T)<default.Mean.weight.CV)
+            {
+              newcv=NewCVs$CV.Adjusted%>%
+                filter(year%in%meanbodywt.SS.format.zone$year)%>%
+                gather(fleet,CV,-year)%>%mutate(fleet=as.numeric(fleet))
+              meanbodywt.SS.format.zone=meanbodywt.SS.format.zone%>%
+                dplyr::select(-CV)%>%
+                left_join(newcv,by=c('year','fleet'))%>%
+                relocate(names(meanbodywt.SS.format))
+            }
+            #CV variance adjustment if small CVs
+            if(mean(meanbodywt.SS.format.zone$CV,na.rm=T)>=default.Mean.weight.CV) NewCVs$CV.var.adj=0
+            Var.ad.factr_meanbodywt.zone=data.frame(Factor=3,
+                                                    Fleet=unique(meanbodywt.SS.format.zone$fleet),
+                                                    Value=NewCVs$CV.var.adj)
+          }
           
-          
-          #4. Abundance series
+          #4. Abundance series           #ACA
           Abundance.SS.format=NULL
           Var.ad.factr=NULL
           CPUE=compact(Catch.rate.series[[i]])
@@ -483,11 +865,11 @@ for(w in 1:n.SS)
           Cond.age.len.SS.format=NULL
           if(do.Cond.age.len.SS.format)
           {
-            if(any(grepl('age_length',names(Species.data[[i]]))))
+            if(any(grepl('conditional_age_length',names(Species.data[[i]]))))
             {
               a=Life.history$a_FL.to.TL
               b=Life.history$b_FL.to.TL
-              Cond.age.len.SS.format=Species.data[[i]]$age_length%>%
+              Cond.age.len.SS.format=Species.data[[i]]$conditional_age_length%>%
                 mutate(TL=FL*a+b,
                        LbinLo=TL.bins.cm*floor(TL/TL.bins.cm),
                        LbinHi=TL.bins.cm*floor(TL/TL.bins.cm))%>%
@@ -527,7 +909,7 @@ for(w in 1:n.SS)
           
           #8. MeanSize at Age obs
           MeanSize.at.Age.obs.SS.format=NULL
-          if(any(grepl('age_length',names(Species.data[[i]]))) & names(Species.data)[i]%in%Mean.Size.at.age.species)
+          if(any(grepl('conditional_age_length',names(Species.data[[i]]))) & names(Species.data)[i]%in%Mean.Size.at.age.species)
           {
             Lvls=c(paste('nf',sort(unique(Species.data[[i]]$age_length%>%filter(Sex=='Female')%>%pull(Age))),sep=''),
                    paste('nm',sort(unique(Species.data[[i]]$age_length%>%filter(Sex=='Male')%>%pull(Age))),sep=''))
@@ -580,17 +962,30 @@ for(w in 1:n.SS)
           
           
           #9. Fleet info
+            #zones together
           flitinfo=data.frame(fleet=Flits)%>%
-            mutate(type=1,
-                   surveytiming=-1,
-                   area=1,
-                   units=1,
-                   need_catch_mult=0,
-                   fleetname=names(Flits))%>%
-            dplyr::select(-fleet)%>%
-            mutate(type=ifelse(fleetname=="Survey",3,type),
-                   surveytiming=ifelse(fleetname=="Survey",1,surveytiming))
+                      mutate(type=1,
+                             surveytiming=-1,
+                             area=1,
+                             units=1,
+                             need_catch_mult=0,
+                             fleetname=names(Flits))%>%
+                      dplyr::select(-fleet)%>%
+                      mutate(type=ifelse(fleetname=="Survey",3,type),
+                             surveytiming=ifelse(fleetname=="Survey",1,surveytiming))
           rownames(flitinfo)=NULL
+            #by zone
+          flitinfo.zone=data.frame(fleet=Flits.zone)%>%
+                        mutate(type=1,
+                               surveytiming=-1,
+                               area=1,
+                               units=1,
+                               need_catch_mult=0,
+                               fleetname=names(Flits.zone))%>%
+                        dplyr::select(-fleet)%>%
+                        mutate(type=ifelse(fleetname=="Survey",3,type),
+                               surveytiming=ifelse(fleetname=="Survey",1,surveytiming))
+          rownames(flitinfo.zone)=NULL
           
           
           #10. Run scenarios if available abundance index or size comps
@@ -660,8 +1055,9 @@ for(w in 1:n.SS)
             
             #Rename fleets following SS nomenclature
             names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))
+            names(ktch.zone)[which(!names(ktch.zone)%in%c("SPECIES","Name","finyear"))]=match(names(ktch.zone)[which(!names(ktch.zone)%in%c("SPECIES","Name","finyear"))],names(Flits.zone))
             
-            #Future catches/F
+            #Future catches/F  #ACA add zone
             if("SS"%in%future.models)
             {
               NN=nrow(ktch)
@@ -701,7 +1097,7 @@ for(w in 1:n.SS)
               if(Life.history$drop.cpue) Abundance.SS.format=NULL
               
               #Set future F instead of catch if required by scenario  
-              if(exists('add.ct.future'))
+              if(exists('add.ct.future'))   #ACA, add zone
               {
                 add.ct.or.F_future=add.ct.future
                 if(Scens[s,'Forecasting']=="F")
@@ -739,7 +1135,7 @@ for(w in 1:n.SS)
                              new.path=this.wd1,
                              Scenario=Scens[s,]%>%
                                mutate(Model='SS'),
-                             Catch=ktch,
+                             Catch=ktch,  #ACA add zone
                              life.history=Life.history,
                              depletion.yr=NULL,
                              fleets=names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],
@@ -1112,6 +1508,7 @@ for(w in 1:n.SS)
           Life.history=List.sp[[i]]
           
           #1. Catch
+            #1.1. zones together
           ktch=KtCh%>%
             filter(Name==Neim)%>%
             mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
@@ -1124,6 +1521,51 @@ for(w in 1:n.SS)
             mutate(Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
                                     Fishry=="Southern.shark" & finyear>=2006~'Southern.shark_2',
                                     TRUE~Fishry))
+          
+          #1.2. by zone
+          ktch.zone=KtCh.zone%>%
+            ungroup()%>%
+            filter(Name==Neim)
+          #allocated historic Southern.shark to zones
+          if('Historic'%in%unique(ktch.zone$FishCubeCode))
+          {
+            historic=ktch.zone%>%
+              filter(FishCubeCode=='Historic')%>%
+              dplyr::select(-zone)
+            ktch.zone=ktch.zone%>%filter(!FishCubeCode=='Historic')
+            First.year.k=ktch.zone%>%filter(FishCubeCode%in%c("JASDGDL","WCDGDL"))
+            Dis.Yr=min(First.year.k$finyear)
+            if(Neim=='sandbar shark') Dis.Yr=1985
+            prop.k=First.year.k%>%
+              filter(finyear==Dis.Yr)%>%
+              group_by(zone)%>%
+              summarise(LIVEWT.c=sum(LIVEWT.c))%>%
+              mutate(Prop=LIVEWT.c/sum(LIVEWT.c))%>%
+              dplyr::select(-LIVEWT.c)
+            dum=expand.grid(finyear=historic%>%distinct(finyear)%>%pull(finyear),
+                            zone=unique(prop.k$zone))
+            prop.k=full_join(prop.k,dum,by='zone')%>%arrange(finyear)
+            historic=full_join(historic,prop.k,by='finyear')%>%
+              mutate(LIVEWT.c=LIVEWT.c*Prop)%>%
+              dplyr::select(-Prop)%>%
+              relocate(names(ktch.zone))
+            ktch.zone=rbind(ktch.zone,historic)
+            
+          }
+          ktch.zone=ktch.zone%>%
+            mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
+                                 ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                          'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                                        ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
+                                               'Other'))),
+                   Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
+                                    Fishry=="Southern.shark" & finyear>=2006~'Southern.shark_2',
+                                    TRUE~Fishry),
+                   Fishry=ifelse(grepl('Southern.shark',Fishry),paste(Fishry,zone,sep='_'),Fishry))%>%
+            group_by(SPECIES,Name,finyear,Fishry)%>%
+            summarise(Tonnes=sum(LIVEWT.c,na.rm=T))
+          
+            #1.3 combined catch for displaying only
           Combined.ktch=ktch.combined%>%
             filter(Name==Neim)%>%
             rename(Year=finyear,
@@ -1133,6 +1575,8 @@ for(w in 1:n.SS)
             arrange(Year)%>%
             data.frame
           
+          #fleets
+            #zones together
           Flits.name=sort(unique(ktch$Fishry))  
           Flits=1:length(Flits.name)
           names(Flits)=Flits.name
@@ -1150,9 +1594,28 @@ for(w in 1:n.SS)
           ktch=ktch%>%
             spread(Fishry,Tonnes,fill=0)
           
+          #by zone
+          Flits.name.zone=sort(unique(ktch.zone$Fishry))  
+          Flits.zone=1:length(Flits.name.zone)
+          names(Flits.zone)=Flits.name.zone
+          Flits.and.survey.zone=data.frame(Fleet.number=c(Flits.zone,1+length(Flits.zone)),
+                                           Fleet.name=c(names(Flits.zone),"Survey"))
+          if(!"Survey"%in% names(Catch.rate.series[[i]]) & !"Size_composition_Survey"%in%names(Species.data[[i]]))
+          {
+            Flits.and.survey.zone=Flits.and.survey.zone%>%filter(!Fleet.name=="Survey")
+          }
+          if("Survey"%in% names(Catch.rate.series[[i]]) | "Size_composition_Survey"%in%names(Species.data[[i]]))
+          {
+            Flits.zone=c(Flits.zone,length(Flits.zone)+1)
+            names(Flits.zone)[length(Flits.zone)]="Survey"
+          }
+          ktch.zone=ktch.zone%>%
+            spread(Fishry,Tonnes,fill=0)
+          
           
           #2. Size composition   
           #note: commercial catch and survey. Nsamp set at number of shots
+            #zones together
           Size.compo.SS.format=NULL
           if(any(grepl('Size_composition',names(Species.data[[i]]))))
           {
@@ -1401,6 +1864,264 @@ for(w in 1:n.SS)
             }
 
           }
+            # by zones
+          Size.compo.SS.format.zone=NULL
+          if(any(grepl('Size_composition',names(Species.data[[i]]))))
+          {
+            d.list.n.shots=Species.data[[i]][grep(paste(c("Size_composition_Survey_Observations","Size_composition_Observations",
+                                                          "Size_composition_Other_Observations"),collapse="|"),
+                                                  names(Species.data[[i]]))]
+            d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
+                                          names(Species.data[[i]]))]
+            if(length(d.list)>0)
+            {
+              if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
+              if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
+              
+              for(s in 1:length(d.list))
+              {
+                NM=names(d.list)[s]
+                d.list[[s]]=d.list[[s]]%>%
+                  filter(FL>=Life.history$Lzero*1.05)%>%
+                  mutate(fishry=ifelse(grepl("NSF.LONGLINE",NM),'NSF',
+                                       ifelse(grepl("Survey",NM),'Survey',
+                                              ifelse(grepl("Other",NM),'Other',
+                                                     'TDGDLF'))),
+                         year=as.numeric(substr(FINYEAR,1,4)),
+                         TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
+                         size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+                  filter(TL<=with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))%>%
+                  dplyr::rename(sex=SEX)%>%
+                  filter(!is.na(sex))%>%
+                  group_by(year,fishry,sex,size.class)%>%
+                  summarise(n=n())%>%
+                  ungroup()
+                if(grepl(paste(c('West','Zone1','Zone2'),collapse='|'),NM))
+                {
+                  ZnE=sub("\\..*", "", str_remove(NM,"Size_composition_"))
+                  d.list[[s]]=d.list[[s]]%>%
+                    mutate(fishry=paste(fishry,ZnE,sep='_'))
+                }
+                
+                
+                #add extra bins for smooth fit to size comps
+                Maximum_size=10*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
+                Mx.size=max(d.list[[s]]$size.class)
+                extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
+                if(length(extra.bins))
+                {
+                  add.dumi.size=d.list[[s]][1:length(extra.bins),]%>%
+                    mutate(size.class=extra.bins,
+                           n=0)
+                  d.list[[s]]=rbind(d.list[[s]],add.dumi.size)
+                }
+              }
+              d.list <- d.list[!is.na(d.list)]
+              d.list=do.call(rbind,d.list)   
+              if(Neim%in%combine_NSF_Survey) #assume same sel NSF and survey so combined to increase sample size
+              {
+                d.list=d.list%>%
+                  mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
+              }
+              if(Neim%in%combine.sexes)
+              {
+                if(Neim%in%combine.sexes.survey)
+                {
+                  d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
+                }
+                if(Neim%in%combine.sexes.tdgdlf)
+                {
+                  d.list=d.list%>%mutate(sex=ifelse(grepl("TDGDLF",fishry),0,sex))
+                }
+                if(Neim%in%combine.sexes.tdgdlf.daily)
+                {
+                  d.list=d.list%>%mutate(sex=ifelse(grepl("TDGDLF",fishry) & year>2005,0,sex))
+                }
+                if(!Neim%in%c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily))
+                {
+                  d.list$sex=0 
+                }
+              }
+              d.list=d.list%>%
+                group_by(year,fishry,sex,size.class)%>%
+                summarise(n=sum(n))%>%
+                ungroup()%>%
+                filter(!is.na(year))%>%
+                filter(!is.na(fishry))
+              
+              MAXX=max(d.list$size.class)
+              Tab.si.kl=table(d.list$size.class)
+              if(sum(Tab.si.kl[(length(Tab.si.kl)-1):length(Tab.si.kl)])/sum(Tab.si.kl)>.05) MAXX=MAXX*1.2
+              MAXX=min(MAXX,30*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/30))
+              size.classes=seq(min(d.list$size.class),MAXX,by=TL.bins.cm)
+              missing.size.classes=size.classes[which(!size.classes%in%unique(d.list$size.class))]
+              if(fill.in.zeros & length(missing.size.classes)>0)
+              {
+                d.list=rbind(d.list,d.list[1:length(missing.size.classes),]%>%
+                               mutate(size.class=missing.size.classes,
+                                      n=0))
+              }
+              if(Neim%in%names(Indicator.species))
+              {
+                Min.size=Min.annual.obs.ktch
+              }else
+              {
+                Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+              }
+              Table.n=d.list%>%group_by(year,fishry,sex)%>%
+                summarise(N=sum(n))%>%
+                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,Min.annual.obs.ktch_survey))%>%
+                filter(N>=Min.accepted.N)%>%
+                mutate(dummy=paste(year,fishry,sex))
+              
+              if(nrow(Table.n)>0)
+              {
+                vars.head=c('year','Seas','Fleet','Sex','Part','Nsamp')
+                if(Life.history$compress.tail)
+                {
+                  compressed=d.list%>%
+                    spread(size.class,n,fill=0)
+                  KolSam=colSums(compressed%>%dplyr::select(-c(year,fishry,sex)))
+                  
+                  compressed=d.list%>%
+                    dplyr::select(size.class,n)%>%
+                    group_by(size.class)%>%
+                    summarise(n=sum(n))%>%
+                    ungroup()%>%
+                    mutate(Plus.group=size.class[which.min(abs(0.99-cumsum(n)/sum(n)))],
+                           Plus.group=ifelse(size.class<Plus.group,size.class,Plus.group))
+                  
+                  d.list=d.list%>%
+                    left_join(compressed%>%dplyr::select(-n),
+                              by='size.class')%>%
+                    group_by(year,fishry,sex,Plus.group)%>%
+                    summarise(n=sum(n))%>%
+                    rename(size.class=Plus.group)%>%
+                    ungroup()
+                }
+                
+                d.list=d.list%>%
+                  spread(size.class,n,fill=0)%>%
+                  mutate(month=1)
+                
+                for(pai in 1:length(d.list.n.shots))
+                {
+                  dd=d.list.n.shots[[pai]]
+                  iii=length(grep('Survey',names(d.list.n.shots)[pai]))
+                  if(iii>0)dd$Method='LL'
+                  if(!'zone'%in%names(dd)) dd$zone=NA
+                  dd=dd%>%
+                    mutate(fishry=ifelse(Method=='GN',paste('TDGDLF',zone,sep='_'),
+                                         ifelse(Method=='LL' & zone!='SA','NSF',
+                                                ifelse(zone%in%c('SA','GAB.trawl'),'Other',
+                                                       NA))),
+                           year=as.numeric(substr(FINYEAR,1,4)))%>%
+                    group_by(year,fishry)%>%
+                    summarise(Nsamp=sum(N.shots))
+                  if(iii>0) dd$fishry='Survey'
+                  d.list.n.shots[[pai]]=dd
+                  rm(dd)
+                }
+                d.list.n.shots=do.call(rbind,d.list.n.shots)
+                
+                d.list=left_join(d.list,d.list.n.shots,by=c('year','fishry'))%>%
+                  mutate(Part=0)%>%
+                  dplyr::rename(Fleet=fishry,
+                                Sex=sex,
+                                Seas=month)%>%
+                  relocate(all_of(vars.head))
+                
+                d.list=d.list%>%
+                  mutate(dummy2=paste(year,Fleet,Sex))%>%
+                  filter(dummy2%in%unique(Table.n$dummy))%>%
+                  dplyr::select(-dummy2)%>%
+                  mutate(Sex=ifelse(Sex=='F',1,
+                                    ifelse(Sex=='M',2,
+                                           0)))
+                d.list=d.list%>%
+                  mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
+                         Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
+                  dplyr::select(-dumi.n)
+                size.flits.zone=Flits.and.survey.zone
+                if(!"Survey"%in% names(Catch.rate.series[[i]]) & "Survey"%in%unique(d.list$Fleet))
+                {
+                  ddummis=size.flits.zone[1,]%>%mutate(Fleet.number=1+size.flits.zone$Fleet.number[nrow(size.flits.zone)],
+                                                       Fleet.name="Survey")
+                  rownames(ddummis)="Survey"
+                  if(!'Survey'%in%size.flits.zone$Fleet.name) size.flits.zone=rbind(size.flits.zone,ddummis)
+                }
+                d.list=d.list%>%
+                  mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
+                                               Fleet=="Other"~'Other',
+                                               Fleet=="TDGDLF_West" & year<2006~'Southern.shark_1_West',
+                                               Fleet=="TDGDLF_West" & year>=2006~'Southern.shark_2_West',
+                                               Fleet=="TDGDLF_Zone1" & year<2006~'Southern.shark_1_Zone1',
+                                               Fleet=="TDGDLF_Zone1" & year>=2006~'Southern.shark_2_Zone1',
+                                               Fleet=="TDGDLF_Zone2" & year<2006~'Southern.shark_1_Zone2',
+                                               Fleet=="TDGDLF_Zone2" & year>=2006~'Southern.shark_2_Zone2',
+                                               Fleet=="Survey"~'Survey'))%>%
+                  left_join(size.flits.zone,by=c('dummy.fleet'='Fleet.name'))%>%
+                  mutate(Fleet=Fleet.number)%>%
+                  dplyr::select(-c(dummy.fleet,Fleet.number))%>%
+                  arrange(Sex,Fleet,year)
+                
+                d.list.0=d.list%>%filter(Sex==0)%>%arrange(year)
+                d.list.f=d.list%>%filter(Sex==1)%>%arrange(year)  
+                d.list.m=d.list%>%filter(Sex==2)%>%arrange(year)
+                
+                id.var.nms=which(names(d.list.f)%in%vars.head)
+                id.var.nms.f=which(!names(d.list.f)%in%vars.head)
+                id.var.nms.m=length(id.var.nms.f)+which(!names(d.list.m)%in%vars.head)
+                
+                dummy.zeros.0=d.list.0[,-match(vars.head,names(d.list.0))]
+                dummy.zeros.0[,]=0
+                dummy.zeros.f=d.list.f[,-match(vars.head,names(d.list.f))]
+                dummy.zeros.f[,]=0
+                dummy.zeros.m=d.list.m[,-match(vars.head,names(d.list.m))]
+                dummy.zeros.m[,]=0
+                
+                if(nrow(d.list.0)>0)  
+                {
+                  dummy.Size.compo.SS.format_Sex0=cbind(d.list.0,dummy.zeros.0)
+                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f],sep='')
+                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m],sep='')
+                }
+                if(nrow(d.list.f)>0)
+                {
+                  dummy.Size.compo.SS.format_Sex=rbind(cbind(d.list.f,dummy.zeros.f),
+                                                       cbind(d.list.m[,match(vars.head,names(d.list.m))],
+                                                             dummy.zeros.m,
+                                                             d.list.m[,-match(vars.head,names(d.list.m))]))
+                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f],sep='')
+                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m],sep='')
+                }  
+                if(!exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=dummy.Size.compo.SS.format_Sex
+                }
+                if(exists('dummy.Size.compo.SS.format_Sex0') & !exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=dummy.Size.compo.SS.format_Sex0
+                }
+                if(exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
+                {
+                  dummy.Size.compo.SS.format=rbind(dummy.Size.compo.SS.format_Sex0,dummy.Size.compo.SS.format_Sex)
+                }
+                clear.log('dummy.Size.compo.SS.format_Sex0')
+                clear.log('dummy.Size.compo.SS.format_Sex')
+                dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
+                  arrange(Fleet,year,Sex)
+                
+                min.nsamp=Min.Nsamp
+                if(!Neim%in%Indicator.species) min.nsamp=min.nsamp/2
+                dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
+                  filter(year<=max(ktch$finyear) & Nsamp>=min.nsamp)  
+                if(nrow(dummy.Size.compo.SS.format)>0) Size.compo.SS.format.zone=dummy.Size.compo.SS.format
+                
+              }
+            }
+          }
+          
             #keep only observations for fleets with more than 1 year of data
           if(Drop.single.year.size.comp)
           {
@@ -1415,9 +2136,21 @@ for(w in 1:n.SS)
               Size.compo.SS.format=Size.compo.SS.format%>%
                 filter(Fleet%in%Fleet.more.one.year.obs)
             }
+            if(!is.null(Size.compo.SS.format.zone))
+            {
+              Fleet.more.one.year.obs=Size.compo.SS.format.zone%>%
+                distinct(Fleet,year)%>%
+                group_by(Fleet)%>%
+                tally()%>%
+                filter(n>1)%>%
+                pull(Fleet)
+              Size.compo.SS.format.zone=Size.compo.SS.format.zone%>%
+                filter(Fleet%in%Fleet.more.one.year.obs)
+            }
           }
 
           #3. meanbodywt
+            #zones together
           meanbodywt.SS.format=NULL
           if(any(grepl('annual.mean.size',names(Species.data[[i]]))))
           {
@@ -1453,6 +2186,56 @@ for(w in 1:n.SS)
             Var.ad.factr_meanbodywt=data.frame(Factor=3,
                                                Fleet=unique(meanbodywt.SS.format$fleet),
                                                Value=NewCVs$CV.var.adj)
+          }
+            # by zones 
+          meanbodywt.SS.format.zone=NULL
+          if(any(grepl('annual.mean.size',names(Species.data[[i]]))))
+          {
+            xxx=Species.data[[i]][grep('annual.mean.size',names(Species.data[[i]]))]
+            xxx=xxx[-match("annual.mean.size",names(xxx))]
+            for(y in 1:length(xxx))
+            {
+              ZnE=capitalize(str_remove(names(xxx)[y],"annual.mean.size_"))
+              xxx[[y]]=xxx[[y]]%>%
+                mutate(year=as.numeric(substr(Finyear,1,4)),
+                       month=1,
+                       Fleet=paste('Southern.shark_2',ZnE,sep='_'),
+                       part=0,   #0, combined; 1: discard only; 2: retained only
+                       type=2)%>%
+                filter(year<=max(ktch.zone$finyear))%>%
+                dplyr::select(-Finyear)
+            }
+            
+            
+            meanbodywt.SS.format.zone=do.call(rbind,xxx)%>%
+              left_join(Flits.and.survey.zone,by=c('Fleet'='Fleet.name'))%>%
+              mutate(fleet=Fleet.number)%>%
+              dplyr::select(-c(Fleet.number,Fleet))%>%
+              relocate(year,month,fleet,part,type,mean,CV)
+            
+            #reset very low CVs
+            NewCVs=Francis.function(cipiuis=meanbodywt.SS.format.zone%>%
+                                      dplyr::select(year,mean,fleet)%>%
+                                      spread(fleet,mean),
+                                    cvs=meanbodywt.SS.format.zone%>%
+                                      dplyr::select(year,CV,fleet)%>%
+                                      spread(fleet,CV),
+                                    mininum.mean.CV=default.Mean.weight.CV)
+            if(mean(meanbodywt.SS.format.zone$CV,na.rm=T)<default.Mean.weight.CV)
+            {
+              newcv=NewCVs$CV.Adjusted%>%
+                filter(year%in%meanbodywt.SS.format.zone$year)%>%
+                gather(fleet,CV,-year)%>%mutate(fleet=as.numeric(fleet))
+              meanbodywt.SS.format.zone=meanbodywt.SS.format.zone%>%
+                dplyr::select(-CV)%>%
+                left_join(newcv,by=c('year','fleet'))%>%
+                relocate(names(meanbodywt.SS.format))
+            }
+            #CV variance adjustment if small CVs
+            if(mean(meanbodywt.SS.format.zone$CV,na.rm=T)>=default.Mean.weight.CV) NewCVs$CV.var.adj=0
+            Var.ad.factr_meanbodywt.zone=data.frame(Factor=3,
+                                                    Fleet=unique(meanbodywt.SS.format.zone$fleet),
+                                                    Value=NewCVs$CV.var.adj)
           }
           
           
@@ -1663,6 +2446,7 @@ for(w in 1:n.SS)
           
           
           #8. Fleet info
+           #zones together
           flitinfo=data.frame(fleet=Flits)%>%
             mutate(type=1,
                    surveytiming=-1,
@@ -1674,7 +2458,18 @@ for(w in 1:n.SS)
             mutate(type=ifelse(fleetname=="Survey",3,type),
                    surveytiming=ifelse(fleetname=="Survey",1,surveytiming))
           rownames(flitinfo)=NULL
-          
+            #by zone
+          flitinfo.zone=data.frame(fleet=Flits.zone)%>%
+            mutate(type=1,
+                   surveytiming=-1,
+                   area=1,
+                   units=1,
+                   need_catch_mult=0,
+                   fleetname=names(Flits.zone))%>%
+            dplyr::select(-fleet)%>%
+            mutate(type=ifelse(fleetname=="Survey",3,type),
+                   surveytiming=ifelse(fleetname=="Survey",1,surveytiming))
+          rownames(flitinfo.zone)=NULL
           
           #9. Run scenarios if available abundance index or size comps 
           len.cpue=length(CPUE)
@@ -1743,6 +2538,7 @@ for(w in 1:n.SS)
             
             #rename fleets following SS nomenclature
             names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))
+            names(ktch.zone)[which(!names(ktch.zone)%in%c("SPECIES","Name","finyear"))]=match(names(ktch.zone)[which(!names(ktch.zone)%in%c("SPECIES","Name","finyear"))],names(Flits.zone))
             
             #future catches
             if("SS"%in%future.models)
@@ -2249,281 +3045,6 @@ if(SS3.run=='final')
 
 
 #---Generate outputs -------------------------------------------------
-#Get Report file if SS was not run in R session
-if(is.null(Age.based$SS))
-{
-  for(w in 1:n.SS)
-  {
-    # SS3
-    if(names(Age.based)[w]=="SS") 
-    {
-      dummy.store=vector('list',N.sp)
-      names(dummy.store)=Keep.species
-      dummy.store.estimates=dummy.store.likelihoods=dummy.store.quantities=dummy.store.rel.biom=dummy.store.probs.rel.biom=dummy.store.probs.f.series=
-        dummy.store.probs.B.Bmsy=dummy.store.f.series=dummy.store.B.Bmsy=dummy.store.F.Fmsy=dummy.store.Kobe.probs=
-        dummy.store.sens.table=dummy.store.ensemble=dummy.store
-      
-      for(i in 1:length(dummy.store))
-      {
-        Neim=names(dummy.store)[i]
-        
-        if((!is.null(Catch.rate.series[[i]]) | Neim%in%Species.with.length.comp) & !(Neim%in%no.empirical.sel.main.fleet))
-        {
-          this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
-          if(!dir.exists(this.wd))dir.create(this.wd)
-          
-          Life.history=List.sp[[i]]
-          
-          #1. Catch
-          ktch=KtCh%>%
-            filter(Name==Neim)%>%
-            mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
-                                 ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                          'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
-                                        ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
-                                               'Other'))))%>%
-            group_by(SPECIES,Name,finyear,Fishry)%>%
-            summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
-            mutate(Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
-                                    Fishry=="Southern.shark" & finyear>=2006~'Southern.shark_2',
-                                    TRUE~Fishry))
-          Combined.ktch=ktch.combined%>%
-            filter(Name==Neim)%>%
-            rename(Year=finyear,
-                   Total=Tonnes)%>%
-            ungroup()%>%
-            dplyr::select(Year,Total)%>%
-            arrange(Year)%>%
-            data.frame
-          
-          Flits.name=sort(unique(ktch$Fishry))  
-          Flits=1:length(Flits.name)
-          names(Flits)=Flits.name
-          
-          flitinfo=data.frame(fleet=Flits)%>%
-            mutate(type=1,
-                   surveytiming=-1,
-                   area=1,
-                   units=1,
-                   need_catch_mult=0,
-                   fleetname=names(Flits))%>%
-            dplyr::select(-fleet)%>%
-            mutate(type=ifelse(fleetname=="Survey",3,type),
-                   surveytiming=ifelse(fleetname=="Survey",1,surveytiming))
-          rownames(flitinfo)=NULL
-          
-          ktch=ktch%>%
-            spread(Fishry,Tonnes,fill=0)
-          
-          #rename fleets following SS nomenclature
-          names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))]=match(names(ktch)[which(!names(ktch)%in%c("SPECIES","Name","finyear"))],names(Flits))
-          
-          #future catches
-          if("SS"%in%future.models)
-          {
-            NN=nrow(ktch)
-            add.ct.future=ktch[1:years.futures,]
-            add.ct.future$finyear=ktch$finyear[NN]+(1:years.futures)
-            if("Survey"%in%names(Flits))
-            {
-              lef.flits=match(Flits[-match("Survey",names(Flits))],colnames(add.ct.future))
-            }else
-            {
-              lef.flits=match(Flits,colnames(add.ct.future))
-            }
-            for(lf in 1:length(lef.flits))
-            {
-              add.ct.future[,lef.flits[lf]]=mean(unlist(ktch[(NN-years.futures+1):NN,lef.flits[lf]]),na.rm=T)
-            }
-          }
-          
-          #Scenarios
-          Scens=Life.history$Sens.test$SS%>%
-            mutate(Species=capitalize(Neim))
-          Store.sens=vector('list',nrow(Scens))
-          names(Store.sens)=Scens$Scenario
-          Out.Scens=Scens
-          Out.estimates=Out.likelihoods=Out.quantities=Out.rel.biom=Out.probs.rel.biom=Out.f.series=Out.B.Bmsy=Out.probs.f.series=
-            Out.F.Fmsy=Out.probs.B.Bmsy=Out.Kobe.probs=store.warnings=store.convergence=vector('list',length(Store.sens))
-          
-          #Get Report from each scenario
-          for(s in 1:length(Store.sens))
-          {
-            this.wd1=paste(this.wd,names(Store.sens)[s],sep='/')
-            COVAR=FORECAST=FALSE
-            if(Arg=="") COVAR=TRUE
-            if("SS"%in%future.models) FORECAST=TRUE
-            Report=SS_output(this.wd1,covar=COVAR,forecast=FORECAST,readwt=F)
-            
-            
-            #d. Store estimates
-            Estims=Report[["estimated_non_dev_parameters"]]
-            Out.estimates[[s]]=Estims%>%
-              mutate(Par=rownames(Estims),
-                     Scenario=Scens$Scenario[s])%>%
-              relocate(Scenario,Par)%>%
-              `rownames<-`( NULL )
-            F.ref.points=fn.get.f.ref.points(Report)                 
-            dummi.F=Out.estimates[[s]][1:length(F.ref.points),]
-            dummi.F[,]=NA
-            dummi.F=dummi.F%>%
-              mutate(Scenario=unique(Out.estimates[[s]]$Scenario),
-                     Par=names(F.ref.points),
-                     Value=unlist(F.ref.points))
-            Out.estimates[[s]]=rbind(Out.estimates[[s]],dummi.F)
-            Likelihoods=Report[["likelihoods_used"]]
-            Out.likelihoods[[s]]=Likelihoods%>%
-              mutate(Likelihood=rownames(Likelihoods),
-                     Scenario=Scens$Scenario[s])%>%
-              relocate(Scenario,Likelihood)%>%
-              `rownames<-`( NULL )
-            Bratio_current=paste0('Bratio_',max(ktch$finyear))
-            Out.quantities[[s]]=Report[["derived_quants"]]%>%
-              filter(Label%in%c(Bratio_current,"Dead_Catch_MSY"))%>%
-              mutate(Label=ifelse(Label==Bratio_current,'Current depletion',
-                                  ifelse(Label=="Dead_Catch_MSY",'MSY',
-                                         Label)),
-                     Species=capitalize(Neim),
-                     Scenario=Scens$Scenario[s])%>%
-              rename(Median=Value,
-                     SE=StdDev)%>%
-              dplyr::select(Species,Label,Median,SE,Scenario)%>%
-              `rownames<-`( NULL )
-            
-            #e. Store trajectories
-            
-            #e.1 relative biomass
-            dummy=fn.integrated.mod.get.timeseries(d=Report,
-                                                   mods="SS3",
-                                                   Type='Depletion',
-                                                   scen=Scens$Scenario[s])
-            Out.rel.biom[[s]]=dummy$Dat
-            Out.probs.rel.biom[[s]]=dummy$Probs   #based on asymptotic error
-            
-            #e.2 F
-            dummy=fn.integrated.mod.get.timeseries(d=Report,
-                                                   mods="SS3",
-                                                   Type='F.series',
-                                                   scen=Scens$Scenario[s])
-            Out.f.series[[s]]=dummy$Dat
-            Out.probs.f.series[[s]]=dummy$Probs
-            
-            #e.3 B/Bmsy
-            dummy=fn.integrated.mod.get.timeseries(d=Report,
-                                                   mods="SS3",
-                                                   Type='B.Bmsy',
-                                                   scen=Scens$Scenario[s],
-                                                   get.uncertainty='CV')
-            Out.B.Bmsy[[s]]=dummy$Dat
-            Out.probs.B.Bmsy[[s]]=dummy$Probs
-            Kobe.stock=dummy$Out.Kobe
-            
-            #e.4 F/Fmsy
-            dummy=fn.integrated.mod.get.timeseries(d=Report,
-                                                   mods="SS3",
-                                                   Type='F.Fmsy',
-                                                   scen=Scens$Scenario[s],
-                                                   get.uncertainty='ratio.first')
-            Out.F.Fmsy[[s]]=dummy$Dat
-            Kobe.harvest=dummy$Out.Kobe
-            
-            
-            #add catch for display purposes
-            Add.katch=Combined.ktch
-            if(any(add.ct.future$finyear%in%unique(Out.rel.biom[[s]]$year)))
-            {
-              TC.future=add.ct.future%>%ungroup()%>%dplyr::select(-c(SPECIES,Name,finyear))%>%rowSums()
-              Add.katch=rbind(Add.katch,data.frame(Year=add.ct.future$finyear,Total=TC.future))
-            }
-            Out.rel.biom[[s]]=Out.rel.biom[[s]]%>%
-              left_join(Add.katch,by=c('year'='Year'))%>%
-              rename(Catch=Total)
-            
-            #Kobe
-            if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=data.frame(stock=Kobe.stock,
-                                                                       harvest=Kobe.harvest)%>%
-              filter(stock>=0 & harvest>=0)
-            
-            
-            print(paste("___________","SS3 Scenario",Scens$Scenario[s],"___________",Neim))
-            
-          } #end s loop
-          Out.Scens=Out.Scens%>%
-            rename(h.mean=Steepness,
-                   h.sd=Steepness.sd)%>%
-            mutate(Mmean=round(Mmean,3),
-                   h.mean=round(h.mean,3),
-                   h.sd=round(h.sd,3))%>%
-            dplyr::select(-c(Model,use_F_ballpark))%>%
-            relocate(Species,Scenario,Mmean,F_ballpark,h.mean,h.sd)
-          
-          #add extra scenario info
-          fec.alpha=Life.history$Fecu_a    #intercept
-          fec.beta=Life.history$Fecu_b     #slope
-          if(is.na(fec.alpha)| is.na(fec.beta))
-          {
-            fec.alpha=mean(Life.history$Fecundity)  #set fec-@-age to mean fec if no relationship available
-            fec.beta=0    
-          }
-          Out.Scens=Out.Scens%>%
-            mutate(TLo=round(with(Life.history,Lzero*a_FL.to.TL+b_FL.to.TL)),
-                   Fem.TL.inf=round(with(Life.history,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)),
-                   Fem.K=Life.history$Growth.F$k,
-                   Fem.awt=Life.history$AwT,
-                   Fem.bwt=Life.history$BwT,
-                   Fem.TL50=round(Life.history$TL.mat.inf.slope[2]),
-                   Fem.fec.a=fec.alpha/mean(Life.history$Breed.cycle),
-                   Fem.fec.b=fec.beta/mean(Life.history$Breed.cycle),
-                   Mal.TL.inf=round(with(Life.history,Growth.M$FL_inf*a_FL.to.TL+b_FL.to.TL)),
-                   Mal.K=Life.history$Growth.M$k,
-                   Mal.awt=Life.history$AwT.M,
-                   Mal.bwt=Life.history$BwT.M,
-                   a_FL.to.TL=Life.history$a_FL.to.TL,
-                   b_FL.to.TL=Life.history$b_FL.to.TL,
-                   Fleets=paste(flitinfo$fleetname,collapse=', '))
-          
-          
-          #5. Store quantities
-          dummy.store.sens.table[[i]]=Out.Scens
-          dummy.store.rel.biom[[i]]=do.call(rbind,Out.rel.biom)
-          dummy.store.probs.rel.biom[[i]]=Out.probs.rel.biom
-          dummy.store.probs.B.Bmsy[[i]]=Out.probs.B.Bmsy
-          dummy.store.probs.f.series[[i]]=Out.probs.f.series
-          dummy.store.f.series[[i]]=do.call(rbind,Out.f.series)
-          dummy.store.B.Bmsy[[i]]=do.call(rbind,Out.B.Bmsy)
-          dummy.store.F.Fmsy[[i]]=do.call(rbind,Out.F.Fmsy)
-          dummy.store.Kobe.probs[[i]]=Out.Kobe.probs  
-          dummy.store.estimates[[i]]=do.call(rbind,Out.estimates)
-          dummy.store.likelihoods[[i]]=do.call(rbind,Out.likelihoods)
-          dummy.store.quantities[[i]]=do.call(rbind,Out.quantities)
-          
-          rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
-             Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods)
-        }
-      } #end i loop
-      
-      Age.based[[w]]$sens.table=dummy.store.sens.table
-      Age.based[[w]]$estimates=dummy.store.estimates
-      Age.based[[w]]$rel.biom=dummy.store.rel.biom
-      Age.based[[w]]$probs.rel.biom=dummy.store.probs.rel.biom
-      Age.based[[w]]$probs.B.Bmsy=dummy.store.probs.B.Bmsy
-      Age.based[[w]]$probs.f.series=dummy.store.probs.f.series
-      Age.based[[w]]$f.series=dummy.store.f.series
-      Age.based[[w]]$B.Bmsy=dummy.store.B.Bmsy
-      Age.based[[w]]$F.Fmsy=dummy.store.F.Fmsy
-      Age.based[[w]]$Kobe.probs=dummy.store.Kobe.probs
-      Age.based[[w]]$likelihoods=dummy.store.likelihoods
-      Age.based[[w]]$quantities=dummy.store.quantities
-      
-      rm(dummy.store,dummy.store.sens.table,dummy.store.estimates,dummy.store.probs.f.series,
-         dummy.store.rel.biom,dummy.store.probs.rel.biom,dummy.store.f.series,dummy.store.probs.B.Bmsy,
-         dummy.store.B.Bmsy,dummy.store.F.Fmsy,dummy.store.Kobe.probs,dummy.store.likelihoods)
-      
-
-    }
-  }
-}
-
 #25.1 Table of scenarios
 for(l in 1: length(Lista.sp.outputs))    
 {
