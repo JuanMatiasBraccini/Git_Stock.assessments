@@ -454,6 +454,7 @@ alternative.forecasting=NULL  #forecasting F rather than catch
 #                                             'Southern.shark_1'=0,
 #                                             'Southern.shark_2'=1.04784e-02))  
 alternative.like.weigthing=NULL  #test alternative lambdas for survey and length comps
+spatial.model="sandbar shark"     #NULL, build areas-as-fleets model
 
   #21.1 Set WRL as a separate fleet for these species
 WRL.species=c("copper shark","dusky shark","shortfin mako",

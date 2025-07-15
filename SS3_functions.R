@@ -430,12 +430,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     
     #cpue
     names(dat$CPUEinfo)=capitalize(names(dat$CPUEinfo))
-    ddumy=dat$CPUEinfo%>%
+    ddumy=dat$CPUEinfo[rep(1,length(dis.flits)),]
+    row.names(ddumy)=dis.flits
+    ddumy=ddumy%>%
             rownames_to_column('fleetname')%>%
             mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
                              ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
                                     fleetname)))%>%
-            filter(fleetname%in%dis.flits)%>%
             mutate(Fleet=row_number())
     if(Abundance.error.dist=='Normal') ddumy$Errtype=-1  
     if(Abundance.error.dist=='Lognormal') ddumy$Errtype=0
@@ -523,12 +524,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     if(!is.null(size.comp))   
     {
-      ddumy=dat$len_info%>%
+      ddumy=dat$len_info[rep(1,length(dis.flits)),]
+      row.names(ddumy)=dis.flits
+      ddumy=ddumy%>%
         rownames_to_column('fleetname')%>%
         mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-                                ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-                                       fleetname)))%>%
-        filter(fleetname%in%dis.flits)
+                         ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
+                         fleetname)))
       rownames(ddumy)=ddumy$fleetname
       dat$len_info=ddumy%>%dplyr::select(-fleetname)
       lbin_vector=sort(as.numeric(gsub('f', '', names(size.comp)[grep("f",names(size.comp))])))
@@ -544,15 +546,16 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       dat$len_info=rbind(dat$len_info,addfbit)
     }
     
-    #conditional age at length  
-    ddumy=dat$age_info%>%
-      rownames_to_column('fleetname')%>%
-      mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-                              ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-                                     fleetname)))%>%
-      filter(fleetname%in%dis.flits)
+    #conditional age at length
+    ddumy=dat$age_info[rep(1,length(dis.flits)),]
+    row.names(ddumy)=dis.flits
+    ddumy=ddumy%>%
+              rownames_to_column('fleetname')%>%
+              mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
+                               ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
+                               fleetname)))
     rownames(ddumy)=ddumy$fleetname
-    if(!is.null(cond.age.len))  dat$age_info=ddumy%>%dplyr::select(-fleetname)
+    dat$age_info=ddumy%>%dplyr::select(-fleetname)
     
     if(!is.null(F.tagging))
     {
@@ -571,7 +574,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       dat$agebin_vector=agebin_vector
     }
     
-    
     #MeanSize at Age obs   
     if(!is.null(MeanSize.at.Age.obs))
     {
@@ -582,6 +584,30 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     
     dat$N_agebins=length(dat$agebin_vector)
+    
+    #fleetinfo1
+    addis=which(!dat$fleetinfo$fleetname%in%colnames(dat$fleetinfo1))
+    if(length(addis)>0)
+    {
+      ddumy=dat$fleetinfo1[,which(colnames(dat$fleetinfo1)%in%dat$fleetinfo$fleetname)]
+      ddumy1=dat$fleetinfo1[rep(1,length(addis))]
+      colnames(ddumy1)=dat$fleetinfo$fleetname[addis]
+      ddumy=cbind(ddumy,ddumy1)%>%
+              relocate(dat$fleetinfo$fleetname)
+      dat$fleetinfo1=ddumy
+    }
+    
+    #fleetinfo2
+    addis=which(!dat$fleetinfo$fleetname%in%colnames(dat$fleetinfo2))
+    if(length(addis)>0)
+    {
+      ddumy=dat$fleetinfo2[,which(colnames(dat$fleetinfo2)%in%dat$fleetinfo$fleetname)]
+      ddumy1=dat$fleetinfo2[rep(1,length(addis))]
+      colnames(ddumy1)=dat$fleetinfo$fleetname[addis]
+      ddumy=cbind(ddumy,ddumy1)%>%
+              relocate(dat$fleetinfo$fleetname)
+      dat$fleetinfo2=ddumy
+    }
     
     #all these has 5 elements   
     if(nrow(WRL.fleet)>0)
@@ -840,13 +866,38 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$F_ballpark_year=styr
   }
   
-  #Q pars  
+  #Q pars
+  flit.numb=fleetinfo%>%
+              dplyr::select(fleetname)%>%
+              mutate(Fleet.n=row_number())
   if(Scenario$Model=='SS')
   {
     if(!is.null(abundance))
     {
+      life.history$Q.inits=life.history$Q.inits%>%
+                            filter(Fleet%in%fleetinfo$fleetname)%>%
+                            dplyr::select(-Fleet.n)%>%
+                            left_join(flit.numb,by=c('Fleet'='fleetname'))%>%
+                            arrange(Fleet.n)%>%
+                            relocate(Q,.after=Fleet.n)
+      
+      ddumy=ctl$Q_options[rep(1,length(dis.flits)),]%>%
+                mutate(fleet=row_number())
+      row.names(ddumy)=dis.flits
+      ctl$Q_options=ddumy[-match(c('Northern.shark','Other'),rownames(ddumy)),]%>%
+                      filter(fleet%in%unique(abundance$index))
       ctl$Q_options=ctl$Q_options[which(rownames(ctl$Q_options)%in%dat$fleetinfo$fleetname),]
-      ctl$Q_parms=ctl$Q_parms[grep(paste(rownames(ctl$Q_options),collapse='|'),rownames(ctl$Q_parms)),]
+      
+      #ACA
+      flits.with.cpue=flit.numb%>%filter(Fleet.n%in%unique(abundance$index))
+      Nms=rownames(ctl$Q_parms)
+      Nms=gsub(r"{\s*\([^\)]+\)}","",gsub("^.*?base_","",Nms))
+      rownames(ctl$Q_parms)=Nms
+      ddumy=ctl$Q_parms[rep(1,nrow(flits.with.cpue)),]
+      rownames(ddumy)=flits.with.cpue$fleetname
+      ddumy[grep('Southern.shark_2',rownames(ddumy)),'INIT']=-8
+      ctl$Q_parms=ddumy
+      #ctl$Q_parms=ctl$Q_parms[grep(paste(rownames(ctl$Q_options),collapse='|'),rownames(ctl$Q_parms)),]
        
       if(!'Northern.shark'%in%fleetinfo$fleetname)
       {
@@ -861,8 +912,9 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       }
       if('Northern.shark'%in%fleetinfo$fleetname & !any(grepl('Northern.shark',rownames(ctl$Q_parms))))
       {
-        addNSFQ=ctl$Q_parms[1,]
-        rownames(addNSFQ)=paste('LnQ_base_',"Northern.shark(",match('Northern.shark',fleetinfo$fleetname),')',sep='')
+        addNSFQ=ctl$Q_parms[1,]%>%mutate(INIT=-7)
+        rownames(addNSFQ)="Northern.shark"
+        #rownames(addNSFQ)=paste('LnQ_base_',"Northern.shark(",match('Northern.shark',fleetinfo$fleetname),')',sep='')
         ctl$Q_parms=rbind(addNSFQ,ctl$Q_parms)
       }
       if('Other'%in%fleetinfo$fleetname & !'Other'%in%rownames(ctl$Q_options) & fleets[match('Other',fleetinfo$fleetname)]%in%unique(abundance$index))
@@ -897,13 +949,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       
       iis=sort(unique(dat$CPUE$index)) 
       Qdummi=left_join(ctl$Q_options%>%
-                         tibble::rownames_to_column(),
-                       fleetinfo%>%mutate(fleet1=row_number()),
+                          tibble::rownames_to_column(),
+                          fleetinfo%>%mutate(fleet1=row_number()),
                        by=c("rowname"="fleetname"))%>%
-        mutate(fleet=fleet1)%>%
-        tibble::column_to_rownames('rowname')%>%
-        dplyr::select(names(ctl$Q_options))%>%
-        filter(fleet%in%iis)
+              mutate(fleet=fleet1)%>%
+              tibble::column_to_rownames('rowname')%>%
+              dplyr::select(names(ctl$Q_options))%>%
+              filter(fleet%in%iis)
       if(nrow(Qdummi)>0)
       {
         ctl$Q_options=Qdummi
@@ -926,9 +978,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         ctl$Q_parms=rbind(ctl$Q_parms,ctl.q_par.add)
       }
 
-      Nms=rownames(ctl$Q_parms)
-      Nms=gsub(r"{\s*\([^\)]+\)}","",gsub("^.*?base_","",Nms))
-      rownames(ctl$Q_parms)=Nms
+
       ctl$Q_parms=ctl$Q_parms[rownames(ctl$Q_parms)%in%rownames(ctl$Q_options),]
       these.qs=life.history$Q.inits%>%arrange(Fleet.n)%>%pull(Fleet)
       these.qs=subset(these.qs,these.qs%in%rownames(ctl$Q_options))
@@ -992,15 +1042,30 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   #selectivity pars  
   if(Scenario$Model=='SS')
   {
-    #1. size_selex   
-    ddumy=ctl$size_selex_types%>%
-      rownames_to_column('fleetname')%>%
-      mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-                       ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-                       fleetname)))%>%
-      filter(fleetname%in%dis.flits)%>%
-      mutate(Fleet=row_number())
-    rownames(ddumy)=ddumy$fleetname
+    #1. size_selex   #ACA
+    ddumy=ctl$size_selex_types[rep(1,length(dis.flits)),]%>%
+              mutate(Fleet=row_number())%>%
+              left_join(flit.numb,by=c('Fleet'='Fleet.n'))%>%
+              mutate(Pattern=case_when(fleetname=='Other'~15,
+                                       grepl('Southern.shark_2',fleetname)~15,
+                                       TRUE~Pattern),
+                     Special=case_when(fleetname=='Other'~match('Northern.shark',fleetname),
+                                       fleetname=='Southern.shark_2'~match('Southern.shark_1',fleetname),
+                                       fleetname=='Southern.shark_2_West'~match('Southern.shark_1_West',fleetname),
+                                       fleetname=='Southern.shark_2_Zone1'~match('Southern.shark_1_Zone1',fleetname),
+                                       fleetname=='Southern.shark_2_Zone2'~match('Southern.shark_1_Zone2',fleetname),
+                                       TRUE~Special))%>%
+              dplyr::select(-fleetname)
+    row.names(ddumy)=dis.flits
+    
+    # ddumy=ctl$size_selex_types%>%
+    #   rownames_to_column('fleetname')%>%
+    #   mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
+    #                    ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
+    #                    fleetname)))%>%
+    #   filter(fleetname%in%dis.flits)%>%
+    #   mutate(Fleet=row_number())
+    # rownames(ddumy)=ddumy$fleetname
     if(!'Northern.shark'%in%rownames(ddumy))
     {
       ddumy=ddumy%>%
@@ -1016,7 +1081,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       ddumy=rbind(ddumy,add.F.series.dummy)
     }
     
-    #select if using sensitivity selectivity
+    #select if using sensitivity selectivity  #ACA. must add pars and phases for zones in List.sp[[l]]$SS_selectivity_phase ,etc
     if(!is.na(Scenario$NSF.selectivity))
     {
       life.history$SS_selectivity=life.history$SS_selectivity.sensitivity
@@ -2179,7 +2244,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
             dat_temp$len_info <- rbind(dat_temp$len_info, new_comp_info_row)
             dat_temp$age_info <- rbind(dat_temp$age_info, new_comp_info_row)
             
-            # Add the actual index data lines, using the value from the profile vector `vec` #ACA
+            # Add the actual index data lines, using the value from the profile vector `vec` 
             if (Par_var %in% c("Depl"))
             {
               new_indices <- data.frame(

@@ -121,6 +121,7 @@ for(l in 1:N.sp)
     
   
     #Effective sample size (Francis method as default)
+    #zones combined
   List.sp[[l]]$tuned_size_comp=NULL
   tuned_size_comp=SS3.tune_size_comp_effective_sample%>%
                             filter(Species==NeiM)%>%
@@ -130,6 +131,9 @@ for(l in 1:N.sp)
                             mutate(Fleet=as.numeric(str_extract(Fleet, "[[:digit:]]+")))%>%
                             rename(Factor=Data_type)
   if(nrow(tuned_size_comp)>0) List.sp[[l]]$tuned_size_comp=tuned_size_comp
+  
+    #by zone
+  List.sp[[l]]$tuned_size_comp.zone=NULL  # ACA MISSING
   
     #recruitment
   ramp.yrs=SS3.Rrecruitment.inputs%>%filter(Species==NeiM)
@@ -552,6 +556,19 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
+  #Spatial model 
+  if(NeiM%in%spatial.model)
+  {
+    List.sp[[l]]$Sens.test$SS$Spatial=NA
+    
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+                mutate(Spatial='areas-as-fleets',
+                       Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+    
+  
   #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%
@@ -578,10 +595,16 @@ for(l in 1:N.sp)
   List.sp[[l]]$compress.tail=FALSE  #compress the size distribution tail into plus group. 
     
     #Qs (in log space)
-  List.sp[[l]]$Q.inits=data.frame(Fleet=c('Northern.shark','Other','Southern.shark_1','Southern.shark_2','Survey',
-                                          'F.series_Southern.shark_1'),
-                                  Fleet.n=1:6,
-                                  Q=log(c(fn.ji(1e-2),fn.ji(1e-2),fn.ji(1e-3),fn.ji(4e-4),fn.ji(1e-2),fn.ji(1e-3))))
+  List.sp[[l]]$Q.inits=data.frame(Fleet=c('Northern.shark','Other',
+                                          'Southern.shark_1','Southern.shark_2',
+                                          'Survey','F.series_Southern.shark_1',
+                                          'Southern.shark_1_West','Southern.shark_1_Zone1','Southern.shark_1_Zone2',
+                                          'Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2'),
+                                  Fleet.n=c(1:6,3:8),
+                                  Q=log(c(fn.ji(1e-2),fn.ji(1e-2),
+                                          fn.ji(1e-3),fn.ji(4e-4),
+                                          fn.ji(1e-2),fn.ji(1e-3),
+                                          rep(fn.ji(1e-3),3),rep(fn.ji(4e-4),3))))
   
     #use analytical solution if not splitting Q in blocks   
   List.sp[[l]]$SS3.q.an.sol=SS3.q.analit.solu
