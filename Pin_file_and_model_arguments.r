@@ -518,6 +518,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
     
   }
+  
   #Alternative do_recdev & SR_sigmaR
   if(NeiM%in%alternative.sigmaR & NeiM%in%alternative.do_recdev)
   {
@@ -537,16 +538,14 @@ for(l in 1:N.sp)
              Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
     List.sp[[l]]$F.forecasting.value=F.forecasting.values[[match(NeiM,names(F.forecasting.values))]] 
-    
   }
   
   #Likelihood weighting
+  List.sp[[l]]$Sens.test$SS$like_comp.w=NA
+  List.sp[[l]]$Sens.test$SS$like_comp_fleet.w=NA
+  List.sp[[l]]$Sens.test$SS$like_comp.w.val=NA
   if(NeiM%in%alternative.like.weigthing)
   {
-    List.sp[[l]]$Sens.test$SS$like_comp.w=NA
-    List.sp[[l]]$Sens.test$SS$like_comp_fleet.w=NA
-    List.sp[[l]]$Sens.test$SS$like_comp.w.val=NA
-    
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=rbind(List.sp[[l]]$Sens.test$SS[1,],List.sp[[l]]$Sens.test$SS[1,])%>%
       mutate(like_comp.w=c(1,4), 
@@ -557,10 +556,9 @@ for(l in 1:N.sp)
   }
   
   #Spatial model 
+  List.sp[[l]]$Sens.test$SS$Spatial='single area'
   if(NeiM%in%spatial.model)
   {
-    List.sp[[l]]$Sens.test$SS$Spatial=NA
-    
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
                 mutate(Spatial='areas-as-fleets',
@@ -906,6 +904,39 @@ for(l in 1:N.sp)
                                                 WRL.sel.phases,
                                                 List.sp[[l]]$SS_selectivity.sensitivity_phase%>%filter(Fleet=='Survey'))
       }
+    }
+    
+    #Populate values for Zones
+    List.sp[[l]]$SS_selectivity=rbind(List.sp[[l]]$SS_selectivity,
+                                      fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity,
+                                                            x='Southern.shark_1',
+                                                            y=c('Southern.shark_1_West','Southern.shark_1_Zone1','Southern.shark_1_Zone2')),
+                                      fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity,
+                                                            x='Southern.shark_2',
+                                                            y=c('Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2')))
+    List.sp[[l]]$SS_selectivity_phase=rbind(List.sp[[l]]$SS_selectivity_phase,
+                                            fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity_phase,
+                                                                  x='Southern.shark_1',
+                                                                  y=c('Southern.shark_1_West','Southern.shark_1_Zone1','Southern.shark_1_Zone2')),
+                                            fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity_phase,
+                                                                  x='Southern.shark_2',
+                                                                  y=c('Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2')))
+    if(!is.null(List.sp[[l]]$SS_selectivity.sensitivity))
+    {
+      List.sp[[l]]$SS_selectivity.sensitivity=rbind(List.sp[[l]]$SS_selectivity.sensitivity,
+                                                    fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity.sensitivity,
+                                                                          x='Southern.shark_1',
+                                                                          y=c('Southern.shark_1_West','Southern.shark_1_Zone1','Southern.shark_1_Zone2')),
+                                                    fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity.sensitivity,
+                                                                          x='Southern.shark_2',
+                                                                          y=c('Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2')))
+      List.sp[[l]]$SS_selectivity.sensitivity_phase=rbind(List.sp[[l]]$SS_selectivity.sensitivity_phase,
+                                                          fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity.sensitivity_phase,
+                                                                                x='Southern.shark_1',
+                                                                                y=c('Southern.shark_1_West','Southern.shark_1_Zone1','Southern.shark_1_Zone2')),
+                                                          fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity.sensitivity_phase,
+                                                                                x='Southern.shark_2',
+                                                                                y=c('Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2')))
     }
     
     #turn on Southern2 if meanbodywt

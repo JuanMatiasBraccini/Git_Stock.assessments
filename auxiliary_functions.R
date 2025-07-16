@@ -11,6 +11,13 @@ objects.exist <- function(...)
   ls <- list(...)
   sapply(ls, exists)
 }
+fn.add.fleet.zone.sel=function(d,x,y)
+{
+  d=d%>%filter(Fleet==x)
+  d=d%>%slice(rep(1:n(), each = length(y)))%>%
+    mutate(Fleet=y)
+  return(d)
+}
 fn.ktch.sex.ratio.zone=function(size.data)
 {
   if(any(grepl('Observations',names(size.data)))) size.data=size.data[-grep('Observations',names(size.data))]

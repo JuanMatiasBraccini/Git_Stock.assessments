@@ -888,7 +888,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                       filter(fleet%in%unique(abundance$index))
       ctl$Q_options=ctl$Q_options[which(rownames(ctl$Q_options)%in%dat$fleetinfo$fleetname),]
       
-      #ACA
       flits.with.cpue=flit.numb%>%filter(Fleet.n%in%unique(abundance$index))
       Nms=rownames(ctl$Q_parms)
       Nms=gsub(r"{\s*\([^\)]+\)}","",gsub("^.*?base_","",Nms))
@@ -1021,9 +1020,16 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       #Block patterns
       if(!life.history$Nblock_Patterns==0 & ctl$time_vary_auto_generation[3]==0)
       {
-        iiq_block=match(paste('fleet_',ctl$Q_options$fleet[match('Southern.shark_1',rownames(ctl$Q_options))],sep=''),rownames(ctl$Q_parms))
-        if(is.na(iiq_block)) iiq_block=match('Southern.shark_1',rownames(ctl$Q_parms))
-        if(!is.na(iiq_block)) ctl$Q_parms[iiq_block,c('Block','Block_Fxn')]=c(life.history$Q_param_Block,life.history$Q_param_Blk_Fxn)
+        Q_param_Block=life.history$Q_param_Block
+        Q_param_Blk_Fxn=life.history$Q_param_Blk_Fxn
+        id_qs=grep('Southern.shark_1',rownames(ctl$Q_parms))
+        if(length(id_qs)>1)
+        {
+          Q_param_Block=rep(Q_param_Block,length(id_qs))
+          Q_param_Blk_Fxn=rep(Q_param_Blk_Fxn,length(id_qs))
+        }
+        ctl$Q_parms[id_qs,'Block']=Q_param_Block
+        ctl$Q_parms[id_qs,'Block_Fxn']=Q_param_Blk_Fxn
       }
       
       #Analytical solution
@@ -1042,7 +1048,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   #selectivity pars  
   if(Scenario$Model=='SS')
   {
-    #1. size_selex   #ACA
+    #1. size_selex   
     ddumy=ctl$size_selex_types[rep(1,length(dis.flits)),]%>%
               mutate(Fleet=row_number())%>%
               left_join(flit.numb,by=c('Fleet'='Fleet.n'))%>%
@@ -1058,19 +1064,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
               dplyr::select(-fleetname)
     row.names(ddumy)=dis.flits
     
-    # ddumy=ctl$size_selex_types%>%
-    #   rownames_to_column('fleetname')%>%
-    #   mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-    #                    ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-    #                    fleetname)))%>%
-    #   filter(fleetname%in%dis.flits)%>%
-    #   mutate(Fleet=row_number())
-    # rownames(ddumy)=ddumy$fleetname
-    if(!'Northern.shark'%in%rownames(ddumy))
+    if(!'Northern.shark'%in%rownames(ddumy))   
     {
       ddumy=ddumy%>%
         mutate(Pattern=ifelse(fleetname=='Other',24,Pattern),
-               Special=ifelse(fleetname=='Other',0,ifelse(fleetname=='Southern.shark_2',2,Special)))
+               Special=case_when(fleetname=='Other'~0,
+                                 fleetname=='Southern.shark_2'~2,
+                                 TRUE~Special))
     }
     if(!is.null(F.tagging))
     {
@@ -1081,7 +1081,34 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       ddumy=rbind(ddumy,add.F.series.dummy)
     }
     
-    #select if using sensitivity selectivity  #ACA. must add pars and phases for zones in List.sp[[l]]$SS_selectivity_phase ,etc
+    #select relevant selectivity fleets
+    life.history$SS_selectivity=life.history$SS_selectivity%>%
+                                      filter(Fleet%in%fleetinfo$fleetname)%>%
+                                      left_join(flit.numb,by=c('Fleet'='fleetname'))%>%
+                                      arrange(Fleet.n)%>%
+                                      dplyr::select(-Fleet.n)
+     life.history$SS_selectivity_phase=life.history$SS_selectivity_phase%>%
+                                            filter(Fleet%in%fleetinfo$fleetname)%>%
+                                            left_join(flit.numb,by=c('Fleet'='fleetname'))%>%
+                                            arrange(Fleet.n)%>%
+                                            dplyr::select(-Fleet.n)
+     if(!is.null(life.history$SS_selectivity.sensitivity))
+     {
+       life.history$SS_selectivity.sensitivity=life.history$SS_selectivity.sensitivity%>%
+         filter(Fleet%in%fleetinfo$fleetname)%>%
+         left_join(flit.numb,by=c('Fleet'='fleetname'))%>%
+         arrange(Fleet.n)%>%
+         dplyr::select(-Fleet.n)
+       
+       life.history$SS_selectivity.sensitivity_phase=life.history$SS_selectivity.sensitivity_phase%>%
+         filter(Fleet%in%fleetinfo$fleetname)%>%
+         left_join(flit.numb,by=c('Fleet'='fleetname'))%>%
+         arrange(Fleet.n)%>%
+         dplyr::select(-Fleet.n)
+       
+     }
+     
+     #select if using sensitivity selectivity   
     if(!is.na(Scenario$NSF.selectivity))
     {
       life.history$SS_selectivity=life.history$SS_selectivity.sensitivity
@@ -1154,10 +1181,32 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                      Special=ifelse(fleetname=='Other',0,Special))
     }
     
-    ctl$size_selex_types=ddumy%>%dplyr::select(-fleetname,-Fleet)  
+    #replace size_selex_types
+    ctl$size_selex_types=ddumy%>%dplyr::select(-Fleet)  
     
     Sel.ptrn=ctl$size_selex_types$Pattern
     names(Sel.ptrn)=paste('Fishery',1:length(Sel.ptrn),sep='')
+    
+    #replace size_selex_parms 
+    ddami=ctl$size_selex_parms%>%
+            mutate(Fleet=gsub("\\s*\\([^\\)]+\\)","",str_after_nth(rownames(ctl$size_selex_parms), "_", 2)))
+    dis.vec=paste0(1:6,'_Southern.shark_1')
+    ddami_extra=vector('list',length(dis.vec))
+    for(v in 1:length(dis.vec))
+    {
+      aaa=fn.add.fleet.zone.sel(d=ddami,
+                            x=dis.vec[v],
+                            y=c('Southern.shark_1_West','Southern.shark_1_Zone1','Southern.shark_1_Zone2'))
+      rownames(aaa)=paste0('SizeSel_P_',v,"_",aaa$Fleet)  
+      ddami_extra[[v]]=aaa%>%mutate(Fleet=paste0(v,'_',Fleet))
+    }
+    ddami_extra=do.call(rbind,ddami_extra)%>%arrange(Fleet)
+    ddami=rbind(ddami,ddami_extra)%>%
+              mutate(Fleet=sub(".*?_","",Fleet))%>%
+              filter(Fleet%in%fleetinfo$fleetname)%>%
+              arrange(Fleet)%>%
+              dplyr::select(-Fleet)
+    ctl$size_selex_parms=ddami        
     
     row_nm_size_selex_parms=gsub("\\s*\\([^\\)]+\\)","",str_after_nth(rownames(ctl$size_selex_parms), "_", 3)) 
     row_nm_size_selex_parms=ifelse(row_nm_size_selex_parms=='Southern.shark_monthly','Southern.shark_1',
@@ -1183,7 +1232,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     added.bit=str_before_nth(rownames(ctl$size_selex_parms), "_", 3)
     row_nm_size_selex_parms=subset(row_nm_size_selex_parms,row_nm_size_selex_parms%in%dis.flits)
     
-    #turn off irrelevant sel pars
+    #turn off irrelevant sel pars   
     dummy.sel.pat=ctl$size_selex_types$Pattern
     names(dummy.sel.pat)=rownames(ctl$size_selex_types)
     names(dummy.sel.pat)=ifelse(names(dummy.sel.pat)=='Southern.shark_1','Southern.shark_monthly',
@@ -1203,23 +1252,34 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       {
         Tab.size.comp.dat=with(dat$lencomp,table(Fleet))
         names(Tab.size.comp.dat)=fleetinfo$fleetname[as.numeric(names(Tab.size.comp.dat))]
-        nn.Southern.shark_2=subset(Tab.size.comp.dat,names(Tab.size.comp.dat)=="Southern.shark_2")
-        if(length(nn.Southern.shark_2)>0)
+        dis.vec=c("Southern.shark_2","Southern.shark_2_West","Southern.shark_2_Zone1","Southern.shark_2_Zone2")
+        names(dis.vec)=c("Southern.shark_1","Southern.shark_1_West","Southern.shark_1_Zone1","Southern.shark_1_Zone2")
+        for(v in 1:length(dis.vec))
         {
-          ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_2",]=ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_1",]
-          add.Southern.shark_2.pars=ctl$size_selex_parms[grepl('Southern.shark_1',rownames(ctl$size_selex_parms)),]
-          rownames(add.Southern.shark_2.pars)=str_replace(rownames(add.Southern.shark_2.pars), "k_1", "k_2")
-          ctl$size_selex_parms=rbind(ctl$size_selex_parms,add.Southern.shark_2.pars)
-          ctl$size_selex_parms$fleet=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_", paste0(1:6,"_")), collapse = "|")))
-          ctl$size_selex_parms$order=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_",paste0("_",ctl$size_selex_parms$fleet)), collapse = "|")))
-          ctl$size_selex_parms=ctl$size_selex_parms%>%
-            left_join(data.frame(fleet=rownames(ctl$size_selex_types%>%filter(Special==0)))%>%mutate(Fleet.order=row_number()),
-                      by='fleet')%>%
-            arrange(Fleet.order,order)
-          rownames(ctl$size_selex_parms)=paste0('SizeSel_P_',ctl$size_selex_parms$order,'_',ctl$size_selex_parms$fleet)
-          ctl$size_selex_parms=ctl$size_selex_parms%>%
-            dplyr::select(-order,-fleet,-Fleet.order)
+          input=dis.vec[v]
+          output=names(dis.vec[v])  
+          nn.dis=subset(Tab.size.comp.dat,names(Tab.size.comp.dat)==input)
+          if(length(nn.dis)>0)
+          {
+            ctl$size_selex_types[rownames(ctl$size_selex_types)==input,]=ctl$size_selex_types[rownames(ctl$size_selex_types)==output,]
+            
+            add.Southern.shark_2.pars=ctl$size_selex_parms[grepl(output,rownames(ctl$size_selex_parms)),]
+            rownames(add.Southern.shark_2.pars)=str_replace(rownames(add.Southern.shark_2.pars), "k_1", "k_2")
+            
+            ctl$size_selex_parms=rbind(ctl$size_selex_parms,add.Southern.shark_2.pars)
+            ctl$size_selex_parms$fleet=sub(".*?_","",str_remove_all(rownames(ctl$size_selex_parms), "SizeSel_P_"))
+            ctl$size_selex_parms$order=gsub("\\_.*", "", str_remove_all(rownames(ctl$size_selex_parms), "SizeSel_P_"))
+            ctl$size_selex_parms=ctl$size_selex_parms%>%
+                                  left_join(data.frame(fleet=rownames(ctl$size_selex_types%>%filter(Special==0)))%>%
+                                              mutate(Fleet.order=row_number()),
+                                            by='fleet')%>%
+                                  arrange(Fleet.order,order)
+            rownames(ctl$size_selex_parms)=paste0('SizeSel_P_',ctl$size_selex_parms$order,'_',ctl$size_selex_parms$fleet)
+            ctl$size_selex_parms=ctl$size_selex_parms%>%
+                            dplyr::select(-order,-fleet,-Fleet.order)
+          }
         }
+
       }
        if( !any(grepl('Southern.shark_2',rownames(ctl$size_selex_parms))) &  (!is.null(meanbodywt) & isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt)))
       {
@@ -1263,20 +1323,19 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     
     #allocated species specific values to sel pars 
     Mirrored.sels=rownames(ctl$size_selex_types%>%filter(Pattern==15))
-    life.history$SS_selectivity=life.history$SS_selectivity%>%filter(Fleet%in%dis.flits)
     if(length(Mirrored.sels)>0) life.history$SS_selectivity=life.history$SS_selectivity%>%filter(!Fleet%in%Mirrored.sels)
     id.fleets=fn.get.in.betwee(x=rownames(ctl$size_selex_parms))
-    pis=unique(id.fleets)
+    pis=unique(id.fleets)  
     for(px in 1:length(pis))
     {
       iid=which(id.fleets==pis[px])
       this.par=life.history$SS_selectivity[,match(pis[px],colnames(life.history$SS_selectivity))]  
       names(this.par)=life.history$SS_selectivity$Fleet
-      names(this.par)=str_remove_all(names(this.par), '_')
+      #names(this.par)=str_remove_all(names(this.par), '_')
       this.par=subset(this.par,!is.na(this.par))
       if(length(this.par)>0)
       {
-        ctl$size_selex_parms[iid,"INIT"]=this.par[match(gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms[iid,]), paste(c("SizeSel_", pis[px], '_'), collapse = "|"))),names(this.par))]
+        ctl$size_selex_parms[iid,"INIT"]=this.par[match( str_remove_all(rownames(ctl$size_selex_parms[iid,]),paste0("SizeSel_", pis[px], '_')),names(this.par))]
         enen=length(ctl$size_selex_parms[iid,"INIT"])
         multiplr=rep(0.1,enen)
         multiplr[which(!is.na(ctl$size_selex_parms[iid,"INIT"]))]=ifelse(this.par<0,2,multiplr)
@@ -1313,14 +1372,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$size_selex_parms=ctl$size_selex_parms%>%filter(!is.na(INIT))
     
     #set phases for estimable selectivities  
-      #set phase to the one defined in SS_selectivity_phase
     if(!is.null(size.comp))  
     {
       flit.size.comp.obs=sort(unique(dat$lencomp$Fleet))
       flit.no.size.comp.obs=fleetinfo%>%filter(!fleetname%in%rownames(dat$len_info)[flit.size.comp.obs])%>%pull(fleetname)
       
       life.history$SS_selectivity_phase=life.history$SS_selectivity_phase%>%
-                      filter(Fleet%in%life.history$SS_selectivity$Fleet)
+                                          filter(Fleet%in%life.history$SS_selectivity$Fleet)
       no.length.comp=which(life.history$SS_selectivity_phase$Fleet%in%flit.no.size.comp.obs) 
       # if(match('Survey',fleetinfo$fleetname)%in%unique(size.comp$Fleet))
       # {
@@ -1335,20 +1393,20 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       }
       
       Sel_phase=life.history$SS_selectivity_phase%>%
-        gather(P,PHASE1,-Fleet)%>%
-        mutate(dumy=paste('SizeSel',P,Fleet,sep="_"))
+                  gather(P,PHASE1,-Fleet)%>%
+                  mutate(dumy=paste('SizeSel',P,Fleet,sep="_"))
       
       xx=ctl$size_selex_parms%>%
-        tibble::rownames_to_column(var = "dumy")%>%
-        left_join(Sel_phase%>%dplyr::select(PHASE1,dumy),by='dumy')%>%
-        mutate(PHASE=PHASE1)%>%
-        dplyr::select(-PHASE1)%>%
-        `row.names<-`(., NULL)%>%
-        column_to_rownames(var = "dumy")
+                tibble::rownames_to_column(var = "dumy")%>%
+                left_join(Sel_phase%>%dplyr::select(PHASE1,dumy),by='dumy')%>%
+                mutate(PHASE=PHASE1)%>%
+                dplyr::select(-PHASE1)%>%
+                `row.names<-`(., NULL)%>%
+                column_to_rownames(var = "dumy")
       ctl$size_selex_parms=xx
     }
     if(is.null(size.comp))ctl$size_selex_parms[,"PHASE"]=-2
-    if(!is.null(size.comp))  
+    if(!is.null(size.comp))   
     {
       if(length(Mirrored.sels)>0) flit.no.size.comp.obs=subset(flit.no.size.comp.obs,!flit.no.size.comp.obs%in%Mirrored.sels)
       if("Southern.shark_2"%in%flit.no.size.comp.obs & isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt))
@@ -1430,12 +1488,39 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       if(n.disc.pars<4) Discard_option=1 #0=none; 1= retention and all discards Dead;
       if(n.disc.pars==4) Discard_option=2 #2= 4 retention parameters (i.e. logistic) and 4 discard mortality parameters
       if(n.disc.pars==7) Discard_option=4 #4= 7 retention parameters (i.e. dome=shaped) and 4 discard mortality parameters
-      ctl$size_selex_types$Discard[match(xx$Fleet,rownames(ctl$size_selex_types))]=Discard_option 
+      id_disc=grep(xx$Fleet,rownames(ctl$size_selex_types))
+      if(length(id_disc)>1)
+      {
+        xx=xx %>%
+          slice(rep(1:n(), each = length(id_disc)))%>%
+          mutate(Fleet=rownames(ctl$size_selex_types)[id_disc])
+      }
+      colnames.xx=names(xx)[-1]
+      ctl$size_selex_types$Discard[id_disc]=Discard_option 
       
-      retention_params=ctl$size_selex_parms[grep(xx$Fleet,rownames(ctl$size_selex_parms)),]
-      retention_params=retention_params[1:(ncol(xx)-1),]%>%
-                        mutate(INIT=unlist(xx[,2:(ncol(xx))]),
-                               PRIOR=INIT)
+      retention_params=ctl$size_selex_parms[grep(paste(xx$Fleet,collapse='|'),rownames(ctl$size_selex_parms)),]
+      retention_params=retention_params%>%
+                          mutate(rowname=rownames(retention_params),
+                                 Fleet=str_after_nth(rowname,'_',3),
+                                 P=str_before_nth(str_after_nth(rowname, "_", 1),"_",2))
+     adiss=colnames.xx[which(!colnames.xx%in%retention_params$P)]
+     if(length(adiss)>0)
+     {
+       adiss=rep(adiss,nrow(xx))
+       ddmI=retention_params[1:length(adiss),]%>%
+         mutate(Fleet=xx$Fleet,   
+                P=adiss)
+       rownames(ddmI)=paste0('SizeSel_',adiss,'_',xx$Fleet)
+       retention_params=rbind(retention_params,ddmI)
+     }
+     retention_params=retention_params%>%
+                        arrange(Fleet,P)
+     retention_params=retention_params%>%dplyr::select(-c(rowname,Fleet,P))
+     retention_params$dumi=paste(rep(paste(grep(paste(xx$Fleet,collapse='|'),fleetinfo$fleetname),2,sep='_'),each=ncol(xx)-1),
+                                 rep(colnames.xx,nrow(xx)),sep='_')
+      retention_params=retention_params%>%    
+                                  mutate(INIT=c(t(xx[,2:(ncol(xx))])),
+                                         PRIOR=INIT)
       this.par=retention_params$INIT
       multiplr=rep(0.1,length(this.par))
       multiplr=ifelse(this.par<0,2,multiplr)
@@ -1444,28 +1529,39 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       id999=which(this.par==999)
       if(length(id0)>0) low.bound[id0]=-1
       if(length(id999)>0) low.bound[id999]=-10
-      
       multiplr=rep(1.5,length(this.par))
       multiplr=ifelse(this.par<0,-2,multiplr)
       up.bound=multiplr*retention_params$INIT
       if(length(id0)>0) up.bound[id0]=1
       if(length(id999)>0) up.bound[id999]=1e3
-      
       retention_params=retention_params%>%
                         mutate(LO=low.bound,
                                HI=up.bound,
                                PHASE=-2,
                                PR_SD=99)%>%
-        replace(is.na(.), 0)
-      rownames(retention_params)=paste(paste('Retention_',names(xx)[-1],sep=''),xx$Fleet,sep='_')
-      retention_params$dumi=paste(paste(match(xx$Fleet,fleetinfo$fleetname),2,sep='_'),names(xx)[-1],sep='_')
+                          replace(is.na(.), 0)
+      rownames(retention_params)=str_replace(rownames(retention_params),'SizeSel','Retention')
+      
       
       #discard mortality 
       xx=life.history$SS_discard_mortality
-      discard_mortality=ctl$size_selex_parms[grep(xx$Fleet,rownames(ctl$size_selex_parms)),]
-      discard_mortality=discard_mortality[1:(ncol(xx)-1),]%>%
-        mutate(INIT=unlist(xx[,2:(ncol(xx))]),
-               PRIOR=INIT)
+      if(length(id_disc)>1)
+      {
+        xx=xx %>%
+          slice(rep(1:n(), each = length(id_disc)))%>%
+          mutate(Fleet=rownames(ctl$size_selex_types)[id_disc])
+      }
+      colnames.xx=names(xx)[-1]
+      discard_mortality=ctl$size_selex_parms[grep(paste(xx$Fleet,collapse='|'),rownames(ctl$size_selex_parms)),]
+      discard_mortality=discard_mortality%>%
+                          mutate(rowname=rownames(discard_mortality),
+                                 P=str_before_nth(str_after_nth(rowname, "_", 1),"_",2))%>%
+                          filter(P%in%colnames.xx)%>%
+                          dplyr::select(-rowname,-P)%>%  
+                          mutate(INIT=c(t(xx[,2:(ncol(xx))])),
+                                 PRIOR=INIT,
+                                 dumi=paste(rep(paste(grep(paste(xx$Fleet,collapse='|'),fleetinfo$fleetname),3,sep='_'),each=ncol(xx)-1),
+                                            rep(colnames.xx,nrow(xx)),sep='_'))
       this.par=discard_mortality$INIT
       multiplr=rep(0.1,length(this.par))
       multiplr=ifelse(this.par<0,2,multiplr)
@@ -1475,33 +1571,34 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       if(length(id0)>0) low.bound[id0]=-1
       if(length(id999)>0) low.bound[id999]=-10
       low.bound=sapply(low.bound,function(x) max(0,x))
-      
       multiplr=rep(1.5,length(this.par))
       multiplr=ifelse(this.par<0,-2,multiplr)
       up.bound=multiplr*discard_mortality$INIT
       if(length(id0)>0) up.bound[id0]=1
       if(length(id999)>0) up.bound[id999]=10
-      
       discard_mortality=discard_mortality%>%
         mutate(LO=low.bound,
                HI=up.bound,
                PHASE=-2,
                PR_SD=99)%>%
-        replace(is.na(.), 0)
-      rownames(discard_mortality)=paste(paste('DiscMort_',names(xx)[-1],sep=''),xx$Fleet,sep='_')
-      discard_mortality$dumi=paste(paste(match(xx$Fleet,fleetinfo$fleetname),3,sep='_'),names(xx)[-1],sep='_')
-
+              replace(is.na(.), 0)
+      rownames(discard_mortality)=str_replace(rownames(discard_mortality),'SizeSel','DiscMort')
+      
       
       #combine with sel pars
       dumiSel=ctl$size_selex_parms
       kkk=strsplit(rownames(dumiSel), '_') 
       dumi.f=data.frame(A=sapply(kkk, `[`, 4),
-                        B=sapply(kkk, `[`, 5))%>%
-                    mutate(B=ifelse(is.na(B),'',B),
-                           C=paste(A,B,sep='_'),
-                           D=ifelse(B=="",A,C),
-                           E=match(D,fleetinfo$fleetname))
+                        B=sapply(kkk, `[`, 5),
+                        Z=sapply(kkk, `[`, 6))%>%
+                        mutate(B=ifelse(is.na(B),'',B),
+                               Z=ifelse(is.na(Z),'',Z),
+                               C=paste(A,B,sep='_'),
+                               CZ=paste(A,B,Z,sep='_'),
+                               D=ifelse(B=="",A,ifelse(!Z=='',CZ,C)),
+                               E=match(D,fleetinfo$fleetname))
       dumiSel$dumi=paste(paste(paste(dumi.f$E,1,sep='_'),sapply(kkk, `[`, 2),sep='_'),sapply(kkk, `[`, 3),sep='_')
+      
       ctl$size_selex_parms=rbind(dumiSel,retention_params,discard_mortality)%>%
                               arrange(dumi)%>%
                               dplyr::select(-dumi)
@@ -1512,14 +1609,24 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       xx=life.history$SS_offset_selectivity%>%select_if(~ !any(is.na(.)))
       xx.phase=life.history$SS_offset_selectivity_phase%>%select_if(~ !any(is.na(.)))
-      
-      ctl$size_selex_types$Male[match(xx$Fleet,rownames(ctl$size_selex_types))]=3
-      ctl$size_selex_types=ctl$size_selex_types%>%mutate(Male=ifelse(Pattern==15,0,Male))
+      id.male.off=grep(paste(xx$Fleet,collapse='|'),rownames(ctl$size_selex_types))
+      if(length(id.male.off)>1 & length(unique(xx$Fleet))==1)
+      {
+        xx=xx %>%
+              slice(rep(1:n(), each = length(id.male.off)))%>%
+              mutate(Fleet=rownames(ctl$size_selex_types)[id.male.off])
+        xx.phase= xx.phase %>%
+              slice(rep(1:n(), each = length(id.male.off)))%>%
+          mutate(Fleet=rownames(ctl$size_selex_types)[id.male.off])
+      }
+      ctl$size_selex_types$Male[id.male.off]=3
+      ctl$size_selex_types=ctl$size_selex_types%>%
+                              mutate(Male=ifelse(Pattern==15,0,Male))
       
       xx=xx%>%
-            filter(Fleet%in%rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,]))
+            filter(grepl(paste(rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,]),collapse='|'),Fleet))
       xx.phase=xx.phase%>%
-            filter(Fleet%in%rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,]))
+            filter(grepl(paste(rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,]),collapse='|'),Fleet))
       if(is.null(size.comp) & is.null(meanbodywt)) xx.phase[,-1]=-1
       
       xx.min=xx%>%mutate(P_1=-50,P_3=-5,P_4=-5,P_5=-8,P_6=0)
@@ -1543,11 +1650,14 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       dumiSel=ctl$size_selex_parms
       kkk=strsplit(rownames(dumiSel), '_') 
       dumi.f=data.frame(A=sapply(kkk, `[`, 4),
-                        B=sapply(kkk, `[`, 5))%>%
-        mutate(B=ifelse(is.na(B),'',B),
-               C=paste(A,B,sep='_'),
-               D=ifelse(B=="",A,C),
-               E=match(D,fleetinfo$fleetname))
+                        B=sapply(kkk, `[`, 5),
+                        Z=sapply(kkk, `[`, 6))%>%
+                          mutate(B=ifelse(is.na(B),'',B),
+                                 Z=ifelse(is.na(Z),'',Z),
+                                 C=paste(A,B,sep='_'),
+                                 CZ=paste(A,B,Z,sep='_'),
+                                 D=ifelse(B=="",A,ifelse(!Z=='',CZ,C)),
+                                 E=match(D,fleetinfo$fleetname))
       dumiSel$dumi=paste(paste(paste(dumi.f$E,1,sep='_'),sapply(kkk, `[`, 2),sep='_'),sapply(kkk, `[`, 3),sep='_')
       ctl$size_selex_parms=rbind(dumiSel,offset_params)%>%
                             arrange(dumi)%>%
@@ -1598,11 +1708,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     #   ctl$age_selex_types=rbind(ctl$age_selex_types,F.age.sel.pat)
     # }  
     
-    #Block pattern - time changing selectivity
+    #Block pattern - time changing selectivity 
     if(!life.history$Nblock_Patterns==0 & ctl$time_vary_auto_generation[5]==0)
     {
-      dis.blok=match(paste('SizeSel',names(life.history$SizeSelex_Block),life.history$Sel.Block.fleet,sep='_'),rownames(ctl$size_selex_parms))
-      ctl$size_selex_parms$Block[dis.blok]=life.history$SizeSelex_Block  
+      dis1=fleetinfo$fleetname[grep(life.history$Sel.Block.fleet,fleetinfo$fleetname)]
+      dis2=life.history$SizeSelex_Block
+      dis3=paste(names(dis2),rep(dis1,each=length(dis2)),sep='_')
+      
+      dis.blok=match(paste('SizeSel',dis3,sep='_'),rownames(ctl$size_selex_parms))
+      ctl$size_selex_parms$Block[dis.blok]=rep(dis2,length(dis1))  
     }
   }
   if(Scenario$Model=='SSS')  #SSS assumes selectivity = maturity

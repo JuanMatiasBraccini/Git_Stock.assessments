@@ -1132,8 +1132,9 @@ for(w in 1:n.SS)
             }
             
             #Scenarios
-            if(!do.all.sensitivity.tests) Life.history$Sens.test$SS=Life.history$Sens.test$SS%>%filter(Scenario=='S1')
-            Scens=Life.history$Sens.test$SS%>%
+            Scens=Life.history$Sens.test$SS
+            if(!do.all.sensitivity.tests) Scens=Scens%>%filter(Scenario=='S1')
+            Scens=Scens%>%
               mutate(Species=capitalize(Neim))
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
@@ -1285,7 +1286,7 @@ for(w in 1:n.SS)
                 }
                 
                 #Specify ktch,flitinfo,abundance,comps,mean.weight,var.adjs & future based on scenario   
-                if(is.na(Scens$Spatial[s]))
+                if(Scens$Spatial[s]=='single area')
                 {
                   KAtch=ktch
                   FLitinFO=flitinfo
