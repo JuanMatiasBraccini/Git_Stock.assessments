@@ -1305,6 +1305,15 @@ for(w in 1:n.SS)
                   meanbody=meanbodywt.SS.format.zone
                   Var.ad=Var.ad.factr.zone
                   add.future=add.ct.or.F_future.zone
+                  
+                  #Change species specific sel pars for spatial model
+                  if(Neim=="sandbar shark")   
+                  {
+                    Life.history$SS_offset_selectivity=Life.history$SS_offset_selectivity%>%
+                      mutate(P_1=ifelse(Fleet=='Survey',6.5,P_1),
+                             P_3=ifelse(Fleet=='Survey',0.22,P_3),
+                             P_4=ifelse(Fleet=='Survey',0.09,P_4))
+                  }
                 }
                   
                 fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   

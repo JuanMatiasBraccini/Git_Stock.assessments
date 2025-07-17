@@ -891,6 +891,7 @@ rm(mesh.prop.effort.West,mesh.prop.effort.Zone1,mesh.prop.effort.Zone2)
 
 SS3.Rrecruitment.inputs=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Rrecruitment.inputs.csv'))
 SS3.tune_size_comp_effective_sample=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample.csv'))
+SS3.tune_size_comp_effective_sample_spatial=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample_spatial.csv'))
 
 Depletion.levels<- read_excel(handl_OneDrive('Analyses/Population dynamics/K_&_depletion.levels.xlsx'),sheet = "K_&_depletion.levels")
 

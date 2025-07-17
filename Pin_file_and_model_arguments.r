@@ -121,7 +121,7 @@ for(l in 1:N.sp)
     
   
     #Effective sample size (Francis method as default)
-    #zones combined
+      #zones combined
   List.sp[[l]]$tuned_size_comp=NULL
   tuned_size_comp=SS3.tune_size_comp_effective_sample%>%
                             filter(Species==NeiM)%>%
@@ -131,11 +131,18 @@ for(l in 1:N.sp)
                             mutate(Fleet=as.numeric(str_extract(Fleet, "[[:digit:]]+")))%>%
                             rename(Factor=Data_type)
   if(nrow(tuned_size_comp)>0) List.sp[[l]]$tuned_size_comp=tuned_size_comp
+        #by zone
+  List.sp[[l]]$tuned_size_comp.zone=NULL  
+  tuned_size_comp.zone=SS3.tune_size_comp_effective_sample_spatial%>%
+                            filter(Species==NeiM)%>%
+                            dplyr::select(-Species)%>%
+                            gather(Fleet,Value,-Data_type)%>%
+                            filter(!is.na(Value))%>%
+                            mutate(Fleet=as.numeric(str_extract(Fleet, "[[:digit:]]+")))%>%
+                            rename(Factor=Data_type)
+  if(nrow(tuned_size_comp)>0) List.sp[[l]]$tuned_size_comp.zone=tuned_size_comp.zone
   
-    #by zone
-  List.sp[[l]]$tuned_size_comp.zone=NULL  # ACA MISSING
-  
-    #recruitment
+    #Recruitment pars
   ramp.yrs=SS3.Rrecruitment.inputs%>%filter(Species==NeiM)
   Min.logR0=ramp.yrs$Ln_R0_min
   Upper.bound.LnR0=ramp.yrs$Ln_R0_max
