@@ -1780,7 +1780,7 @@ if(do.SS3.diagnostics)
                       numjitter=Number.of.jitters,
                       outLength.Cross.Val=FALSE,
                       run.in.parallel=TRUE,
-                      flush.files=TRUE,
+                      flush.files=FALSE,
                       COVAR=TRUE,
                       h.input=Input.h)
       rm(MLE,this.wd1,R0.range,Estim.LnRo)

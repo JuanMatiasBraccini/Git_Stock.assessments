@@ -2302,6 +2302,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
                                       string=Par_var_string,
                                       profilevec=Par_var.vec,
                                       exe=exe_path,
+                                      saveoutput = saveoutput,
+                                      overwrite = overwrite,
                                       verbose = FALSE,
                                       extras = diag.extras)
       }
@@ -2496,7 +2498,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
             }
           })
         }
-        purrr::walk(whichruns, ~unlink(file.path(mydir, paste0("profile",.x)), recursive = TRUE))
+        if(flush.files) purrr::walk(whichruns, ~unlink(file.path(mydir, paste0("profile",.x)), recursive = TRUE))
         
         res_keep <- which(!sapply(res, is.null))
         res_clean <- res[res_keep]
@@ -2514,7 +2516,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
       # export like prof stats
       write.csv(Like.profile,
                 file.path(dirname.diagnostics,paste0("profile_summary_table_",Par_var,".csv")),
-                row.names = FALSE)
+                row.names = TRUE)
       
       # read the output files (with names like Report1.sso, Report2.sso, etc.)
       prof.models <- SSgetoutput(dirvec=mydir, keyvec=c('',1:Nprof), getcovar = FALSE, verbose=FALSE) 
@@ -2562,14 +2564,14 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
       legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
       dev.off()
       
+      # make timeseries plots comparing models in profile
+      labs <- paste0(Par_var_string,"= ",Par_var.vec)
+      if(!is.null(baseval))labs[which(round(Par_var.vec,2)==baseval)] <- paste0(Par_var_string,"= ",baseval,"(Base model)")
+      SSplotComparisons(prof.summary,legendlabels=labs,pheight=4.5,plot = FALSE,png=TRUE,
+                        plotdir=plotdir,legendloc='bottomleft',verbose = FALSE)
+      
       if(Par_var%in%c("R0"))
       {
-        # make timeseries plots comparing models in profile
-        labs <- paste0(Par_var_string,"= ",Par_var.vec)
-        if(!is.null(baseval))labs[which(round(Par_var.vec,2)==baseval)] <- paste0(Par_var_string,"= ",baseval,"(Base model)")
-        SSplotComparisons(prof.summary,legendlabels=labs,pheight=4.5,plot = FALSE,png=TRUE,
-                          plotdir=plotdir,legendloc='bottomleft',verbose = FALSE)
-        
         #Piner plot
         #Size comp
         if(length.series>0)
@@ -2765,29 +2767,49 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
     Params=profilesummary[["pars"]]
     Base.model.like=Report[["likelihoods_used"]][match("TOTAL",rownames(Report[["likelihoods_used"]])),'values']
+    
     #Plot
     if(!'replist0'%in%names(profilesummary[["SpawnBioLower"]])) profilesummary[["SpawnBioLower"]]$replist0=profilesummary[["SpawnBioLower"]]$replist1
     if(!'replist0'%in%names(profilesummary[["SpawnBioUpper"]])) profilesummary[["SpawnBioUpper"]]$replist0=profilesummary[["SpawnBioUpper"]]$replist1
-    tiff(file.path(dirname.diagnostics,"Jitter.tiff"), 
-         width = 2100, height = 2100,units = "px", res = 300, compression = "lzw")
-    sspar(mfrow=c(2,1),labs=T,plot.cex=0.9)
-    dis.cols=grep('replist',colnames(profilesummary[["SpawnBio"]]))
+
+      #Biomass
     YLIM=c(0,max(profilesummary[["SpawnBioUpper"]]$replist0))
-    with(profilesummary[["SpawnBioLower"]],plot(Yr,replist0,ylim=YLIM,col='transparent',ylab='SSB (t)',xlab='Year'))
-    polygon(x=c(profilesummary[["SpawnBioLower"]]$Yr,rev(profilesummary[["SpawnBioLower"]]$Yr)),
-            y=c(profilesummary[["SpawnBioLower"]]$replist0,rev(profilesummary[["SpawnBioUpper"]]$replist0)),
-            col='grey60')
-    CL=rainbow(length(dis.cols))
-    for(x in dis.cols)lines(profilesummary[["SpawnBio"]]$Yr,profilesummary[["SpawnBio"]][,x],col=CL[x])
+    dummy.dat=profilesummary[["SpawnBio"]][,grep('replist',names(profilesummary[["SpawnBio"]]))]%>%
+                mutate(Yr=profilesummary[["SpawnBio"]]$Yr)%>%
+                gather(replist,value,-Yr)
+    p1=profilesummary[["SpawnBioLower"]]%>%
+      ggplot(aes(Yr,replist0))+
+      geom_line(color='transparent')+
+      ylim(YLIM)+ylab('SSB (t)')+xlab('Year')+
+      theme_PA()+
+      geom_polygon(data=data.frame(Yr=c(profilesummary[["SpawnBioLower"]]$Yr,rev(profilesummary[["SpawnBioLower"]]$Yr)),
+                                   replist0=c(profilesummary[["SpawnBioLower"]]$replist0,rev(profilesummary[["SpawnBioUpper"]]$replist0))),
+                   colour='grey60',fill='grey60',alpha=.6)+
+      geom_line(data=dummy.dat,aes(Yr,value,color=replist),linewidth=0.9)+
+      theme(legend.position = 'none')
     
+      #Jitters
     YLIM=c(min(Total.likelihoods)*.9,min(Total.likelihoods)*1.1)
     First.jit=-1
-    plot(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],
-         xlab='Jitter runs at a converged solution',ylab='Total likelihood',ylim=YLIM)
-    abline(h=Base.model.like,lty=2,col=2)
-    Report[["likelihoods_used"]]
-    points(1:length(Total.likelihoods[First.jit]),Total.likelihoods[First.jit],cex=2,pch=19)
-    dev.off()
+    dumydat=data.frame(Jitter.run=1:length(Total.likelihoods[First.jit]),
+                       Tot.like=unlist(Total.likelihoods[First.jit]))%>%
+      mutate( Col=ifelse(Tot.like==Base.model.like,'Base model',
+                  ifelse(Tot.like<Base.model.like,'Smaller',
+                  'Higher')))
+    p2=dumydat%>%
+      ggplot(aes(Jitter.run,Tot.like,color=Col))+
+      geom_hline(yintercept=Base.model.like, linetype='longdash')+
+      geom_point(size=4)+
+      theme_PA()+
+      theme(legend.position = 'top')+
+      ylim(YLIM)+
+      labs(colour = NULL)+
+      xlab('Jitter runs at a converged solution')+ylab('Total likelihood')+
+      geom_text_repel(aes(label=round(Tot.like,2)),box.padding=1)
+    
+    ggarrange(plotlist = list(p1,p2),ncol=1)
+    ggsave(file.path(dirname.diagnostics,"Jitter.tiff"),width = 6,height = 7,compression = "lzw")
+    
     
     #remove jitter files
     if(flush.files) unlink(paste(WD, "Diagnostics/Jitter", sep="/"), recursive = TRUE, force = TRUE)
