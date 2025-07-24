@@ -425,9 +425,11 @@ combine_NSF_Survey=NULL   #combine length composition data to estimate logistic 
 #                      "pigeye shark","sandbar shark","scalloped hammerhead","tiger shark")
 combine.sexes.tdgdlf=NULL 
 combine.sexes.tdgdlf.daily=NULL 
-combine.sexes.survey=c("dusky shark") 
+combine.sexes.survey=c("dusky shark")
+combine.sexes.nsf=NULL
 combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
+combine.sex_type=3  #0 0 means combined male and female ; 3 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
 #fit.to.mean.weight.Southern2=NULL
 fit.to.mean.weight.Southern2=c("spinner shark","whiskery shark")  #get model to fit mean weight regardless of available length comp
 drop.len.comp.like=NULL    

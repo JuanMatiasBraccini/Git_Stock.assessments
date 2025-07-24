@@ -3149,3 +3149,40 @@ Francis.function=function(cipiuis,cvs,mininum.mean.CV=NULL)
   return(list(CV.Adjusted=sdlogI,CV.Original=sdlogI_not.amended,CV.var.adj=CV.var.adj))
 }
   
+
+
+# Cryptic mortality -------------------------------------------------------
+fn.cryptic=function(N.pop,Sel,Mat)
+{
+  #plot relative numbers in population
+  p=N.pop%>%
+    mutate(N=N/max(N))%>%
+    ggplot(aes(Length,N))+
+    geom_point()+theme_PA()
+  
+  #add maturity
+  p=p+
+    geom_line(data=Mat,aes(Length,Mat),color='forestgreen')
+  
+  #add selectivity
+  p=p+
+    geom_line(data=Sel,aes(Length,N),col="brown",linewidth=1.5)
+  
+  #Calculate numbers mature selected by fleet
+  N.sel.by.fleet=full_join(N.pop,Sel%>%rename(prop=N),by=c('Length','Yr'))%>%
+    mutate(N.sel=prop*N,
+           N.not.sel=(1-prop)*N)%>%
+    arrange(Length)
+  
+  #add numbers mature
+  N.sel.by.fleet.mature=full_join(N.sel.by.fleet,Mat,by=c('Length'))%>%
+    mutate(N.mature=Mat*N,
+           N.mature.selected=N.mature*prop,
+           N.mature.not.selected=N.mature*(1-prop))
+  
+  Pop.N.mature.selected=round(sum(N.sel.by.fleet.mature$N.mature.selected)/sum(N.sel.by.fleet.mature$N.mature),2)
+  Pop.N.mature.cryptic=round(sum(N.sel.by.fleet.mature$N.mature.not.selected)/sum(N.sel.by.fleet.mature$N.mature),2)
+  
+  p=p+ggtitle(paste0('Prop. cryptic mature female =',Pop.N.mature.cryptic))
+  return(p)
+}

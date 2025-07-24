@@ -190,19 +190,23 @@ for(w in 1:n.SS)
               {
                 if(Neim%in%combine.sexes.survey)
                 {
-                  d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
+                  d.list$sex=ifelse(d.list$fishry=="Survey",combine.sex_type,d.list$sex)
+                }
+                if(Neim%in%combine.sexes.nsf)
+                {
+                  d.list$sex=ifelse(d.list$fishry=="NSF",combine.sex_type,d.list$sex)
                 }
                 if(Neim%in%combine.sexes.tdgdlf)
                 {
-                  d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF",0,sex))
+                  d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF",combine.sex_type,sex))
                 }
                 if(Neim%in%combine.sexes.tdgdlf.daily)
                 {
-                  d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF" & year>2005,0,sex))
+                  d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF" & year>2005,combine.sex_type,sex))
                 }
                 if(!Neim%in%c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily))
                 {
-                  d.list$sex=0 
+                  d.list$sex=combine.sex_type 
                 }
               }
               d.list=d.list%>%
@@ -300,7 +304,7 @@ for(w in 1:n.SS)
                   dplyr::select(-dummy2)%>%
                   mutate(Sex=ifelse(Sex=='F',1,
                                     ifelse(Sex=='M',2,
-                                           0)))
+                                           Sex)))
                 d.list=d.list%>%
                   mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
                          Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
@@ -324,7 +328,7 @@ for(w in 1:n.SS)
                   dplyr::select(-c(dummy.fleet,Fleet.number))%>%
                   arrange(Sex,Fleet,year)
                 
-                d.list.0=d.list%>%filter(Sex==0)%>%arrange(year)
+                d.list.0=d.list%>%filter(Sex==combine.sex_type)%>%arrange(year)
                 d.list.f=d.list%>%filter(Sex==1)%>%arrange(year)  
                 d.list.m=d.list%>%filter(Sex==2)%>%arrange(year)
                 
@@ -443,19 +447,23 @@ for(w in 1:n.SS)
               {
                 if(Neim%in%combine.sexes.survey)
                 {
-                  d.list$sex=ifelse(d.list$fishry=="Survey",0,d.list$sex)
+                  d.list$sex=ifelse(d.list$fishry=="Survey",combine.sex_type,d.list$sex)
+                }
+                if(Neim%in%combine.sexes.nsf)
+                {
+                  d.list$sex=ifelse(d.list$fishry=="NSF",combine.sex_type,d.list$sex)
                 }
                 if(Neim%in%combine.sexes.tdgdlf)
                 {
-                  d.list=d.list%>%mutate(sex=ifelse(grepl("TDGDLF",fishry),0,sex))
+                  d.list=d.list%>%mutate(sex=ifelse(grepl("TDGDLF",fishry),combine.sex_type,sex))
                 }
                 if(Neim%in%combine.sexes.tdgdlf.daily)
                 {
-                  d.list=d.list%>%mutate(sex=ifelse(grepl("TDGDLF",fishry) & year>2005,0,sex))
+                  d.list=d.list%>%mutate(sex=ifelse(grepl("TDGDLF",fishry) & year>2005,combine.sex_type,sex))
                 }
                 if(!Neim%in%c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily))
                 {
-                  d.list$sex=0 
+                  d.list$sex=combine.sex_type 
                 }
               }
               d.list=d.list%>%
@@ -553,7 +561,7 @@ for(w in 1:n.SS)
                   dplyr::select(-dummy2)%>%
                   mutate(Sex=ifelse(Sex=='F',1,
                                     ifelse(Sex=='M',2,
-                                           0)))
+                                           Sex)))
                 d.list=d.list%>%
                   mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
                          Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
@@ -581,7 +589,7 @@ for(w in 1:n.SS)
                   dplyr::select(-c(dummy.fleet,Fleet.number))%>%
                   arrange(Sex,Fleet,year)
                 
-                d.list.0=d.list%>%filter(Sex==0)%>%arrange(year)
+                d.list.0=d.list%>%filter(Sex==combine.sex_type)%>%arrange(year)
                 d.list.f=d.list%>%filter(Sex==1)%>%arrange(year)  
                 d.list.m=d.list%>%filter(Sex==2)%>%arrange(year)
                 
@@ -1517,6 +1525,87 @@ for(w in 1:n.SS)
               # Evaluate fit diagnostics
               GoodnessFit=function.goodness.fit_SS(Rep=Report)  
               write.csv(GoodnessFit,paste(this.wd1,"/GoodnessFit_",Neim,".csv",sep=''))
+              
+              
+              #Check if pups per female is not biologically excessively large
+              if(Scens$Scenario[s]=='S1')
+              {
+                Report$recruit%>%
+                  mutate(Pups.per.female=exp_recr/mature_num)%>%
+                  ggplot(aes(Yr,Pups.per.female))+
+                  geom_point()+
+                  geom_line()+theme_PA()+
+                  ggtitle(paste('Biological annual pups per female=',Life.history$Fecundity/Life.history$Breed.cycle))
+                ggsave(paste0(this.wd1,"/Pups per female.tiff"),width=6,height=6,compression = "lzw") 
+              }
+              
+              #Check cryptic biomass The ratio should be less than 25%
+              if(Scens$Scenario[s]=='S1')
+              {
+                #Numbers of female at length by year
+                Num.fem=Report$natlen%>%
+                  rename(Beg_Mid='Beg/Mid')%>%
+                  filter(!Beg_Mid=='M')%>%
+                  dplyr::select(-c(Area,Bio_Pattern,BirthSeas,Settlement,Platoon,Morph,Seas,Time,Beg_Mid,Era))%>%
+                  gather(Length,N,-c(Sex,Yr))%>%
+                  arrange(Yr,Length,Sex)%>%
+                  mutate(Length=as.numeric(Length))%>%
+                  filter(Sex==1)
+                Yr.LVLs=sort(unique(Num.fem$Yr))
+                Yr.kls=colfunc1(length(Yr.LVLs))
+                names(Yr.kls)=Yr.LVLs
+                p1=Num.fem%>%
+                  mutate(Yr=factor(Yr,levels=Yr.LVLs))%>%
+                  ggplot(aes(Length,N,color=Yr))+
+                  geom_line()+
+                  theme_PA()+ylab('Number of females')+
+                  scale_color_manual(values = Yr.kls)+
+                  theme(legend.position = 'none')
+                
+                Num.fem=Num.fem%>%
+                  filter(Yr==as.numeric(substr(Last.yr.ktch,1,4)))
+                
+                #Maturity at length
+                Fem.mat=Report$biology%>%
+                  rename(Length=Len_lo)
+                p2=Fem.mat%>%
+                  ggplot(aes(Length,Mat))+
+                  geom_line()+
+                  theme_PA()
+                
+                #Selectivity at length
+                Fem.sel=Report$sizeselex%>%
+                  filter(Factor=='Lsel' & Sex==1)%>%
+                  dplyr::select(-c(Factor,Label,Sex))%>%
+                  gather(Length,N,-c(Fleet,Yr))%>%
+                  arrange(Yr,Length,Fleet)%>%
+                  mutate(Length=as.numeric(Length),
+                         Length=Length-2.5,
+                         Fleet=as.character(Fleet))
+                Yr.LVLs=sort(unique(Fem.sel$Yr))
+                Yr.kls=colfunc1(length(Yr.LVLs))
+                names(Yr.kls)=Yr.LVLs
+                Fem.sel=Fem.sel%>%
+                  filter(Yr==as.numeric(substr(Last.yr.ktch,1,4)))
+                
+                p3=Fem.sel%>%
+                  mutate(Yr=factor(Yr,levels=Yr.LVLs))%>%
+                  ggplot(aes(Length,N,color=Fleet))+
+                  geom_line(linewidth=1.25)+
+                  theme_PA()+ylab('Selectivity')+
+                  theme(legend.position = 'top')
+                
+                #Combine Numbers at length, maturity and selectivity
+                p_fleet3=fn.cryptic(N.pop=Num.fem,
+                                    Sel=Fem.sel%>%filter(Fleet==3),
+                                    Mat=Fem.mat%>%dplyr::select(Length,Mat))
+                p_fleet1=fn.cryptic(N.pop=Num.fem,
+                                    Sel=Fem.sel%>%filter(Fleet==1),
+                                    Mat=Fem.mat%>%dplyr::select(Length,Mat))
+                p_fleet1
+                ggsave(paste0(this.wd1,"/Cryptic biomass.tiff"),width=6,height=6,compression = "lzw") 
+              }
+              
             }  #end s loop
             Out.Scens=Out.Scens%>%
                         rename(h.mean=Steepness,
