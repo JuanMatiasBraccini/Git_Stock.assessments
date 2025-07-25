@@ -3432,6 +3432,25 @@ mod.average.scalar=function(dd,Weights,KtcH,approach="Proportions",Ktch.type='di
 colfunc <- colorRampPalette(c("red","yellow","springgreen","royalblue"))
 colfunc1 <- colorRampPalette(c("azure","cadetblue","cyan1","dodgerblue4"))
 
+fn.kmpr.Linf_length.comp=function(d,FL.TL.conv,Linf,Linf.m,TLmax)
+{
+  TLinf=Linf*FL.TL.conv['a']+FL.TL.conv['b']
+  TLinf.m=Linf.m*FL.TL.conv['a']+FL.TL.conv['b']
+  d=d%>%
+    mutate(TL=FL*FL.TL.conv['a']+FL.TL.conv['b'])
+  
+  p=d%>%
+    filter(!is.na(SEX))%>%
+    ggplot(aes(TL,fill=SEX))+
+    geom_vline(xintercept = TLinf,linewidth=1.25,col='#F87665',alpha=0.35)+
+    geom_vline(xintercept = TLinf.m,linewidth=1.25,col='#00BFC4',alpha=0.35)+
+    geom_vline(xintercept = TLmax,linewidth=.95,col='black',linetype='dashed')+
+    geom_histogram()+
+    facet_wrap(~year)+
+    theme_PA()+theme(legend.position = 'top')+xlim(min(d$TL),TLmax)
+  return(p)
+}
+
 fn.compare.MSY=function(d,ncols,xlab.angle=90,xlab.size=10, Str.siz=12)
 {
   p=d%>%

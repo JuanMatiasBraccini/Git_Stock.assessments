@@ -1527,7 +1527,7 @@ for(w in 1:n.SS)
               write.csv(GoodnessFit,paste(this.wd1,"/GoodnessFit_",Neim,".csv",sep=''))
               
               
-              #Check if pups per female is not biologically excessively large
+              #Check if pups per female is not biologically excessively large (should be <= average annual fecundity)
               if(Scens$Scenario[s]=='S1')
               {
                 Report$recruit%>%
@@ -1539,71 +1539,12 @@ for(w in 1:n.SS)
                 ggsave(paste0(this.wd1,"/Pups per female.tiff"),width=6,height=6,compression = "lzw") 
               }
               
-              #Check cryptic biomass The ratio should be less than 25%
+              #Check cryptic biomass (The ratio should be less than 25%)
               if(Scens$Scenario[s]=='S1')
               {
-                #Numbers of female at length by year
-                Num.fem=Report$natlen%>%
-                  rename(Beg_Mid='Beg/Mid')%>%
-                  filter(!Beg_Mid=='M')%>%
-                  dplyr::select(-c(Area,Bio_Pattern,BirthSeas,Settlement,Platoon,Morph,Seas,Time,Beg_Mid,Era))%>%
-                  gather(Length,N,-c(Sex,Yr))%>%
-                  arrange(Yr,Length,Sex)%>%
-                  mutate(Length=as.numeric(Length))%>%
-                  filter(Sex==1)
-                Yr.LVLs=sort(unique(Num.fem$Yr))
-                Yr.kls=colfunc1(length(Yr.LVLs))
-                names(Yr.kls)=Yr.LVLs
-                p1=Num.fem%>%
-                  mutate(Yr=factor(Yr,levels=Yr.LVLs))%>%
-                  ggplot(aes(Length,N,color=Yr))+
-                  geom_line()+
-                  theme_PA()+ylab('Number of females')+
-                  scale_color_manual(values = Yr.kls)+
-                  theme(legend.position = 'none')
-                
-                Num.fem=Num.fem%>%
-                  filter(Yr==as.numeric(substr(Last.yr.ktch,1,4)))
-                
-                #Maturity at length
-                Fem.mat=Report$biology%>%
-                  rename(Length=Len_lo)
-                p2=Fem.mat%>%
-                  ggplot(aes(Length,Mat))+
-                  geom_line()+
-                  theme_PA()
-                
-                #Selectivity at length
-                Fem.sel=Report$sizeselex%>%
-                  filter(Factor=='Lsel' & Sex==1)%>%
-                  dplyr::select(-c(Factor,Label,Sex))%>%
-                  gather(Length,N,-c(Fleet,Yr))%>%
-                  arrange(Yr,Length,Fleet)%>%
-                  mutate(Length=as.numeric(Length),
-                         Length=Length-2.5,
-                         Fleet=as.character(Fleet))
-                Yr.LVLs=sort(unique(Fem.sel$Yr))
-                Yr.kls=colfunc1(length(Yr.LVLs))
-                names(Yr.kls)=Yr.LVLs
-                Fem.sel=Fem.sel%>%
-                  filter(Yr==as.numeric(substr(Last.yr.ktch,1,4)))
-                
-                p3=Fem.sel%>%
-                  mutate(Yr=factor(Yr,levels=Yr.LVLs))%>%
-                  ggplot(aes(Length,N,color=Fleet))+
-                  geom_line(linewidth=1.25)+
-                  theme_PA()+ylab('Selectivity')+
-                  theme(legend.position = 'top')
-                
-                #Combine Numbers at length, maturity and selectivity
-                p_fleet3=fn.cryptic(N.pop=Num.fem,
-                                    Sel=Fem.sel%>%filter(Fleet==3),
-                                    Mat=Fem.mat%>%dplyr::select(Length,Mat))
-                p_fleet1=fn.cryptic(N.pop=Num.fem,
-                                    Sel=Fem.sel%>%filter(Fleet==1),
-                                    Mat=Fem.mat%>%dplyr::select(Length,Mat))
-                p_fleet1
-                ggsave(paste0(this.wd1,"/Cryptic biomass.tiff"),width=6,height=6,compression = "lzw") 
+                Cryptic=fn.cryptic(yr=as.numeric(substr(Last.yr.ktch,1,4)))
+                ggarrange(plotlist = Cryptic$p.criptic,ncol=1)
+                ggsave(paste0(this.wd1,"/Cryptic biomass.tiff"),width=5,height=6,compression = "lzw")
               }
               
             }  #end s loop

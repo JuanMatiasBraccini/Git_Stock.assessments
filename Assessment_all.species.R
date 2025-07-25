@@ -1578,6 +1578,36 @@ if(First.run=="YES")
 #Remove A.max_max if NA
 for(i in 1:N.sp)if(is.na(List.sp[[i]]$Max.age.F[2])) List.sp[[i]]$Max.age.F=List.sp[[i]]$Max.age.F[1]
 
+# Display survey and NSF length comp vs TLmax & TLinf
+if(First.run=="YES")
+{
+  for(i in 1:N.sp)
+  {
+    Name=capitalize(names(Species.data)[i])
+    if('Size_composition_Survey'%in%names(Species.data[[i]]))
+    {
+      fn.kmpr.Linf_length.comp(d=Species.data[[i]]$Size_composition_Survey,
+                               FL.TL.conv=c(a=List.sp[[i]]$a_FL.to.TL,b=List.sp[[i]]$b_FL.to.TL),
+                               Linf=List.sp[[i]]$Growth.F$FL_inf,
+                               Linf.m=List.sp[[i]]$Growth.M$FL_inf,
+                               TLmax=mean(List.sp[[i]]$TLmax))
+      ggsave(paste0(Outputs,'/Data/1.',Name,"/",AssessYr,"/1_Inputs/Visualise data/Length comps_survey_Linf.tiff"),
+             width=6,height=6,compression = "lzw") 
+    }
+    
+    if('Size_composition_NSF.LONGLINE'%in%names(Species.data[[i]]))
+    {
+      fn.kmpr.Linf_length.comp(d=Species.data[[i]]$Size_composition_NSF.LONGLINE,
+                               FL.TL.conv=c(a=List.sp[[i]]$a_FL.to.TL,b=List.sp[[i]]$b_FL.to.TL),
+                               Linf=List.sp[[i]]$Growth.F$FL_inf,
+                               Linf.m=List.sp[[i]]$Growth.M$FL_inf,
+                               TLmax=mean(List.sp[[i]]$TLmax))
+      ggsave(paste0(Outputs,'/Data/1.',Name,"/",AssessYr,"/1_Inputs/Visualise data/Length comps_NSF_Linf.tiff"),
+             width=6,height=6,compression = "lzw") 
+      
+    }
+  }
+}
 
 #---8. Create list of species groups for RAR outputs ----- 
 Lista.sp.outputs=list(Other.species,names(Indicator.species))
