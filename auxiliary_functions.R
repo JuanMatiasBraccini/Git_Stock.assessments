@@ -4479,7 +4479,8 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
       }
       Nfacets=1
       if(length(unique(Var$Scenario))>6) Nfacets=2
-      Var=Var%>%mutate(Scenario=factor(Scenario,levels=unique(Var$Scenario)))
+      Var=Var%>%
+            mutate(Scenario=factor(Scenario,levels=unique(Var$Scenario)))
       store.plots[[m]]=fn.ribbon(Dat=Var,  
                                  YLAB='',
                                  XLAB="",

@@ -17,7 +17,7 @@ for(w in 1:n.SS)
       registerDoSNOW(cl)
       out.species=foreach(i= 1:N.sp,.options.snow = opts,.packages=c('gridExtra','Hmisc','JABBA','strex',
                                                                      'TruncatedDistributions','tidyverse','r4ss',
-                                                                     'mvtnorm','ggrepel','ss3diags')) %dopar%
+                                                                     'mvtnorm','ggrepel','ss3diags','ggpubr')) %dopar%
       {
         Neim=Keep.species[i]
         
@@ -671,7 +671,66 @@ for(w in 1:n.SS)
                 filter(Fleet%in%Fleet.more.one.year.obs)
             }
           }
-
+            #Reset sex type if required
+          if(SS.sex.length.type==3)
+          {
+            #zones combined  #why no 2004 males in Survey? remove that year if not meeting criteria...
+            Kombo=Size.compo.SS.format%>%distinct(year,Seas,Fleet)
+            Kombo.list=vector('list',nrow(Kombo))  
+            for(kk in 1:length(Kombo.list))
+            {
+              dumi.kk=Size.compo.SS.format%>%
+                                filter(year==Kombo$year[kk] & Seas==Kombo$Seas[kk] & Fleet==Kombo$Fleet[kk])
+              if(!0%in%dumi.kk$Sex)
+              {
+                if(nrow(dumi.kk)<2) dumi.kk=NA
+                if(any(!is.na(dumi.kk)))
+                {
+                  if(nrow(dumi.kk)==2)
+                  {
+                    dumi.kk.1=dumi.kk%>%filter(Sex==1)
+                    dumi.kk.2=dumi.kk%>%filter(Sex==2)
+                    dumi.kk.3=dumi.kk.1
+                    dumi.kk.3[,grepl('m',colnames(dumi.kk.3))]=dumi.kk.2[,grepl('m',colnames(dumi.kk.2))]
+                    dumi.kk.3$Sex=SS.sex.length.type
+                    dumi.kk=dumi.kk.3
+                  }
+                }
+              }
+              Kombo.list[[kk]]=dumi.kk
+            }
+            Kombo.list=Kombo.list[!is.na(Kombo.list)]
+            Size.compo.SS.format=do.call(rbind,Kombo.list)
+            
+            #by zone
+            Kombo=Size.compo.SS.format.zone%>%distinct(year,Seas,Fleet)
+            Kombo.list=vector('list',nrow(Kombo))  
+            for(kk in 1:length(Kombo.list))
+            {
+              dumi.kk=Size.compo.SS.format.zone%>%
+                filter(year==Kombo$year[kk] & Seas==Kombo$Seas[kk] & Fleet==Kombo$Fleet[kk])
+              if(!0%in%dumi.kk$Sex)
+              {
+                if(nrow(dumi.kk)<2) dumi.kk=NA
+                if(any(!is.na(dumi.kk)))
+                {
+                  if(nrow(dumi.kk)==2)
+                  {
+                    dumi.kk.1=dumi.kk%>%filter(Sex==1)
+                    dumi.kk.2=dumi.kk%>%filter(Sex==2)
+                    dumi.kk.3=dumi.kk.1
+                    dumi.kk.3[,grepl('m',colnames(dumi.kk.3))]=dumi.kk.2[,grepl('m',colnames(dumi.kk.2))]
+                    dumi.kk.3$Sex=SS.sex.length.type
+                    dumi.kk=dumi.kk.3
+                  }
+                }
+              }
+              Kombo.list[[kk]]=dumi.kk
+            }
+            Kombo.list=Kombo.list[!is.na(Kombo.list)]
+            Size.compo.SS.format.zone=do.call(rbind,Kombo.list)
+          }
+          
           
           #3. meanbodywt
             #zones together
@@ -717,54 +776,58 @@ for(w in 1:n.SS)
           {
             xxx=Species.data[[i]][grep('annual.mean.size',names(Species.data[[i]]))]
             xxx=xxx[-match("annual.mean.size",names(xxx))]
-            for(y in 1:length(xxx))
+            if(length(xxx)>0)
             {
-              ZnE=capitalize(str_remove(names(xxx)[y],"annual.mean.size_"))
-              xxx[[y]]=xxx[[y]]%>%
-                mutate(year=as.numeric(substr(Finyear,1,4)),
-                       month=1,
-                       Fleet=paste('Southern.shark_2',ZnE,sep='_'),
-                       part=0,   #0, combined; 1: discard only; 2: retained only
-                       type=2)%>%
-                filter(year<=max(ktch.zone$finyear))%>%
-                dplyr::select(-Finyear)
+              for(y in 1:length(xxx))
+              {
+                ZnE=capitalize(str_remove(names(xxx)[y],"annual.mean.size_"))
+                xxx[[y]]=xxx[[y]]%>%
+                  mutate(year=as.numeric(substr(Finyear,1,4)),
+                         month=1,
+                         Fleet=paste('Southern.shark_2',ZnE,sep='_'),
+                         part=0,   #0, combined; 1: discard only; 2: retained only
+                         type=2)%>%
+                  filter(year<=max(ktch.zone$finyear))%>%
+                  dplyr::select(-Finyear)
+              }
+              
+              
+              meanbodywt.SS.format.zone=do.call(rbind,xxx)%>%
+                left_join(Flits.and.survey.zone,by=c('Fleet'='Fleet.name'))%>%
+                mutate(fleet=Fleet.number)%>%
+                dplyr::select(-c(Fleet.number,Fleet))%>%
+                relocate(year,month,fleet,part,type,mean,CV)
+              
+              #reset very low CVs
+              NewCVs=Francis.function(cipiuis=meanbodywt.SS.format.zone%>%
+                                        dplyr::select(year,mean,fleet)%>%
+                                        spread(fleet,mean),
+                                      cvs=meanbodywt.SS.format.zone%>%
+                                        dplyr::select(year,CV,fleet)%>%
+                                        spread(fleet,CV),
+                                      mininum.mean.CV=default.Mean.weight.CV)
+              if(mean(meanbodywt.SS.format.zone$CV,na.rm=T)<default.Mean.weight.CV)
+              {
+                newcv=NewCVs$CV.Adjusted%>%
+                  filter(year%in%meanbodywt.SS.format.zone$year)%>%
+                  gather(fleet,CV,-year)%>%mutate(fleet=as.numeric(fleet))
+                meanbodywt.SS.format.zone=meanbodywt.SS.format.zone%>%
+                  dplyr::select(-CV)%>%
+                  left_join(newcv,by=c('year','fleet'))%>%
+                  relocate(names(meanbodywt.SS.format))
+              }
+              #CV variance adjustment if small CVs
+              if(mean(meanbodywt.SS.format.zone$CV,na.rm=T)>=default.Mean.weight.CV) NewCVs$CV.var.adj=0
+              Var.ad.factr_meanbodywt.zone=data.frame(Factor=3,
+                                                      Fleet=unique(meanbodywt.SS.format.zone$fleet),
+                                                      Value=NewCVs$CV.var.adj)
+              
             }
-            
-            
-            meanbodywt.SS.format.zone=do.call(rbind,xxx)%>%
-              left_join(Flits.and.survey.zone,by=c('Fleet'='Fleet.name'))%>%
-              mutate(fleet=Fleet.number)%>%
-              dplyr::select(-c(Fleet.number,Fleet))%>%
-              relocate(year,month,fleet,part,type,mean,CV)
-            
-            #reset very low CVs
-            NewCVs=Francis.function(cipiuis=meanbodywt.SS.format.zone%>%
-                                      dplyr::select(year,mean,fleet)%>%
-                                      spread(fleet,mean),
-                                    cvs=meanbodywt.SS.format.zone%>%
-                                      dplyr::select(year,CV,fleet)%>%
-                                      spread(fleet,CV),
-                                    mininum.mean.CV=default.Mean.weight.CV)
-            if(mean(meanbodywt.SS.format.zone$CV,na.rm=T)<default.Mean.weight.CV)
-            {
-              newcv=NewCVs$CV.Adjusted%>%
-                filter(year%in%meanbodywt.SS.format.zone$year)%>%
-                gather(fleet,CV,-year)%>%mutate(fleet=as.numeric(fleet))
-              meanbodywt.SS.format.zone=meanbodywt.SS.format.zone%>%
-                dplyr::select(-CV)%>%
-                left_join(newcv,by=c('year','fleet'))%>%
-                relocate(names(meanbodywt.SS.format))
-            }
-            #CV variance adjustment if small CVs
-            if(mean(meanbodywt.SS.format.zone$CV,na.rm=T)>=default.Mean.weight.CV) NewCVs$CV.var.adj=0
-            Var.ad.factr_meanbodywt.zone=data.frame(Factor=3,
-                                                    Fleet=unique(meanbodywt.SS.format.zone$fleet),
-                                                    Value=NewCVs$CV.var.adj)
           }
           
           #4. Abundance series           
           Abundance.SS.format=NULL
-          Var.ad.factr=NULL
+          Var.ad.factr=Var.ad.factr.zone=NULL
           CPUE=compact(Catch.rate.series[[i]])
           if(!is.null(CPUE))
           {
@@ -1527,7 +1590,7 @@ for(w in 1:n.SS)
               write.csv(GoodnessFit,paste(this.wd1,"/GoodnessFit_",Neim,".csv",sep=''))
               
               
-              #Check if pups per female is not biologically excessively large (should be <= average annual fecundity)
+              #Check if pups per female is not biologically excessively large 
               if(Scens$Scenario[s]=='S1')
               {
                 Report$recruit%>%
@@ -1535,7 +1598,8 @@ for(w in 1:n.SS)
                   ggplot(aes(Yr,Pups.per.female))+
                   geom_point()+
                   geom_line()+theme_PA()+
-                  ggtitle(paste('Biological annual pups per female=',Life.history$Fecundity/Life.history$Breed.cycle))
+                  labs(title = paste('Biological annual pups per female=',Life.history$Fecundity/Life.history$Breed.cycle),
+                       caption = 'Pups per female should be <= average annual fecundity (SS adds extra put mortality)')
                 ggsave(paste0(this.wd1,"/Pups per female.tiff"),width=6,height=6,compression = "lzw") 
               }
               
@@ -1810,7 +1874,7 @@ if(do.SS3.diagnostics)
                       numjitter=Number.of.jitters,
                       outLength.Cross.Val=FALSE,
                       run.in.parallel=TRUE,
-                      flush.files=FALSE,
+                      flush.files=TRUE,
                       COVAR=TRUE,
                       h.input=Input.h)
       rm(MLE,this.wd1,R0.range,Estim.LnRo)

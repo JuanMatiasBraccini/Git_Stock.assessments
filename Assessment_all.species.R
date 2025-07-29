@@ -281,7 +281,7 @@ do.random.h=TRUE  #take a random sample of h and M for SS or use empirical distr
 #17. Reference points
 #note: Historically, there was a single unspecified reference point (40% unexploited biomass)
 #      Currently, 0.4 is used as threshold, not BMSY
-Biomass.threshold='Bmsy'  #MSC sets threshold to Bmsy and limit to 0.5 Bmsy (Clinton Syers)
+Biomass.threshold='Bmsy'  #MSC sets threshold to Bmsy and limit to 0.5 Bmsy (Clinton Syers). This is used for CoMs and JABBA (as BMSY ~ 0.5 B0)
 Biomass.threshold.min=0.4  #Andre advices against using BMSY estimates from integrated models and uses 0.4 as proxy
 Tar.prop.bmsny=1.2    # Target and Limit proportions of 'Biomass.threshold' 
 Lim.prop.bmsy=0.5    #    source: Haddon et al 2014. 'Technical Reviews of Formal Harvest Strategies'.
@@ -404,7 +404,7 @@ evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
 #21. Integrated age-based model 
 Integrated.age.based='SS'   # define model types used
 do.parallel.SS=TRUE         #do SS in parallel or not
-do.all.sensitivity.tests=TRUE #set to FALSE as per required
+do.all.sensitivity.tests=FALSE #set to TRUE or FALSE as per required
 SS3.run='final' #'test'     # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, MCMC, etc)
 create.SS.inputs=FALSE       #set to FALSE once happy with SS input files and only need to run the model
 run_SS_plots=FALSE          #set to TRUE once happy with model and want to plot outputs
@@ -421,16 +421,14 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
 combine_NSF_Survey=NULL   #combine length composition data to estimate logistic selectivity
-# combine_NSF_Survey=c("dusky shark","great hammerhead","lemon shark","milk shark",
-#                      "pigeye shark","sandbar shark","scalloped hammerhead","tiger shark")
 combine.sexes.tdgdlf=NULL 
 combine.sexes.tdgdlf.daily=NULL 
 combine.sexes.survey=c("dusky shark")
 combine.sexes.nsf=NULL
 combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
-combine.sex_type=3  #0 0 means combined male and female ; 3 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
-#fit.to.mean.weight.Southern2=NULL
+combine.sex_type=0  #0, 0 means combined male and female ; 3, 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
+SS.sex.length.type=3  #NULL if want to maintain males and females separated
 fit.to.mean.weight.Southern2=c("spinner shark","whiskery shark")  #get model to fit mean weight regardless of available length comp
 drop.len.comp.like=NULL    
 survey.like.weight=NULL  #"dusky shark"  
