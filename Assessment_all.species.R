@@ -252,15 +252,18 @@ Min.r.value=.025
 reset.max.Age=FALSE  #set max Age to mean of max.age and max age.max
 fill.NA.Max.Age.Max=TRUE  #fill in NA max.Age.max with Max.Age.up.Scaler 
 externally.increase.M=FALSE   #increase M in pin_file to all SS to converge
+species.too.high.M1=NULL #c("gummy shark","whiskery shark")  
+
+#15.1 published steepness  
 Dusky.Sedar=mean(c(0.25,0.35))  #SEDAR 21, they also obtained too high h estimates (page 30)
-Sandbar.Sedar=mean(c(0.25,0.4)) #SEDAR 21
+Sandbar.Sedar=mean(c(0.25,0.4)) #SEDAR 21 & 54
 ScallopedHH.Sedar=mean(c(0.69,0.71,0.67))  #SEDAR 77
 SmoothHH.Sedar=0.78 #SEDAR 77
 GreatHH.Sedar=0.71 #SEDAR 77
 Mako.ICCAT=0.345   #ICCAT 2019
-species.too.high.M1=NULL #c("gummy shark","whiskery shark")  
 
-  #15.1 publish demographic parameters
+
+  #15.2 published demographic parameters
 Demo.published.values=data.frame(Species=c("angel sharks","copper shark","grey nurse shark","gummy shark","lemon shark",
                                   "spinner shark","spurdogs","tiger shark","whiskery shark","spiny dogfish",'blue shark',
                                   "dusky shark","great hammerhead","sandbar shark","scalloped hammerhead",
@@ -454,7 +457,7 @@ alternative.forecasting=NULL  #forecasting F rather than catch
 #                                             'Southern.shark_1'=0,
 #                                             'Southern.shark_2'=1.04784e-02))  
 alternative.like.weigthing=NULL  #test alternative lambdas for survey and length comps
-spatial.model="sandbar shark"     #NULL, build areas-as-fleets model
+spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')   #NULL, build areas-as-fleets model
 
   #21.1 Set WRL as a separate fleet for these species
 WRL.species=c("copper shark","dusky shark","shortfin mako",
@@ -589,7 +592,7 @@ What.Effort="km.gn.hours"  #What effort to display?
 
 FisheryCodes=read_excel(handl_OneDrive('Data/Catch and Effort/FisheryCodeTable.xlsx'), sheet = "CAEStoFISHCUBE")
 
-Dat.repository=handl_OneDrive('Analyses/Data_outs/')  #locations where all data are stored
+Dat.repository=handl_OneDrive('Analyses/Data_outs/')  #locations where all data are stored  ACA
 Dat.repository2=handl_OneDrive('Data/Population dynamics/Data inputs for models')
 
 #2.1. Species  
@@ -2072,7 +2075,7 @@ Sel.equivalence=data.frame(
 Selectivity.at.age=vector('list',N.sp)
 names(Selectivity.at.age)=Keep.species
 Selectivity.at.totalength=Selectivity.at.age
-HandL=handl_OneDrive("Analyses/Data_outs/")
+HandL=handl_OneDrive("Analyses/Data_outs/") #ACA
 for(l in 1:N.sp)
 {
   if('gillnet.selectivity_len.age'%in%names(Species.data[[l]]) | names(Species.data)[l]%in%Sel.equivalence$Name)
@@ -4161,6 +4164,33 @@ if(Export.SS_DL.tool.inputs)
   }
 }
 
+
+  # Simulate length composition given logistic selectivity, F and M for sandbar to determine Linf
+ChEck.this=FALSE
+if(ChEck.this)
+{
+  fn.source1("Simulate_growth_F_length_comp.r")
+  Amax=max(List.sp$`sandbar shark`$Max.age.F)
+  Lmax=List.sp$`sandbar shark`$TLmax*10
+  Linf.F=round(10*with(List.sp$`sandbar shark`,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))
+  Linf.M=round(10*with(List.sp$`sandbar shark`,Growth.M$FL_inf*a_FL.to.TL+b_FL.to.TL))
+  K.F=List.sp$`sandbar shark`$Growth.F$k
+  K.M=List.sp$`sandbar shark`$Growth.M$k
+  F.vec=round(seq(0.001,0.3,length.out=10),3)
+  pdf(paste0(HandL.out,'Sandbar shark/',AssessYr,'/SS3 integrated/Check Linf.pdf'))
+  for(ii in 1:length(F.vec))
+  {
+    pp=Alex_sim.data(MaxAge = Amax,
+                  FishMort = F.vec[ii],
+                  MaxLen = Lmax,
+                  SelParams = c(1450, 200),
+                  Linf = c(Linf.F,Linf.M),
+                  vbK = c(K.F,K.M))
+    print(pp)
+  }
+  dev.off()
+}
+  
 
 #---26. Integrated Bespoke (Size-based) Model-------------------------------------------------
 if(Do.bespoke) fn.source1("Integrated_size_based.R")

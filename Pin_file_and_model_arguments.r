@@ -112,13 +112,20 @@ for(l in 1:N.sp)
   h.M.mean_low=round(max(Min.h.shark,h.M_mean*.9),3)
   h.M_mean=round(max(Min.h.shark,h.M_mean),3)
   h.sd=round(store.species.steepness_M.at.age[[l]]$sd,3)
-  if(NeiM=='shortfin mako') h.M_mean=h.M_mean2=0.3 #to improve SS convergence  
   if(NeiM%in%c('sandbar shark'))  #bump up Sandbar shark h to allow random rec_devs, otherwise model tries to compensate for lower productivity
   {
-    h.M_mean2=h.M_mean
+    h.M_mean2=Sandbar.Sedar #h.M_mean
     h.M_mean=h.M_meanM.age.invariant
   }
-    
+  if(NeiM== 'dusky shark') h.M_mean2=Dusky.Sedar
+  if(NeiM== 'scalloped hammerhead') h.M_mean2=ScallopedHH.Sedar
+  if(NeiM== 'smooth hammerhead') h.M_mean2=SmoothHH.Sedar
+  if(NeiM== 'great hammerhead') h.M_mean2=GreatHH.Sedar
+  if(NeiM=='shortfin mako')
+  {
+    h.M_mean=Mako.ICCAT
+    h.M_mean2=0.3 #to improve SS convergence 
+  }
   
     #Effective sample size (Francis method as default)
       #zones combined
@@ -424,7 +431,7 @@ for(l in 1:N.sp)
   sigmaR=0.2 #Default (Spiny dogfish SS assessment)
   if(!is.na(ramp.yrs$SR_sigmaR)) sigmaR=min(ramp.yrs$SR_sigmaR,Max.SR_sigmaR.shark)#from Report$sigma_R_info$alternative_sigma_R
   
-  #4.1.1 Scenarios
+      #4.1.1 Scenarios
   if(!'Sens.test'%in%names(List.sp[[l]]))
   {
     List.sp[[l]]$Sens.test=list(SS3=data.frame(Scenario=paste('S',1:2,sep=''),
@@ -448,7 +455,7 @@ for(l in 1:N.sp)
                                        do_recdev=1,
                                        SR_sigmaR=sigmaR,
                                        Forecasting='catch')
-  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,h.min,List.sp[[l]]$Sens.test$SS$Steepness[1],h.M_mean*1.2)
+  tested.h=unique(c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]))
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
   tested.h=unique(tested.h)
   List.sp[[l]]$Sens.test$SS=do.call("rbind", replicate(length(tested.h), List.sp[[l]]$Sens.test$SS, simplify = FALSE))%>%
@@ -491,7 +498,7 @@ for(l in 1:N.sp)
   List.sp[[l]]$drop.cpue=FALSE
   #if(NeiM%in%c("spinner shark"))  List.sp[[l]]$drop.cpue=TRUE
   
-    #Always calculate extra SD for Q or only when CV is small
+    #Calculate extra SD for Q or only when CV is small?
   List.sp[[l]]$Sens.test$SS$extra.SD.Q='NO' #set to 'YES' if not calculating Francis CVs otherwise if using both it blows it
   
     #Alternative selectivity for NSF and survey
@@ -563,17 +570,17 @@ for(l in 1:N.sp)
   }
   
   #Spatial model 
-  List.sp[[l]]$Sens.test$SS$Spatial='single area'
+  if(!NeiM%in%spatial.model) List.sp[[l]]$Sens.test$SS$Spatial='single area'
+  if(NeiM%in%spatial.model) List.sp[[l]]$Sens.test$SS$Spatial='areas-as-fleets'
   if(NeiM%in%spatial.model)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
-                mutate(Spatial='areas-as-fleets',
+                mutate(Spatial='single area',
                        Scenario=paste0('S',(nnN+1)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
     
-  
   #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%
@@ -581,10 +588,13 @@ for(l in 1:N.sp)
   
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
   
+  #Reset scenarios as appropriate following Andre's review
+  #ACA
   
-    #4.1.2 Growth
-  List.sp[[l]]$Growth.CV_young=max(0.1,Young.CV)  #constant CV 8.5%-10% Tremblay-Boyer et al 2019; 22% Sandbar Sedar; 15% Dogfish SS; 27% BigSkate SS
-  List.sp[[l]]$Growth.CV_old=max(0.1,Old.CV)    #12% Sandbar Sedar
+  
+      #4.1.2 Growth
+  List.sp[[l]]$Growth.CV_young=max(0.1,Young.CV)  #constant CV 8.5%-10% Tremblay-Boyer et al 2019; 22% Sandbar SEDAR; 15% Dogfish SS; 27% BigSkate SS
+  List.sp[[l]]$Growth.CV_old=max(0.1,Old.CV)    #12% Sandbar SEDAR
   if(NeiM%in%c("sandbar shark"))
   {
     List.sp[[l]]$Growth.CV_young=0.1   #large CVs not consistent with Geraghty growth data and results in large Rec_dves
@@ -598,8 +608,9 @@ for(l in 1:N.sp)
   #if(NeiM%in%c("wobbegongs")) List.sp[[l]]$Growth.CV_old=0.15  #widen the CV to allow observed max sizes be within Linf + CV
   List.sp[[l]]$SS3.estim.growth.pars=FALSE
   List.sp[[l]]$compress.tail=FALSE  #compress the size distribution tail into plus group. 
+  
     
-    #Qs (in log space)
+      #4.1.3 Qs (in log space)
   List.sp[[l]]$Q.inits=data.frame(Fleet=c('Northern.shark','Other',
                                           'Southern.shark_1','Southern.shark_2',
                                           'Survey','F.series_Southern.shark_1',
@@ -615,8 +626,9 @@ for(l in 1:N.sp)
   List.sp[[l]]$SS3.q.an.sol=SS3.q.analit.solu
   if(NeiM%in%block.species_Q)   List.sp[[l]]$SS3.q.an.sol=FALSE
   
-    #4.1.3 selectivity
-  #4.1.3.1 SizeSelex
+    #4.1.4 selectivity
+  
+  #4.1.4.1 SizeSelex
   #note: unknown for NSF and other fisheries so set to logistic using available size compo as a default unless otherwise
   #      double normal: p1. peak, beginning size for plateau
   #                     p2. top, width of plateau
@@ -951,11 +963,13 @@ for(l in 1:N.sp)
     if(NeiM%in%fit.to.mean.weight.Southern2) fit_SS.to.mean.weight=TRUE
     List.sp[[l]]$fit.Southern.shark_2.to.meanbodywt=fit_SS.to.mean.weight
     
-    #4.1.3.2 AgeSelex 
+    
+    #4.1.4.2 AgeSelex 
     List.sp[[l]]$age_selex_pattern=0  #0,Selectivity = 1.0 for ages 0+; 10, Selectivity = 1.0 for all ages beginning at age 1
     if(NeiM=="spinner shark") List.sp[[l]]$age_selex_pattern=10  #to allow convergence
     
-    #4.1.4 lambdas (i.e. likelihood weighting)
+    
+    #4.1.5 lambdas (i.e. likelihood weighting)
   #note: only specify which lambdas are different to 1
   # Like_comp codes:  1=surv; 2=disc; 3=mnwt; 4=length; 5=age; 6=SizeFreq; 7=sizeage; 8=catch; 9=init_equ_catch; 
   # 10=recrdev; 11=parm_prior; 12=parm_dev; 13=CrashPen; 14=Morphcomp; 15=Tag-comp; 16=Tag-negbin; 17=F_ballpark; 18=initEQregime
@@ -970,7 +984,7 @@ for(l in 1:N.sp)
   List.sp[[l]]$SS_lambdas=SS.lambdas
   
 
-  #4.1.5 Recruitment pars
+  #4.1.6 Recruitment pars
   #note: Rec Devs needed for model convergence for smooth hh, spinners; and for other species needed for improved cpue fit
   if(is.na(ramp.yrs$RecDev_Phase)) List.sp[[l]]$RecDev_Phase=-3 
   if(!is.na(ramp.yrs$RecDev_Phase)) List.sp[[l]]$RecDev_Phase=ramp.yrs$RecDev_Phase
@@ -985,7 +999,8 @@ for(l in 1:N.sp)
   List.sp[[l]]$first_recent_yr_nobias_adj_in_MPD=ramp.yrs$first_recent_yr_nobias_adj_in_MPD
   List.sp[[l]]$max_bias_adj_in_MPD=ramp.yrs$max_bias_adj_in_MPD
   
-  #4.1.6 Catchabilities
+  
+  #4.1.7 Catchabilities
   if(NeiM=="whiskery shark")
   {
     if(Whiskery.q.periods>1) List.sp[[l]]$Nblock_Patterns=1
