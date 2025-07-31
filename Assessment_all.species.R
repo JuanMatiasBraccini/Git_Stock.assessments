@@ -3025,7 +3025,7 @@ for(i in 1:length(Species.data))
 
   }
 }
-if(First.run=="YES")
+if(First.run=="YES") 
 {
   for(i in 1:length(Species.data))
   {
@@ -3050,28 +3050,36 @@ if(First.run=="YES")
         CV_old=List.sp[[i]]$Growth.CV_old
         Lo=(List.sp[[i]]$Lzero)*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL
         Lo.min=Lo-(CV_young*Lo)
+        Lo.max=Lo+(CV_young*Lo)
         LinfF=(List.sp[[i]]$Growth.F$FL_inf)*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL
         LinfM=(List.sp[[i]]$Growth.M$FL_inf)*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL
         if(is.na(LinfM)) LinfM=LinfF
         if(LinfF==LinfM) LinfM=base::jitter(LinfM)
         LinfF.max=LinfF+(CV_old*LinfF)
+        LinfF.min=LinfF-(CV_old*LinfF)
         LinfM.max=LinfM+(CV_old*LinfM)
+        LinfM.min=LinfM-(CV_old*LinfM)
         nRows=length(unique(d.list$Fleet))
         nCols=1
+        BinSize=10 #TL.bins.cm
         d.list%>%
           mutate(TL=FL*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL)%>%
           filter(!is.na(SEX))%>%
           ggplot(aes(TL,fill=SEX))+
-          geom_histogram(binwidth = TL.bins.cm)+
+          geom_histogram(binwidth = BinSize)+  
           facet_wrap(~Fleet,nrow = nRows,scales='free_y')+
-          xlim(Lo.min,max(LinfF.max,LinfM.max))+
+          xlim(Lo.min,max(LinfF.max,LinfM.max,max(List.sp[[i]]$TLmax)))+
           theme(legend.position="top",legend.title=element_blank())+
-          geom_vline(xintercept=Lo,color = "black",size=1.25,alpha=.7)+
-          geom_vline(xintercept=Lo.min,color = "black",alpha=.7,size=1.1,linetype = "dotted")+
-          geom_vline(xintercept=LinfF,color = "#F8766D",size=1.25)+
-          geom_vline(xintercept=LinfF.max,color = "#F8766D",size=1.1,linetype = "dotted")+
-          geom_vline(xintercept=LinfM,color = "#00BFC4",size=1.25)+
-          geom_vline(xintercept=LinfM.max,color = "#00BFC4",size=1.1,linetype = "dotted")
+          geom_vline(xintercept=Lo,color = "black",size=1.5,alpha=.4)+
+          geom_vline(xintercept=Lo.max,color = "black",alpha=.4,linetype = "dashed")+
+          geom_vline(xintercept=Lo.min,color = "black",alpha=.4,linetype = "dashed")+
+          geom_vline(xintercept=LinfF,color = "#F8766D",alpha=.4,size=1.5)+
+          geom_vline(xintercept=LinfF.min,color = "#F8766D",alpha=.4,linetype = "dashed")+
+          geom_vline(xintercept=LinfF.max,color = "#F8766D",alpha=.4,linetype = "dashed")+
+          geom_vline(xintercept=LinfM,color = "#00BFC4",alpha=.4,size=1.5)+
+          geom_vline(xintercept=LinfM.max,color = "#00BFC4",alpha=.4,linetype = "dashed")+
+          geom_vline(xintercept=LinfM.min,color = "#00BFC4",alpha=.4,linetype = "dashed")+
+          theme_PA()+theme(legend.position = 'top')
         
         ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
                      "/",AssessYr,"/1_Inputs/Visualise data","/Observed size vs Linf and Lo with CV.tiff",sep=''),
@@ -4170,25 +4178,49 @@ ChEck.this=FALSE
 if(ChEck.this)
 {
   fn.source1("Simulate_growth_F_length_comp.r")
-  Amax=max(List.sp$`sandbar shark`$Max.age.F)
-  Lmax=List.sp$`sandbar shark`$TLmax*10
-  Linf.F=round(10*with(List.sp$`sandbar shark`,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))
-  Linf.M=round(10*with(List.sp$`sandbar shark`,Growth.M$FL_inf*a_FL.to.TL+b_FL.to.TL))
-  K.F=List.sp$`sandbar shark`$Growth.F$k
-  K.M=List.sp$`sandbar shark`$Growth.M$k
-  F.vec=round(seq(0.001,0.3,length.out=10),3)
-  pdf(paste0(HandL.out,'Sandbar shark/',AssessYr,'/SS3 integrated/Check Linf.pdf'))
-  for(ii in 1:length(F.vec))
+  for(i in match("sandbar shark",names(List.sp)))  #sandbar shark only
   {
-    pp=Alex_sim.data(MaxAge = Amax,
-                  FishMort = F.vec[ii],
-                  MaxLen = Lmax,
-                  SelParams = c(1450, 200),
-                  Linf = c(Linf.F,Linf.M),
-                  vbK = c(K.F,K.M))
-    print(pp)
+    NM=capitalize(names(List.sp)[i])
+    Amax=max(List.sp[[i]]$Max.age.F)
+    Lmax=(List.sp[[i]]$TLmax*10)*1.15   #bump it up
+    a.par=List.sp[[i]]$a_FL.to.TL
+    b.par=List.sp[[i]]$b_FL.to.TL
+    Linf.F_ori=round(10*(List.sp[[i]]$Growth.F$FL_inf*a.par+b.par))
+    Linf.M_ori=round(10*(List.sp[[i]]$Growth.M$FL_inf*a.par+b.par))
+    K.F=List.sp[[i]]$Growth.F$k
+    K.M=List.sp[[i]]$Growth.M$k
+    F.vec=round(seq(0.001,0.05,length.out=5),3)
+    LENCOMP.NSF=Species.data[[i]]$Size_composition_NSF.LONGLINE%>%
+      mutate(TL=10*(FL*a.par+b.par))
+    LENCOMP.survey=Species.data[[i]]$Size_composition_Survey%>%
+      mutate(TL=10*(FL*a.par+b.par))
+    Rango=seq(.7,1.1,by=.05)
+    Linf.F=Linf.F_ori*Rango
+    Linf.M=Linf.M_ori*Rango
+    for(x in 1:length(F.vec))
+    {
+      pp=Alex_sim.data(MaxAge = Amax,
+                       FishMort = F.vec[x],
+                       MaxLen = Lmax,
+                       SelParams = c(1450, 200),
+                       Linf = list(Linf.F,Linf.M),
+                       vbK = c(K.F,K.M),
+                       LENCOMP=rbind(LENCOMP.NSF,LENCOMP.survey),
+                       Linf.range=Rango)
+      
+      pp$p.len.fre
+      ggsave(paste0(HandL.out,NM,'/',AssessYr,'/SS3 integrated/Check Linf_F=',F.vec[x],'.tiff'),
+             width = 9,height = 6, dpi = 300, compression = "lzw")
+      
+      if(Rango[x]==1)
+      {
+        ggarrange(pp$p.growth,pp$p.sel,ncol=1,nrow=2)
+        ggsave(paste0(HandL.out,NM,'/',AssessYr,'/SS3 integrated/Check Linf_F=',F.vec[x],'_growth & Sel.tiff'),
+               width = 6,height = 6, dpi = 300, compression = "lzw")
+        
+      }
+    }
   }
-  dev.off()
 }
   
 
