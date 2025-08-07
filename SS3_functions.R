@@ -742,38 +742,37 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   {
     if('Linf'%in%names(life.history$Growth.F.prior))
     {
-      ctl$MG_parms["L_at_Amax_Fem_GP_1", "PHASE"]=3
-      ctl$MG_parms["L_at_Amax_Fem_GP_1", "PRIOR"]=life.history$Growth.F.prior$Linf 
+      ctl$MG_parms["L_at_Amax_Fem_GP_1", "PHASE"]=2
+      ctl$MG_parms["L_at_Amax_Fem_GP_1", c("PRIOR")]=life.history$Growth.F.prior$Linf
+      ctl$MG_parms["L_at_Amax_Fem_GP_1", c("LO","HI")]=round(c(life.history$Growth.F.prior$Linf*.7,life.history$Growth.F.prior$Linf*1.3))
       ctl$MG_parms["L_at_Amax_Fem_GP_1", "PR_SD"]=life.history$Growth.F.prior$Linf.se  
-      ctl$MG_parms["L_at_Amax_Fem_GP_1", "PR_type"]=life.history$Growth.prior.type
+      ctl$MG_parms["L_at_Amax_Fem_GP_1", "PR_type"]=life.history$Growth.prior.type$Linf
     }
-    
     if('Linf'%in%names(life.history$Growth.M.prior))
     {
-      ctl$MG_parms["L_at_Amax_Mal_GP_1", "PHASE"]=3
-      ctl$MG_parms["L_at_Amax_Mal_GP_1", "PRIOR"]=life.history$Growth.M.prior$Linf 
+      ctl$MG_parms["L_at_Amax_Mal_GP_1", "PHASE"]=2
+      ctl$MG_parms["L_at_Amax_Mal_GP_1", c("PRIOR")]=life.history$Growth.M.prior$Linf 
+      ctl$MG_parms["L_at_Amax_Mal_GP_1", c("LO","HI")]=round(c(life.history$Growth.M.prior$Linf*.7,life.history$Growth.M.prior$Linf*1.3))
       ctl$MG_parms["L_at_Amax_Mal_GP_1", "PR_SD"]=life.history$Growth.M.prior$Linf.se   
-      ctl$MG_parms["L_at_Amax_Mal_GP_1", "PR_type"]=life.history$Growth.prior.type 
+      ctl$MG_parms["L_at_Amax_Mal_GP_1", "PR_type"]=life.history$Growth.prior.type$Linf 
     }
-
     
     if('k'%in%names(life.history$Growth.F.prior))
     {
       ctl$MG_parms["VonBert_K_Fem_GP_1", "PHASE"]=3
-      ctl$MG_parms["VonBert_K_Fem_GP_1", "PRIOR"]=life.history$Growth.F.prior$k
+      ctl$MG_parms["VonBert_K_Fem_GP_1", c("PRIOR")]=life.history$Growth.F.prior$k
+      ctl$MG_parms["VonBert_K_Fem_GP_1", c("LO","HI")]=round(c(life.history$Growth.F.prior$k*.60,life.history$Growth.F.prior$k*1.40),3)
       ctl$MG_parms["VonBert_K_Fem_GP_1", "PR_SD"]=life.history$Growth.F.prior$k.se 
-      ctl$MG_parms["VonBert_K_Fem_GP_1", "PR_type"]=life.history$Growth.prior.type 
+      ctl$MG_parms["VonBert_K_Fem_GP_1", "PR_type"]=life.history$Growth.prior.type$k 
     }
-    
     if('k'%in%names(life.history$Growth.M.prior))
     {
       ctl$MG_parms["VonBert_K_Mal_GP_1", "PHASE"]=3
-      ctl$MG_parms["VonBert_K_Mal_GP_1", "PRIOR"]=life.history$Growth.M.prior$k
+      ctl$MG_parms["VonBert_K_Mal_GP_1", c("PRIOR")]=life.history$Growth.M.prior$k
+      ctl$MG_parms["VonBert_K_Mal_GP_1", c("LO","HI")]=round(c(life.history$Growth.M.prior$k*.60,life.history$Growth.M.prior$k*1.40),3)
       ctl$MG_parms["VonBert_K_Mal_GP_1", "PR_SD"]=life.history$Growth.M.prior$k.se  
-      ctl$MG_parms["VonBert_K_Mal_GP_1", "PR_type"]=life.history$Growth.prior.type
+      ctl$MG_parms["VonBert_K_Mal_GP_1", "PR_type"]=life.history$Growth.prior.type$k
     }
- 
-    
   }
   
   #M at age
@@ -1068,7 +1067,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   }
   
   #selectivity pars  
-  if(Scenario$Model=='SS') #ACA
+  if(Scenario$Model=='SS') 
   {
     #1. size_selex   
     ddumy=ctl$size_selex_types[rep(1,length(dis.flits)),]%>%
@@ -1758,7 +1757,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       ctl$size_selex_parms_tv=life.history$timevary_selex_parameters
     }
-    #ACA
+    
     #2. age_selex
     ctl$age_selex_types=ctl$size_selex_types%>%
                           mutate(Pattern=life.history$age_selex_pattern,
@@ -1790,7 +1789,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     # }  
     
     #Block pattern - time changing selectivity (must estimate the par)
-    if(!life.history$Nblock_Patterns==0 & ctl$time_vary_auto_generation[5]==0)
+    if((!life.history$Nblock_Patterns==0 & ctl$time_vary_auto_generation[5]==0)|
+       ('timevary_selex_parameters'%in%names(life.history)))
     {
       dis1=fleetinfo$fleetname[grep(life.history$Sel.Block.fleet,fleetinfo$fleetname)]
       if(Scenario$Spatial=="areas-as-fleets") dis1=life.history$areas.as.fleet.zone.block
@@ -1808,8 +1808,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       ctl$size_selex_parms$Block[dis.blok]=rep(dis2,length(dis1))  
       ctl$size_selex_parms$Block_Fxn[dis.blok]=rep(Block_Fxn,length(dis1))
       
-      if(ctl$size_selex_parms[id.dis.flit,]$PHASE[id.active.pars]<0) ctl$size_selex_parms[id.dis.flit,]$PHASE[id.active.pars]=4
-      
+      if(ctl$size_selex_parms[id.dis.flit,]$PHASE[id.active.pars]<0 &
+         !'timevary_selex_parameters'%in%names(life.history))
+      {
+        ctl$size_selex_parms[id.dis.flit,]$PHASE[id.active.pars]=4
+      }
     }
   }
   if(Scenario$Model=='SSS')  #SSS assumes selectivity = maturity
@@ -1824,7 +1827,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   
   #set prior to init value 
   ctl$SR_parms[,"PRIOR"]=ctl$SR_parms[,"INIT"]
-  ctl$MG_parms[,"PRIOR"]=ctl$MG_parms[,"INIT"]
+  ctl$MG_parms=ctl$MG_parms%>%mutate(PRIOR=ifelse(PHASE<0,INIT,PRIOR))
   ctl$Q_parms[,"PRIOR"]=ctl$Q_parms[,"INIT"]
   ctl$size_selex_parms[,"PRIOR"]=ctl$size_selex_parms[,"INIT"]
   

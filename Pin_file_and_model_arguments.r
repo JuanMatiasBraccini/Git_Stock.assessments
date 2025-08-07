@@ -625,9 +625,9 @@ for(l in 1:N.sp)
   if(NeiM=="sandbar shark")
   {
     List.sp[[l]]$SS3.estim.growth.pars=TRUE
-    List.sp[[l]]$Growth.F.prior=data.frame(k=0.16,k.se=0.03)
-    List.sp[[l]]$Growth.M.prior=data.frame(k=0.19,k.se=0.04)
-    List.sp[[l]]$Growth.prior.type=6    #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta
+    List.sp[[l]]$Growth.F.prior=data.frame(k=0.16,k.se=0.03, Linf=175, Linf.se=5)
+    List.sp[[l]]$Growth.M.prior=data.frame(k=0.19,k.se=0.04, Linf=160, Linf.se=5)
+    List.sp[[l]]$Growth.prior.type=data.frame(k=6, Linf=0)    #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
   }
     
       #4.1.3 Qs (in log space)
@@ -758,7 +758,7 @@ for(l in 1:N.sp)
       }
     }
     
-    #mimicing
+    #mimicking
     List.sp[[l]]$SS_selectivity_mimic=NULL
     
     if(NeiM=="sandbar shark")
@@ -825,30 +825,31 @@ for(l in 1:N.sp)
     
     #block pattern for time changing selectivity for Monthly TDGDLF
     List.sp[[l]]$Nblock_Patterns=0
-    List.sp[[l]]$autogen=rep(1,5) #0 if parameter is estimated, 1 if parameter is fixed 
+    List.sp[[l]]$autogen=rep(1,5) #1st biology, 2nd SR, 3rd Q, 4th reserved, 5th selex. Set to 0 if par is estimated, 1 if par is fixed 
     
     if(NeiM=="sandbar shark")
     {
       List.sp[[l]]$Nblock_Patterns=1
-      List.sp[[l]]$blocks_per_pattern=2
+      List.sp[[l]]$blocks_per_pattern=3
       List.sp[[l]]$Sel_param_Blk_Fxn=2 #0: P_block=P_base*exp(TVP); 1: P_block=P_base+TVP; 2: P_block=TVP; 3: P_block=P_block(-1) + TVP
-      List.sp[[l]]$block_pattern_begin_end=list(c(1975,1999),c(2000,2005)) 
-      List.sp[[l]]$autogen=c(1,1,1,1,0) #1st biology, 2nd SR, 3rd Q, 4th reserved, 5th selex
+      Pat.rnge=range(KtCh%>%filter(Name==NeiM)%>%pull(finyear))
+      List.sp[[l]]$block_pattern_begin_end=list(c(Pat.rnge[1],1999), c(2000,2005), c(2006,Pat.rnge[2])) 
+      List.sp[[l]]$autogen[5]=1 #Have to fix it, crap SE
       List.sp[[l]]$SizeSelex_Block=c(P_1=1,P_2=1,P_3=1,P_4=1,P_5=0,P_6=0) #params with negative _L0 not accepted
       List.sp[[l]]$Sel.Block.fleet='Southern.shark_1'
       List.sp[[l]]$areas.as.fleet.zone.block="Southern.shark_1_West"
       List.sp[[l]]$areas.as.fleet.zone.block_pars="P_4"
       if(List.sp[[l]]$autogen[5]==1) #specify fixed values
       {
-        timevary_selex_parameters=data.frame(LO=c(0.1,0.1),
-                                             HI=c(15,15),
-                                             INIT=c(4,7),
-                                             PRIOR=c(7.65,7.65),
-                                             PR_SD=c(99,99),
-                                             PR_type=c(0,0),
-                                             PHASE=c(-5,-5))
-        row.names(timevary_selex_parameters)=c('SizeSel_P_4_Southern.shark_1_West_1975',
-                                               'SizeSel_P_4_Southern.shark_1_West_2000')
+        timevary_selex_parameters=data.frame(LO=c(0.1,0.1,0.1),
+                                             HI=c(15,15,15),
+                                             INIT=c(5.621,7.958,8.032),
+                                             PRIOR=c(5.621,7.958,8.032),
+                                             PR_SD=c(99,99,99),
+                                             PR_type=c(0,0,0),
+                                             PHASE=c(-5,-5,-5))
+        row.names(timevary_selex_parameters)=paste0("SizeSel_P_4_Southern.shark_1_West_",
+                                                    sapply(List.sp[[l]]$block_pattern_begin_end, "[[", 1))  
         List.sp[[l]]$timevary_selex_parameters=timevary_selex_parameters
       }
     }
@@ -1011,7 +1012,9 @@ for(l in 1:N.sp)
                                   mutate(P_1=case_when(Fleet=='Survey'~160,
                                                        Fleet=='Southern.shark_1_Zone1'~100,
                                                        TRUE~P_1),
-                                         P_2=case_when(Fleet=='Southern.shark_2_Zone1'~-4.23,
+                                         P_2=case_when(Fleet=='Southern.shark_1_West'~-10,
+                                                       Fleet=='Southern.shark_1_Zone1'~-8.6,
+                                                       Fleet=='Southern.shark_2_Zone1'~-4.23,
                                                        TRUE~P_2),
                                          P_3=case_when(Fleet=='Southern.shark_2_West'~5.76,
                                                        Fleet=='Southern.shark_2_Zone1'~4.93,
@@ -1021,7 +1024,10 @@ for(l in 1:N.sp)
                                                        TRUE~P_4))
       
       List.sp[[l]]$SS_selectivity_phase=List.sp[[l]]$SS_selectivity_phase%>%
-                                  mutate(P_4=case_when(Fleet=='Southern.shark_1_Zone1'~4,
+                                  mutate(P_2=case_when(Fleet=='Southern.shark_1_West'~-4,
+                                                       Fleet=='Southern.shark_1_Zone1'~-4,
+                                                       TRUE~P_2),
+                                        P_4=case_when(Fleet=='Southern.shark_1_Zone1'~4,
                                                        TRUE~P_4))
     }
     

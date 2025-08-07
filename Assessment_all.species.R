@@ -1321,7 +1321,7 @@ for(i in 1:N.sp)
     if(nems[z]%in%names(Species.data[[i]]))
     {
       Species.data[[i]][[nems[z]]]=Species.data[[i]][[nems[z]]]%>%
-                                        filter(FL<=Max.FL)%>%
+                                        filter(FL<=Max.FL*1.05)%>%
                                         filter(FL>=Min.FL)
     }
   }
@@ -2081,7 +2081,7 @@ Sel.equivalence=data.frame(
 Selectivity.at.age=vector('list',N.sp)
 names(Selectivity.at.age)=Keep.species
 Selectivity.at.totalength=Selectivity.at.age
-HandL=handl_OneDrive("Analyses/Data_outs/") #ACA
+HandL=Dat.repository 
 for(l in 1:N.sp)
 {
   if('gillnet.selectivity_len.age'%in%names(Species.data[[l]]) | names(Species.data)[l]%in%Sel.equivalence$Name)
