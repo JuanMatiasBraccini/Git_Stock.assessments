@@ -58,6 +58,7 @@ if(do.Ktch.only.pin)
 }
 
 #Get CVs young and old
+#note: constant CV 8.5%-10% Tremblay-Boyer et al 2019; 15% Dogfish SS; 27% BigSkate SS; 22% young & 12% old Sandbar SEDAR 54
 fun.cv_young_old=function(d,NM)
 {
   if('age_length' %in% names(d))
@@ -87,6 +88,9 @@ for(i in 1:N.sp)
 Get.CV_youn_old=do.call(rbind,Get.CV_youn_old)
 Young.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='1.young')%>%pull(CV)),2)
 Old.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='3.old')%>%pull(CV)),2)
+Old.CV_long.lived=0.05
+Old.CV_short.lived=0.1
+
 
 #Create pin files
 for(l in 1:N.sp)    
@@ -580,7 +584,19 @@ for(l in 1:N.sp)
                        Scenario=paste0('S',(nnN+1)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
-    
+  
+  #Alternative Linf due to uncertainty in growth pars
+  List.sp[[l]]$Sens.test$SS$alternative.Linf=1  #multiplier
+  if(NeiM%in%alternative.Linf) 
+  {
+    dis.Linf=as.numeric(names(alternative.Linf)[match(NeiM,alternative.Linf)])
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(alternative.Linf=dis.Linf,
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
   #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%
@@ -588,27 +604,31 @@ for(l in 1:N.sp)
   
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
   
-  #Reset scenarios as appropriate following Andre's review
-  #ACA
-  
-  
+
       #4.1.2 Growth
-  List.sp[[l]]$Growth.CV_young=max(0.1,Young.CV)  #constant CV 8.5%-10% Tremblay-Boyer et al 2019; 22% Sandbar SEDAR; 15% Dogfish SS; 27% BigSkate SS
-  List.sp[[l]]$Growth.CV_old=max(0.1,Old.CV)    #12% Sandbar SEDAR
-  if(NeiM%in%c("sandbar shark"))
-  {
-    List.sp[[l]]$Growth.CV_young=0.1   #large CVs not consistent with Geraghty growth data and results in large Rec_dves
-    List.sp[[l]]$Growth.CV_old=0.05
-  }
+  List.sp[[l]]$Growth.CV_young=Young.CV  
+  if(List.sp[[l]]$Max.age.F[1]<20) List.sp[[l]]$Growth.CV_old=Old.CV_short.lived 
+  if(List.sp[[l]]$Max.age.F[1]>=20) List.sp[[l]]$Growth.CV_old=Old.CV_long.lived
+  #if(NeiM%in%c("sandbar shark")) List.sp[[l]]$Growth.CV_young=0.1   #large CVs not consistent with Geraghty growth data and results in large Rec_dves
   if(NeiM%in%c("milk shark"))
   {
     List.sp[[l]]$Growth.CV_young=0.1   #default CVs results in massive Rec Devs prior to start of data and poor fit to length comps
     List.sp[[l]]$Growth.CV_old=0.05
   }
   #if(NeiM%in%c("wobbegongs")) List.sp[[l]]$Growth.CV_old=0.15  #widen the CV to allow observed max sizes be within Linf + CV
+
   List.sp[[l]]$SS3.estim.growth.pars=FALSE
   List.sp[[l]]$compress.tail=FALSE  #compress the size distribution tail into plus group. 
   
+    #growth priors
+  List.sp[[l]]$Growth.F.prior=List.sp[[l]]$Growth.M.prior=List.sp[[l]]$Growth.prior.type=NULL
+  if(NeiM=="sandbar shark")
+  {
+    List.sp[[l]]$SS3.estim.growth.pars=TRUE
+    List.sp[[l]]$Growth.F.prior=data.frame(k=0.16,k.se=0.03)
+    List.sp[[l]]$Growth.M.prior=data.frame(k=0.19,k.se=0.04)
+    List.sp[[l]]$Growth.prior.type=6    #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta
+  }
     
       #4.1.3 Qs (in log space)
   List.sp[[l]]$Q.inits=data.frame(Fleet=c('Northern.shark','Other',
@@ -738,6 +758,17 @@ for(l in 1:N.sp)
       }
     }
     
+    #mimicing
+    List.sp[[l]]$SS_selectivity_mimic=NULL
+    
+    if(NeiM=="sandbar shark")
+    {
+      List.sp[[l]]$SS_selectivity_mimic=data.frame(Fleet=c('Southern.shark_1_Zone2',
+                                                           'Southern.shark_2_Zone2'),
+                                                   Fleet.mimic=c('Southern.shark_1_Zone1',
+                                                                 'Southern.shark_2_Zone1'))
+    }
+    
     #retention & discard mortality
     if(any(!is.na(SS.sel.init.pars[,grepl('Ret_',names(SS.sel.init.pars))])))
     {
@@ -794,16 +825,32 @@ for(l in 1:N.sp)
     
     #block pattern for time changing selectivity for Monthly TDGDLF
     List.sp[[l]]$Nblock_Patterns=0
-    List.sp[[l]]$autogen=rep(1,5)
+    List.sp[[l]]$autogen=rep(1,5) #0 if parameter is estimated, 1 if parameter is fixed 
     
     if(NeiM=="sandbar shark")
     {
       List.sp[[l]]$Nblock_Patterns=1
-      List.sp[[l]]$blocks_per_pattern=2       
-      List.sp[[l]]$block_pattern_begin_end=list(c(1994,1999),c(2000,2005)) 
+      List.sp[[l]]$blocks_per_pattern=2
+      List.sp[[l]]$Sel_param_Blk_Fxn=2 #0: P_block=P_base*exp(TVP); 1: P_block=P_base+TVP; 2: P_block=TVP; 3: P_block=P_block(-1) + TVP
+      List.sp[[l]]$block_pattern_begin_end=list(c(1975,1999),c(2000,2005)) 
       List.sp[[l]]$autogen=c(1,1,1,1,0) #1st biology, 2nd SR, 3rd Q, 4th reserved, 5th selex
-      List.sp[[l]]$SizeSelex_Block=c(P_1=1,P_2=0,P_3=1,P_4=1,P_5=0,P_6=0) #params with negative _L0 not accepted
+      List.sp[[l]]$SizeSelex_Block=c(P_1=1,P_2=1,P_3=1,P_4=1,P_5=0,P_6=0) #params with negative _L0 not accepted
       List.sp[[l]]$Sel.Block.fleet='Southern.shark_1'
+      List.sp[[l]]$areas.as.fleet.zone.block="Southern.shark_1_West"
+      List.sp[[l]]$areas.as.fleet.zone.block_pars="P_4"
+      if(List.sp[[l]]$autogen[5]==1) #specify fixed values
+      {
+        timevary_selex_parameters=data.frame(LO=c(0.1,0.1),
+                                             HI=c(15,15),
+                                             INIT=c(4,7),
+                                             PRIOR=c(7.65,7.65),
+                                             PR_SD=c(99,99),
+                                             PR_type=c(0,0),
+                                             PHASE=c(-5,-5))
+        row.names(timevary_selex_parameters)=c('SizeSel_P_4_Southern.shark_1_West_1975',
+                                               'SizeSel_P_4_Southern.shark_1_West_2000')
+        List.sp[[l]]$timevary_selex_parameters=timevary_selex_parameters
+      }
     }
     
     
@@ -958,12 +1005,32 @@ for(l in 1:N.sp)
                                                                                 y=c('Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2')))
     }
     
+    if(NeiM=="sandbar shark")
+    {
+      List.sp[[l]]$SS_selectivity=List.sp[[l]]$SS_selectivity%>%
+                                  mutate(P_1=case_when(Fleet=='Survey'~160,
+                                                       Fleet=='Southern.shark_1_Zone1'~100,
+                                                       TRUE~P_1),
+                                         P_2=case_when(Fleet=='Southern.shark_2_Zone1'~-4.23,
+                                                       TRUE~P_2),
+                                         P_3=case_when(Fleet=='Southern.shark_2_West'~5.76,
+                                                       Fleet=='Southern.shark_2_Zone1'~4.93,
+                                                       TRUE~P_3),
+                                         P_4=case_when(Fleet=='Southern.shark_2_West'~7.98,
+                                                       Fleet=='Southern.shark_2_Zone1'~5.94,
+                                                       TRUE~P_4))
+      
+      List.sp[[l]]$SS_selectivity_phase=List.sp[[l]]$SS_selectivity_phase%>%
+                                  mutate(P_4=case_when(Fleet=='Southern.shark_1_Zone1'~4,
+                                                       TRUE~P_4))
+    }
+    
     #turn on Southern2 if meanbodywt
     fit_SS.to.mean.weight=FALSE
     if(NeiM%in%fit.to.mean.weight.Southern2) fit_SS.to.mean.weight=TRUE
-    List.sp[[l]]$fit.Southern.shark_2.to.meanbodywt=fit_SS.to.mean.weight
+    List.sp[[l]]$fit.Southern.shark_2.to.meanbodywt=fit_SS.to.mean.weight  #this has been superseded in fn.set.up.SS
     
-    
+
     #4.1.4.2 AgeSelex 
     List.sp[[l]]$age_selex_pattern=0  #0,Selectivity = 1.0 for ages 0+; 10, Selectivity = 1.0 for all ages beginning at age 1
     if(NeiM=="spinner shark") List.sp[[l]]$age_selex_pattern=10  #to allow convergence
@@ -1016,7 +1083,7 @@ for(l in 1:N.sp)
     }
     List.sp[[l]]$autogen=c(1,1,0,1,1) #1st biology, 2nd SR, 3rd Q, 4th reserved, 5th selex
     List.sp[[l]]$Q_param_Block=1
-    List.sp[[l]]$Q_param_Blk_Fxn=2 #as per BigSkate assessment. 0: P_block=P_base*exp(TVP); 1: P_block=P_base+TVP; 2: P_block=TVP; 3: P_block=P_block(-1) + TVP
+    List.sp[[l]]$Q_param_Blk_Fxn=2 #as per BigSkate assessment. 
     
     List.sp[[l]]$Yr_q_change=1982   #last year before targeting practices changed (Simpfendorfer 2000)
     List.sp[[l]]$Yr_q_change_transition=1981:1983  #Disregard 80-83 as transitional years (Braccini et al 2021)
@@ -1031,6 +1098,7 @@ for(l in 1:N.sp)
       List.sp[[l]]$block_pattern_begin_end=list(c(1975,2000),c(2001,2005)) #targeting, not targeting periods?
       List.sp[[l]]$Yr_second_q=2001:2005    #second monthly q due to increase in cpue and catch unaccounted by cpue stand.
       List.sp[[l]]$autogen=c(1,1,0,1,1) #1st biology, 2nd SR, 3rd Q, 4th reserved, 5th selex
+      List.sp[[l]]$Q_param_Blk_Fxn=2
     }
     
     

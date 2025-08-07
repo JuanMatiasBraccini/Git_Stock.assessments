@@ -403,6 +403,7 @@ Proc.Error.cpue2=5e-02   #alternative, 5e-02 process error for JABBA  (Winker et
 k.cv=2                #Carrying capacity CV (Winker et al 2018 School shark)
 PEELS=5               #number of years to peel for hindcasting and retrospective   
 evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
+#evaluate.07.08.cpue=c("gummy shark","sandbar shark","whiskery shark")
 
 #21. Integrated age-based model 
 Integrated.age.based='SS'   # define model types used
@@ -432,7 +433,7 @@ combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.d
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
 combine.sex_type=0  #0, 0 means combined male and female ; 3, 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
 SS.sex.length.type=3  #NULL if want to maintain males and females separated
-fit.to.mean.weight.Southern2=c("spinner shark","whiskery shark")  #get model to fit mean weight regardless of available length comp
+fit.to.mean.weight.Southern2=c("dusky shark","gummy shark","sandbar shark","whiskery shark","spinner shark")  #get model to fit mean weight regardless of available length comp
 drop.len.comp.like=NULL    
 survey.like.weight=NULL  #"dusky shark"  
 use.Gab.trawl=TRUE   #note that this has only 1 year of data
@@ -457,16 +458,21 @@ alternative.forecasting=NULL  #forecasting F rather than catch
 #                                             'Southern.shark_1'=0,
 #                                             'Southern.shark_2'=1.04784e-02))  
 alternative.like.weigthing=NULL  #test alternative lambdas for survey and length comps
-spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')   #NULL, build areas-as-fleets model
+
+#spatial.model=NULL # build areas-as-fleets model
+spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')   
+
+alternative.Linf=NULL # "sandbar shark" reduce Linf to match length comps. Superseded, now estimating Linf
+if(!is.null(alternative.Linf))names(alternative.Linf)=0.9
 
   #21.1 Set WRL as a separate fleet for these species
 WRL.species=c("copper shark","dusky shark","shortfin mako",
               "smooth hammerhead","spinner shark","tiger shark") 
 
   #21.2 Sensitivity for NSF logistic selectivity for these species
-alternative.NSF.selectivity=NULL
-#alternative.NSF.selectivity=c("dusky shark","great hammerhead","lemon shark","pigeye shark",
-#                              "sandbar shark","scalloped hammerhead","smooth hammerhead","tiger shark")
+#alternative.NSF.selectivity=NULL
+alternative.NSF.selectivity=c("sandbar shark","dusky shark","spinner shark",
+                              "great hammerhead","scalloped hammerhead","smooth hammerhead")
 
   #21.3 No empirical Selectivity for main fleet or length comp sample size is too small
 #  so cannot implement any length-based assessment (Catch curve, SS3, etc)
@@ -1308,7 +1314,7 @@ for(i in 1:N.sp)
 {
   LH=LH.data%>%filter(SPECIES==All.species.names%>%filter(SNAME==Keep.species[i])%>%pull(SPECIES))
   Max.TL=LH$Max.TL
-  Max.FL=1.15*(Max.TL-LH$b_FL.to.TL)/LH$a_FL.to.TL
+  Max.FL=1*(Max.TL-LH$b_FL.to.TL)/LH$a_FL.to.TL
   Min.FL=LH$LF_o
   for(z in 1:length(nems))
   {
@@ -4173,14 +4179,17 @@ if(Export.SS_DL.tool.inputs)
 }
 
 
-  # Simulate length composition given logistic selectivity, F and M for sandbar to determine Linf
+  # Simulate length composition given logistic selectivity, F and M for sandbar to inform Linf
 ChEck.this=FALSE
 if(ChEck.this)
 {
   fn.source1("Simulate_growth_F_length_comp.r")
-  for(i in match("sandbar shark",names(List.sp)))  #sandbar shark only
+  ChEck.this.sp=match(c("dusky shark","sandbar shark"),names(List.sp))
+  for(i in ChEck.this.sp)  
   {
     NM=capitalize(names(List.sp)[i])
+    Linf.wd=paste0(HandL.out,NM,'/',AssessYr,'/SS3 integrated/z_Check Linf')
+    if(!dir.exists(Linf.wd))dir.create(Linf.wd)
     Amax=max(List.sp[[i]]$Max.age.F)
     Lmax=(List.sp[[i]]$TLmax*10)*1.15   #bump it up
     a.par=List.sp[[i]]$a_FL.to.TL
@@ -4189,7 +4198,7 @@ if(ChEck.this)
     Linf.M_ori=round(10*(List.sp[[i]]$Growth.M$FL_inf*a.par+b.par))
     K.F=List.sp[[i]]$Growth.F$k
     K.M=List.sp[[i]]$Growth.M$k
-    F.vec=round(seq(0.001,0.05,length.out=5),3)
+    F.vec=round(seq(0.001,0.1,length.out=5),3)
     LENCOMP.NSF=Species.data[[i]]$Size_composition_NSF.LONGLINE%>%
       mutate(TL=10*(FL*a.par+b.par))
     LENCOMP.survey=Species.data[[i]]$Size_composition_Survey%>%
@@ -4197,26 +4206,51 @@ if(ChEck.this)
     Rango=seq(.7,1.1,by=.05)
     Linf.F=Linf.F_ori*Rango
     Linf.M=Linf.M_ori*Rango
+    Sel.50=10*SS_selectivity_init_pars%>%filter(Species==tolower(NM))%>%pull(NSF_p1)
+    #CV 0.06
     for(x in 1:length(F.vec))
     {
       pp=Alex_sim.data(MaxAge = Amax,
                        FishMort = F.vec[x],
                        MaxLen = Lmax,
-                       SelParams = c(1450, 200),
+                       SelParams = c(Sel.50, 200),
                        Linf = list(Linf.F,Linf.M),
                        vbK = c(K.F,K.M),
+                       CVSizeAtAge = c(0.06,0.06),
                        LENCOMP=rbind(LENCOMP.NSF,LENCOMP.survey),
                        Linf.range=Rango)
       
       pp$p.len.fre
-      ggsave(paste0(HandL.out,NM,'/',AssessYr,'/SS3 integrated/Check Linf_F=',F.vec[x],'.tiff'),
-             width = 9,height = 6, dpi = 300, compression = "lzw")
+      ggsave(paste0(Linf.wd,'/F=',F.vec[x],'_0.06 CV.tiff'),width = 9,height = 6, dpi = 300, compression = "lzw")
       
       if(Rango[x]==1)
       {
         ggarrange(pp$p.growth,pp$p.sel,ncol=1,nrow=2)
-        ggsave(paste0(HandL.out,NM,'/',AssessYr,'/SS3 integrated/Check Linf_F=',F.vec[x],'_growth & Sel.tiff'),
-               width = 6,height = 6, dpi = 300, compression = "lzw")
+        ggsave(paste0(Linf.wd,'/F=',F.vec[x],'_0.06 CV_growth & Sel.tiff'),width = 6,height = 6, dpi = 300, compression = "lzw")
+        
+      }
+    }
+    
+    #CV 0.03
+    for(x in 1:length(F.vec))
+    {
+      pp=Alex_sim.data(MaxAge = Amax,
+                       FishMort = F.vec[x],
+                       MaxLen = Lmax,
+                       SelParams = c(Sel.50, 200),
+                       Linf = list(Linf.F,Linf.M),
+                       vbK = c(K.F,K.M),
+                       CVSizeAtAge = c(0.03,0.03),
+                       LENCOMP=rbind(LENCOMP.NSF,LENCOMP.survey),
+                       Linf.range=Rango)
+      
+      pp$p.len.fre
+      ggsave(paste0(Linf.wd,'/F=',F.vec[x],'_0.03 CV.tiff'),width = 9,height = 6, dpi = 300, compression = "lzw")
+      
+      if(Rango[x]==1)
+      {
+        ggarrange(pp$p.growth,pp$p.sel,ncol=1,nrow=2)
+        ggsave(paste0(Linf.wd,'/F=',F.vec[x],'_0.03 C_growth & Sel.tiff'),width = 6,height = 6, dpi = 300, compression = "lzw")
         
       }
     }

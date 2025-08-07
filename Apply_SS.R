@@ -25,6 +25,7 @@ for(w in 1:n.SS)
         {
           this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
           if(!dir.exists(this.wd))dir.create(this.wd)
+          
           Life.history=List.sp[[i]]
           
           
@@ -137,8 +138,14 @@ for(w in 1:n.SS)
           #note: commercial catch and survey. Nsamp set at number of shots
             #zones together
           Size.compo.SS.format=NULL
+          Life.history$Max.population.TL=Life.history$Min.population.TL=NULL
           if(any(grepl('Size_composition',names(Species.data[[i]]))))
           {
+            if(Neim=="sandbar shark")
+            {
+              Species.data[[i]]$Size_composition_Survey=Species.data[[i]]$Size_composition_Survey%>%
+                mutate(SEX=ifelse(is.na(SEX) & FINYEAR=='2005-06' & FL==200,'F',SEX))
+            }
             d.list.n.shots=Species.data[[i]][grep(paste(c("Size_composition_Survey_Observations","Size_composition_Observations",
                                                           "Size_composition_Other_Observations"),collapse="|"),
                                                   names(Species.data[[i]]))]
@@ -149,26 +156,38 @@ for(w in 1:n.SS)
               if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
               if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
               
+              Max.obs.FL=max(unlist(lapply(d.list,function(x) max(x$FL,na.rm=T))))
+              Max.obs.TL=with(Life.history,Max.obs.FL*a_FL.to.TL+b_FL.to.TL)
+              Min.obs.FL=min(unlist(lapply(d.list,function(x) min(x$FL,na.rm=T))))
+              Min.obs.TL=with(Life.history,Min.obs.FL*a_FL.to.TL+b_FL.to.TL)
+              
+              Min.population.TL=min(Min.obs.TL,with(Life.history,Lzero*a_FL.to.TL+b_FL.to.TL)) 
+              Max.population.TL=max(Max.obs.TL,with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))
+              Max.population.TL=TL.bins.cm*ceiling(Max.population.TL/TL.bins.cm)
+              Min.population.TL=TL.bins.cm*floor(Min.population.TL/TL.bins.cm)
+              
+              Life.history$Max.population.TL=Max.population.TL
+              Life.history$Min.population.TL=Min.population.TL
+              
               for(s in 1:length(d.list))
               {
                 d.list[[s]]=d.list[[s]]%>%
-                  filter(FL>=Life.history$Lzero*1.05)%>%
-                  mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
-                                ifelse(grepl("Survey",names(d.list)[s]),'Survey',
-                                ifelse(grepl("Other",names(d.list)[s]),'Other',
-                                'TDGDLF'))),
-                         year=as.numeric(substr(FINYEAR,1,4)),
-                         TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
-                         size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
-                  filter(TL<=with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))%>%
-                  dplyr::rename(sex=SEX)%>%
-                  filter(!is.na(sex))%>%
-                  group_by(year,fishry,sex,size.class)%>%
-                  summarise(n=n())%>%
-                  ungroup()
-                
+                            mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
+                                          ifelse(grepl("Survey",names(d.list)[s]),'Survey',
+                                          ifelse(grepl("Other",names(d.list)[s]),'Other',
+                                          'TDGDLF'))),
+                                   year=as.numeric(substr(FINYEAR,1,4)),
+                                   TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
+                                   size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+                            filter(TL>=Min.population.TL & TL<=Max.population.TL)%>%
+                            dplyr::rename(sex=SEX)%>%
+                            filter(!is.na(sex))%>%
+                            group_by(year,fishry,sex,size.class)%>%
+                            summarise(n=n())%>%
+                            ungroup()
+                          
                 #add extra bins for smooth fit to size comps
-                Maximum_size=10*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
+                Maximum_size=Max.population.TL
                 Mx.size=max(d.list[[s]]$size.class)
                 extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
                 if(length(extra.bins))
@@ -425,7 +444,7 @@ for(w in 1:n.SS)
                 
                 
                 #add extra bins for smooth fit to size comps
-                Maximum_size=10*ceiling(with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/10)
+                Maximum_size=Max.population.TL
                 Mx.size=max(d.list[[s]]$size.class)
                 extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
                 if(length(extra.bins))
@@ -738,17 +757,17 @@ for(w in 1:n.SS)
           if(any(grepl('annual.mean.size',names(Species.data[[i]]))))
           {
             meanbodywt.SS.format=Species.data[[i]]$annual.mean.size%>%
-              mutate(year=as.numeric(substr(Finyear,1,4)),
-                     month=1,
-                     Fleet='Southern.shark_2',
-                     part=0,   #0, combined; 1: discard only; 2: retained only
-                     type=2)%>%
-              filter(year<=max(ktch$finyear))%>%
-              dplyr::select(-Finyear)%>%
-              left_join(Flits.and.survey,by=c('Fleet'='Fleet.name'))%>%
-              mutate(fleet=Fleet.number)%>%
-              dplyr::select(-c(Fleet.number,Fleet))%>%
-              relocate(year,month,fleet,part,type,mean,CV)
+                                    mutate(year=as.numeric(substr(Finyear,1,4)),
+                                           month=1,
+                                           Fleet='Southern.shark_2',
+                                           part=0,   #0, combined; 1: discard only; 2: retained only
+                                           type=2)%>%
+                                    filter(year<=max(ktch$finyear))%>%
+                                    dplyr::select(-Finyear)%>%
+                                    left_join(Flits.and.survey,by=c('Fleet'='Fleet.name'))%>%
+                                    mutate(fleet=Fleet.number)%>%
+                                    dplyr::select(-c(Fleet.number,Fleet))%>%
+                                    relocate(year,month,fleet,part,type,mean,CV)
             
             #reset very low CVs
             NewCVs=Francis.function(cipiuis=meanbodywt.SS.format%>%
@@ -795,7 +814,7 @@ for(w in 1:n.SS)
               meanbodywt.SS.format.zone=do.call(rbind,xxx)%>%
                 left_join(Flits.and.survey.zone,by=c('Fleet'='Fleet.name'))%>%
                 mutate(fleet=Fleet.number)%>%
-                dplyr::select(-c(Fleet.number,Fleet))%>%
+                dplyr::select(-c(Fleet.number,Fleet,zone))%>%
                 relocate(year,month,fleet,part,type,mean,CV)
               
               #reset very low CVs
@@ -1376,9 +1395,9 @@ for(w in 1:n.SS)
                   meanbody=meanbodywt.SS.format.zone
                   Var.ad=Var.ad.factr.zone
                   add.future=add.ct.or.F_future.zone
-                  
+
                   #Change species specific sel pars for spatial model
-                  if(Neim=="sandbar shark")   
+                  if(Neim=="sandbar shark" & !is.null(Life.history$SS_offset_selectivity))   
                   {
                     Life.history$SS_offset_selectivity=Life.history$SS_offset_selectivity%>%
                       mutate(P_1=ifelse(Fleet=='Survey',6.5,P_1),
@@ -1389,8 +1408,7 @@ for(w in 1:n.SS)
                   
                 fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
                              new.path=this.wd1,
-                             Scenario=Scens[s,]%>%
-                               mutate(Model='SS'),
+                             Scenario=Scens[s,]%>%mutate(Model='SS'),
                              Catch=KAtch,  
                              life.history=Life.history,
                              depletion.yr=NULL,
@@ -1609,6 +1627,18 @@ for(w in 1:n.SS)
                 Cryptic=fn.cryptic(yr=as.numeric(substr(Last.yr.ktch,1,4)))
                 ggarrange(plotlist = Cryptic$p.criptic,ncol=1)
                 ggsave(paste0(this.wd1,"/Cryptic biomass.tiff"),width=5,height=6,compression = "lzw")
+              }
+              
+              #Check what sels by fleet SS is applying
+              if(Scens$Scenario[s]=='S1')
+              {
+                pp=fn.check.SS.sel.used(d=Report$sizeselex%>%filter(Factor=='Lsel')%>%dplyr::select(-c(Factor,Label)),
+                                     check.fleet=3)
+                pp$p1
+                ggsave(paste0(this.wd1,"/SS_selectivity_used.tiff"),width=7,height=6,compression = "lzw")
+                
+                pp$p2
+                ggsave(paste0(this.wd1,"/SS_selectivity_used_fleet 3.tiff"),width=7,height=6,compression = "lzw")
               }
               
             }  #end s loop
