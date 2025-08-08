@@ -1742,8 +1742,9 @@ for(l in 1:N.sp)
   set.seed(666)
   dat=data.frame(x=with(List.sp[[l]],(Lzero*a_FL.to.TL+b_FL.to.TL):List.sp[[l]]$TLmax))%>%
     mutate(y=with(List.sp[[l]],1/(1+exp(-log(19)*((x-TL.50.mat)/(TL.95.mat-TL.50.mat))))),
-           x=base::jitter(x,50),
-           y=base::jitter(y,50))
+           x=base::jitter(x,5),
+           y=base::jitter(y,5),
+           y=ifelse(y<0,0,ifelse(y>1,1,y)))
   fit=nlminb(start=c(-1,List.sp[[l]]$TL.50.mat), objective=fn.fit.log.infl)   
   dd=fit$par
   names(dd)=c('slope','inflection')

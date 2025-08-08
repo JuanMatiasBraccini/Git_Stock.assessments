@@ -853,7 +853,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$max_bias_adj=0.8
     ctl$min_rec_dev=-2
     ctl$max_rec_dev=abs(ctl$min_rec_dev)
-    ctl$MainRdevYrFirst=min(Catch$finyear)
+    ctl$MainRdevYrFirst=life.history$MainRdevYrFirst  
     if(is.null(size.comp) & !is.null(abundance))
     {
       ctl$MainRdevYrLast=max(abundance$Year)
@@ -3346,7 +3346,7 @@ fn.cryptic=function(yr)
     Pop.N.mature.selected=round(sum(N.sel.by.fleet.mature$N.mature.selected)/sum(N.sel.by.fleet.mature$N.mature),2)
     Pop.N.mature.cryptic=round(sum(N.sel.by.fleet.mature$N.mature.not.selected)/sum(N.sel.by.fleet.mature$N.mature),2)
     
-    p_list[[kek]]=p+ggtitle(paste0(names(dis.fleets)[kek],'. Prop. cryptic mature female =',Pop.N.mature.cryptic))
+    p_list[[kek]]=p+ggtitle(paste0(names(dis.fleets)[kek],'. Prop. mature females =',Pop.N.mature.cryptic))
     
   }
   

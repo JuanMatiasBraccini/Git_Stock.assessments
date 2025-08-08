@@ -1363,8 +1363,10 @@ for(w in 1:n.SS)
               if(create.SS.inputs)
               {
                 #need to reset rec pars for tuning
+                Life.history$MainRdevYrFirst=min(ktch$finyear)
                 if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
                 {
+                  Life.history$MainRdevYrFirst=1989
                   Life.history$SR_sigmaR=0.2
                   Life.history$RecDev_Phase=3
                   Life.history$last_early_yr_nobias_adj_in_MPD=1993

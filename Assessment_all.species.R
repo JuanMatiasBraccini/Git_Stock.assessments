@@ -1378,7 +1378,25 @@ for(i in 1:N.sp)
   }
 }
 
-  #6.12 Display annual proportional effort by zone and mesh
+  #6.12 Look at L50:Linf ratio, should be [0.75;0.85] ; Cortes 2000: mean is 0.75
+if(First.run=="YES")
+{
+  L50_Linf_ratio=data.frame(Species=names(List.sp),L50.Linf.ratio=NA)
+  for(i in 1:N.sp)  L50_Linf_ratio$L50.Linf.ratio[i]=with(List.sp[[i]],TL.50.mat/(Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))
+  
+  L50_Linf_ratio%>%
+    mutate(id = row_number())%>%
+    ggplot(aes(id,L50.Linf.ratio))+
+    geom_point()+
+    geom_text_repel(aes(label=Species))+
+    theme_PA()+
+    geom_hline(yintercept = 0.70,color='red')+
+    geom_hline(yintercept = 0.85,color='red')
+  ggsave(handl_OneDrive('Analyses/Population dynamics/L50_Linf_ratio.tiff'),
+         width = 6,height = 6, dpi = 300, compression = "lzw")
+}
+
+  #6.13 Display annual proportional effort by zone and mesh
 if(First.run=="YES")
 {
   mesh.prop.effort%>%
