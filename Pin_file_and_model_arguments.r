@@ -456,7 +456,7 @@ for(l in 1:N.sp)
   }
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS3[1,]%>%
                                 mutate(NSF.selectivity=NA,
-                                       do_recdev=1,
+                                       do_recdev=2,
                                        SR_sigmaR=sigmaR,
                                        Forecasting='catch')
   tested.h=unique(c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]))
@@ -531,7 +531,7 @@ for(l in 1:N.sp)
   if(NeiM%in%alternative.do_recdev)
   {
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
-                  mutate(do_recdev=2,
+                  mutate(do_recdev=1,
                          Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
     
@@ -542,7 +542,7 @@ for(l in 1:N.sp)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=rbind(List.sp[[l]]$Sens.test$SS[1,],List.sp[[l]]$Sens.test$SS[1,])%>%
-      mutate(do_recdev=2,
+      mutate(do_recdev=1,
              SR_sigmaR=c(0.2,0.4),
              Scenario=paste0('S',(nnN+1):(nnN+2)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
@@ -699,7 +699,7 @@ for(l in 1:N.sp)
     
     if(NeiM=="sandbar shark")
     {
-      p1.sel_Survey=175
+      p1.sel_Survey=160
     }
     if(NeiM=="gummy shark")
     {
@@ -829,11 +829,12 @@ for(l in 1:N.sp)
     
     if(NeiM=="sandbar shark")
     {
+      N.bpp=2
       List.sp[[l]]$Nblock_Patterns=1
-      List.sp[[l]]$blocks_per_pattern=3
+      List.sp[[l]]$blocks_per_pattern=N.bpp
       List.sp[[l]]$Sel_param_Blk_Fxn=2 #0: P_block=P_base*exp(TVP); 1: P_block=P_base+TVP; 2: P_block=TVP; 3: P_block=P_block(-1) + TVP
       Pat.rnge=range(KtCh%>%filter(Name==NeiM)%>%pull(finyear))
-      List.sp[[l]]$block_pattern_begin_end=list(c(Pat.rnge[1],1999), c(2000,2005), c(2006,Pat.rnge[2])) 
+      List.sp[[l]]$block_pattern_begin_end=list(c(Pat.rnge[1],2000), c(2001,Pat.rnge[2])) 
       List.sp[[l]]$autogen[5]=1 #Have to fix it, crap SE
       List.sp[[l]]$SizeSelex_Block=c(P_1=1,P_2=1,P_3=1,P_4=1,P_5=0,P_6=0) #params with negative _L0 not accepted
       List.sp[[l]]$Sel.Block.fleet='Southern.shark_1'
@@ -841,13 +842,13 @@ for(l in 1:N.sp)
       List.sp[[l]]$areas.as.fleet.zone.block_pars="P_4"
       if(List.sp[[l]]$autogen[5]==1) #specify fixed values
       {
-        timevary_selex_parameters=data.frame(LO=c(0.1,0.1,0.1),
-                                             HI=c(15,15,15),
-                                             INIT=c(5.621,7.958,8.032),
-                                             PRIOR=c(5.621,7.958,8.032),
-                                             PR_SD=c(99,99,99),
-                                             PR_type=c(0,0,0),
-                                             PHASE=c(-5,-5,-5))
+        timevary_selex_parameters=data.frame(LO=rep(0.1,N.bpp),
+                                             HI=rep(15,N.bpp),
+                                             INIT=c(6.1286,8.176),
+                                             PRIOR=c(6.1286,8.176),
+                                             PR_SD=rep(99,N.bpp),
+                                             PR_type=rep(0,N.bpp),
+                                             PHASE=rep(-5,N.bpp))
         row.names(timevary_selex_parameters)=paste0("SizeSel_P_4_Southern.shark_1_West_",
                                                     sapply(List.sp[[l]]$block_pattern_begin_end, "[[", 1))  
         List.sp[[l]]$timevary_selex_parameters=timevary_selex_parameters
@@ -1009,8 +1010,7 @@ for(l in 1:N.sp)
     if(NeiM=="sandbar shark")
     {
       List.sp[[l]]$SS_selectivity=List.sp[[l]]$SS_selectivity%>%
-                                  mutate(P_1=case_when(Fleet=='Survey'~160,
-                                                       Fleet=='Southern.shark_1_Zone1'~100,
+                                  mutate(P_1=case_when(Fleet=='Southern.shark_1_Zone1'~100,
                                                        TRUE~P_1),
                                          P_2=case_when(Fleet=='Southern.shark_1_West'~-10,
                                                        Fleet=='Southern.shark_1_Zone1'~-8.6,
@@ -1030,6 +1030,14 @@ for(l in 1:N.sp)
                                         P_4=case_when(Fleet=='Southern.shark_1_Zone1'~4,
                                                        TRUE~P_4))
     }
+    
+    #Populate priors
+    List.sp[[l]]$Sel.prior.sd_type=NULL
+    if(NeiM%in%estim.sel.pars_SS)  
+    {
+      List.sp[[l]]$Sel.prior.sd_type=data.frame(P1.sd=10,P1.type=6,P2.sd=5,P2.type=6)
+    }
+    
     
     #turn on Southern2 if meanbodywt
     fit_SS.to.mean.weight=FALSE
@@ -1071,6 +1079,7 @@ for(l in 1:N.sp)
   List.sp[[l]]$last_yr_fullbias_adj_in_MPD=ramp.yrs$last_yr_fullbias_adj_in_MPD
   List.sp[[l]]$first_recent_yr_nobias_adj_in_MPD=ramp.yrs$first_recent_yr_nobias_adj_in_MPD
   List.sp[[l]]$max_bias_adj_in_MPD=ramp.yrs$max_bias_adj_in_MPD
+  List.sp[[l]]$recdev_early_start=20   #allow several years for population to stabilize
   
   
   #4.1.7 Catchabilities

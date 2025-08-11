@@ -258,7 +258,7 @@ for(w in 1:n.SS)
                 summarise(N=sum(n))%>%
                 mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,Min.annual.obs.ktch_survey))%>%
                 filter(N>=Min.accepted.N)%>%
-                mutate(dummy=paste(year,fishry,sex))
+                mutate(dummy=paste(year,fishry,sex))  #ACA
               
               if(nrow(Table.n)>0)
               {
@@ -1366,6 +1366,8 @@ for(w in 1:n.SS)
                 Life.history$MainRdevYrFirst=min(ktch$finyear)
                 if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
                 {
+                  #Ramp
+                  Life.history$recdev_early_start=2
                   Life.history$MainRdevYrFirst=1989
                   Life.history$SR_sigmaR=0.2
                   Life.history$RecDev_Phase=3
@@ -1374,6 +1376,8 @@ for(w in 1:n.SS)
                   Life.history$last_yr_fullbias_adj_in_MPD=2019
                   Life.history$first_recent_yr_nobias_adj_in_MPD=2021
                   Life.history$max_bias_adj_in_MPD=0.8
+                  
+                  #Comps variance adjustment
                   Var.ad.factr=Var.ad.factr.zone=NULL
                 }
                 

@@ -224,8 +224,8 @@ MN.SZE=0    # initial bin size
 TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
-Min.annual.obs.ktch=150 #Minimum number of annual observations for using length composition data
-Min.annual.obs.ktch_survey=30
+Min.annual.obs.ktch=150 #Minimum number of annual observations per sex-yr-fleet for using length composition data
+Min.annual.obs.ktch_survey=20
 prop.min.N.accepted_other=0.5
 Min.Nsamp=10   #Minimum number of trips for catch mean weight or length composition
 fill.in.zeros=TRUE  #add missing length classes with all 0s
@@ -424,6 +424,7 @@ Mean.Size.at.age.species=NULL   #  Mean.Size.at.age.species=c("gummy shark","whi
 SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
+estim.sel.pars_SS=c("sandbar shark")
 combine_NSF_Survey=NULL   #combine length composition data to estimate logistic selectivity
 combine.sexes.tdgdlf=NULL 
 combine.sexes.tdgdlf.daily=NULL 
