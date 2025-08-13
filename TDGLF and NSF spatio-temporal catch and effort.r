@@ -499,7 +499,7 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
 {
   #some manipulations
   this.sp=All.species.names%>%filter(SNAME%in%Snames)
-  this.shp.file=Store.shp.files[match(Snames,names(Store.shp.files))]
+  
   
   d1=d%>%
     filter(SPECIES%in%this.sp$SPECIES)%>%
@@ -616,56 +616,43 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
   b <- diff(ylim.prim)/diff(ylim.sec)
   a <- b*(ylim.prim[1] - ylim.sec[1])
 
-  # p2=d2%>%
-  #   mutate(yr=as.numeric(substr(FINYEAR,1,4)),
-  #          SNAME=capitalize(SNAME))%>%
-  #   ggplot(aes(yr,prop,colour=Fishery))+
-  #   geom_point(size=2,show.legend = FALSE)+
-  #   stat_smooth(method = "lm",
-  #               formula = y ~ x,
-  #               geom = "smooth",
-  #               se = FALSE)+
-  #   facet_wrap(~SNAME,ncol=Nfact)+
-  #   stat_regline_equation(aes(label=paste(..eq.label..,..adj.rr.label..,sep="~~~~")),
-  #                         label.y = 1.05, size = Siz)+
-  #   ylab('Proportion of fished blocks with catch within core area')+
-  #   xlab('Financial year')+
-  #   theme_PA(axs.t.siz=13,axs.T.siz=19,Sbt.siz=14,leg.siz=20,strx.siz=16)+
-  #   theme(legend.position = 'none',
-  #         legend.title=element_blank())+
-  #   guides(colour = guide_legend(override.aes = list(size=2)))+
-  #   geom_line(aes(x=yr, y = a + Tot*b),size=1.25,color='black',alpha=0.25)+
-  #   scale_y_continuous(limits=ylim.prim,
-  #                      sec.axis = sec_axis(~ (. - a)/b, name="Total number of fished blocks within core area"))+
-  #   theme(axis.title.y.right = element_text(margin = margin(t = 0, r = 0, b = 0, l = 10)))+
-  #   theme(axis.title.y.left = element_text(margin = margin(t = 0, r = 5, b = 0, l = 0)))
-  ##########
+  Sp.order=capitalize(d2%>%group_by(SNAME)%>%summarise(n=sum(n))%>%arrange(-n)%>%pull(SNAME))
   base = d2%>%
     mutate(yr=as.numeric(substr(FINYEAR,1,4)),
-           SNAME=capitalize(SNAME))%>%
-    ggplot(aes(yr,prop,colour=Fishery))+
-    geom_point(size=2,show.legend = FALSE)+
+           SNAME=capitalize(SNAME),
+           SNAME=factor(SNAME,levels=Sp.order))%>%
+    ggplot(aes(yr,prop,colour='Proportion with catch'))+
+    geom_point(size=2)+
     geom_line()+
-    # stat_smooth(method = "lm",
-    #             formula = y ~ x,
-    #             geom = "smooth",
-    #             se = FALSE)+
-    # stat_regline_equation(aes(label=paste(..eq.label..,..rr.label..,sep="~~~~"), color=Fishery),
-    #                       label.y = 1,label.x = quantile(d2$year,.01), size = Siz)+
     ylab('Proportion of blocks fished with catch within core area')+
     xlab('Financial year')+
-    theme_PA(axs.t.siz=13,axs.T.siz=19,Sbt.siz=14,leg.siz=20,strx.siz=16)+
-    theme(legend.position = 'none',
+    theme_PA(axs.t.siz=13,axs.T.siz=19,Sbt.siz=14,leg.siz=14,strx.siz=16)+
+    theme(legend.position = c(0.8, 0.05),  
           legend.title=element_blank())+
     guides(colour = guide_legend(override.aes = list(size=2)))+
-    geom_line(aes(x=yr, y = a + Tot*b),size=1.25,color='black',alpha=0.25)+
+    geom_line(aes(x=yr, y = a + Tot*b,color='Number of blocks fished'),size=1.25,alpha=0.35)+
     scale_y_continuous(limits=ylim.prim,
                        sec.axis = sec_axis(~ (. - a)/b, name="Total number of blocks fished within core area"))+
     theme(axis.title.y.right = element_text(margin = margin(t = 0, r = 0, b = 0, l = 10)))+
     theme(axis.title.y.left = element_text(margin = margin(t = 0, r = 5, b = 0, l = 0)))
   main <- base + facet_wrap(~ SNAME,ncol=Nfact)
   
-  dis.neims=sort(unique(d2$SNAME))
+  add.trend=FALSE
+  if(add.trend)
+  {
+    base=base+
+      stat_smooth(method = "lm",formula = y ~ x, geom = "smooth",se = FALSE)+
+      stat_regline_equation(aes(label=paste(..eq.label..,..rr.label..,sep="~~~~"), color=Fishery),
+                            label.y = 1,label.x = quantile(d2$year,.01), size = Siz)
+  }
+  main <- base + 
+    facet_wrap(~ SNAME,ncol=Nfact) +
+    scale_color_manual(name = "",
+                       breaks = c("Proportion with catch","Number of blocks fished"),
+                       values = c("Proportion with catch" = "#F8766D","Number of blocks fished"='black')) 
+  
+  #dis.neims=sort(unique(d2$SNAME))
+  dis.neims=tolower(Sp.order)
   nmax_rep <- length(dis.neims)
   SSIZ=4.5
   vp.wi=0.3
@@ -676,19 +663,15 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
     vp.wi=0.4
     vp.he=0.8
   }
-    
+  Kr.blks.sorted=Kr.blks%>%mutate(SNAME=factor(SNAME,levels=Sp.order))
+  this.shp.file=Store.shp.files[match(dis.neims,names(Store.shp.files))]
   insets <- lapply(seq_len(nmax_rep), function(i) {
-    #Kr.blks%>%
-     # left_join(BLOCKX_lat_long,by='BLOCKX')%>%
-    #  ggplot(aes(LONG,LAT))+
-     # geom_point(type=15)+
     ggplot(ozmap_states) +
       xlim(113,133)+ ylim(-37,-12)+
-      geom_sf(fill='orange',alpha=.6)+
-      geom_sf(data=sf::st_as_sf(this.shp.file[[match(dis.neims[i],names(this.shp.file))]]),
-              fill='chartreuse3')+
-      geom_point(data=Kr.blks%>%left_join(BLOCKX_lat_long,by='BLOCKX'),aes(LONG,LAT),type=15,size=.5)+
-      theme_bw(base_size=9) +  ## makes everything smaller
+      geom_sf(fill='orange',alpha=.4)+
+      geom_sf(data=sf::st_as_sf(this.shp.file[[match(dis.neims[i],names(this.shp.file))]]),alpha=.4, fill='chartreuse3')+
+      geom_point(data=Kr.blks.sorted%>%left_join(BLOCKX_lat_long,by='BLOCKX'),aes(LONG,LAT),alpha=.6,size=.5)+
+      theme_bw(base_size=9) +  
       ggforce::facet_wrap_paginate(~ SNAME, nrow = 1, ncol = 1, page = i)+
       guides(fill="none",colour = "none", x = "none", y = "none") +
       theme(strip.background = element_blank(),
@@ -708,12 +691,12 @@ fn.spatio.temp.catch.dist=function(d,Snames,FISHRY,core.dist,show.Effort.Catch)
             axis.title.x = element_blank())+
       annotate(geom="text", x=120, y=-26, label="Core area",color="transparent",size=SSIZ)
   })
-  insets <- tibble(x = rep(0.01, nmax_rep),
+  insets2 <- tibble(x = rep(0.01, nmax_rep),
                    y = rep(0.01, nmax_rep),
                    plot = insets,
-                   SNAME = capitalize(sort(unique(d2$SNAME))))
+                   SNAME = factor(Sp.order),levels=Sp.order)
   p2=main +
-    geom_plot_npc(data = insets, 
+    geom_plot_npc(data = insets2, 
                   aes(npcx = x, npcy = y, label = plot,
                       vp.width = vp.wi, vp.height = vp.he))
   
@@ -763,17 +746,11 @@ for(l in 1:length(Store.spatial.temporal.ktch))
     wiz = 13.5
     heiz = 14
   }
-  # Store.spatial.temporal.ktch[[l]]=fn.spatio.temp.catch.dist(d=Spatio.temp.dat,
-  #                                                            Snames=get.dis.sp,
-  #                                                            FISHRY=c('Northern','Southern'),
-  #                                                            core.dist=0.95,
-  #                                                            show.Effort.Catch='combined')
   Store.spatial.temporal.ktch[[l]]=fn.spatio.temp.catch.dist(d=Spatio.temp.dat,
                                                              Snames=get.dis.sp,
-                                                             FISHRY=c('Southern'),
+                                                             FISHRY=c('Southern'),  #c('Northern','Southern')
                                                              core.dist=0.95,
-                                                             show.Effort.Catch='separated')
-
+                                                             show.Effort.Catch='separated')   #'combined'
 }
 clear.log('fn.spatio.temp.catch.dist')
 clear.log('Spatio.temp.dat')
