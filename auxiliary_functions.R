@@ -3351,7 +3351,8 @@ mod.average.scalar=function(dd,Weights,KtcH,approach="Proportions",Ktch.type='di
               dplyr::select(Value)
     dd[[w]]=dd[[w]][sample(1:nrow(dd[[w]]),Size,replace = T),]
   }
-  dd=do.call(c,dd)  
+  #dd=do.call(c,dd) 
+  dd=unlist(dd)
   Median=median(dd,na.rm=T)
   Lower=quantile(dd,probs=0.025,na.rm=T)
   Upper=quantile(dd,probs=0.975,na.rm=T)
@@ -3370,7 +3371,7 @@ mod.average.scalar=function(dd,Weights,KtcH,approach="Proportions",Ktch.type='di
     Limit=Upper
     Target=Median
   }
-  
+  Catch.mean.last.n.yrs=mean(data.table::last(KtcH$Catch,n.last.catch.yrs_MSY.catch.only))
   if(Ktch.type=='dist')
   {
     Catch.last.n.yrs=data.table::last(KtcH$Catch,n.last.catch.yrs_MSY.catch.only)
@@ -3391,7 +3392,6 @@ mod.average.scalar=function(dd,Weights,KtcH,approach="Proportions",Ktch.type='di
   }
   if(Ktch.type=='scalar')
   {
-    Catch.mean.last.n.yrs=mean(data.table::last(KtcH$Catch,n.last.catch.yrs_MSY.catch.only))
     f=ecdf(dd) 
     P.catch=f(Catch.mean.last.n.yrs)
     P.below.target=f(Target)
@@ -4978,7 +4978,7 @@ fn.plot.catch.vs.MSY_combined_Appendix=function(all.this.sp,this.sp,d,NM,YLAB)
   }
 
 }
-fn.plot.catch.vs.MSY_combined=function(all.this.sp,this.sp,d,NM,YLAB,MSY)
+fn.plot.catch.vs.MSY_combined=function(all.this.sp,this.sp,d,NM,YLAB,MSY,paper.output=FALSE)
 {
   for(k in 1:length(MSY)) MSY[[k]]$Species=names(MSY)[k]
   MSY=do.call(rbind,MSY)%>%
@@ -5026,16 +5026,20 @@ fn.plot.catch.vs.MSY_combined=function(all.this.sp,this.sp,d,NM,YLAB,MSY)
       filter(Model==mods[1])%>%
       left_join(MSY,by='Species')%>%
       mutate(Species=capitalize(Species))
-    
+    alpha_95=.1
+    if(paper.output) alpha_95=0.08
     figure=d%>%
       ggplot(aes(Year,Catch))+
-      geom_line(aes(Year,ensembled.median),color="black",size=.65)+
-      geom_ribbon(aes(ymin = ensembled.lower.95, ymax = ensembled.upper.95), alpha=.1,fill ="black")+
-      geom_ribbon(aes(ymin = ensembled.lower.60, ymax = ensembled.upper.60), alpha=.3,fill ="black")+
-      geom_line(size=.75,color='dodgerblue4')+
-      geom_hline(aes(yintercept=ensembled.median*COM.limit), color = col.Limit)+  
-      geom_hline(aes(yintercept=ensembled.median*COM.threshold), color = col.Threshold)+
-      geom_hline(aes(yintercept=ensembled.median*COM.target), color = col.Target)+
+      geom_line(aes(Year,ensembled.median),color="transparent")+
+      geom_ribbon(aes(ymin = ensembled.lower.95, ymax = ensembled.upper.95), alpha=alpha_95,fill ="black")
+    
+    if(!paper.output) figure=figure+geom_ribbon(aes(ymin = ensembled.lower.60, ymax = ensembled.upper.60), alpha=.3,fill ="black")
+      
+      figure=figure+
+      geom_hline(aes(yintercept=ensembled.median*COM.limit), color = col.Limit,alpha=.7)+  
+      geom_hline(aes(yintercept=ensembled.median*COM.threshold), color = col.Threshold,alpha=.7)+
+      geom_hline(aes(yintercept=ensembled.median*COM.target), color = col.Target,alpha=.7)+
+        geom_line(size=.75,color='dodgerblue4')+
       facet_wrap(~Species,scales='free',ncol=Nkl)+
       theme_PA(axs.t.siz=aXS.si,strx.siz=STR.siz)+
       ylab(YLAB)+xlab("Financial year")
@@ -5046,6 +5050,7 @@ fn.plot.catch.vs.MSY_combined=function(all.this.sp,this.sp,d,NM,YLAB,MSY)
         geom_line(data=future.ktch,aes(Year,Catch),size=.75,color=future.color)
     }
     print(figure)
+    if(paper.output) NM=paste0(NM,"_paper")
     ggsave(paste(Rar.path,'/Catch_vs_MSY_catch.only_',NM,'.tiff',sep=''),
            width = WID,height = 7,compression = "lzw")
     

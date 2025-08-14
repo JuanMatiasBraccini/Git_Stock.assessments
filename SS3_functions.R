@@ -697,6 +697,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   #growth pars
   ctl$Growth_Age_for_L1=0
   Linf.multi=Scenario$alternative.Linf
+  if(is.null(Linf.multi)) Linf.multi=1
   #females
   if("Eggs/kg_inter_Fem_GP_1"%in%rownames(ctl$MG_parms) & !"Eggs_alpha_Fem_GP_1"%in%rownames(ctl$MG_parms))
   {
@@ -887,10 +888,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$F_ballpark_year=styr
   }
   
+  # Get flit number
+  if(Scenario$Model=='SS')
+  {
+    flit.numb=fleetinfo%>%
+      dplyr::select(fleetname)%>%
+      mutate(Fleet.n=row_number())
+  }
+  
   #Q pars
-  flit.numb=fleetinfo%>%
-              dplyr::select(fleetname)%>%
-              mutate(Fleet.n=row_number())
   if(Scenario$Model=='SS')
   {
     if(!is.null(abundance))
@@ -1983,9 +1989,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   fore$fleet_relative_F=1
   
   fore$basis_for_fcast_catch_tuning=2 #2=total catch biomass; 3=retained catch biomass; 5=total catch numbers; 6=retained total numbers
-  fore$N_allocation_groups=0   
-  if(Scenario$Forecasting=='catch') fore$InputBasis=2 #-1 = Read basis with each observation, 2 = Dead catch (retained + discarded),3 = Retained catch, 99 = Input apical F
-  if(Scenario$Forecasting=='F') fore$InputBasis=99
+  fore$N_allocation_groups=0
+  if(Scenario$Model=='SS')
+  {
+    if(Scenario$Forecasting=='catch') fore$InputBasis=2 #-1 = Read basis with each observation, 2 = Dead catch (retained + discarded),3 = Retained catch, 99 = Input apical F
+    if(Scenario$Forecasting=='F') fore$InputBasis=99
+  }
+
   if(!is.null(Future.project))  # future catch
   {
     if(Scenario$Model=='SSS')

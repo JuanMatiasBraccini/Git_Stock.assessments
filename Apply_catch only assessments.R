@@ -75,7 +75,7 @@ for(w in 1:length(Catch_only))
           this.wd=paste(this.wd1,names(Store.sens)[s],sep='/')
           if(!dir.exists(this.wd))dir.create(this.wd)
           
-          AgeMat=Scens$AgeMat[s]
+          AgeMat=round(Scens$AgeMat[s])
           
           Mmean=Scens$Mmean[s]  
           Msd=Scens$Msd[s]
@@ -1431,7 +1431,12 @@ for(w in 1:length(Catch_only))
               
             }
             
+            #flush folder
             rm(this.wd1,Report)
+            dropfiles=list.files(this.wd1)
+            for(ff in 1:length(dropfiles)) unlink(paste(this.wd1, dropfiles[ff], sep="/"), recursive = TRUE, force = TRUE) 
+            
+            
           } # end s loop
           #output quantities for ensemble
           Out.ens=list(Depletion=do.call(rbind,fn.get.stuff.from.list(Out.ensemble,'Depletion')),
