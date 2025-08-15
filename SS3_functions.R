@@ -798,8 +798,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$MG_parms=ctl$MG_parms[-grep('NatM',rownames(ctl$MG_parms)),]
   }
   
-  #recruitment pars
-  ctl$SR_function=3 # 2=Ricker; 3=std_B-H; 4=SCAA;5=Hockey; 6=B-H_flattop; 7=survival_3Parm;8=Shepard_3Parm
+  #recruitment pars  
+  ctl$SR_function=Scenario$SR_type # 2=Ricker; 3=std_B-H; 4=SCAA;5=Hockey; 6=B-H_flattop; 7=survival_3Parm;8=Shepard_3Parm
   ctl$SR_parms["SR_LN(R0)", c('LO','INIT','HI')]=with(Scenario,c(Ln_R0_min,Ln_R0_init,Ln_R0_max))
   ctl$SR_parms["SR_BH_steep", "INIT"]=Scenario$Steepness
   ctl$SR_parms["SR_BH_steep", "LO"]=Min.h.shark  #0.25
@@ -814,7 +814,23 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   }
   if(Scenario$Model=='SS') SR_sigmaR=Scenario$SR_sigmaR  
   ctl$SR_parms["SR_sigmaR", c('LO','HI','INIT')]=c(.01,1,SR_sigmaR) #Spiny dogfish SS assessment
-  
+  if(ctl$SR_function==7)
+  {
+    id.h=which(rownames(ctl$SR_parms)=='SR_BH_steep')
+    add.dumi.sr=ctl$SR_parms[rep(id.h,2),]
+    rownames(add.dumi.sr)=c('SR_surv_zfrac','SR_surv_Beta')
+    add.dumi.sr[rownames(add.dumi.sr)=='SR_surv_zfrac',c('LO','HI','INIT')]=c(0,1,Scenario$SR_surv_zfrac)
+    add.dumi.sr[rownames(add.dumi.sr)=='SR_surv_Beta',c('LO','HI','INIT')]=c(0.2,ceiling(Scenario$SR_surv_Beta*1.5),Scenario$SR_surv_Beta)
+    add.dumi.sr=add.dumi.sr%>%
+                  mutate(PRIOR=INIT,
+                         PR_type=0)
+    ctl$SR_parms=ctl$SR_parms[-id.h,]
+    ctl$SR_parms=rbind(ctl$SR_parms,add.dumi.sr)
+    ctl$SR_parms=ctl$SR_parms[match(c("SR_LN(R0)","SR_surv_zfrac","SR_surv_Beta",
+                                      "SR_sigmaR","SR_regime","SR_autocorr"),rownames(ctl$SR_parms)),]
+
+  }
+    #rec_devs
   if(Scenario$Model=='SSS') ctl$do_recdev=0  #do_recdev:  0=none; 1=devvector; 2=simple deviations
   if(Scenario$Model=='SS')
   {
@@ -848,8 +864,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       
     if(RecDev_Phase>0) 
     {
-      ctl$recdev_early_start=life.history$recdev_early_start=20  
-      ctl$recdev_early_phase=3
+      ctl$recdev_early_start=life.history$recdev_early_start  
+      ctl$recdev_early_phase=life.history$recdev_early_phase
     }
     ctl$max_bias_adj=0.8
     ctl$min_rec_dev=-1

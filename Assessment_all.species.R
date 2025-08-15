@@ -447,6 +447,9 @@ rescaled.species.sel=sort(c('great hammerhead','scalloped hammerhead','grey nurs
                        'tiger shark','wobbegongs'))   #this species have no species-specific empirical sel (family was used)
 Plus.gp.size=1.25  #add 25% to max size make sure no accumulation of survivals in last size class
 
+alternative.SR_type="sandbar shark" #Sensitivity for Spawner-Recruitment
+#alternative.SR_type=NULL  
+
 alternative.sigmaR=NULL  #Sensitivity for sigmaR (effect on rec_devs)
 #alternative.sigmaR="sandbar shark"
 alternative.do_recdev=NULL  #Sensitivity for do_recdev method (effect on rec_devs)

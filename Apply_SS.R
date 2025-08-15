@@ -1362,26 +1362,7 @@ for(w in 1:n.SS)
               #a. Create SS input files   
               if(create.SS.inputs)
               {
-                #need to reset rec pars for tuning
-                Life.history$MainRdevYrFirst=min(ktch$finyear)
-                if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
-                {
-                  #Ramp
-                  Life.history$recdev_early_start=2
-                  Life.history$MainRdevYrFirst=1989
-                  Life.history$SR_sigmaR=0.2
-                  Life.history$RecDev_Phase=3
-                  Life.history$last_early_yr_nobias_adj_in_MPD=1993
-                  Life.history$first_yr_fullbias_adj_in_MPD=1999
-                  Life.history$last_yr_fullbias_adj_in_MPD=2019
-                  Life.history$first_recent_yr_nobias_adj_in_MPD=2021
-                  Life.history$max_bias_adj_in_MPD=0.8
-                  
-                  #Comps variance adjustment
-                  Var.ad.factr=Var.ad.factr.zone=NULL
-                }
-                
-                #Specify ktch,flitinfo,abundance,comps,mean.weight,var.adjs & future based on scenario   
+                #a.1 Specify ktch,flitinfo,abundance,comps,mean.weight,var.adjs & future based on scenario   
                 if(Scens$Spatial[s]=='single area')
                 {
                   KAtch=ktch
@@ -1401,7 +1382,7 @@ for(w in 1:n.SS)
                   meanbody=meanbodywt.SS.format.zone
                   Var.ad=Var.ad.factr.zone
                   add.future=add.ct.or.F_future.zone
-
+                  
                   #Change species specific sel pars for spatial model
                   if(Neim=="sandbar shark" & !is.null(Life.history$SS_offset_selectivity))   
                   {
@@ -1411,7 +1392,36 @@ for(w in 1:n.SS)
                              P_4=ifelse(Fleet=='Survey',0.09,P_4))
                   }
                 }
+                
+                #a.2 set MainRdevYrFirst
+                Abund1=Abund
+                if(!is.null(Abund1)) Abund1=Abund1%>%rename_with(tolower)
+                Min.yr.obs=min(unlist(lapply(list(Abund1,Size.com,meanbody),function(x) if(!is.null(x))min(x$year))))
+                
+                if(Life.history$First.yr.main.rec.dev=='min.obs') MainRdevYrFirst=Min.yr.obs-round(min(Life.history$Age.50.mat))
+                if(Life.history$First.yr.main.rec.dev=='min.ktch') MainRdevYrFirst=min(ktch$finyear)
+                
+                Life.history$MainRdevYrFirst=MainRdevYrFirst
+                
+                #a.3 need to reset rec pars for tuning
+                if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
+                {
+                  #Ramp
+                  Life.history$recdev_early_start=2
+                  Life.history$MainRdevYrFirst=1989
+                  Life.history$SR_sigmaR=0.2
+                  Life.history$RecDev_Phase=3
+                  Life.history$last_early_yr_nobias_adj_in_MPD=1993
+                  Life.history$first_yr_fullbias_adj_in_MPD=1999
+                  Life.history$last_yr_fullbias_adj_in_MPD=2019
+                  Life.history$first_recent_yr_nobias_adj_in_MPD=2021
+                  Life.history$max_bias_adj_in_MPD=0.8
                   
+                  #Comps variance adjustment
+                  Var.ad.factr=Var.ad.factr.zone=NULL
+                }
+                
+                #a.4 create file  
                 fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
                              new.path=this.wd1,
                              Scenario=Scens[s,]%>%mutate(Model='SS'),

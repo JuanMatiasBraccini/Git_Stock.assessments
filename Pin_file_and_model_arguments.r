@@ -458,6 +458,7 @@ for(l in 1:N.sp)
                                 mutate(NSF.selectivity=NA,
                                        do_recdev=2,
                                        SR_sigmaR=sigmaR,
+                                       SR_type=3, #2=Ricker; 3=std_B-H; 4=SCAA;5=Hockey; 6=B-H_flattop; 7=survival_3Parm;8=Shepard_3Parm
                                        Forecasting='catch')
   tested.h=unique(c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]))
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
@@ -525,6 +526,20 @@ for(l in 1:N.sp)
                 mutate(SR_sigmaR=0.4,
                        Scenario=paste0('S',as.numeric(str_remove(add.dumi$Scenario,"S"))+1))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi,add.dumi2)
+  }
+  
+  #Alternativev SR_type
+  if(NeiM%in%alternative.SR_type)
+  {
+    List.sp[[l]]$Sens.test$SS$SR_surv_zfrac=NA
+    List.sp[[l]]$Sens.test$SS$SR_surv_Beta=NA
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(SR_type=7,
+             SR_surv_zfrac=ramp.yrs$SR_surv_zfrac,  
+             SR_surv_Beta=ramp.yrs$SR_surv_Beta,
+             Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+    
   }
   
   #Alternative do_recdev
@@ -1079,8 +1094,9 @@ for(l in 1:N.sp)
   List.sp[[l]]$last_yr_fullbias_adj_in_MPD=ramp.yrs$last_yr_fullbias_adj_in_MPD
   List.sp[[l]]$first_recent_yr_nobias_adj_in_MPD=ramp.yrs$first_recent_yr_nobias_adj_in_MPD
   List.sp[[l]]$max_bias_adj_in_MPD=ramp.yrs$max_bias_adj_in_MPD
-  List.sp[[l]]$recdev_early_start=20   #allow several years for population to stabilize
-  
+  List.sp[[l]]$recdev_early_start=2 #20   #allow several years for population to stabilize
+  List.sp[[l]]$recdev_early_phase=-3
+  List.sp[[l]]$First.yr.main.rec.dev='min.obs'   #'min.ktch'
   
   #4.1.7 Catchabilities
   if(NeiM=="whiskery shark")
