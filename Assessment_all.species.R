@@ -218,6 +218,10 @@ tdgdlf_monthly_not.representative=c("sandbar shark")   #increasing cpue with inc
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
 
+  #10.2 Survey
+Calculate.weight_Survey=FALSE #change Naturaliste survey from numbers to weights. Not applicable, now it's done in Survey standardisation)
+survey.year='financial' #'calendar'  Survey standard already using financial year 
+
 #11. Size composition
 MN.SZE=0    # initial bin size
 #MN.SZE="size.at.birth"
@@ -1159,8 +1163,12 @@ Species.data$`copper shark`$Size_composition_Other_Observations=data.frame(
                   SPECIES=18001,
                   N.shots=30,
                   N.observations=NA)
+  #6.2 remove dodgy survey estimate Milk shark
+Milk_id=which(Species.data$`milk shark`$Srvy.FixSt$yr==2003)
+Species.data$`milk shark`$Srvy.FixSt[Milk_id,-1]=NA
+Species.data$`milk shark`$Srvy.FixSt_relative[Milk_id,-1]=NA
 
-  #6.2 add size composition Angel sharks (GAB Trawl)
+  #6.3 add size composition Angel sharks (GAB Trawl)
 if(use.Gab.trawl)
 {
   Species.data$`angel sharks`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
@@ -1189,7 +1197,7 @@ if(use.Gab.trawl)
     N.observations=NA)
 }
 
-  #6.3 add size composition gummy shark (GAB Trawl)
+  #6.4 add size composition gummy shark (GAB Trawl)
 if(use.Gab.trawl & add.gummy.gab)
 {
   Species.data$`gummy shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
@@ -1218,11 +1226,11 @@ if(use.Gab.trawl & add.gummy.gab)
     N.observations=NA)
 }
 
-  #6.4 add size composition Spotted wobbegong and Western wobbegong to Wobbegongs
+  #6.5 add size composition Spotted wobbegong and Western wobbegong to Wobbegongs
 other.wobbies=c('Spotted wobbegong','Western wobbegong')
 Wobbies.data=vector('list',length(other.wobbies))
 names(Wobbies.data)=other.wobbies
-    #6.4.1. bring in data
+    #6.5.1. bring in data
 for(s in 1:length(other.wobbies)) 
 {
   print(paste('Reading in data for -----',other.wobbies[s]))
@@ -1250,7 +1258,7 @@ for(s in 1:length(other.wobbies))
   }
   rm(files)
 }  
-    #6.4.2. add to Wobbegongs
+    #6.5.2. add to Wobbegongs
 for(s in 1:length(other.wobbies)) 
 {
   Species.data$wobbegongs$Size_composition_Observations=rbind(Species.data$wobbegongs$Size_composition_Observations,
@@ -1275,7 +1283,7 @@ Species.data$wobbegongs$Size_composition_Observations=Species.data$wobbegongs$Si
             N.observations=sum(N.observations))%>%
   ungroup()
 
-  #6.5 remove Pilbara trawl length comp as it's not used at all
+  #6.6 remove Pilbara trawl length comp as it's not used at all
 for(i in 1:N.sp) 
 {
   if(any(grepl('Size_composition_Pilbara_Trawl',names(Species.data[[i]]))))
@@ -1284,7 +1292,7 @@ for(i in 1:N.sp)
   }
 }
 
-  #6.6 remove NA sex in length composition data
+  #6.7 remove NA sex in length composition data
 for(i in 1:N.sp) 
 {
   if(any(grepl('Size_composition',names(Species.data[[i]]))))
@@ -1308,7 +1316,7 @@ for(i in 1:N.sp)
   }
 }
 
-  #6.7 remove nonsense length comp values
+  #6.8 remove nonsense length comp values
 nems=c('Size_composition_dropline','Size_composition_NSF.LONGLINE',
        'Size_composition_Survey','Size_composition_Other',
        'Size_composition_West.6.5.inch.raw','Size_composition_West.7.inch.raw',
@@ -1331,7 +1339,7 @@ for(i in 1:N.sp)
   }
 }
 
-  #6.8 remove NA Ages in length-age data
+  #6.9 remove NA Ages in length-age data
 for(s in 1:N.sp) 
 {
   if('age_length'%in%names(Species.data[[s]]))
@@ -1350,21 +1358,21 @@ for(s in 1:N.sp)
   
 }
 
-  #6.9 remove Observer cpue data (double dipping with standardised catch rates)
+  #6.10 remove Observer cpue data (double dipping with standardised catch rates)
 for(s in 1:N.sp)
 {
   iid=grep('CPUE_Observer_TDGDLF',names(Species.data[[s]]))
   if(length(iid)>0) Species.data[[s]]=Species.data[[s]][-iid]
 }
 
-  #6.10 Remove F series from TDGDLF due to structural uncertainty (different growth and M estimation) and sample size
+  #6.11 Remove F series from TDGDLF due to structural uncertainty (different growth and M estimation) and sample size
 for(s in 1:N.sp)
 {
   iid=grep('Fishing.mortality.TDGDLF',names(Species.data[[s]]))
   if(length(iid)>0) Species.data[[s]]=Species.data[[s]][-iid]
 }
 
-  #6.11 Look at growth Cvs
+  #6.12 Look at growth Cvs
 Growth.CVs=vector('list',N.sp)
 names(Growth.CVs)=Keep.species
 for(i in 1:N.sp)
@@ -1382,7 +1390,7 @@ for(i in 1:N.sp)
   }
 }
 
-  #6.12 Look at L50:Linf ratio, should be [0.75;0.85] ; Cortes 2000: mean is 0.75
+  #6.13 Look at L50:Linf ratio, should be [0.75;0.85] ; Cortes 2000: mean is 0.75
 if(First.run=="YES")
 {
   L50_Linf_ratio=data.frame(Species=names(List.sp),L50.Linf.ratio=NA)
@@ -1400,7 +1408,7 @@ if(First.run=="YES")
          width = 6,height = 6, dpi = 300, compression = "lzw")
 }
 
-  #6.13 Display annual proportional effort by zone and mesh
+  #6.14 Display annual proportional effort by zone and mesh
 if(First.run=="YES")
 {
   mesh.prop.effort%>%
@@ -2214,9 +2222,10 @@ for(l in 1:N.sp)
     {
       if(Abundance.error.dist=="Lognormal") d=Species.data[[l]]$Srvy.FixSt
       if(Abundance.error.dist=="Normal") d=Species.data[[l]]$Srvy.FixSt_relative
+      if(survey.year=='calendar') d=d%>%mutate(Finyear=paste(yr-1,substr(yr,3,4),sep='-'))
+      if(survey.year=='financial') d=d%>%mutate(Finyear=paste(yr,substr(yr+1,3,4),sep='-'))
       d=d%>%
-        mutate(Finyear=paste(yr-1,substr(yr,3,4),sep='-'),
-               yr.f=as.numeric(substr(Finyear,1,4)))%>%
+        mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
         rename(Mean=MeAn,
                LOW.CI=LowCI,
                UP.CI=UppCI)%>%
@@ -2338,40 +2347,44 @@ for(l in 1:N.sp)
   }
 }
 
-# Change Naturaliste survey from numbers to weights
-for(i in 1:N.sp)
+# Change Naturaliste survey from numbers to weights  
+if(Calculate.weight_Survey)
 {
-  if("Survey"%in%names(Catch.rate.series[[i]]))
+  for(i in 1:N.sp)
   {
-    ddim=Catch.rate.series[[i]]$Survey%>%
-      left_join(Species.data[[i]]$Srvy.FixSt_size.absolute%>%
-                  dplyr::select(yr,MeAn)%>%
-                  rename(Size=MeAn),by='yr')%>%
-      mutate(Size=ifelse(is.na(Size)&!is.na(Mean),mean(Size,na.rm=T),Size))
-    if(grepl(paste(c("shovelnose","zebra shark"),collapse='|'),names(Catch.rate.series)[i])) Size.var='TL' else Size.var='FL'
-    if(Size.var=="FL") ddim$Size=with(List.sp[[i]],ddim$Size*a_FL.to.TL+b_FL.to.TL)
-    ddim=ddim%>%
-      mutate(TW=with(List.sp[[i]],AwT*Size^BwT),
-             Mean=Mean*TW,
-             SE=CV*Mean,
-             UP.CI=UP.CI*TW,
-             LOW.CI=LOW.CI*TW)%>%
-      dplyr::select(names(Catch.rate.series[[i]]$Survey))
-    
-    fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(List.sp[[i]]$Name),"/",AssessYr,'/1_Inputs/Visualise data/CPUE_Survey in weight',sep=''),
-           1800,2000) 
-    par(mfcol=c(2,1))
-    with(Catch.rate.series[[i]]$Survey,plot(yr,Mean,main='Survey in numbers',pch=19,
-                                            ylim=c(0,max(UP.CI,na.rm=T))))
-    with(Catch.rate.series[[i]]$Survey,segments(x0=yr, y0=LOW.CI, x1 = yr, y1 = UP.CI))
-    with(ddim,plot(yr,Mean,pch=19,main='Converted to total weight (kg)',ylim=c(0,max(ddim$UP.CI,na.rm=T))))
-    with(ddim,segments(x0=yr, y0=LOW.CI, x1 = yr, y1 = UP.CI))
-    dev.off()
-    
-    Catch.rate.series[[i]]$Survey=ddim
+    if("Survey"%in%names(Catch.rate.series[[i]]))
+    {
+      ddim=Catch.rate.series[[i]]$Survey%>%
+        left_join(Species.data[[i]]$Srvy.FixSt_size.absolute%>%
+                    dplyr::select(yr,MeAn)%>%
+                    rename(Size=MeAn),by='yr')%>%
+        mutate(Size=ifelse(is.na(Size)&!is.na(Mean),mean(Size,na.rm=T),Size))
+      if(grepl(paste(c("shovelnose","zebra shark"),collapse='|'),names(Catch.rate.series)[i])) Size.var='TL' else Size.var='FL'
+      if(Size.var=="FL") ddim$Size=with(List.sp[[i]],ddim$Size*a_FL.to.TL+b_FL.to.TL)
+      ddim=ddim%>%
+        mutate(TW=with(List.sp[[i]],AwT*Size^BwT),
+               Mean=Mean*TW,
+               SE=CV*Mean,
+               UP.CI=UP.CI*TW,
+               LOW.CI=LOW.CI*TW)%>%
+        dplyr::select(names(Catch.rate.series[[i]]$Survey))
+      
+      fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                   capitalize(List.sp[[i]]$Name),"/",AssessYr,'/1_Inputs/Visualise data/CPUE_Survey in weight',sep=''),
+             1800,2000) 
+      par(mfcol=c(2,1))
+      with(Catch.rate.series[[i]]$Survey,plot(yr,Mean,main='Survey in numbers',pch=19,
+                                              ylim=c(0,max(UP.CI,na.rm=T))))
+      with(Catch.rate.series[[i]]$Survey,segments(x0=yr, y0=LOW.CI, x1 = yr, y1 = UP.CI))
+      with(ddim,plot(yr,Mean,pch=19,main='Converted to total weight (kg)',ylim=c(0,max(ddim$UP.CI,na.rm=T))))
+      with(ddim,segments(x0=yr, y0=LOW.CI, x1 = yr, y1 = UP.CI))
+      dev.off()
+      
+      Catch.rate.series[[i]]$Survey=ddim
+    }
   }
 }
+
 
 # get SE if only CV available and define if using CV or SE in assessment model  
 for(i in 1:N.sp)
