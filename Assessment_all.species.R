@@ -1164,9 +1164,13 @@ Species.data$`copper shark`$Size_composition_Other_Observations=data.frame(
                   N.shots=30,
                   N.observations=NA)
   #6.2 remove dodgy survey estimate Milk shark
-Milk_id=which(Species.data$`milk shark`$Srvy.FixSt$yr==2003)
-Species.data$`milk shark`$Srvy.FixSt[Milk_id,-1]=NA
-Species.data$`milk shark`$Srvy.FixSt_relative[Milk_id,-1]=NA
+Milk_id=which(Species.data$`milk shark`$Srvy.FixSt$CV>0.7)
+if(length(Milk_id)>0)
+{
+  Species.data$`milk shark`$Srvy.FixSt[Milk_id,-1]=NA
+  Species.data$`milk shark`$Srvy.FixSt_relative[Milk_id,-1]=NA
+}
+
 
   #6.3 add size composition Angel sharks (GAB Trawl)
 if(use.Gab.trawl)
