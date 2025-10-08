@@ -1392,6 +1392,19 @@ for(w in 1:n.SS)
                              P_4=ifelse(Fleet=='Survey',0.09,P_4))
                   }
                 }
+                if(First.run=="YES")  
+                {
+                  p=see.SS3.length.comp.matrix(dd=Size.com%>%
+                                                 dplyr::select(year,Fleet,names(Size.com)[grep('f',names(Size.com))]))
+                  print(p)
+                  ggsave(paste0(this.wd1,"/Length comps used in SS_female.tiff"),width=7,height=6,compression = "lzw")
+                  p=see.SS3.length.comp.matrix(dd=Size.com%>%
+                                                 dplyr::select(year,Fleet,names(Size.com)[grep('m',names(Size.com))][-1]))
+                  print(p)
+                  ggsave(paste0(this.wd1,"/Length comps used in SS_male.tiff"),width=7,height=6,compression = "lzw")
+                  
+                }
+                
                 
                 #a.2 set MainRdevYrFirst
                 Abund1=Abund

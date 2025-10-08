@@ -429,6 +429,9 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
 estim.sel.pars_SS=c("sandbar shark")
+estim.sel.pars_SS.prior=NULL
+estim.growth.pars_SS=c("sandbar shark")
+Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
 combine_NSF_Survey=NULL   #combine length composition data to estimate logistic selectivity
 combine.sexes.tdgdlf=NULL 
 combine.sexes.tdgdlf.daily=NULL 
@@ -437,7 +440,7 @@ combine.sexes.nsf=NULL
 combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
 combine.sex_type=0  #0, 0 means combined male and female ; 3, 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
-SS.sex.length.type=3  #NULL if want to maintain males and females separated
+SS.sex.length.type=3  #1 if want to maintain males and females separated
 fit.to.mean.weight.Southern2=c("dusky shark","gummy shark","sandbar shark","whiskery shark","spinner shark")  #get model to fit mean weight regardless of available length comp
 drop.len.comp.like=NULL    
 survey.like.weight=NULL  #"dusky shark"  
@@ -1462,7 +1465,9 @@ for(l in 1:N.sp)
   List.sp[[l]]=list.append(List.sp[[l]],
                            pup.sx.ratio=0.5,
                            Growth.F=data.frame(k=LH$K,FL_inf=LH$FL_inf,to=LH$to,k.sd=LH$k.sd,FL_inf.sd=LH$FL_inf.sd),
+                           Growth.F.prior=data.frame(k=LH$K_prior,k.se=LH$K_prior.sd, Linf=LH$TL_inf_prior, Linf.se=LH$TL_inf_prior.sd),
                            Growth.M=data.frame(k=LH$male_K,FL_inf=LH$male_FL_inf),
+                           Growth.M.prior=data.frame(k=LH$male_K_prior,k.se=LH$male_K_prior.sd, Linf=LH$male_TL_inf_prior, Linf.se=LH$male_TL_inf_prior.sd),
                            k.Linf.cor=-0.99,    #assumed correlation between growth parameters
                            Max.age.F=c(LH$Max_Age,LH$Max_Age_max),
                            Age.50.mat=c(LH$Age_50_Mat_min,LH$Age_50_Mat_max),

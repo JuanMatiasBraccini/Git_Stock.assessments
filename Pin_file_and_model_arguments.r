@@ -632,17 +632,19 @@ for(l in 1:N.sp)
   }
   #if(NeiM%in%c("wobbegongs")) List.sp[[l]]$Growth.CV_old=0.15  #widen the CV to allow observed max sizes be within Linf + CV
 
-  List.sp[[l]]$SS3.estim.growth.pars=FALSE
   List.sp[[l]]$compress.tail=FALSE  #compress the size distribution tail into plus group. 
   
     #growth priors
-  List.sp[[l]]$Growth.F.prior=List.sp[[l]]$Growth.M.prior=List.sp[[l]]$Growth.prior.type=NULL
-  if(NeiM=="sandbar shark")
+  if(!NeiM%in%estim.growth.pars_SS)
+  {
+    List.sp[[l]]$SS3.estim.growth.pars=FALSE
+    List.sp[[l]]$Growth.F.prior=List.sp[[l]]$Growth.M.prior=List.sp[[l]]$Growth.prior.type=NULL
+  }
+  
+  if(NeiM%in%estim.growth.pars_SS)
   {
     List.sp[[l]]$SS3.estim.growth.pars=TRUE
-    List.sp[[l]]$Growth.F.prior=data.frame(k=0.16,k.se=0.03, Linf=175, Linf.se=5)
-    List.sp[[l]]$Growth.M.prior=data.frame(k=0.19,k.se=0.04, Linf=160, Linf.se=5)
-    List.sp[[l]]$Growth.prior.type=data.frame(k=6, Linf=0)    #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
+    List.sp[[l]]$Growth.prior.type=Type.growth.prior    
   }
     
       #4.1.3 Qs (in log space)
@@ -1048,7 +1050,7 @@ for(l in 1:N.sp)
     
     #Populate priors
     List.sp[[l]]$Sel.prior.sd_type=NULL
-    if(NeiM%in%estim.sel.pars_SS)  
+    if(NeiM%in%estim.sel.pars_SS.prior)  
     {
       List.sp[[l]]$Sel.prior.sd_type=data.frame(P1.sd=10,P1.type=6,P2.sd=5,P2.type=6)
     }

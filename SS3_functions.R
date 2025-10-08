@@ -1264,24 +1264,40 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ddami=ctl$size_selex_parms%>%
             mutate(Fleet=gsub("\\s*\\([^\\)]+\\)","",str_after_nth(rownames(ctl$size_selex_parms), "_", 2)))
     dis.vec=paste0(1:6,'_Southern.shark_1')
-    if(length(grep(paste(c("West","Zone1","Zone2"),collapse='|'),fleetinfo$fleetname))>0)
+    Zones.condition=length(grep(paste(c("West","Zone1","Zone2"),collapse='|'),fleetinfo$fleetname))>0
+    Souther2.condition=FALSE
+    if(!Zones.condition)
     {
+      Souther2.condition=ddumy[grep('Southern.shark_2',rownames(ddumy)),'Pattern']
+      Souther2.condition=!Souther2.condition==15
+    }
+
+    if(Zones.condition | Souther2.condition)
+    {
+      if(Zones.condition)
+      {
+        y.vec=c('Southern.shark_1_West','Southern.shark_1_Zone1','Southern.shark_1_Zone2',
+                'Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2')
+      }
+      if(Souther2.condition)
+      {
+        y.vec='Southern.shark_2'
+      }
       ddami_extra=vector('list',length(dis.vec))
       for(v in 1:length(dis.vec))
       {
         aaa=fn.add.fleet.zone.sel(d=ddami,
                                   x=dis.vec[v],
-                                  y=c('Southern.shark_1_West','Southern.shark_1_Zone1','Southern.shark_1_Zone2',
-                                      'Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2'))
+                                  y=y.vec)
         rownames(aaa)=paste0('SizeSel_P_',v,"_",aaa$Fleet)  
         ddami_extra[[v]]=aaa%>%mutate(Fleet=paste0(v,'_',Fleet))
       }
       ddami_extra=do.call(rbind,ddami_extra)%>%arrange(Fleet)
       ddami=rbind(ddami,ddami_extra)%>%
-        mutate(Fleet=sub(".*?_","",Fleet))%>%
-        filter(Fleet%in%fleetinfo$fleetname)%>%
-        arrange(Fleet)%>%
-        dplyr::select(-Fleet)
+              mutate(Fleet=sub(".*?_","",Fleet))%>%
+              filter(Fleet%in%fleetinfo$fleetname)%>%
+              arrange(Fleet)%>%
+              dplyr::select(-Fleet)
     }
     ctl$size_selex_parms=ddami 
     row_nm_size_selex_parms=gsub("\\s*\\([^\\)]+\\)","",str_after_nth(rownames(ctl$size_selex_parms), "_", 3)) 
@@ -1559,7 +1575,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       id.fleet.to.estim=id.fleet.to.estim[!is.na(id.fleet.to.estim)]
       if(length(id.fleet.to.estim)>0)
       {
-        id.fleet.to.estim=paste0('SizeSel_P_1_',id.fleet.to.estim)
+        id.fleet.to.estim=paste0(c('SizeSel_P_1_','SizeSel_P_3_'),id.fleet.to.estim)
         id.fleet.to.estim=paste(id.fleet.to.estim,collapse='|')
         ctl$size_selex_parms[grep(id.fleet.to.estim,rownames(ctl$size_selex_parms)),'PHASE']=3
       }
@@ -3315,24 +3331,24 @@ fn.cryptic=function(yr)
 {
   #Numbers of female at length by year
   Num.fem=Report$natlen%>%
-    rename(Beg_Mid='Beg/Mid')%>%
-    filter(!Beg_Mid=='M')%>%
-    dplyr::select(-c(Area,Bio_Pattern,BirthSeas,Settlement,Platoon,Morph,Seas,Time,Beg_Mid,Era))%>%
-    gather(Length,N,-c(Sex,Yr))%>%
-    arrange(Yr,Length,Sex)%>%
-    mutate(Length=as.numeric(Length))%>%
-    filter(Sex==1)
+            rename(Beg_Mid='Beg/Mid')%>%
+            filter(!Beg_Mid=='M')%>%
+            dplyr::select(-c(Area,Bio_Pattern,BirthSeas,Settlement,Platoon,Morph,Seas,Time,Beg_Mid,Era))%>%
+            gather(Length,N,-c(Sex,Yr))%>%
+            arrange(Yr,Length,Sex)%>%
+            mutate(Length=as.numeric(Length))%>%
+            filter(Sex==1)
   Yr.LVLs=sort(unique(Num.fem$Yr))
   Yr.kls=colfunc1(length(Yr.LVLs))
   names(Yr.kls)=Yr.LVLs
   
   p_Numbers.at.length.year=Num.fem%>%
-    mutate(Yr=factor(Yr,levels=Yr.LVLs))%>%
-    ggplot(aes(Length,N,color=Yr))+
-    geom_line()+
-    theme_PA()+ylab('Number of females')+
-    scale_color_manual(values = Yr.kls)+
-    theme(legend.position = 'none')
+                mutate(Yr=factor(Yr,levels=Yr.LVLs))%>%
+                ggplot(aes(Length,N,color=Yr))+
+                geom_line()+
+                theme_PA(leg.siz=6)+ylab('Number of females')+
+                scale_color_manual(values = Yr.kls)+
+                guides(color = guide_legend(ncol = 2))
   
   Num.fem=Num.fem%>%
     filter(Yr==yr)
@@ -3341,19 +3357,19 @@ fn.cryptic=function(yr)
   Fem.mat=Report$biology%>%
     rename(Length=Len_lo)
   p_maturity.ogive=Fem.mat%>%
-    ggplot(aes(Length,Mat))+
-    geom_line()+
-    theme_PA()
+            ggplot(aes(Length,Mat))+
+            geom_line()+
+            theme_PA()
   
   #Selectivity at length
   Fem.sel=Report$sizeselex%>%
-    filter(Factor=='Lsel' & Sex==1)%>%
-    dplyr::select(-c(Factor,Label,Sex))%>%
-    gather(Length,N,-c(Fleet,Yr))%>%
-    arrange(Yr,Length,Fleet)%>%
-    mutate(Length=as.numeric(Length),
-           Length=Length-2.5,
-           Fleet=as.character(Fleet))
+          filter(Factor=='Lsel' & Sex==1)%>%
+          dplyr::select(-c(Factor,Label,Sex))%>%
+          gather(Length,N,-c(Fleet,Yr))%>%
+          arrange(Yr,Length,Fleet)%>%
+          mutate(Length=as.numeric(Length),
+                 Length=Length-2.5,
+                 Fleet=as.character(Fleet))
   Yr.LVLs=sort(unique(Fem.sel$Yr))
   Yr.kls=colfunc1(length(Yr.LVLs))
   names(Yr.kls)=Yr.LVLs
@@ -3376,7 +3392,8 @@ fn.cryptic=function(yr)
   p_list=vector('list',length(dis.fleets))
   for(kek in 1:length(dis.fleets))
   {
-    N.pop=Num.fem
+    N.pop=Num.fem%>%
+      arrange(Length)
     Sel=Fem.sel%>%filter(Fleet==dis.fleets[kek])
     Mat=Fem.mat%>%dplyr::select(Length,Mat)
     
@@ -3395,21 +3412,24 @@ fn.cryptic=function(yr)
       geom_line(data=Sel,aes(Length,N),col="brown",linewidth=1.15,linetype="dotdash")
     
     #Calculate numbers mature selected by fleet
-    N.sel.by.fleet=full_join(N.pop,Sel%>%rename(prop=N),by=c('Length','Yr'))%>%
-      mutate(N.sel=prop*N,
-             N.not.sel=(1-prop)*N)%>%
-      arrange(Length)
+    N.sel.by.fleet=full_join(N.pop,Sel%>%
+                                rename(prop=N),
+                             by=c('Length','Yr'))%>%
+                        mutate(N.sel=prop*N,
+                               N.not.sel=(1-prop)*N)%>%
+                        arrange(Length)
     
     #add numbers mature
     N.sel.by.fleet.mature=full_join(N.sel.by.fleet,Mat,by=c('Length'))%>%
-      mutate(N.mature=Mat*N,
-             N.mature.selected=N.mature*prop,
-             N.mature.not.selected=N.mature*(1-prop))
-    
+                            mutate(N.mature=Mat*N,
+                                   N.mature.selected=prop*N.mature,
+                                   N.mature.not.selected=(1-prop)*N.mature)
+                          
     Pop.N.mature.selected=round(sum(N.sel.by.fleet.mature$N.mature.selected)/sum(N.sel.by.fleet.mature$N.mature),2)
     Pop.N.mature.cryptic=round(sum(N.sel.by.fleet.mature$N.mature.not.selected)/sum(N.sel.by.fleet.mature$N.mature),2)
     
-    p_list[[kek]]=p+ggtitle(paste0(names(dis.fleets)[kek],'. Prop. mature females =',Pop.N.mature.cryptic))
+    p_list[[kek]]=p+labs(title=paste0(names(dis.fleets)[kek],'.   Prop. cryptic mature females =',Pop.N.mature.cryptic),
+                         caption="black, population size; red, selectivty; green=maturity")
     
   }
   
@@ -3451,4 +3471,15 @@ fn.check.SS.sel.used=function(d,check.fleet=NULL)
   p.list=list(p1=p1)
   if(!is.null(p2)) p.list=list(p1=p1,p2=p2)
   return(p.list)
+}
+see.SS3.length.comp.matrix=function(dd)
+{
+  return(dd%>%
+           gather(Size,n,-c(year ,Fleet))%>%
+           mutate(Fleet=as.character(Fleet),
+                  Size=as.numeric(substr(Size,2,10)))%>%
+           ggplot(aes(Size,n))+
+           geom_line(aes(color=Fleet))+
+           facet_wrap(~year)+
+           theme_PA()+theme(legend.position = 'top')+xlab('TL (cm)'))
 }
