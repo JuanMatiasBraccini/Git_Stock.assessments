@@ -1636,6 +1636,25 @@ for(w in 1:n.SS)
               GoodnessFit=function.goodness.fit_SS(Rep=Report)  
               write.csv(GoodnessFit,paste(this.wd1,"/GoodnessFit_",Neim,".csv",sep=''))
               
+              #Check Life history invariants (M/k=1.5; L50/Linf=0.66; MxA50=1.65)
+              if(Scens$Scenario[s]=='S1')
+              {
+                Mat=Report$Growth_Parameters%>%filter(Sex==1)%>%pull(Mat1)
+                Linf=Report$Growth_Parameters%>%filter(Sex==1)%>%pull(Linf)
+                Ratio_L50_Linf=Mat/Linf
+                K=Report$Growth_Parameters%>%filter(Sex==1)%>%pull(K)
+                Nat.M=unlist(Report$Natural_Mortality%>%filter(Sex==1)%>%
+                               dplyr::select(-c(Bio_Pattern,Sex,Settlement,Seas)))
+                Ratio_M_k=mean(Nat.M)/K
+                
+                Prod_M_A50=mean(Nat.M)*Life.history$Age.50.mat[1]
+                #Prod_M_A50=exp(1.44-0.982*log(Life.history$Max.age.F))*Life.history$Age.50.mat[1]
+                
+                write.csv(data.frame(Type=c('L50/Linf','M/k','MxA50'),
+                                     Value=c(Ratio_L50_Linf,Ratio_M_k,Prod_M_A50)),
+                          paste0(this.wd1,"/Life.history.invariants.csv"),row.names = F)
+                
+              }
               
               #Check if pups per female is not biologically excessively large 
               if(Scens$Scenario[s]=='S1')
@@ -1656,6 +1675,8 @@ for(w in 1:n.SS)
                 Cryptic=fn.cryptic(yr=as.numeric(substr(Last.yr.ktch,1,4)))
                 ggarrange(plotlist = Cryptic$p.criptic,ncol=1)
                 ggsave(paste0(this.wd1,"/Cryptic biomass.tiff"),width=5,height=6,compression = "lzw")
+                ggarrange(plotlist = Cryptic$p.criptic1,ncol=1)
+                ggsave(paste0(this.wd1,"/Cryptic biomass1.tiff"),width=5,height=6,compression = "lzw")
               }
               
               #Check what sels by fleet SS is applying

@@ -3386,54 +3386,93 @@ fn.cryptic=function(yr)
   
   
   #plot cryptic mature biomass by fleet
+  N.pop=Num.fem%>%arrange(Length)
+  Mat=Fem.mat%>%dplyr::select(Length,Mat)%>%arrange(Length)
+  
   dis.fleets=match(c("Northern.shark","Southern.shark_1","Survey"),Report$FleetNames)
   names(dis.fleets)=c("Northern.shark","Southern.shark_1","Survey")
   dis.fleets=dis.fleets[!is.na(dis.fleets)]
   p_list=vector('list',length(dis.fleets))
+  p1_list=p_list
   for(kek in 1:length(dis.fleets))
   {
-    N.pop=Num.fem%>%
-      arrange(Length)
-    Sel=Fem.sel%>%filter(Fleet==dis.fleets[kek])
-    Mat=Fem.mat%>%dplyr::select(Length,Mat)
+    
+    Sel=Fem.sel%>%filter(Fleet==dis.fleets[kek])%>%arrange(Length)
+    
     
     #Numbers at length in population
-    p=N.pop%>%
+    DAT=N.pop%>%
       mutate(N=N/max(N))%>%
-      ggplot(aes(Length,N))+
-      geom_point(size=2)+geom_line()+theme_PA(Ttl.siz=8.5)
+      dplyr::select(Length,N)%>%
+      mutate(Type='Population size')
+    DAT=rbind(DAT,Sel%>%
+                dplyr::select(Length,N)%>%
+                mutate(Type='Selectivity'))
+    DAT=rbind(DAT,Mat%>%
+                rename(N=Mat)%>%
+                dplyr::select(Length,N)%>%
+                mutate(Type='Maturity'))%>%
+      mutate(Type=factor(Type,levels=c('Population size','Maturity','Selectivity')))
+      
+    p=DAT%>%
+      ggplot(aes(Length,N,color=Type))+
+      geom_point(size=3)+geom_line(linewidth=1.05)+theme_PA(Ttl.siz=14)+
+      theme(legend.title = element_blank(),
+            legend.position = 'bottom')
     
-    #add maturity
+    #Calculate mature cryptic
+    N.sel.mat=full_join(N.pop%>%
+                          dplyr::select(Length,N),
+                        Sel%>%
+                          dplyr::select(Length,N)%>%
+                          rename(Select=N),
+                        by=c('Length'))%>%
+      full_join(Mat,by=c('Length'))%>%
+      mutate(N.selected=N*Select,
+             N.not.selected=N-N.selected,
+             N.mature=N*Mat,
+             N.immature=N-N.mature,
+             N.mature.selected=N.selected*Mat,
+             N.mature.not.selected=N.not.selected*Mat)%>%
+      arrange(Length)
+    id.sel.peak=match(max(N.sel.mat$Select),N.sel.mat$Select)
+    Mature.cryptic=round(100*sum(N.sel.mat$N.mature.not.selected[id.sel.peak:nrow(N.sel.mat)])/sum(N.sel.mat$N.mature),2)
+    
     p=p+
-      geom_line(data=Mat,aes(Length,Mat),color='forestgreen',linewidth=1.15)
+      labs(title=paste0(names(dis.fleets)[kek],'      ',Mature.cryptic,'%',' cryptic mature female'))
+     
+    p_list[[kek]]=p
     
-    #add selectivity
-    p=p+
-      geom_line(data=Sel,aes(Length,N),col="brown",linewidth=1.15,linetype="dotdash")
-    
-    #Calculate numbers mature selected by fleet
-    N.sel.by.fleet=full_join(N.pop,Sel%>%
-                                rename(prop=N),
-                             by=c('Length','Yr'))%>%
-                        mutate(N.sel=prop*N,
-                               N.not.sel=(1-prop)*N)%>%
-                        arrange(Length)
-    
-    #add numbers mature
-    N.sel.by.fleet.mature=full_join(N.sel.by.fleet,Mat,by=c('Length'))%>%
-                            mutate(N.mature=Mat*N,
-                                   N.mature.selected=prop*N.mature,
-                                   N.mature.not.selected=(1-prop)*N.mature)
-                          
-    Pop.N.mature.selected=round(sum(N.sel.by.fleet.mature$N.mature.selected)/sum(N.sel.by.fleet.mature$N.mature),2)
-    Pop.N.mature.cryptic=round(sum(N.sel.by.fleet.mature$N.mature.not.selected)/sum(N.sel.by.fleet.mature$N.mature),2)
-    
-    p_list[[kek]]=p+labs(title=paste0(names(dis.fleets)[kek],'.   Prop. cryptic mature females =',Pop.N.mature.cryptic),
-                         caption="black, population size; red, selectivty; green=maturity")
+    p1=N.sel.mat%>%
+      dplyr::select(-c(Select,Mat))%>%
+      gather(Type,Value,-Length)%>%
+      mutate(Type=case_when(
+        Type=="N"~"Total",
+        Type=="N.selected"~"Selected",
+        Type=="N.not.selected"~"Not sel",
+        Type=="N.mature"~"Mature",
+        Type=="N.immature"~"Immature",
+        Type=="N.mature.selected"~"Mature sel",
+        Type=="N.mature.not.selected"~"Mature not sel"),
+        Type=factor(Type,levels=names(Kls)))%>%
+      ggplot(aes(Length,Value,color=Type))+
+      geom_point(size=3)+
+      geom_line(linewidth=1.05)+
+      theme_PA(Ttl.siz=14,leg.siz=10)+
+      theme(legend.title = element_blank())+
+      scale_color_manual(values = Kls)+
+      geom_line(data=Sel%>%rename(Value=N)%>%mutate(Type='',Value=Value*max(N.sel.mat$N)),
+                aes(Length,Value,color=Type),linewidth=1.25)+
+      geom_line(data=Mat%>%rename(Value=Mat)%>%mutate(Type='',Value=Value*max(N.sel.mat$N)),
+                aes(Length,Value,color=Type),linetype='longdash',linewidth=1.25)+
+      labs(title=paste0(names(dis.fleets)[kek],'      ',Mature.cryptic,'%',' cryptic mature female'),
+           caption='solid=Selectivity\n dashed=Maturity')+
+      geom_vline(xintercept=170,col='orange')
+    p1_list[[kek]]=p1
     
   }
   
-  return(list(p.criptic=p_list,p_Numbers.at.length.year=p_Numbers.at.length.year,
+  return(list(p.criptic=p_list,p.criptic1=p1_list,p_Numbers.at.length.year=p_Numbers.at.length.year,
               p_maturity.ogive=p_maturity.ogive,p_sel.by.fleet=p_sel.by.fleet))
 }
 

@@ -116,10 +116,10 @@ for(l in 1:N.sp)
   h.M.mean_low=round(max(Min.h.shark,h.M_mean*.9),3)
   h.M_mean=round(max(Min.h.shark,h.M_mean),3)
   h.sd=round(store.species.steepness_M.at.age[[l]]$sd,3)
-  if(NeiM%in%c('sandbar shark'))  #bump up Sandbar shark h to allow random rec_devs, otherwise model tries to compensate for lower productivity
+  if(NeiM%in%c('sandbar shark'))  
   {
     h.M_mean2=Sandbar.Sedar #h.M_mean
-    h.M_mean=h.M_meanM.age.invariant
+    if(bump.h_sandbar) h.M_mean=h.M_meanM.age.invariant 
   }
   if(NeiM== 'dusky shark') h.M_mean2=Dusky.Sedar
   if(NeiM== 'scalloped hammerhead') h.M_mean2=ScallopedHH.Sedar
@@ -1758,16 +1758,16 @@ fn.age.mat.per=function(d,mat.per=0.1)
 for(l in 1:N.sp) List.sp[[l]]$First_Mature_Age=fn.age.mat.per(d=List.sp[[l]])
 
 #Get maturity slope and inflection for SS3
-fn.predlog=function(pars) 1/(1+exp(pars[1]*(dat$x-pars[2])))
+fn.predlog1=function(pars) 1/(1+exp(pars[1]*(dat$x-pars[2])))
 fn.fit.log.infl=function(pars)
 {
-  pred= fn.predlog(pars)
+  pred= fn.predlog1(pars)
   return(sum((dat$y-pred)^2))
 }
 for(l in 1:N.sp)
 {
   set.seed(666)
-  dat=data.frame(x=with(List.sp[[l]],(Lzero*a_FL.to.TL+b_FL.to.TL):List.sp[[l]]$TLmax))%>%
+  dat=data.frame(x=seq(floor(with(List.sp[[l]],(Lzero*a_FL.to.TL+b_FL.to.TL))),ceiling(List.sp[[l]]$TLmax)))%>%
     mutate(y=with(List.sp[[l]],1/(1+exp(-log(19)*((x-TL.50.mat)/(TL.95.mat-TL.50.mat))))),
            x=base::jitter(x,5),
            y=base::jitter(y,5),

@@ -261,6 +261,7 @@ species.too.high.M1=NULL #c("gummy shark","whiskery shark")
 #15.1 published steepness  
 Dusky.Sedar=mean(c(0.25,0.35))  #SEDAR 21, they also obtained too high h estimates (page 30)
 Sandbar.Sedar=mean(c(0.25,0.4)) #SEDAR 21 & 54
+bump.h_sandbar=FALSE  #bump up Sandbar shark h to allow random rec_devs, otherwise model tries to compensate for lower productivity
 ScallopedHH.Sedar=mean(c(0.69,0.71,0.67))  #SEDAR 77
 SmoothHH.Sedar=0.78 #SEDAR 77
 GreatHH.Sedar=0.71 #SEDAR 77
@@ -503,7 +504,7 @@ resample.h.greynurse=FALSE  #no need to resample h
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
 Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
-SS3.q.analit.solu=TRUE   #calculate q analytically to save up pars, set to FALSE if using block Q (time changing Q)
+SS3.q.analit.solu=FALSE   #set to TRUE if calculating q analytically to save up pars, set to FALSE if using block Q (time changing Q)
 block.species_Q=c("whiskery shark") #"gummy shark"
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
 do.MC.multi=FALSE #doesn't work if estimating rec devs as rec devs are not updated with random sample
