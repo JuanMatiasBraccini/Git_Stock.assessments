@@ -834,7 +834,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   if(Scenario$Model=='SSS') ctl$do_recdev=0  #do_recdev:  0=none; 1=devvector; 2=simple deviations
   if(Scenario$Model=='SS')
   {
-    ctl$do_recdev=Scenario$do_recdev   # 0=none; 1=devvector (R=F(SSB)+dev); 2=deviations (R=F(SSB)+dev); 3=deviations (R=R0*dev; dev2=R-f(SSB)); 4=like 3 with sum(dev2) adding penalty
+    ctl$do_recdev=Scenario$do_recdev   # 0=none; 1=devvector (R=F(SSB)+dev). Sum to 0; 2=deviations (R=F(SSB)+dev). Does not sum to 0; 3=deviations (R=R0*dev; dev2=R-f(SSB)); 4=like 3 with sum(dev2) adding penalty
     RecDev_Phase=life.history$RecDev_Phase
     ctl$recdev_phase=RecDev_Phase
      
@@ -3329,26 +3329,28 @@ Francis.function=function(cipiuis,cvs,mininum.mean.CV=NULL)
 # Cryptic mortality -------------------------------------------------------
 fn.cryptic=function(yr)
 {
+  Kls=c('black','steelblue','blue4','brown4','chocolate1','darkolivegreen','chartreuse3')
+  names(Kls)=c("Total","Selected","Not sel","Mature","Immature","Mature sel","Mature not sel")
   #Numbers of female at length by year
   Num.fem=Report$natlen%>%
-            rename(Beg_Mid='Beg/Mid')%>%
-            filter(!Beg_Mid=='M')%>%
-            dplyr::select(-c(Area,Bio_Pattern,BirthSeas,Settlement,Platoon,Morph,Seas,Time,Beg_Mid,Era))%>%
-            gather(Length,N,-c(Sex,Yr))%>%
-            arrange(Yr,Length,Sex)%>%
-            mutate(Length=as.numeric(Length))%>%
-            filter(Sex==1)
+    rename(Beg_Mid='Beg/Mid')%>%
+    filter(!Beg_Mid=='M')%>%
+    dplyr::select(-c(Area,Bio_Pattern,BirthSeas,Settlement,Platoon,Morph,Seas,Time,Beg_Mid,Era))%>%
+    gather(Length,N,-c(Sex,Yr))%>%
+    arrange(Yr,Length,Sex)%>%
+    mutate(Length=as.numeric(Length))%>%
+    filter(Sex==1)
   Yr.LVLs=sort(unique(Num.fem$Yr))
   Yr.kls=colfunc1(length(Yr.LVLs))
   names(Yr.kls)=Yr.LVLs
   
   p_Numbers.at.length.year=Num.fem%>%
-                mutate(Yr=factor(Yr,levels=Yr.LVLs))%>%
-                ggplot(aes(Length,N,color=Yr))+
-                geom_line()+
-                theme_PA(leg.siz=6)+ylab('Number of females')+
-                scale_color_manual(values = Yr.kls)+
-                guides(color = guide_legend(ncol = 2))
+    mutate(Yr=factor(Yr,levels=Yr.LVLs))%>%
+    ggplot(aes(Length,N,color=Yr))+
+    geom_line()+
+    theme_PA(leg.siz=6)+ylab('Number of females')+
+    scale_color_manual(values = Yr.kls)+
+    guides(color = guide_legend(ncol = 2))
   
   Num.fem=Num.fem%>%
     filter(Yr==yr)
@@ -3357,19 +3359,19 @@ fn.cryptic=function(yr)
   Fem.mat=Report$biology%>%
     rename(Length=Len_lo)
   p_maturity.ogive=Fem.mat%>%
-            ggplot(aes(Length,Mat))+
-            geom_line()+
-            theme_PA()
+    ggplot(aes(Length,Mat))+
+    geom_line()+
+    theme_PA()
   
   #Selectivity at length
   Fem.sel=Report$sizeselex%>%
-          filter(Factor=='Lsel' & Sex==1)%>%
-          dplyr::select(-c(Factor,Label,Sex))%>%
-          gather(Length,N,-c(Fleet,Yr))%>%
-          arrange(Yr,Length,Fleet)%>%
-          mutate(Length=as.numeric(Length),
-                 Length=Length-2.5,
-                 Fleet=as.character(Fleet))
+    filter(Factor=='Lsel' & Sex==1)%>%
+    dplyr::select(-c(Factor,Label,Sex))%>%
+    gather(Length,N,-c(Fleet,Yr))%>%
+    arrange(Yr,Length,Fleet)%>%
+    mutate(Length=as.numeric(Length),
+           Length=Length-2.5,
+           Fleet=as.character(Fleet))
   Yr.LVLs=sort(unique(Fem.sel$Yr))
   Yr.kls=colfunc1(length(Yr.LVLs))
   names(Yr.kls)=Yr.LVLs
@@ -3396,9 +3398,7 @@ fn.cryptic=function(yr)
   p1_list=p_list
   for(kek in 1:length(dis.fleets))
   {
-    
     Sel=Fem.sel%>%filter(Fleet==dis.fleets[kek])%>%arrange(Length)
-    
     
     #Numbers at length in population
     DAT=N.pop%>%
@@ -3413,7 +3413,7 @@ fn.cryptic=function(yr)
                 dplyr::select(Length,N)%>%
                 mutate(Type='Maturity'))%>%
       mutate(Type=factor(Type,levels=c('Population size','Maturity','Selectivity')))
-      
+    
     p=DAT%>%
       ggplot(aes(Length,N,color=Type))+
       geom_point(size=3)+geom_line(linewidth=1.05)+theme_PA(Ttl.siz=14)+
@@ -3440,7 +3440,7 @@ fn.cryptic=function(yr)
     
     p=p+
       labs(title=paste0(names(dis.fleets)[kek],'      ',Mature.cryptic,'%',' cryptic mature female'))
-     
+    
     p_list[[kek]]=p
     
     p1=N.sel.mat%>%
@@ -3466,8 +3466,7 @@ fn.cryptic=function(yr)
       geom_line(data=Mat%>%rename(Value=Mat)%>%mutate(Type='',Value=Value*max(N.sel.mat$N)),
                 aes(Length,Value,color=Type),linetype='longdash',linewidth=1.25)+
       labs(title=paste0(names(dis.fleets)[kek],'      ',Mature.cryptic,'%',' cryptic mature female'),
-           caption='solid=Selectivity\n dashed=Maturity')+
-      geom_vline(xintercept=170,col='orange')
+           caption='solid=Selectivity\n dashed=Maturity')
     p1_list[[kek]]=p1
     
   }

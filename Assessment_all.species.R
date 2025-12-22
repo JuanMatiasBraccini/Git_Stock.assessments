@@ -283,7 +283,7 @@ Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
 #16. Stock recruitment
 Max.h.shark=.8   #mean of h for blue shark (ICCAT 2023 assessment; Cortes 2016, Kai & Fujinami 2018).
 Min.h.shark=.3  #He et al 2006, Jason Cope pers comm
-Max.SR_sigmaR.shark=0.3   #maximum recruitment variability (blue shark ICCAT 2023 0.29 for North, 0.5 for South, 0.3 bigskate; 0.2 dogfish; 0.18 sandbar)
+Max.SR_sigmaR.shark=0.4   #maximum recruitment variability (blue shark ICCAT 2023 0.29 for North, 0.5 for South, 0.3 bigskate; 0.2 dogfish; 0.18 sandbar)
 do.random.h=TRUE  #take a random sample of h and M for SS or use empirical distributions
 
 #17. Reference points
@@ -430,6 +430,7 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
 estim.sel.pars_SS=c("sandbar shark")
+extra.SD.Q.species=c("sandbar shark")
 estim.sel.pars_SS.prior=NULL
 estim.growth.pars_SS=c("sandbar shark")
 Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
@@ -462,6 +463,7 @@ alternative.sigmaR=NULL  #Sensitivity for sigmaR (effect on rec_devs)
 #alternative.sigmaR="sandbar shark"
 alternative.do_recdev=NULL  #Sensitivity for do_recdev method (effect on rec_devs)
 #alternative.do_recdev="sandbar shark"
+do_recdev_1="sandbar shark" 
 
 alternative.forecasting=NULL  #forecasting F rather than catch
 #alternative.forecasting="sandbar shark"

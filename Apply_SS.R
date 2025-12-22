@@ -258,7 +258,7 @@ for(w in 1:n.SS)
                 summarise(N=sum(n))%>%
                 mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,Min.annual.obs.ktch_survey))%>%
                 filter(N>=Min.accepted.N)%>%
-                mutate(dummy=paste(year,fishry,sex))  #ACA
+                mutate(dummy=paste(year,fishry,sex))  
               
               if(nrow(Table.n)>0)
               {

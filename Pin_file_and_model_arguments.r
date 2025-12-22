@@ -460,6 +460,7 @@ for(l in 1:N.sp)
                                        SR_sigmaR=sigmaR,
                                        SR_type=3, #2=Ricker; 3=std_B-H; 4=SCAA;5=Hockey; 6=B-H_flattop; 7=survival_3Parm;8=Shepard_3Parm
                                        Forecasting='catch')
+  if(NeiM%in%do_recdev_1)  List.sp[[l]]$Sens.test$SS$do_recdev=1 #ACA
   tested.h=unique(c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]))
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
   tested.h=unique(tested.h)
@@ -504,7 +505,9 @@ for(l in 1:N.sp)
   #if(NeiM%in%c("spinner shark"))  List.sp[[l]]$drop.cpue=TRUE
   
     #Calculate extra SD for Q or only when CV is small?
-  List.sp[[l]]$Sens.test$SS$extra.SD.Q='NO' #set to 'YES' if not calculating Francis CVs otherwise if using both it blows it
+  extra.es.d='NO'
+  if(NeiM%in%extra.SD.Q.species) extra.es.d='YES'
+  List.sp[[l]]$Sens.test$SS$extra.SD.Q=extra.es.d 
   
     #Alternative selectivity for NSF and survey
   SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
@@ -528,7 +531,10 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi,add.dumi2)
   }
   
-  #Alternativev SR_type
+  #Alternativev SR_type 7 (Taylor)
+  # Zfrac is fraction of density dependence (0 to 1; 0.4 for S. acanthias)
+  # Beta is point where density dependence is fastest (1, linear; <1 surv increase faster at low spawning biomass;
+  #                                                   >1, surv increase faster at high spawning biomass)
   if(NeiM%in%alternative.SR_type)
   {
     List.sp[[l]]$Sens.test$SS$SR_surv_zfrac=NA
