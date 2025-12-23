@@ -534,7 +534,7 @@ for(l in 1:N.sp)
   #Alternativev SR_type 7 (Taylor)
   # Zfrac is fraction of density dependence (0 to 1; 0.4 for S. acanthias)
   # Beta is point where density dependence is fastest (1, linear; <1 surv increase faster at low spawning biomass;
-  #                                                   >1, surv increase faster at high spawning biomass)
+  #                                                   >1, surv increase faster at high spawning biomass; 1 for S. acanthias)
   if(NeiM%in%alternative.SR_type)
   {
     List.sp[[l]]$Sens.test$SS$SR_surv_zfrac=NA

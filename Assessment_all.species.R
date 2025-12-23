@@ -161,8 +161,8 @@ do.B.over.Bmsy.series=TRUE
 do.F.over.Fmsy.series=TRUE
 
 #3. Assessment dimensions
-Year.of.assessment=AssessYr=2022
-Last.yr.ktch="2021-22"
+Year.of.assessment=AssessYr=2026
+Last.yr.ktch="2023-24"
 Last.yr.ktch.numeric=as.numeric(substr(Last.yr.ktch,1,4))
 
   #3.1 Future projections
@@ -456,8 +456,7 @@ rescaled.species.sel=sort(c('great hammerhead','scalloped hammerhead','grey nurs
                        'tiger shark','wobbegongs'))   #this species have no species-specific empirical sel (family was used)
 Plus.gp.size=1.25  #add 25% to max size make sure no accumulation of survivals in last size class
 
-alternative.SR_type="sandbar shark" #Sensitivity for Spawner-Recruitment
-#alternative.SR_type=NULL  
+alternative.SR_type=NULL #Sensitivity for Spawner-Recruitment; "sandbar shark"
 
 alternative.sigmaR=NULL  #Sensitivity for sigmaR (effect on rec_devs)
 #alternative.sigmaR="sandbar shark"
@@ -612,7 +611,7 @@ What.Effort="km.gn.hours"  #What effort to display?
 
 FisheryCodes=read_excel(handl_OneDrive('Data/Catch and Effort/FisheryCodeTable.xlsx'), sheet = "CAEStoFISHCUBE")
 
-Dat.repository=handl_OneDrive('Analyses/Data_outs/')  #locations where all data are stored  ACA
+Dat.repository=handl_OneDrive('Analyses/Data_outs/')  #locations where all data are stored  
 Dat.repository2=handl_OneDrive('Data/Population dynamics/Data inputs for models')
 
 #2.1. Species  

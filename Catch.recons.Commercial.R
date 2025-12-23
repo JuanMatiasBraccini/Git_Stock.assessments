@@ -51,8 +51,8 @@ library(chron)
 
 # 1 -------------------PARAMETERS SECTION------------------------------------
 
-Asses.year=2022    #enter year of assessment
-Last.yr.ktch="2021-22"  #enter year of last complete catches
+Asses.year=2026    #enter year of assessment
+Last.yr.ktch="2023-24"  #enter year of last complete catches
 
 Shark.protection.yr=2007   #Commercial protection in non-shark fisheries came in November 2006 (Heupel & McAuley 2007 page 74)
 
@@ -115,8 +115,11 @@ PCM=data.frame(Group=c("Sawfish","Sawsharks","Wobbegongs","Mackerel","Greynurse"
              GN=sapply(GN,function(x)min(x*Inc.AVM,1)),
              LL=sapply(LL,function(x)min(x*Inc.AVM,1)))
 
-  #Feitosa et al
+    #Feitosa et al PCM
 Feitosa.longline=read.csv(handl_OneDrive('Data/Feitosa_longline_avm_prm.csv'))
+
+#max species code for sharks or rays
+Max.shark_ray.code=50000  
 
 
 # 2 -------------------DATA SECTION------------------------------------
@@ -609,6 +612,8 @@ Indo_flesh=60 #flesh (kg)
 Indo_fins=63
 Indo_skins=16
 Indo_prop.shark=8/36   #proportion of apprehended vessels fishing for sharks
+replace.appre.with.forfeiture=TRUE  #replace lack of apprehensions with forfeitures
+first.yr.forfeit=2020
 
 #source: Edyvane & Penny 2017 (using all vessels, including MOU because the MOU catch is not accounted for anywhere)
 #        not used
@@ -623,14 +628,12 @@ Indo_apprehensions.Stacey=data.frame(year=1975:1999,
 
 #AFMA (brodie.macdonald@afma.gov.au; previously sourced by Rik Buckworth from peter.venslovas@afma.gov.au)
 #note: using Total (i.e. Apprehension and Forfeitures)
-Indo_apprehensions=read_excel(fn.hndl('Indonesia_apprehensions_AFMA.xlsx'), sheet = "Sheet1")%>%
-  #dplyr::select(-Apprehensions)%>%
-  #rename(Apprehensions=Total)%>% 
-  rename(LF='Legislative Forfeitures')%>%
-  #dplyr::select(c(Year,Apprehensions))%>%    
-  rename(year=Year)%>%
-  mutate(year=as.numeric(substr(year,1,4)))
-
+Indo_apprehensions.and.Legis.Forfeit=read_excel(fn.hndl('Indonesia_apprehensions_AFMA.xlsx'), sheet = "Sheet1")%>%
+                    rename(LF='Legislative Forfeitures')
+Indo_apprehensions=Indo_apprehensions.and.Legis.Forfeit%>%  
+                      rename(year=Year)%>%
+                      mutate(year=as.numeric(substr(year,1,4)))
+Indo_apprehensions.AFMA=Indo_apprehensions
 #Indo_apprehensions=data.frame(year=c(2000:2021),
 #                              Apprehensions=c(62,96,143,132,203,360,210,141,18,23,14,12,7,10,5,7,6,9,5,4,0,0))
 # Indo.prop.apprehen.with.shark=data.frame(Year=2008:2019,
@@ -732,9 +735,13 @@ Data.monthly=Data.monthly%>%left_join(FisheryCodes,by=c("FisheryCode"="SASCode")
                     mutate(DATA.type="Data.monthly",
                            FishCubeCode=case_when(is.na(FishCubeCode) & FisheryCode=='JASDGDL'~'JASDGDL',
                                                   is.na(FishCubeCode) & FisheryCode=='WCDGDL'~'WCDGDL',
+                                                  is.na(FishCubeCode) & FisheryCode=='OANCGCWC'~'OANCGCWC',
+                                                  is.na(FishCubeCode) & FisheryCode=='OASC'~'OASC',
                                                   TRUE~FishCubeCode))
 Data.monthly.north=Data.monthly.north%>%left_join(FisheryCodes,by=c("FisheryCode"="SASCode"))%>%
                     mutate(FishCubeCode=case_when(is.na(FishCubeCode) & FisheryCode=='NCS'~'NCS',
+                                                  is.na(FishCubeCode) & FisheryCode=='OANCGCWC'~'OANCGCWC',
+                                                  is.na(FishCubeCode) & FisheryCode=='OASC'~'OASC',
                                                   TRUE~FishCubeCode),
                            FishCubeName=ifelse(FishCubeCode=='NCS',
                                                'Joint Authority Northern Shark Fishery',FishCubeName),
@@ -785,16 +792,14 @@ if(Add.daily.other)
 
 ## Keep only sharks and rays and set NA FishCubeCode to 'unknwn'  
 Data.monthly=Data.monthly%>%
-                  filter(SPECIES<50000)%>%
-                  mutate(
-                         FishCubeCode=ifelse(is.na(FishCubeCode)|FishCubeCode%in%c('','*'),"unknwn",FishCubeCode),
+                  filter(SPECIES<Max.shark_ray.code)%>%
+                  mutate(FishCubeCode=ifelse(is.na(FishCubeCode)|FishCubeCode%in%c('','*'),"unknwn",FishCubeCode),
                          Discarded.ktch="NO",
                          RSCommonName=ifelse(SPECIES==17003,'Whiskery Shark',RSCommonName))
                   
 Data.monthly.north=Data.monthly.north%>%
-                  filter(SPECIES<50000)%>%
-                  mutate(
-                         FishCubeCode=ifelse(is.na(FishCubeCode)|FishCubeCode=='',"unknwn",FishCubeCode),
+                  filter(SPECIES<Max.shark_ray.code)%>%
+                  mutate(FishCubeCode=ifelse(is.na(FishCubeCode)|FishCubeCode=='',"unknwn",FishCubeCode),
                          Discarded.ktch="NO")
 
 
@@ -1091,7 +1096,7 @@ for(i in 1:length(Calculate.discarding))
       {
         Dumy=Dumy%>%mutate(SPECIES=Shark.disc$SPECIES)
       }
-      a1=Data.monthly.north%>%filter(FishCubeCode==Fishry)%>%distinct(zone)
+      a1=Data.monthly.north%>%filter(FishCubeCode==Fishry)%>%distinct(zone) 
       Dumy$zone=names(rev(sort(table(a1$zone))))[1]
       Data.monthly.north=rbind(Data.monthly.north,Dumy)
     }
@@ -1845,8 +1850,12 @@ Whaler_SA=Whaler_SA[rep(1:N.SA,each=2),]%>%
                          LIVEWT.c*Whaler_SA_bronzie.prop))
 
 
-#-- 3.2.5 Indonesian illegal fishing in Australia waters             
-Indo_apprehensions.AFMA=Indo_apprehensions
+#-- 3.2.5 Indonesian illegal fishing in Australia waters   
+if(replace.appre.with.forfeiture)  
+{
+    Indo_apprehensions=Indo_apprehensions%>%
+                      mutate(Apprehensions=ifelse(year>=first.yr.forfeit,LF,Apprehensions))
+  } 
 Indo_apprehensions=rbind(Indo_apprehensions.Stacey,Indo_apprehensions%>%dplyr::select(year,Apprehensions))
 Missn.appr=which(is.na(Indo_apprehensions$Apprehensions))
 if(length(Missn.appr)>0)
@@ -1921,16 +1930,16 @@ Indo_avrg.ktch.per.year=Indo_avrg.ktch.per.vessel.day%>%
 
 #Indonesian. Calculate Total catch by year
 Indo_total.annual.ktch=Indo_avrg.ktch.per.year[rep(1:nrow(Indo_avrg.ktch.per.year),nrow(Indo_apprehensions)),]%>%
-  mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_avrg.ktch.per.year)))%>%
-  left_join(Indo_apprehensions,by='year')%>%
-  mutate(Ap.prop.2005=Apprehensions/Indo_apprehensions$Apprehensions[which.max(Indo_apprehensions$Apprehensions)],
-         LIVEWT.c=kg.year*Ap.prop.2005)  
+              mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_avrg.ktch.per.year)))%>%
+              left_join(Indo_apprehensions,by='year')%>%
+              mutate(Ap.prop.2005=Apprehensions/Indo_apprehensions$Apprehensions[which.max(Indo_apprehensions$Apprehensions)],
+                     LIVEWT.c=kg.year*Ap.prop.2005)  
 
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%
-  mutate(Species=as.character(Species),
-         FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
-  left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Species'='Name'))%>%
-  dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
+            mutate(Species=as.character(Species),
+                   FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
+            left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Species'='Name'))%>%
+            dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
 
 
   #MOU box. Calculate Total catch by year
@@ -2175,7 +2184,7 @@ Data.monthly.north=Data.monthly.north%>%
 #export
 fn.out=function(d,NM)
 {
-  d=subset(d,LIVEWT.c>0)
+  if('LIVEWT.c'%in%names(d))d=subset(d,LIVEWT.c>0)
   write.csv(d,paste(handl_OneDrive('Analyses/Data_outs/'),NM,sep=""),row.names = F)
 }
  
@@ -2242,8 +2251,26 @@ Bronze.whaler_NSW$zone=NA
 fn.out(d=Bronze.whaler_NSW%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Bronzewhaler_NSW.csv')
 
   #Indonesian illegal fishing in Australia waters
+    #recons catches
 Indo_total.annual.ktch$zone=NA
 fn.out(d=Indo_total.annual.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Indo.IUU.csv')
+
+    #apprehensions and forfeitures as a measure of effort for SS
+Indo_apprehensions.and.Legis.Forfeit=Indo_apprehensions.and.Legis.Forfeit%>%
+                        dplyr::select(Year,Apprehensions,LF)%>%
+                        rename(Forfeitures=LF,
+                               FINYEAR=Year)
+fn.out(d=rbind(Indo_apprehensions.and.Legis.Forfeit,
+               Indo_apprehensions%>%
+                 mutate(FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
+                 filter(!FINYEAR%in%Indo_apprehensions.and.Legis.Forfeit$FINYEAR)%>%
+                 mutate(Forfeitures=0)%>%
+                 dplyr::select(names(Indo_apprehensions.and.Legis.Forfeit)))%>%
+         arrange(FINYEAR)%>%
+         filter(FINYEAR%in%This.fin.yr),
+       NM='recons_Indo.IUU_appre&forfeit.csv')
+
+
 
   #Taiwanese trawl
 Taiwan.trawl.NWS$zone=NA

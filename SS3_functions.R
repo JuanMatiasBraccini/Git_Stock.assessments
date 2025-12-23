@@ -2282,11 +2282,12 @@ fn.like.range=function(Par.mle,min.par,Par.SE,up,low,ln.out,seq.approach='SE')
   }
 
 }
-fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
+fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.vec=NA,
                          exe_path,start.retro=0,end.retro=5,
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=TRUE,
-                         COVAR=FALSE,h.input=NULL,drop_LP_CurSB=TRUE)
+                         COVAR=FALSE,h.input=NULL,drop_LP_CurSB=TRUE,
+                         Par_var_profile=c("R0","h","M","Depl","CurSB"))
 {
   Report=SS_output(dir=WD,covar=COVAR,verbose=FALSE,printstats=FALSE)
   
@@ -2346,29 +2347,41 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
     #2.1. Likelihood profile on selected parameters or quantities
   if(do.like.prof) # 30 secs per species-parameter-iteration if in parallel and with hessian; 
   {
-    Par_var_profile=c("R0","h","M","Depl","CurSB")
     Par_var.vec_profile=list(R0.vec,
                              h.vec,
                              data.frame(M.vec),
                              depl.vec,
-                             curSB.vec)
+                             curSB.vec,
+                             Linf.vec,Linf.vec)
     Par_var_string_profile=list("SR_LN(R0)",
                                 "SR_BH_steep",
                                 c("NatM_uniform_Fem_GP_1", "NatM_uniform_Mal_GP_1"),
                                 "Depl",
-                                "CurSB")
-    Par_prof_string=list("R0",'steep',"M","Depl","CurSB")
-    Par_prof_label=list(expression(log(italic(R)[0])),'h',expression(italic(M)[a]),"Current depletion","Current SB")
+                                "CurSB",
+                                "L_at_Amax_Fem","L_at_Amax_Mal")
+    Par_prof_string=list("R0",'steep',"M","Depl","CurSB","L_at_Amax_Fem","L_at_Amax_Mal")
+    Par_prof_label=list(expression(log(italic(R)[0])),'h',expression(italic(M)[a]),"Current depletion",
+                        "Current SB","L_at_Amax_Fem","L_at_Amax_Mal")
+    
+    Par_var_profile.full=c("R0","h","M","Depl","CurSB","L_at_Amax_Fem","L_at_Amax_Mal")
+    id.par=match(Par_var_profile,Par_var_profile.full)
+    Par_var.vec_profile=Par_var.vec_profile[id.par]
+    Par_var_string_profile=Par_var_string_profile[id.par]
+    Par_prof_string=Par_prof_string[id.par]
+    Par_prof_label=Par_prof_label[id.par]
     names(Par_var.vec_profile)=names(Par_var_string_profile)=names(Par_prof_string)=names(Par_prof_label)=Par_var_profile
     
     if(drop_LP_CurSB)
     {
       drop.this=match("CurSB",Par_var_profile)
-      Par_var_profile=Par_var_profile[-drop.this]
-      Par_var.vec_profile=Par_var.vec_profile[-drop.this]
-      Par_var_string_profile=Par_var_string_profile[-drop.this]
-      Par_prof_string=Par_prof_string[-drop.this]
-      Par_prof_label=Par_prof_label[-drop.this]
+      if(!is.na(drop.this))
+      {
+        Par_var_profile=Par_var_profile[-drop.this]
+        Par_var.vec_profile=Par_var.vec_profile[-drop.this]
+        Par_var_string_profile=Par_var_string_profile[-drop.this]
+        Par_prof_string=Par_prof_string[-drop.this]
+        Par_prof_label=Par_prof_label[-drop.this]
+      }
     }
     saveoutput=TRUE
     overwrite=TRUE
@@ -2386,6 +2399,11 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
       if(Par_var=="h") baseval <- round(h.input,2) 
       if(Par_var=="M") baseval <- Report$Natural_Mortality[1,match(0,names(Report$Natural_Mortality))]
       if(Par_var=="Depl") baseval<- Report$derived_quants[paste0("Bratio_",Report$endyr),'Value']
+      if(Par_var%in%c("L_at_Amax_Fem","L_at_Amax_Mal"))
+      {
+        baseval <- round(Report$parameters$Value[grep(Par_var_profile[pp],Report$parameters$Label)],2)
+      }
+        
       
       # Step 1. Identify a directory for the profile likelihood model run(s)
       dirname.base <- paste(dirname.diagnostics,paste0("Profile_",Par_var),sep='/')
@@ -2482,7 +2500,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
                                       verbose = FALSE,
                                       extras = diag.extras)
       }
-      if(Par_var%in%c("M","Depl","CurSB"))
+      if(Par_var%in%c("M","Depl","CurSB","L_at_Amax_Fem","L_at_Amax_Mal"))
       {
         whichruns=1:Nprof
         
@@ -2505,6 +2523,16 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
           ctl_temp <- SS_readctl(file = file.path(run_dir, "control.ss_new"),datlist = dat_temp,verbose = FALSE)
           
           if(Par_var=="M")  ctl_temp$natM["natM1", ]=ctl_temp$natM["natM2", ] = Par_var.vec[n,]
+          
+          if(Par_var%in%c("L_at_Amax_Fem","L_at_Amax_Mal"))
+          {
+            id.L_at_amax=grep(Par_var,rownames(ctl_temp$MG_parms))
+            ctl_temp$MG_parms[id.L_at_amax,"INIT"]= Par_var.vec[n]
+            ctl_temp$MG_parms[id.L_at_amax,'LO']=min(ctl_temp$MG_parms[id.L_at_amax,'LO'],0.9*Par_var.vec[n])
+            ctl_temp$MG_parms[id.L_at_amax,'HI']=max(ctl_temp$MG_parms[id.L_at_amax,'HI'],1.1*Par_var.vec[n])
+            ctl_temp$MG_parms[id.L_at_amax,"PHASE"]=-abs(ctl_temp$MG_parms[id.L_at_amax,"PHASE"])
+          }
+            
           
           if(Par_var%in%c("Depl","CurSB"))
           {
@@ -2713,7 +2741,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
       PR_st=prof_string
       PR_la=prof_label
       VEC.prof=NULL
-      if(Par_var%in%c("M","Depl","CurSB"))
+      if(Par_var%in%c("M","Depl","CurSB","L_at_Amax_Fem","L_at_Amax_Mal"))
       {
         PR_st="R0"
         VEC.prof=profilevec
@@ -2798,22 +2826,25 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,
 
     
     #display M.vec
-    pi=M.vec%>%
-      data.frame()%>%
-      mutate(Profile=as.character(1:nrow(M.vec)))%>%
-      gather(Age,M,-Profile)%>%
-      mutate(Age=as.numeric(substr(Age,5,7)))
-    pi=rbind(pi,
-             Report$Natural_Mortality[1,match(unique(pi$Age),names(Report$Natural_Mortality))]%>%
-               mutate(Profile='Base value')%>%
-               gather(Age,M,-Profile)%>%
-               mutate(Age=as.numeric(Age)))
-    pi%>%
-      ggplot(aes(Age,M,color=Profile))+
-      geom_line()+
-      geom_point(size=2.5)+
-      theme_PA()+theme(legend.position = 'top')
-    ggsave(file.path(dirname.diagnostics,"profile_M_vec.tiff"),width = 8,height = 8,compression = "lzw")
+    if("M"%in%Par_var_profile)  
+    {
+      pi=M.vec%>%
+        data.frame()%>%
+        mutate(Profile=as.character(1:nrow(M.vec)))%>%
+        gather(Age,M,-Profile)%>%
+        mutate(Age=as.numeric(substr(Age,5,7)))
+      pi=rbind(pi,
+               Report$Natural_Mortality[1,match(unique(pi$Age),names(Report$Natural_Mortality))]%>%
+                 mutate(Profile='Base value')%>%
+                 gather(Age,M,-Profile)%>%
+                 mutate(Age=as.numeric(Age)))
+      pi%>%
+        ggplot(aes(Age,M,color=Profile))+
+        geom_line()+
+        geom_point(size=2.5)+
+        theme_PA()+theme(legend.position = 'top')
+      ggsave(file.path(dirname.diagnostics,"profile_M_vec.tiff"),width = 8,height = 8,compression = "lzw")
+    }
     
   }
   
