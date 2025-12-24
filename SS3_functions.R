@@ -2282,7 +2282,7 @@ fn.like.range=function(Par.mle,min.par,Par.SE,up,low,ln.out,seq.approach='SE')
   }
 
 }
-fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.vec=NA,
+fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.vec.F=NA,Linf.vec.M=NA,
                          exe_path,start.retro=0,end.retro=5,
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=TRUE,
@@ -2352,7 +2352,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
                              data.frame(M.vec),
                              depl.vec,
                              curSB.vec,
-                             Linf.vec,Linf.vec)
+                             Linf.vec.F,Linf.vec.M)
     Par_var_string_profile=list("SR_LN(R0)",
                                 "SR_BH_steep",
                                 c("NatM_uniform_Fem_GP_1", "NatM_uniform_Mal_GP_1"),
@@ -2741,7 +2741,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       PR_st=prof_string
       PR_la=prof_label
       VEC.prof=NULL
-      if(Par_var%in%c("M","Depl","CurSB","L_at_Amax_Fem","L_at_Amax_Mal"))
+      if(Par_var%in%c("M","Depl","CurSB"))
       {
         PR_st="R0"
         VEC.prof=profilevec
