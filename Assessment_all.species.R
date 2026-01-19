@@ -11,10 +11,6 @@
 #               . State-space SPM,
 #               . Catch curves,
 #               . Catch-only
-#    5. Tagging data: 
-#             . Conventional: use '_Con_tag_BLK.rec' '_Con_tag_BLK.rel' '_Con_tag_Zn.rec' '_Con_tag_Zn.rel'
-#             . Acoustic: 'Acous.Tag_Rep.Recap' has recaptures (treat as conventional for F estimation!!)
-#                          '_Acous.Tag_Zn.rec_Acous.Tag'  (time step of 1 week!!)
 
 #Steps: 
 #     1. For each new assessment, update 'New.assessment', 'Year.of.assessment' and 'Last.yr.ktch' in '1. DEFINE GLOBALS'  
@@ -501,7 +497,8 @@ no.empirical.sel.main.fleet=c(GAB.main="angel sharks",
                               Multispecies.no.sel="wobbegongs")
 resample.h.greynurse=FALSE  #no need to resample h
 
-  #21.4 SS model run arguments
+
+  #21.4 Specific SS model run arguments
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
 Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
@@ -527,7 +524,13 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
   #21.7 Drop single year size comp
 Drop.single.year.size.comp=FALSE
 
-  #21.8 Fit diagnostics
+  #21.8 Finyears used for SS tag recaptures
+Use.these.tag.years=list("dusky shark"=1994:1996,
+                         "gummy shark"=1994:1995,
+                         "sandbar shark"=2001:2003,
+                         "whiskery shark"=1994:1995)
+
+  #21.9 Fit diagnostics
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
 if(SS3.run=='test') do.SS3.diagnostics=FALSE   
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
@@ -1381,7 +1384,57 @@ for(s in 1:N.sp)
   if(length(iid)>0) Species.data[[s]]=Species.data[[s]][-iid]
 }
 
-  #6.12 Look at growth Cvs
+  #6.12 Conventional tagging manipulations
+#note: Data are already aggregated by financial year; just remove tagging data not in SS format
+#      Assume whiskery and gummy same non-reporting rates as dusky shark
+for(s in 1:N.sp)
+{
+  if("Con_tag_SS.format_releases"%in%names(Species.data[[s]]))
+  {
+    #Fill in whiskery and gummy missing shedding and reporting
+    if(names(Species.data)[s] %in% c("gummy shark","whiskery shark")) 
+    {
+      id.dusky=match("dusky shark",names(Species.data))
+      if(!'Con_tag_shedding_from_F.estimation.R_'%in%names(Species.data)[s])
+      {
+        Species.data[[s]]$Con_tag_shedding_from_F.estimation.R_=Species.data[[id.dusky]]$Con_tag_shedding_from_F.estimation.R_
+      }
+      if(!'Con_tag_non_reporting_from_F.estimation.R_'%in%names(Species.data)[s])
+      {
+        Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_=Species.data[[id.dusky]]$Con_tag_non_reporting_from_F.estimation.R_
+      }
+    }
+    
+    #Keep SS relevant data
+    Acous.tag=grep('Acous.Tag',names(Species.data[[s]]))
+    if(length(Acous.tag)>0) Species.data[[s]]=Species.data[[s]][-Acous.tag]
+    
+    Con.tag=grep('Con_tag',names(Species.data[[s]]))
+    if(length(Con.tag)>0)
+    {
+      keep.con.tag.d=c("Con_tag_non_reporting","Con_tag_shedding",
+                       "Con_tag_SS.format_recaptures","Con_tag_SS.format_releases")
+      keep.con.tag.d=grep(paste(keep.con.tag.d,collapse='|'),names(Species.data[[s]]))
+      Con.tag=Con.tag[-match(keep.con.tag.d,Con.tag)]
+      if(length(Con.tag)>0) Species.data[[s]]=Species.data[[s]][-Con.tag]
+      
+      #Keep relevant finyears and set sexes to numbers 
+      dis.yrs.tag=Use.these.tag.years[[match(names(Species.data)[s],names(Use.these.tag.years))]]
+      
+      Species.data[[s]]$Con_tag_SS.format_releases=Species.data[[s]]$Con_tag_SS.format_releases%>%
+        filter(Yr.rel%in%dis.yrs.tag)%>%
+        mutate(Sex=case_when(Sex=='M'~2,
+                             Sex=='F'~1))
+      
+      Species.data[[s]]$Con_tag_SS.format_recaptures=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
+        filter(Tag.group%in%unique(Species.data[[s]]$Con_tag_SS.format_releases$Tag.group))
+      
+      
+    }
+  }
+}
+  
+  #6.13 Look at growth Cvs
 Growth.CVs=vector('list',N.sp)
 names(Growth.CVs)=Keep.species
 for(i in 1:N.sp)
@@ -1399,7 +1452,7 @@ for(i in 1:N.sp)
   }
 }
 
-  #6.13 Look at L50:Linf ratio, should be [0.75;0.85] ; Cortes 2000: mean is 0.75
+  #6.14 Look at L50:Linf ratio, should be [0.75;0.85] ; Cortes 2000: mean is 0.75
 if(First.run=="YES")
 {
   L50_Linf_ratio=data.frame(Species=names(List.sp),L50.Linf.ratio=NA)
@@ -1417,7 +1470,7 @@ if(First.run=="YES")
          width = 6,height = 6, dpi = 300, compression = "lzw")
 }
 
-  #6.14 Display annual proportional effort by zone and mesh
+  #6.15 Display annual proportional effort by zone and mesh
 if(First.run=="YES")
 {
   mesh.prop.effort%>%
