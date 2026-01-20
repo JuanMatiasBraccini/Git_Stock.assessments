@@ -529,6 +529,17 @@ Use.these.tag.years=list("dusky shark"=1994:1996,
                          "gummy shark"=1994:1995,
                          "sandbar shark"=2001:2003,
                          "whiskery shark"=1994:1995)
+use.tag.data=names(Use.these.tag.years) 
+#use.tag.data=NULL  #use tagging data to estimate F
+tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
+                                  "gummy shark"=c("Zone2"),
+                                  "sandbar shark"=c("West"),
+                                  "whiskery shark"=c("West","Zone1","Zone2")),
+                    recaptures=list("dusky shark"=c("West","Zone1","Zone2"),
+                                    "gummy shark"=c("Zone2"),
+                                    "sandbar shark"=c("West"),  
+                                    "whiskery shark"=c("West","Zone1","Zone2")))
+
 
   #21.9 Fit diagnostics
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
@@ -1429,7 +1440,135 @@ for(s in 1:N.sp)
       Species.data[[s]]$Con_tag_SS.format_recaptures=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
         filter(Tag.group%in%unique(Species.data[[s]]$Con_tag_SS.format_releases$Tag.group))
       
+      #set tfill to yr.rel
+      Species.data[[s]]$Con_tag_SS.format_releases=Species.data[[s]]$Con_tag_SS.format_releases%>%
+        mutate(t.fill=Yr.rel)
       
+      #recalculate TagGroup
+      Species.data[[s]]$Con_tag_SS.format_releases=Species.data[[s]]$Con_tag_SS.format_releases%>%
+        arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+        mutate(rowid = row_number())
+      TagGroup=Species.data[[s]]$Con_tag_SS.format_releases%>%
+        distinct(Tag.group,rowid)
+      
+      Species.data[[s]]$Con_tag_SS.format_recaptures=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
+        left_join(TagGroup,by='Tag.group')
+      
+      Species.data[[s]]$Con_tag_SS.format_releases=Species.data[[s]]$Con_tag_SS.format_releases%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)
+      
+      Species.data[[s]]$Con_tag_SS.format_recaptures=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)
+      
+      #display numbers by zone and age
+      if(First.run=='YES')
+      {
+        LvLs=sort(unique(c(unique(Species.data[[s]]$Con_tag_SS.format_releases$Yr.rel),
+                           unique(Species.data[[s]]$Con_tag_SS.format_recaptures$Yr.rec))))
+        p1=Species.data[[s]]$Con_tag_SS.format_releases%>%
+          mutate(Yr.rel=factor(Yr.rel,levels=LvLs))%>%
+          group_by(Rel.zone,Age,Yr.rel)%>%
+          summarise(N=sum(N.release))%>%
+          ggplot(aes(Age,N,fill=Yr.rel))+
+          geom_bar(stat="identity")+
+          facet_wrap(~Rel.zone,ncol=1)+
+          theme(legend.position = 'none')+
+          ggtitle('Releases by age, year and zone')+
+          scale_fill_discrete(drop = FALSE)
+        
+        p2=Species.data[[s]]$Con_tag_SS.format_releases%>%
+          mutate(Yr.rel=factor(Yr.rel,levels=LvLs))%>%
+          group_by(Rel.zone,Yr.rel)%>%
+          summarise(N=sum(N.release))%>%
+          ggplot(aes(Yr.rel,N,fill=Yr.rel))+
+          geom_bar(stat="identity")+
+          facet_wrap(~Rel.zone,ncol=1)+
+          theme(legend.position = 'none')+
+          ggtitle('Releases by zone and year')+
+          scale_fill_discrete(drop = FALSE)
+        
+        p3=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
+          mutate(Yr.rec=factor(Yr.rec,levels=LvLs))%>%
+          group_by(Rec.zone,Yr.rec)%>%
+          summarise(N=sum(N.recapture))%>%
+          ggplot(aes(Yr.rec,N,fill=Yr.rec))+
+          geom_bar(stat="identity")+
+          facet_wrap(~Rec.zone,ncol=1)+
+          theme(legend.position = 'bottom',
+                legend.title = element_blank())+
+          ggtitle('Recaptures by zone and year')+
+          scale_fill_discrete(drop = FALSE)+
+          guides(fill = guide_legend(nrow = 2))
+        
+        ggarrange(p1,p2,p3,ncol=1,nrow=3)
+        ggsave(paste0(Outputs,'/Data/1.',capitalize(names(Species.data)[s]),"/",AssessYr,"/1_Inputs/Visualise data/Tags by zone.tiff"),
+               width = 6,height = 9, dpi = 300, compression = "lzw")
+        
+        p1=Species.data[[s]]$Con_tag_SS.format_releases%>%
+          mutate(Yr.rel=case_when(Rel.zone=="West"~Yr.rel-.1,
+                                  Rel.zone=="Zone2"~Yr.rel+.1,
+                                  TRUE~Yr.rel))%>%
+          group_by(Rel.zone,Tag.group,Yr.rel)%>%
+          summarise(N=sum(N.release))%>%
+          ggplot(aes(Yr.rel,Tag.group))+
+          geom_point(aes(size=N,color=Rel.zone))+
+          theme(legend.position = 'top',
+                legend.title = element_blank())+
+          #guides(size = "none")+
+          ggtitle('Releases')+
+          scale_fill_discrete(drop = FALSE)
+        
+        p2=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
+          mutate(Yr.rec=case_when(Rec.zone=="West"~Yr.rec-.1,
+                                  Rec.zone=="Zone2"~Yr.rec+.1,
+                                  TRUE~Yr.rec))%>%
+          group_by(Rec.zone,Tag.group,Yr.rec)%>%
+          summarise(N=sum(N.recapture))%>%
+          ggplot(aes(Yr.rec,Tag.group))+
+          geom_point(aes(size=N,color=Rec.zone))+
+          theme(legend.position = 'top',
+                legend.title = element_blank())+
+          #guides(size = "none")+
+          ggtitle('Recaptures')+
+          scale_fill_discrete(drop = FALSE)
+        
+        ggarrange(p1,p2,ncol=2,nrow=1)
+        ggsave(paste0(Outputs,'/Data/1.',capitalize(names(Species.data)[s]),"/",AssessYr,"/1_Inputs/Visualise data/Tags by zone_bubbleplot.tiff"),
+               width = 10,height = 6, dpi = 300, compression = "lzw")
+        
+        
+      }
+      
+      #Keep relevant zones and recalculate TagGroup
+      id.zne=match(names(Species.data)[s],names(tag.data.zones$releases))
+      Species.data[[s]]$Con_tag_SS.format_releases=Species.data[[s]]$Con_tag_SS.format_releases%>%
+        filter(Rel.zone%in%tag.data.zones$releases[[id.zne]])
+      
+      Species.data[[s]]$Con_tag_SS.format_recaptures=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
+        filter(Rec.zone%in%tag.data.zones$recaptures[[id.zne]])
+      
+      #recalculate TagGroup
+      Species.data[[s]]$Con_tag_SS.format_releases=Species.data[[s]]$Con_tag_SS.format_releases%>%
+        arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+        mutate(rowid = row_number())
+      
+      TagGroup=Species.data[[s]]$Con_tag_SS.format_releases%>%
+        distinct(Tag.group,rowid)
+      
+      Species.data[[s]]$Con_tag_SS.format_recaptures=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
+        left_join(TagGroup,by='Tag.group')
+      
+      Species.data[[s]]$Con_tag_SS.format_releases=Species.data[[s]]$Con_tag_SS.format_releases%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)%>%
+        filter(!is.na(Tag.group))
+      
+      Species.data[[s]]$Con_tag_SS.format_recaptures=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)%>%
+        filter(!is.na(Tag.group))
     }
   }
 }

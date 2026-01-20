@@ -5,6 +5,8 @@ fn.get.and.name=function(LISTA,x)
   names(dd)=names(LISTA)
   return(dd)
 }
+fn.logit=function(x) 1/(1+exp(-x))
+fn.inv.logit=function(x) -log((1-x)/x)
 fn.extract.dat.perl=function(STRING,nm.Dat) grepl(STRING, nm.Dat, perl = TRUE)
 objects.exist <- function(...)
 {

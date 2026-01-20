@@ -353,7 +353,7 @@ fn.create.SS_DL_tool_inputs=function(Life.history,CACH,this.wd,Neim,InputData,Kt
 fn.get.in.betwee=function(x,PATRN="_") str_before_nth(str_after_nth(x, PATRN, 1), PATRN, 2)
 fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.yr,fleets=NULL,
                       fleetinfo=NULL,abundance=NULL,size.comp=NULL,age.comp=NULL,meanbodywt=NULL,
-                      F.tagging=NULL,cond.age.len=NULL,MeanSize.at.Age.obs=NULL,Lamdas=NULL,
+                      Tags=NULL,F.tagging=NULL,cond.age.len=NULL,MeanSize.at.Age.obs=NULL,Lamdas=NULL,
                       RecDev_Phase=-3,SR_sigmaR=0.2,Var.adjust.factor=NULL,Future.project=NULL,
                       first.age=0) #SS starts at age 0, if using 1, then Nages must be changed
 {
@@ -643,6 +643,18 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     dat$add_to_comp=rep(0.001,ncol(dat$fleetinfo1))
     dat$max_combined_lbin=rep(0,ncol(dat$fleetinfo1))
     
+    
+    #Tagging   
+    if(Scenario$Tagging=='Yes')
+    {
+      dat$do_tags=1
+      dat$N_tag_groups=nrow(Tags$releases)
+      dat$N_recap_events=nrow(Tags$recaptures)
+      dat$mixing_latency_period=0   #Andre's Gummy model
+      dat$max_periods=30            #Andre's Gummy model
+      dat$tag_releases=Tags$releases
+      dat$tag_recaps=Tags$recaptures%>%arrange(Tag.group,Yr.rec)
+    }
   }
   if(Scenario$Model=='SSS')
   {
@@ -1901,7 +1913,75 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$size_selex_parms['SizeSel_P_2_Fishery(1)',c('INIT','PRIOR')]=life.history$Logistic.selectivity[2]
   }
   
-  #set prior to init value 
+  #Tagging   ACA
+  if(Scenario$Model=='SS' & Scenario$Tagging=='Yes')
+  {
+    ctl$TG_custom=1
+    
+    dummy.tg.matrx=ctl$size_selex_parms[1,]
+    dummy.tg.matrx[,]=NA
+    rownames(dummy.tg.matrx)=NULL
+    
+    seg.TG=seq(1,dat$N_tag_groups)
+    
+    ctl$TG_Loss_init=dummy.tg.matrx[seg.TG,]%>%
+                        mutate(INIT=round(Tags$Initial.tag.loss,3),
+                               LO=floor(INIT-1),
+                               HI=floor(abs(INIT)),
+                               PRIOR=INIT,
+                               PR_SD=99,
+                               PR_type=6,
+                               PHASE=-4,
+                               'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
+    rownames(ctl$TG_Loss_init)=paste0('TG_Loss_init_',seg.TG)
+    
+    ctl$TG_Loss_chronic=dummy.tg.matrx[seg.TG,]%>%
+                      mutate(INIT=round(Tags$Chronic.tag.loss,3),
+                             LO=floor(INIT-1),
+                             HI=floor(abs(INIT)),
+                             PRIOR=INIT,
+                             PR_SD=99,
+                             PR_type=6,
+                             PHASE=-4,
+                             'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
+    rownames(ctl$TG_Loss_chronic)=paste0('TG_Loss_chronic_',seg.TG)
+    
+    ctl$TG_overdispersion=dummy.tg.matrx[seg.TG,]%>%
+                      mutate(INIT=round(Tags$overdispersion,3),
+                             LO=1,
+                             HI=100,
+                             PRIOR=INIT,
+                             PR_SD=99,
+                             PR_type=6,
+                             PHASE=-4,
+                             'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
+    rownames(ctl$TG_overdispersion)=paste0('TG_overdispersion_',seg.TG)
+    
+    N.flits.tag=nrow(dat$fleetinfo%>%filter(type==1)) #dat$Nfleets   remove surveys?
+    ctl$TG_Report_fleet=dummy.tg.matrx[seq(1,N.flits.tag),]%>%
+                          mutate(INIT=round(Tags$Initial.reporting.rate$Reporting,3),  
+                                 LO=-10,
+                                 HI=50,
+                                 PRIOR=INIT,
+                                 PR_SD=99,
+                                 PR_type=6,
+                                 PHASE=-4,
+                                 'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
+    rownames(ctl$TG_Report_fleet)=paste0('TG_report_fleet_par',seq(1,N.flits.tag))
+    
+    ctl$TG_Report_fleet_decay=dummy.tg.matrx[seq(1,N.flits.tag),]%>%
+                                  mutate(INIT=round(Tags$Reporting.rate.decay,3),  
+                                         LO=-10,
+                                         HI=10,
+                                         PRIOR=INIT,
+                                         PR_SD=99,
+                                         PR_type=6,
+                                         PHASE=-4,
+                                         'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
+    rownames(ctl$TG_Report_fleet_decay)=paste0('TG_report_decay_par',seq(1,N.flits.tag))
+  }
+  
+  #Set prior to init value 
   ctl$SR_parms[,"PRIOR"]=ctl$SR_parms[,"INIT"]
   ctl$MG_parms=ctl$MG_parms%>%mutate(PRIOR=ifelse(PHASE<0,INIT,PRIOR))
   ctl$Q_parms[,"PRIOR"]=ctl$Q_parms[,"INIT"]

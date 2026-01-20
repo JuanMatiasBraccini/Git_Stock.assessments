@@ -372,13 +372,13 @@ for(l in 1:N.sp)
   if(do.JABBA.pin)
   {
     List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA_catch.only[1,]%>%
-      mutate(Proc.error=Proc.Error.cpue)   
+                                  mutate(Proc.error=Proc.Error.cpue)   
     tested.r=c(r.mean,r.mean2,rep(r.mean,5))
     List.sp[[l]]$Sens.test$JABBA=do.call("rbind", replicate(length(tested.r), List.sp[[l]]$Sens.test$JABBA, simplify = FALSE))%>%
-      mutate(r=tested.r,
-             Scenario=paste('S',row_number(),sep=''),
-             Klow=NA,
-             Kup=NA)
+                                  mutate(r=tested.r,
+                                         Scenario=paste('S',row_number(),sep=''),
+                                         Klow=NA,
+                                         Kup=NA)
     List.sp[[l]]$Sens.test$JABBA$Proc.error[4]=Proc.Error.cpue2
     List.sp[[l]]$Sens.test$JABBA$Kdist=KDIST
     List.sp[[l]]$Sens.test$JABBA$Kdist[5]="range"
@@ -396,7 +396,7 @@ for(l in 1:N.sp)
     {
       List.sp[[l]]$Sens.test$JABBA$use.these.abundances=c('Survey') # Due to selectivity, TDGDLF catches small juveniles not spawning stock "Survey_TDGDLF.monthly"
       List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%   #redundant scenario as daily cpue not used
-        filter(!is.na(Daily.cpues))
+                filter(!is.na(Daily.cpues))
     }
     if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$JABBA=List.sp[[l]]$Sens.test$JABBA%>%filter(!is.na(Daily.cpues))
     List.sp[[l]]$Sens.test$JABBA$Scenario=paste0('S',1:nrow(List.sp[[l]]$Sens.test$JABBA)) 
@@ -460,7 +460,7 @@ for(l in 1:N.sp)
                                        SR_sigmaR=sigmaR,
                                        SR_type=3, #2=Ricker; 3=std_B-H; 4=SCAA;5=Hockey; 6=B-H_flattop; 7=survival_3Parm;8=Shepard_3Parm
                                        Forecasting='catch')
-  if(NeiM%in%do_recdev_1)  List.sp[[l]]$Sens.test$SS$do_recdev=1 #ACA
+  if(NeiM%in%do_recdev_1)  List.sp[[l]]$Sens.test$SS$do_recdev=1 
   tested.h=unique(c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]))
   if(NeiM%in%h_too.high & !NeiM%in%h_too.long.converge)  tested.h=c(List.sp[[l]]$Sens.test$SS3$Steepness,List.sp[[l]]$Sens.test$SS$Steepness[1]) 
   tested.h=unique(tested.h)
@@ -614,6 +614,18 @@ for(l in 1:N.sp)
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
       mutate(alternative.Linf=dis.Linf,
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
+  #Tagging 
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
+                    mutate(Tagging='No')
+  if(NeiM%in%use.tag.data)
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Tagging='Yes',
              Scenario=paste0('S',(nnN+1)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }

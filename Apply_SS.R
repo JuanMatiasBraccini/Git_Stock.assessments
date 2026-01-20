@@ -844,6 +844,7 @@ for(w in 1:n.SS)
             }
           }
           
+          
           #4. Abundance series           
           Abundance.SS.format=NULL
           Var.ad.factr=Var.ad.factr.zone=NULL
@@ -1021,7 +1022,76 @@ for(w in 1:n.SS)
           }
           
           
-          #7. Conditional age at length
+          #7. Tagging data
+          Tags.SS.format=NULL
+          if(names(Species.data)[i]%in%use.tag.data)
+          {
+            releases=Species.data[[i]]$Con_tag_SS.format_releases%>%
+              rename(Area=Rel.zone)%>%
+              mutate(Area=1)
+            
+            recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures
+            get.fleet=recaptures%>%
+              distinct(Yr.rec,Rec.zone)
+            Rec.ZonEs=unique(recaptures$Rec.zone)
+            a1=ktch.zone%>%
+              ungroup()%>%
+              dplyr::select(-c(SPECIES,Name))%>%
+              gather(Fleet,Ktch,-finyear)%>%
+              mutate(zone=case_when(Fleet=="Northern.shark"~'North',
+                                    grepl("Zone1",Fleet)~"Zone1",
+                                    grepl("West",Fleet)~"West",
+                                    grepl("Zone2",Fleet)~"Zone2",
+                                    TRUE~''))%>%
+              filter(Ktch>0)%>%
+              filter(zone%in%unique(get.fleet$Rec.zone))%>%
+              filter(finyear%in%unique(get.fleet$Yr.rec))%>%
+              distinct(finyear,Fleet,zone)%>%
+              left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
+                        by='Fleet')
+            get.fleet=get.fleet%>%
+              left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
+            recaptures=recaptures%>%
+              left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
+                        by=c('Rec.zone','Yr.rec'))%>%
+              dplyr::select(-Rec.zone)%>%
+              relocate(Tag.group,Yr.rec,season,Fleet,N.recapture)
+            
+            Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x
+            
+            Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_%>%
+              dplyr::select(-Species)%>%
+              gather(Zone,Non.reporting,-Finyear)%>%
+              mutate(Reporting=1-Non.reporting,
+                     Zone=case_when(Zone=='South'~'Zone2',
+                                    Zone=='South.west'~'Zone1',
+                                    Zone=='West'~'West',
+                                    Zone=='North'~'North'))%>%
+              filter(Zone%in%Rec.ZonEs)%>%
+              mutate(Reporting.logit=fn.inv.logit(Reporting))%>%
+              dplyr::select(-Non.reporting)%>%
+              left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
+                        by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))
+            
+            Reporting.rate.decay=fn.inv.logit(0.09)  #9% decline in reporting in West for sandbar, so fix to this
+            
+            Tags.SS.format=list(
+              releases=releases,
+              recaptures=recaptures,
+              Initial.tag.loss=fn.inv.logit(1e-4),
+              Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
+              Initial.reporting.rate=Initial.reporting.rate%>%
+                filter(Finyear==min(releases$Yr.rel))%>%
+                dplyr::select(-Reporting)%>%
+                rename(Reporting=Reporting.logit),
+              Reporting.rate.decay=Reporting.rate.decay,
+              overdispersion=1.001)  #from Andre's Gummy model
+            
+            rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
+          }
+          
+          
+          #8. Conditional age at length
           Cond.age.len.SS.format=NULL
           if(do.Cond.age.len.SS.format)
           {
@@ -1067,7 +1137,7 @@ for(w in 1:n.SS)
           }
           
           
-          #8. MeanSize at Age obs
+          #9. MeanSize at Age obs
           MeanSize.at.Age.obs.SS.format=NULL
           if(any(grepl('conditional_age_length',names(Species.data[[i]]))) & names(Species.data)[i]%in%Mean.Size.at.age.species)
           {
@@ -1121,7 +1191,7 @@ for(w in 1:n.SS)
           }
           
           
-          #9. Fleet info
+          #10. Fleet info
             #zones together
           flitinfo=data.frame(fleet=Flits)%>%
                       mutate(type=1,
@@ -1148,7 +1218,7 @@ for(w in 1:n.SS)
           rownames(flitinfo.zone)=NULL
           
           
-          #10. Run scenarios if available abundance index or size comps
+          #11. Run scenarios if available abundance index or size comps
           len.cpue=length(CPUE)
           len.size.comp=length(Size.compo.SS.format) 
           if(len.cpue>0|len.size.comp>0)
@@ -1446,6 +1516,7 @@ for(w in 1:n.SS)
                              abundance=Abund,   
                              size.comp=Size.com,
                              meanbodywt=meanbody,
+                             Tags=Tags.SS.format,
                              F.tagging=F.SS.format,
                              cond.age.len=Cond.age.len.SS.format,
                              MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
