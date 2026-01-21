@@ -1027,36 +1027,36 @@ for(w in 1:n.SS)
           if(names(Species.data)[i]%in%use.tag.data)
           {
             releases=Species.data[[i]]$Con_tag_SS.format_releases%>%
-              rename(Area=Rel.zone)%>%
-              mutate(Area=1)
+                        rename(Area=Rel.zone)%>%
+                        mutate(Area=1)
             
             recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures
             get.fleet=recaptures%>%
-              distinct(Yr.rec,Rec.zone)
+                       distinct(Yr.rec,Rec.zone)
             Rec.ZonEs=unique(recaptures$Rec.zone)
             a1=ktch.zone%>%
-              ungroup()%>%
-              dplyr::select(-c(SPECIES,Name))%>%
-              gather(Fleet,Ktch,-finyear)%>%
-              mutate(zone=case_when(Fleet=="Northern.shark"~'North',
-                                    grepl("Zone1",Fleet)~"Zone1",
-                                    grepl("West",Fleet)~"West",
-                                    grepl("Zone2",Fleet)~"Zone2",
-                                    TRUE~''))%>%
-              filter(Ktch>0)%>%
-              filter(zone%in%unique(get.fleet$Rec.zone))%>%
-              filter(finyear%in%unique(get.fleet$Yr.rec))%>%
-              distinct(finyear,Fleet,zone)%>%
-              left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
-                        by='Fleet')
+                    ungroup()%>%
+                    dplyr::select(-c(SPECIES,Name))%>%
+                    gather(Fleet,Ktch,-finyear)%>%
+                    mutate(zone=case_when(Fleet=="Northern.shark"~'North',
+                                          grepl("Zone1",Fleet)~"Zone1",
+                                          grepl("West",Fleet)~"West",
+                                          grepl("Zone2",Fleet)~"Zone2",
+                                          TRUE~''))%>%
+                    filter(Ktch>0)%>%
+                    filter(zone%in%unique(get.fleet$Rec.zone))%>%
+                    filter(finyear%in%unique(get.fleet$Yr.rec))%>%
+                    distinct(finyear,Fleet,zone)%>%
+                    left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
+                              by='Fleet')
             get.fleet=get.fleet%>%
-              left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
-            recaptures=recaptures%>%
-              left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
-                        by=c('Rec.zone','Yr.rec'))%>%
-              dplyr::select(-Rec.zone)%>%
-              relocate(Tag.group,Yr.rec,season,Fleet,N.recapture)
-            
+                    left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
+           recaptures=recaptures%>%
+                    left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
+                              by=c('Rec.zone','Yr.rec'))%>%
+                    dplyr::select(-Rec.zone)%>%
+                    relocate(Tag.group,Yr.rec,season,Fleet,N.recapture)
+                  
             Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x
             
             Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_%>%
@@ -1069,24 +1069,43 @@ for(w in 1:n.SS)
                                     Zone=='North'~'North'))%>%
               filter(Zone%in%Rec.ZonEs)%>%
               mutate(Reporting.logit=fn.inv.logit(Reporting))%>%
-              dplyr::select(-Non.reporting)%>%
-              left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
+              dplyr::select(-Non.reporting)
+            get.fleet1=get.fleet%>%
+              dplyr::select(-Fleet)%>%
+              rename(Fleet=Fleet.ID)%>%
+              mutate(dummy=paste(Yr.rec,Rec.zone))
+            not.in.init.rep=paste(Initial.reporting.rate$Finyear,Initial.reporting.rate$Zone)
+            not.in.init.rep=not.in.init.rep[which(!not.in.init.rep%in%get.fleet1$dummy)]
+            if(length(not.in.init.rep)>0)
+            {
+              ad.get.flit=get.fleet1[1:length(not.in.init.rep),]%>%
+                mutate(dummy=not.in.init.rep,
+                       Yr.rec=word(ad.get.flit$dummy, 1),
+                       Rec.zone=word(ad.get.flit$dummy, 2),
+                       Fleet=NA)
+              get.fleet1=rbind(get.fleet1,ad.get.flit)%>%
+                arrange(Rec.zone,Yr.rec)%>%
+                fill(Fleet, .direction = "up")
+            }
+            get.fleet1=get.fleet1%>%dplyr::select(-dummy)%>%mutate(Yr.rec=as.numeric(Yr.rec))
+            Initial.reporting.rate=Initial.reporting.rate%>%
+              left_join(get.fleet1,
                         by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))
             
-            Reporting.rate.decay=fn.inv.logit(0.09)  #9% decline in reporting in West for sandbar, so fix to this
+            Reporting.rate.decay=0.09 #fn.inv.logit(0.09)  #9% decline in reporting in West for sandbar, so fix to this
             
             Tags.SS.format=list(
-              releases=releases,
-              recaptures=recaptures,
-              Initial.tag.loss=fn.inv.logit(1e-4),
-              Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
-              Initial.reporting.rate=Initial.reporting.rate%>%
-                filter(Finyear==min(releases$Yr.rel))%>%
-                dplyr::select(-Reporting)%>%
-                rename(Reporting=Reporting.logit),
-              Reporting.rate.decay=Reporting.rate.decay,
-              overdispersion=1.001)  #from Andre's Gummy model
-            
+                          releases=releases,
+                          recaptures=recaptures,
+                          Initial.tag.loss=fn.inv.logit(1e-4),
+                          Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
+                          Initial.reporting.rate=Initial.reporting.rate%>%
+                            filter(Finyear==min(releases$Yr.rel))%>%
+                            dplyr::select(-Reporting)%>%
+                            rename(Reporting=Reporting.logit),
+                          Reporting.rate.decay=Reporting.rate.decay,
+                          overdispersion=1.001)  #from Andre's Gummy model
+                        
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
           }
           

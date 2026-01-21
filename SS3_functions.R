@@ -1913,7 +1913,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$size_selex_parms['SizeSel_P_2_Fishery(1)',c('INIT','PRIOR')]=life.history$Logistic.selectivity[2]
   }
   
-  #Tagging   ACA
+  #Tagging   
   if(Scenario$Model=='SS' & Scenario$Tagging=='Yes')
   {
     ctl$TG_custom=1
@@ -1957,17 +1957,18 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                              'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
     rownames(ctl$TG_overdispersion)=paste0('TG_overdispersion_',seg.TG)
     
-    N.flits.tag=nrow(dat$fleetinfo%>%filter(type==1)) #dat$Nfleets   remove surveys?
+    N.flits.tag=nrow(dat$fleetinfo%>%filter(type==1)) #dat$Nfleets   remove surveys? ACA
     ctl$TG_Report_fleet=dummy.tg.matrx[seq(1,N.flits.tag),]%>%
-                          mutate(INIT=round(Tags$Initial.reporting.rate$Reporting,3),  
-                                 LO=-10,
+                          mutate(LO=-10,
                                  HI=50,
+                                 INIT=round(mean(Tags$Initial.reporting.rate$Reporting),3),
                                  PRIOR=INIT,
                                  PR_SD=99,
                                  PR_type=6,
                                  PHASE=-4,
                                  'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
     rownames(ctl$TG_Report_fleet)=paste0('TG_report_fleet_par',seq(1,N.flits.tag))
+    ctl$TG_Report_fleet$INIT[Tags$Initial.reporting.rate$Fleet]=round(Tags$Initial.reporting.rate$Reporting,3)
     
     ctl$TG_Report_fleet_decay=dummy.tg.matrx[seq(1,N.flits.tag),]%>%
                                   mutate(INIT=round(Tags$Reporting.rate.decay,3),  

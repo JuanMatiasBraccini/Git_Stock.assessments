@@ -533,11 +533,11 @@ use.tag.data=names(Use.these.tag.years)
 #use.tag.data=NULL  #use tagging data to estimate F
 tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
                                   "gummy shark"=c("Zone2"),
-                                  "sandbar shark"=c("West"),
+                                  "sandbar shark"=c("West","Zone1"),
                                   "whiskery shark"=c("West","Zone1","Zone2")),
                     recaptures=list("dusky shark"=c("West","Zone1","Zone2"),
                                     "gummy shark"=c("Zone2"),
-                                    "sandbar shark"=c("West"),  
+                                    "sandbar shark"=c("West","Zone1"),  
                                     "whiskery shark"=c("West","Zone1","Zone2")))
 
 
