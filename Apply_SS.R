@@ -1026,37 +1026,93 @@ for(w in 1:n.SS)
           Tags.SS.format=NULL
           if(names(Species.data)[i]%in%use.tag.data)
           {
-            releases=Species.data[[i]]$Con_tag_SS.format_releases%>%
-                        rename(Area=Rel.zone)%>%
-                        mutate(Area=1)
-            
+            #Extract data
+            releases=Species.data[[i]]$Con_tag_SS.format_releases
             recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures
+            
+            #Keep relevant finyears
+            dis.yrs.tag=Use.these.tag.years[[match(names(Species.data)[i],names(Use.these.tag.years))]]
+            releases=releases%>%filter(Yr.rel%in%dis.yrs.tag)
+            recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+            
+            #Keep relevant zones
+            this.zone=tag.data.zones$releases[[match(names(Species.data)[1],names(tag.data.zones$releases))]]
+            releases=releases%>%filter(Rel.zone%in%this.zone)
+            recaptures=recaptures%>%filter(Rec.zone%in%this.zone)
+            
+            #Recalculate TagGroup
+            releases=releases%>%
+              arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+              mutate(rowid = row_number())
+            TagGroup=releases%>%distinct(Tag.group,rowid)
+            recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+            releases=releases%>%
+              mutate(Tag.group=rowid)%>%
+              dplyr::select(-rowid)
+            recaptures=recaptures%>%
+              mutate(Tag.group=rowid)%>%
+              dplyr::select(-rowid)
+            
+            #group sex  
+            if(taggroup.sex.combined)   
+            {
+              releases=releases%>%
+                mutate(Sex=0)%>%
+                group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+                mutate(N.release=sum(N.release))%>%
+                ungroup()%>%
+                group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age) %>%
+                mutate(Tag.groups = paste(Tag.group, collapse = ", "))%>%
+                ungroup()
+              recaptures=recaptures%>%   
+                left_join(releases%>%
+                            dplyr::select(Tag.group,Tag.groups),
+                          by='Tag.group')%>%
+                group_by(Yr.rec,season,Rec.zone,Tag.groups)%>%
+                summarise(N.recapture=sum(N.recapture))%>%
+                ungroup()
+              releases=releases%>%
+                distinct(Tag.groups,Rel.zone,Yr.rel,season,t.fill,Sex,Age,N.release)%>%
+                arrange(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+                mutate(Tag.group = row_number())%>%
+                relocate(Tag.group)
+              recaptures=recaptures%>%
+                left_join(releases%>%distinct(Tag.group,Tag.groups),
+                          by='Tag.groups')%>%
+                dplyr::select(-Tag.groups)%>%
+                relocate(Tag.group)
+              releases=releases%>%dplyr::select(-Tag.groups)
+            }
+            
+            releases=releases%>%
+              rename(Area=Rel.zone)%>%
+              mutate(Area=1)
             get.fleet=recaptures%>%
-                       distinct(Yr.rec,Rec.zone)
+              distinct(Yr.rec,Rec.zone)
             Rec.ZonEs=unique(recaptures$Rec.zone)
             a1=ktch.zone%>%
-                    ungroup()%>%
-                    dplyr::select(-c(SPECIES,Name))%>%
-                    gather(Fleet,Ktch,-finyear)%>%
-                    mutate(zone=case_when(Fleet=="Northern.shark"~'North',
-                                          grepl("Zone1",Fleet)~"Zone1",
-                                          grepl("West",Fleet)~"West",
-                                          grepl("Zone2",Fleet)~"Zone2",
-                                          TRUE~''))%>%
-                    filter(Ktch>0)%>%
-                    filter(zone%in%unique(get.fleet$Rec.zone))%>%
-                    filter(finyear%in%unique(get.fleet$Yr.rec))%>%
-                    distinct(finyear,Fleet,zone)%>%
-                    left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
-                              by='Fleet')
+              ungroup()%>%
+              dplyr::select(-c(SPECIES,Name))%>%
+              gather(Fleet,Ktch,-finyear)%>%
+              mutate(zone=case_when(Fleet=="Northern.shark"~'North',
+                                    grepl("Zone1",Fleet)~"Zone1",
+                                    grepl("West",Fleet)~"West",
+                                    grepl("Zone2",Fleet)~"Zone2",
+                                    TRUE~''))%>%
+              filter(Ktch>0)%>%
+              filter(zone%in%unique(get.fleet$Rec.zone))%>%
+              filter(finyear%in%unique(get.fleet$Yr.rec))%>%
+              distinct(finyear,Fleet,zone)%>%
+              left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
+                        by='Fleet')
             get.fleet=get.fleet%>%
-                    left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
-           recaptures=recaptures%>%
-                    left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
-                              by=c('Rec.zone','Yr.rec'))%>%
-                    dplyr::select(-Rec.zone)%>%
-                    relocate(Tag.group,Yr.rec,season,Fleet,N.recapture)
-                  
+              left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
+            recaptures=recaptures%>%
+              left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
+                        by=c('Rec.zone','Yr.rec'))%>%
+              dplyr::select(-Rec.zone)%>%
+              relocate(Tag.group,Yr.rec,season,Fleet,N.recapture)
+            
             Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x
             
             Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_%>%
@@ -1080,8 +1136,8 @@ for(w in 1:n.SS)
             {
               ad.get.flit=get.fleet1[1:length(not.in.init.rep),]%>%
                 mutate(dummy=not.in.init.rep,
-                       Yr.rec=word(ad.get.flit$dummy, 1),
-                       Rec.zone=word(ad.get.flit$dummy, 2),
+                       Yr.rec=word(dummy, 1),
+                       Rec.zone=word(dummy, 2),
                        Fleet=NA)
               get.fleet1=rbind(get.fleet1,ad.get.flit)%>%
                 arrange(Rec.zone,Yr.rec)%>%
@@ -1091,21 +1147,22 @@ for(w in 1:n.SS)
             Initial.reporting.rate=Initial.reporting.rate%>%
               left_join(get.fleet1,
                         by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))
-            
             Reporting.rate.decay=0.09 #fn.inv.logit(0.09)  #9% decline in reporting in West for sandbar, so fix to this
             
             Tags.SS.format=list(
-                          releases=releases,
-                          recaptures=recaptures,
-                          Initial.tag.loss=fn.inv.logit(1e-4),
-                          Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
-                          Initial.reporting.rate=Initial.reporting.rate%>%
-                            filter(Finyear==min(releases$Yr.rel))%>%
-                            dplyr::select(-Reporting)%>%
-                            rename(Reporting=Reporting.logit),
-                          Reporting.rate.decay=Reporting.rate.decay,
-                          overdispersion=1.001)  #from Andre's Gummy model
-                        
+              releases=releases%>%data.frame,
+              recaptures=recaptures%>%data.frame,
+              Initial.tag.loss=fn.inv.logit(1e-4),
+              Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
+              Initial.reporting.rate=Initial.reporting.rate%>%
+                filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))])%>%
+                dplyr::select(-Reporting)%>%
+                rename(Reporting=Reporting.logit),
+              Reporting.rate.decay=Reporting.rate.decay,
+              overdispersion=1.001,       # Andre's Gummy model
+              mixing_latency_period=0,    # Andre's Gummy model 
+              max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
+            
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
           }
           

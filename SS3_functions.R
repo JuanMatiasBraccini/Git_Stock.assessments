@@ -645,13 +645,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     
     
     #Tagging   
-    if(Scenario$Tagging=='Yes')
+    if(Scenario$Tagging=='Yes' & !is.null(Tags))
     {
       dat$do_tags=1
       dat$N_tag_groups=nrow(Tags$releases)
       dat$N_recap_events=nrow(Tags$recaptures)
-      dat$mixing_latency_period=0   #Andre's Gummy model
-      dat$max_periods=30            #Andre's Gummy model
+      dat$mixing_latency_period=Tags$mixing_latency_period    
+      dat$max_periods=Tags$max_periods             
       dat$tag_releases=Tags$releases
       dat$tag_recaps=Tags$recaptures%>%arrange(Tag.group,Yr.rec)
     }
@@ -1914,7 +1914,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   }
   
   #Tagging   
-  if(Scenario$Model=='SS' & Scenario$Tagging=='Yes')
+  if(Scenario$Model=='SS' & Scenario$Tagging=='Yes' & !is.null(Tags))
   {
     ctl$TG_custom=1
     
@@ -1961,7 +1961,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$TG_Report_fleet=dummy.tg.matrx[seq(1,N.flits.tag),]%>%
                           mutate(LO=-10,
                                  HI=50,
-                                 INIT=round(mean(Tags$Initial.reporting.rate$Reporting),3),
+                                 INIT=-9,   #set to low all fleets other than relevant ones
                                  PRIOR=INIT,
                                  PR_SD=99,
                                  PR_type=6,
