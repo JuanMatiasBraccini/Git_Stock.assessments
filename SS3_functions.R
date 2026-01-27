@@ -380,8 +380,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   #general age info
   dat$Nages=max(life.history$Max.age.F)
   nages=dat$Nages+1  #including plus group
-  #if(first.age==0) nages=dat$Nages+1  #including plus group  #NEW
-  #if(first.age>0) nages=dat$Nages
   ageError=as.data.frame(matrix(nrow=2,ncol=nages))   
   ageError[1,]=-1.00
   ageError[2,]=0.001
@@ -1926,8 +1924,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     
     ctl$TG_Loss_init=dummy.tg.matrx[seg.TG,]%>%
                         mutate(INIT=round(Tags$Initial.tag.loss,3),
-                               LO=floor(INIT-1),
-                               HI=floor(abs(INIT)),
+                               LO=-15,
+                               HI=10,
                                PRIOR=INIT,
                                PR_SD=99,
                                PR_type=6,
@@ -1937,8 +1935,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     
     ctl$TG_Loss_chronic=dummy.tg.matrx[seg.TG,]%>%
                       mutate(INIT=round(Tags$Chronic.tag.loss,3),
-                             LO=floor(INIT-1),
-                             HI=floor(abs(INIT)),
+                             LO=-15,
+                             HI=10,
                              PRIOR=INIT,
                              PR_SD=99,
                              PR_type=6,
@@ -1957,11 +1955,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                              'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
     rownames(ctl$TG_overdispersion)=paste0('TG_overdispersion_',seg.TG)
     
-    N.flits.tag=nrow(dat$fleetinfo%>%filter(type==1)) #dat$Nfleets   remove surveys? ACA
+    N.flits.tag=nrow(dat$fleetinfo%>%filter(type==1)) 
     ctl$TG_Report_fleet=dummy.tg.matrx[seq(1,N.flits.tag),]%>%
-                          mutate(LO=-10,
+                          mutate(LO=-20,
                                  HI=50,
-                                 INIT=-9,   #set to low all fleets other than relevant ones
+                                 INIT=-10,   #set to low all fleets other than relevant ones
                                  PRIOR=INIT,
                                  PR_SD=99,
                                  PR_type=6,

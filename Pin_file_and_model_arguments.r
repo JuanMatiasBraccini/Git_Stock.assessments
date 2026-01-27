@@ -630,6 +630,19 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
+  #Indo IUU - F estimation ACA
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
+                              mutate(Estim.Indo.IUU='No')
+  Indo.IUU.sp=KtCh%>%filter(Name==NeiM & Data.set=='Indonesia')
+  if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo) 
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Estim.Indo.IUU='Yes',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
   #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%

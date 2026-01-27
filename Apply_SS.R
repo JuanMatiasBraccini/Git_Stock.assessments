@@ -75,10 +75,10 @@ for(w in 1:n.SS)
           }
           ktch.zone=ktch.zone%>%
             mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
-                                 ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                          'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
-                                        ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
-                                               'Other'))),
+                          ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                  'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                          ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
+                          'Other'))),
                    Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
                                     Fishry=="Southern.shark" & finyear>=2006~'Southern.shark_2',
                                     TRUE~Fishry),
@@ -1113,7 +1113,8 @@ for(w in 1:n.SS)
               dplyr::select(-Rec.zone)%>%
               relocate(Tag.group,Yr.rec,season,Fleet,N.recapture)
             
-            Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x
+            Initial.tag.loss=1e-4  #tag-induced mortality immediately after tagging 
+            Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x  #annual rate of tag loss; McAuley et al 2007 tag shedding
             
             Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_%>%
               dplyr::select(-Species)%>%
@@ -1147,12 +1148,12 @@ for(w in 1:n.SS)
             Initial.reporting.rate=Initial.reporting.rate%>%
               left_join(get.fleet1,
                         by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))
-            Reporting.rate.decay=0.09 #fn.inv.logit(0.09)  #9% decline in reporting in West for sandbar, so fix to this
+            Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
             
             Tags.SS.format=list(
               releases=releases%>%data.frame,
               recaptures=recaptures%>%data.frame,
-              Initial.tag.loss=fn.inv.logit(1e-4),
+              Initial.tag.loss=fn.inv.logit(Initial.tag.loss),
               Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
               Initial.reporting.rate=Initial.reporting.rate%>%
                 filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))])%>%

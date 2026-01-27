@@ -541,6 +541,7 @@ tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
                                     "whiskery shark"=c("West","Zone1","Zone2")))
 taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
 
+Min.tons.Indo=50 # Estimate INDO IUU F for species with at least Min.tons.Indo
 
   #21.9 Fit diagnostics
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
