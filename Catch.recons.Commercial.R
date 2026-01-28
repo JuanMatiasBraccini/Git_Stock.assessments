@@ -1864,6 +1864,7 @@ if(length(Missn.appr)>0)
   Missing.appre=with(Indo_apprehensions,approx(year,Apprehensions,xout=Miss.appr.yrs))
   Indo_apprehensions$Apprehensions[Missn.appr]=Missing.appre$y
 }
+write.csv(Indo_apprehensions,handl_OneDrive('Analyses/Data_outs/Indo_apprehensions_SS.csv'),row.names = F) #export apprehensions for SS estimation of Indo IUU
  
 # Combine Vanesa's and Marshall et al data on catch compo
 Indo_MOU.Vanesa=Indo_MOU.Vanesa%>%

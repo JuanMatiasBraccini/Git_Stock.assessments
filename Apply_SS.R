@@ -1539,6 +1539,157 @@ for(w in 1:n.SS)
                              P_4=ifelse(Fleet=='Survey',0.09,P_4))
                   }
                 }
+                
+                  #estimate F INDO IUU                  
+                if(Scens$Estim.Indo.IUU[s]=="Yes")
+                {
+                  #get Indo catch
+                  Indo.ktch=KtCh%>%
+                    filter(Name==Neim & Data.set=='Indonesia')
+                  Indo.ktch.mean.future=mean(Indo.ktch$LIVEWT.c[(nrow(Indo.ktch)-years.futures):nrow(Indo.ktch)])
+                  Indo.ktch.years=Indo.ktch%>%filter(finyear%in% Indo.years.sel)   #select some years
+                  
+                  #remove Indo catch from 'other'
+                  id.flit.other=match('Other',FLitinFO$fleetname)
+                  id.yrs.indo=match(Indo.ktch$finyear,KAtch$finyear)
+                  
+                  KAtch[id.yrs.indo,match(id.flit.other,colnames(KAtch))]=KAtch[id.yrs.indo,match(id.flit.other,colnames(KAtch))]-Indo.ktch$LIVEWT.c
+                  add.future[,match(id.flit.other,colnames(add.future))]=add.future[,match(id.flit.other,colnames(add.future))]-Indo.ktch.mean.future
+                  
+                  #id original fleets with data 
+                  if(!is.null(Abund))
+                  {
+                    id.abun.flit=FLitinFO[sort(unique(Abund$index)),]%>%
+                      mutate(old.fleet=sort(unique(Abund$index)),new.fleet=NA)
+                  }
+                  if(!is.null(Size.com))
+                  {
+                    id.Size.com.flit=FLitinFO[sort(unique(Size.com$Fleet)),]%>%
+                      mutate(old.fleet=sort(unique(Size.com$Fleet)),new.fleet=NA)
+                  }
+                  if(!is.null(meanbody))
+                  {
+                    id.meanbody.flit=FLitinFO[sort(unique(meanbody$fleet)),]%>%
+                      mutate(old.fleet=sort(unique(meanbody$fleet)),new.fleet=NA)
+                    
+                  }
+                  if(!is.null(Tags.SS.format))
+                  {
+                    id.tag.flit=FLitinFO[sort(unique(Tags.SS.format$recaptures$Fleet)),]%>%
+                      mutate(old.fleet=sort(unique(Tags.SS.format$recaptures$Fleet)),new.fleet=NA)
+                  }
+                  
+                  #add Indo as separate fleet
+                  indo.fleet=FLitinFO%>%filter(fleetname=='Other')%>%mutate(fleetname='Indo.IUU')
+                  FLitinFO=add_row(FLitinFO, indo.fleet, .after = id.flit.other)
+                  
+                  #catch history
+                  Indo.dummy=KAtch%>%
+                    dplyr::select(as.character(id.flit.other))%>%
+                    rename(Indo=as.character(id.flit.other))%>%
+                    mutate(Indo=-999,    #must set catches to 'unknown'
+                           Indo=replace(Indo,match(Indo.ktch.years$finyear,KAtch$finyear),Indo.ktch.years$LIVEWT.c))
+                  KAtch=KAtch%>%mutate(Indo=Indo.dummy$Indo,.after = as.character(id.flit.other))
+                  id.Kls=match('Indo',names(KAtch)):ncol(KAtch)
+                  names(KAtch)[id.Kls]=seq(from = match('Indo.IUU',FLitinFO$fleetname), length.out = length(id.Kls))
+                  
+                  #future catch
+                  Indo.dummy=add.future%>%
+                    dplyr::select(as.character(id.flit.other))%>%
+                    rename(Indo=as.character(id.flit.other))%>%
+                    mutate(Indo=Indo.ktch.mean.future)
+                  add.future=add.future%>%mutate(Indo=Indo.dummy$Indo,.after = as.character(id.flit.other))
+                  id.Kls=match('Indo',names(add.future)):ncol(add.future)
+                  names(add.future)[id.Kls]=seq(from = match('Indo.IUU',FLitinFO$fleetname), length.out = length(id.Kls))
+                  
+                  #Abund  
+                  if(!is.null(Abund))
+                  {
+                    id.abun.flit$new.fleet=FLitinFO%>%
+                      mutate(row_id = row_number())%>%
+                      filter(fleetname%in%id.abun.flit$fleetname)%>%
+                      pull(row_id)
+                    id.abun.flit=id.abun.flit%>%dplyr::select(old.fleet,new.fleet)
+                    Abund=Abund%>%
+                      rownames_to_column(var = "row_names")%>%
+                      left_join(id.abun.flit,by=c('index'='old.fleet'))%>%
+                      mutate(index=new.fleet)%>%
+                      dplyr::select(-new.fleet)%>%
+                      column_to_rownames(var = "row_names")
+                  }
+                  #Size.com
+                  if(!is.null(Size.com))
+                  {
+                    id.Size.com.flit$new.fleet=FLitinFO%>%
+                      mutate(row_id = row_number())%>%
+                      filter(fleetname%in%id.Size.com.flit$fleetname)%>%
+                      pull(row_id)
+                    id.Size.com.flit=id.Size.com.flit%>%dplyr::select(old.fleet,new.fleet)
+                    Size.com=Size.com%>%
+                      left_join(id.Size.com.flit,by=c('Fleet'='old.fleet'))%>%
+                      mutate(Fleet=new.fleet)%>%
+                      dplyr::select(-new.fleet)
+                    
+                  }
+                  #meanbody
+                  if(!is.null(meanbody))
+                  {
+                    id.meanbody.flit$new.fleet=FLitinFO%>%
+                      mutate(row_id = row_number())%>%
+                      filter(fleetname%in%id.meanbody.flit$fleetname)%>%
+                      pull(row_id)
+                    id.meanbody.flit=id.meanbody.flit%>%dplyr::select(old.fleet,new.fleet)
+                    meanbody=meanbody%>%
+                      left_join(id.meanbody.flit,by=c('fleet'='old.fleet'))%>%
+                      mutate(fleet=new.fleet)%>%
+                      dplyr::select(-new.fleet)
+                  }
+                  #Tags
+                  if(!is.null(Tags.SS.format))
+                  {
+                    id.tag.flit$new.fleet=FLitinFO%>%mutate(row_id = row_number())%>%filter(fleetname%in%id.tag.flit$fleetname)%>%pull(row_id)
+                    id.tag.flit=id.tag.flit%>%
+                      dplyr::select(old.fleet,new.fleet)
+                    
+                    Tags.SS.format$Initial.reporting.rate=Tags.SS.format$Initial.reporting.rate%>%
+                      left_join(id.tag.flit,by=c('Fleet'='old.fleet'))%>%
+                      dplyr::select(-Fleet)%>%
+                      rename(Fleet=new.fleet)
+                    Tags.SS.format$recaptures=Tags.SS.format$recaptures%>%
+                      left_join(id.tag.flit,by=c('Fleet'='old.fleet'))%>%
+                      mutate(Fleet=new.fleet)%>%
+                      dplyr::select(-new.fleet)
+                  }
+                  
+                  #Add Apprehensions as index of abundance   
+                  Indo.abund=Indo_apprehensions%>%
+                    rename(Year=year,
+                           Mean=Apprehensions)%>%
+                    mutate(seas=1,
+                           CV=0.5,
+                           index=match('Indo.IUU',FLitinFO$fleetname))%>%
+                    dplyr::select(names(Abund))
+                  rownames(Indo.abund)=paste('Indo',1:nrow(Indo.abund),sep='.')
+                  Abund=rbind(Abund,Indo.abund)%>%
+                    arrange(index,Year)
+                  
+                  #Add Q
+                  Life.history$Q.inits=Life.history$Q.inits%>%
+                    filter(Fleet%in%FLitinFO$fleetname)%>%
+                    mutate(Fleet.n.new=match(Fleet,FLitinFO$fleetname))
+                  Indo.Q=Life.history$Q.inits%>%
+                    filter(Fleet=='Other')%>%
+                    mutate(Fleet='Indo.IUU',
+                           Fleet.n.new=match('Indo.IUU',FLitinFO$fleetname))
+                  Life.history$Q.inits=rbind(Life.history$Q.inits,
+                                             Indo.Q)%>%
+                                        mutate(Fleet.n=Fleet.n.new)%>%
+                                        arrange(Fleet.n)%>%
+                                        dplyr::select(-Fleet.n.new)%>%
+                                        distinct(Fleet,.keep_all = TRUE)
+                }
+
+                
                 if(First.run=="YES")  
                 {
                   p=see.SS3.length.comp.matrix(dd=Size.com%>%

@@ -428,7 +428,12 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     dat$catch=get.fleet.ktch
     dat$Nfleets=nrow(fleetinfo)
     dat$fleetinfo=fleetinfo  
-    
+    if(Scenario$Estim.Indo.IUU=='Yes')
+    {
+      dat$catch=dat$catch%>%
+                  mutate(catch_se=case_when(fleet==match('Indo.IUU',fleetinfo$fleetname)~0.5,
+                                            TRUE~catch_se))
+    }
     #cpue
     names(dat$CPUEinfo)=capitalize(names(dat$CPUEinfo))
     ddumy=dat$CPUEinfo[rep(1,length(dis.flits)),]
@@ -442,6 +447,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(Abundance.error.dist=='Normal') ddumy$Errtype=-1  
     if(Abundance.error.dist=='Lognormal') ddumy$Errtype=0
     rownames(ddumy)=ddumy$fleetname
+    if(Scenario$Estim.Indo.IUU=='Yes')  
+    {
+      ddumy=ddumy%>%
+        mutate(Units=case_when(fleetname=='Indo.IUU'~2,
+                               TRUE~Units),
+               SD_report=case_when(fleetname=='Indo.IUU'~1,
+                                   TRUE~SD_report))
+    }
+      
     dat$CPUEinfo=ddumy%>%dplyr::select(-fleetname)
     if(!is.null(abundance)) dat$CPUE=abundance%>%mutate(Mean=ifelse(Mean<1e-6,1e-6,Mean))
     if(is.null(abundance))  dat$CPUE=NULL
@@ -928,11 +942,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(!is.null(abundance))
     {
       life.history$Q.inits=life.history$Q.inits%>%
-                            filter(Fleet%in%fleetinfo$fleetname)%>%
-                            dplyr::select(-Fleet.n)%>%
-                            left_join(flit.numb,by=c('Fleet'='fleetname'))%>%
-                            arrange(Fleet.n)%>%
-                            relocate(Q,.after=Fleet.n)
+                                filter(Fleet%in%fleetinfo$fleetname)%>%
+                                dplyr::select(-Fleet.n)%>%
+                                left_join(flit.numb,by=c('Fleet'='fleetname'))%>%
+                                arrange(Fleet.n)%>%
+                                relocate(Q,.after=Fleet.n)
       
       ddumy=ctl$Q_options[rep(1,length(dis.flits)),]%>%
                 mutate(fleet=row_number())
@@ -1030,7 +1044,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         ctl$Q_parms=rbind(ctl$Q_parms,ctl.q_par.add)
       }
 
-
       ctl$Q_parms=ctl$Q_parms[rownames(ctl$Q_parms)%in%rownames(ctl$Q_options),]
       these.qs=life.history$Q.inits%>%arrange(Fleet.n)%>%pull(Fleet)
       these.qs=subset(these.qs,these.qs%in%rownames(ctl$Q_options))
@@ -1069,7 +1082,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         ctl$Q_parms=ctl$Q_parms[order(rownames(ctl$Q_parms)),]
       }
       
-      
       #Block patterns
       if(!life.history$Nblock_Patterns==0 & ctl$time_vary_auto_generation[3]==0)
       {
@@ -1090,6 +1102,22 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       {
         ctl$Q_options$float=1
       }
+      
+      #Order fleets  
+      q.order=rownames(ctl$Q_parms)
+      names(q.order)=as.numeric(str_remove(str_remove(q.order,'fleet_'),'_Q_extraSD'))
+      q.order=order(as.numeric(names(q.order)))
+      ctl$Q_parms=ctl$Q_parms[q.order,]
+      
+      #Indo IUU no extra SD  
+      if(Scenario$Estim.Indo.IUU=='Yes')
+      {
+        Indo.flit.n=match('Indo.IUU',fleetinfo$fleetname)
+        ctl$Q_options=ctl$Q_options%>%
+                      mutate(extra_se=case_when(fleet==Indo.flit.n ~0,
+                                                TRUE~extra_se))
+        ctl$Q_parms=ctl$Q_parms[-match(paste0('fleet_',Indo.flit.n,'_Q_extraSD'),rownames(ctl$Q_parms)),]
+      }
     }
     if(is.null(abundance))
     {
@@ -1105,10 +1133,10 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ddumy=ctl$size_selex_types[rep(1,length(dis.flits)),]%>%
               mutate(Fleet=row_number())%>%
               left_join(flit.numb,by=c('Fleet'='Fleet.n'))%>%
-              mutate(Pattern=case_when(fleetname=='Other'~15,
+              mutate(Pattern=case_when(fleetname%in%c('Other','Indo.IUU')~15,
                                        grepl('Southern.shark_2',fleetname)~15,
                                        TRUE~Pattern),
-                     Special=case_when(fleetname=='Other'~match('Northern.shark',fleetname),
+                     Special=case_when(fleetname%in%c('Other','Indo.IUU')~match('Northern.shark',fleetname),
                                        fleetname=='Southern.shark_2'~match('Southern.shark_1',fleetname),
                                        fleetname=='Southern.shark_2_West'~match('Southern.shark_1_West',fleetname),
                                        fleetname=='Southern.shark_2_Zone1'~match('Southern.shark_1_Zone1',fleetname),
@@ -1120,8 +1148,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(!'Northern.shark'%in%rownames(ddumy))   
     {
       ddumy=ddumy%>%
-        mutate(Pattern=ifelse(fleetname=='Other',24,Pattern),
-               Special=case_when(fleetname=='Other'~0,
+        mutate(Pattern=ifelse(fleetname%in%c('Other','Indo.IUU'),24,Pattern),
+               Special=case_when(fleetname%in%c('Other','Indo.IUU')~0,
                                  fleetname=='Southern.shark_2'~2,
                                  TRUE~Special))
     }
@@ -1296,7 +1324,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       ddami_extra=vector('list',length(dis.vec))
       for(v in 1:length(dis.vec))
       {
-        aaa=fn.add.fleet.zone.sel(d=ddami,
+        aaa=fn.add.fleet.zone.sel(d=ddami,     
                                   x=dis.vec[v],
                                   y=y.vec)
         rownames(aaa)=paste0('SizeSel_P_',v,"_",aaa$Fleet)  
@@ -1850,6 +1878,12 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                                  Discard=0,
                                  Male=0,
                                  Special=0)
+    if('Indo.IUU'%in%flit.numb$fleetname & !'Indo.IUU'%in%rownames(ctl$age_selex_types))
+    {
+      indo.fleet=ctl$age_selex_types[rownames(ctl$age_selex_types)=='Other',]
+      ctl$age_selex_types=add_row(ctl$age_selex_types,indo.fleet, .after = flit.numb%>%filter(fleetname=='Other')%>%pull(Fleet.n))
+      row.names(ctl$age_selex_types)[flit.numb%>%filter(fleetname=='Indo.IUU')%>%pull(Fleet.n)]='Indo.IUU'
+    }
     # ddumy=ctl$age_selex_types%>%
     #   rownames_to_column('fleetname')%>%
     #   mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',

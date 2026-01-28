@@ -542,6 +542,7 @@ tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
 taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
 
 Min.tons.Indo=50 # Estimate INDO IUU F for species with at least Min.tons.Indo
+Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
 
   #21.9 Fit diagnostics
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
@@ -913,6 +914,10 @@ Wei.range.names=read.csv(handl_OneDrive("Data/Length_Weights/Species.names.csv")
 Wei.range=merge(Wei.range,Wei.range.names,by="Sname",all.x=T)
 
 Logbook=read.csv(handl_OneDrive("Analyses/Catch and effort/Logbook.data.mean.weight.csv"))
+
+#2.6 Apprehensions/forfeitures of Indo IUU
+#note: max of Apprehension or forfeitures used
+Indo_apprehensions=read.csv(handl_OneDrive('Analyses/Data_outs/Indo_apprehensions_SS.csv')) 
 
 
 #---3. Life history, selectivity, TDGDLF mesh proportions, recruitment and depletion  data--------------------  
