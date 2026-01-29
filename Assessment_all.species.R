@@ -543,6 +543,10 @@ taggroup.sex.combined=TRUE  #group females and male tags due to small sample siz
 
 Min.tons.Indo=50 # Estimate INDO IUU F for species with at least Min.tons.Indo
 Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
+estim.F.INDO=TRUE     #estimate INDO IUU F
+set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
+CV_apprehensions=0.2
+set.indo.catches.to.unknown=FALSE
 
   #21.9 Fit diagnostics
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.

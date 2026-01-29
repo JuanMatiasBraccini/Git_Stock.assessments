@@ -1586,9 +1586,15 @@ for(w in 1:n.SS)
                   #catch history
                   Indo.dummy=KAtch%>%
                     dplyr::select(as.character(id.flit.other))%>%
-                    rename(Indo=as.character(id.flit.other))%>%
-                    mutate(Indo=-999,    #must set catches to 'unknown'
-                           Indo=replace(Indo,match(Indo.ktch.years$finyear,KAtch$finyear),Indo.ktch.years$LIVEWT.c))
+                    rename(Indo=as.character(id.flit.other))
+                      #Set catches to 'unknown'
+                  if(set.indo.catches.to.unknown)
+                  {
+                    Indo.dummy=Indo.dummy%>%
+                      mutate(Indo=-999,    
+                             Indo=replace(Indo,match(Indo.ktch.years$finyear,KAtch$finyear),Indo.ktch.years$LIVEWT.c))
+                    
+                  }
                   KAtch=KAtch%>%mutate(Indo=Indo.dummy$Indo,.after = as.character(id.flit.other))
                   id.Kls=match('Indo',names(KAtch)):ncol(KAtch)
                   names(KAtch)[id.Kls]=seq(from = match('Indo.IUU',FLitinFO$fleetname), length.out = length(id.Kls))
@@ -1666,7 +1672,7 @@ for(w in 1:n.SS)
                     rename(Year=year,
                            Mean=Apprehensions)%>%
                     mutate(seas=1,
-                           CV=0.5,
+                           CV=CV_apprehensions,
                            index=match('Indo.IUU',FLitinFO$fleetname))%>%
                     dplyr::select(names(Abund))
                   rownames(Indo.abund)=paste('Indo',1:nrow(Indo.abund),sep='.')
