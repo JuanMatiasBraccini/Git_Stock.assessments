@@ -429,13 +429,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     dat$Nfleets=nrow(fleetinfo)
     dat$fleetinfo=fleetinfo  
     dat$catch=dat$catch%>%filter(!year==-999)    #only use if setting F level before start of catch series  
-    if(Scenario$Estim.Indo.IUU=='Yes' & estim.F.INDO)
+    if(Scenario$Estim.Indo.IUU=='Yes')
     {
       Indo.flit.n=match('Indo.IUU',fleetinfo$fleetname)
       dat$catch=dat$catch%>%
-                  mutate(catch=case_when(fleet==Indo.flit.n~0.001,
-                                            TRUE~catch),
-                         catch_se=case_when(fleet==Indo.flit.n~0.1,
+                  mutate(catch_se=case_when(fleet==Indo.flit.n~CV_Indo_catch,
                                             TRUE~catch_se))
       dummy.999=dat$catch%>%
                   filter(fleet==Indo.flit.n)
@@ -462,13 +460,10 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(Abundance.error.dist=='Normal') ddumy$Errtype=-1  
     if(Abundance.error.dist=='Lognormal') ddumy$Errtype=0
     rownames(ddumy)=ddumy$fleetname
-    if(Scenario$Estim.Indo.IUU=='Yes' & estim.F.INDO)  
+    if(Scenario$Estim.Indo.IUU=='Yes')  
     {
-      ddumy=ddumy%>%
-        mutate(Units=case_when(fleetname=='Indo.IUU'~2,
-                               TRUE~Units),
-               SD_report=case_when(fleetname=='Indo.IUU'~1,
-                                   TRUE~SD_report))
+      ddumy=ddumy%>%mutate(Units=case_when(fleetname=='Indo.IUU'~2,TRUE~Units))
+      #ddumy=ddumy%>%mutate(SD_report=case_when(fleetname=='Indo.IUU'~1,TRUE~SD_report))
     }
       
     dat$CPUEinfo=ddumy%>%dplyr::select(-fleetname)
@@ -938,13 +933,24 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   
   #Fishing mortality pars
     #Estimating F for Indo IUU 
-  if(Scenario$Estim.Indo.IUU=='Yes' & estim.F.INDO) 
+  if(Scenario$Estim.Indo.IUU=='Yes') 
   {
-    ctl$F_Method=4
-    ctl$F_4_Fleet_Parms=data.frame(fleet=Indo.flit.n, start_F=0.01, first_parm_phase=2)
+    if(Indo_F_Method==4)
+    {
+      ctl$F_Method=4
+      ctl$F_4_Fleet_Parms=data.frame(fleet=Indo.flit.n, start_F=0.01, first_parm_phase=2)
+    }
+    if(!Indo_F_Method==4)
+    {
+      rm.999.ktch=which(dat$catch$year == -999 & dat$catch$fleet ==Indo.flit.n)
+      if(!is.na(rm.999.ktch))dat$catch=dat$catch[-rm.999.ktch,]
+                    
+    }
+    
+    
   }
   #initial fishing mortality 
-  if(Scenario$Estim.Indo.IUU=='Yes' & set.initial.F) 
+  if(Scenario$Estim.initial.F=='Yes') 
   {
     ctl$init_F=data.frame(LO=1e-07, HI=0.1, INIT=1e-4, PRIOR=0.001, PR_SD=1, PR_type=6, PHASE=4)
   }
@@ -1137,13 +1143,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       ctl$Q_parms=ctl$Q_parms[q.order,]
       
       #Indo IUU no extra SD  
-      if(Scenario$Estim.Indo.IUU=='Yes' & estim.F.INDO)
+      if(Scenario$Estim.Indo.IUU=='Yes')
       {
         ctl$Q_options=ctl$Q_options%>%
                       mutate(extra_se=case_when(fleet==Indo.flit.n ~0,
                                                 TRUE~extra_se))
         id.extra.sd.indo=match(paste0('fleet_',Indo.flit.n,'_Q_extraSD'),rownames(ctl$Q_parms))
         if(!is.na(id.extra.sd.indo)) ctl$Q_parms=ctl$Q_parms[-id.extra.sd.indo,]
+        id.indo.row=match(paste0('fleet_',Indo.flit.n),rownames(ctl$Q_parms))
+        ctl$Q_parms[id.indo.row,c('HI','INIT')]=c(10,1)
       }
     }
     if(is.null(abundance))

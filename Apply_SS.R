@@ -1540,7 +1540,7 @@ for(w in 1:n.SS)
                   }
                 }
                 
-                  #estimate F INDO IUU                  
+                  #estimate F INDO IUU
                 if(Scens$Estim.Indo.IUU[s]=="Yes")
                 {
                   #get Indo catch
@@ -1585,9 +1585,12 @@ for(w in 1:n.SS)
                   
                   #catch history
                   Indo.dummy=KAtch%>%
-                    dplyr::select(as.character(id.flit.other))%>%
-                    rename(Indo=as.character(id.flit.other))
-                      #Set catches to 'unknown'
+                    dplyr::select(finyear,as.character(id.flit.other))%>%
+                    rename(Indo=as.character(id.flit.other))%>%
+                    mutate(Indo=0)
+                  Indo.dummy$Indo[match(Indo.ktch$finyear,Indo.dummy$finyear)]=Indo.ktch$LIVEWT.c
+                  
+                  #Set catches to 'unknown' except for some years
                   if(set.indo.catches.to.unknown)
                   {
                     Indo.dummy=Indo.dummy%>%
@@ -1595,9 +1598,16 @@ for(w in 1:n.SS)
                              Indo=replace(Indo,match(Indo.ktch.years$finyear,KAtch$finyear),Indo.ktch.years$LIVEWT.c))
                     
                   }
+                  #Set catches to very low
+                  if(set.indo.catches.to.very.low)
+                  {
+                    Indo.dummy=Indo.dummy%>%mutate(Indo=0.001) 
+                  }
+                  
                   KAtch=KAtch%>%mutate(Indo=Indo.dummy$Indo,.after = as.character(id.flit.other))
                   id.Kls=match('Indo',names(KAtch)):ncol(KAtch)
                   names(KAtch)[id.Kls]=seq(from = match('Indo.IUU',FLitinFO$fleetname), length.out = length(id.Kls))
+                  
                   
                   #future catch
                   Indo.dummy=add.future%>%
@@ -1667,17 +1677,23 @@ for(w in 1:n.SS)
                       dplyr::select(-new.fleet)
                   }
                   
-                  #Add Apprehensions as index of abundance   
-                  Indo.abund=Indo_apprehensions%>%
-                    rename(Year=year,
-                           Mean=Apprehensions)%>%
-                    mutate(seas=1,
-                           CV=CV_apprehensions,
-                           index=match('Indo.IUU',FLitinFO$fleetname))%>%
-                    dplyr::select(names(Abund))
-                  rownames(Indo.abund)=paste('Indo',1:nrow(Indo.abund),sep='.')
-                  Abund=rbind(Abund,Indo.abund)%>%
-                    arrange(index,Year)
+                  #Add Apprehensions as index of abundance
+                  if(!is.null(Abund))
+                  {
+                    Indo.abund=Indo_apprehensions%>%
+                      rename(Year=year,
+                             Mean=Apprehensions)%>%
+                      filter(Year<=max(Abund$Year))%>%
+                      mutate(seas=1,
+                             CV=CV_apprehensions,
+                             index=match('Indo.IUU',FLitinFO$fleetname))%>%
+                      dplyr::select(names(Abund))
+                    if(scale.Indo.appre) Indo.abund$Mean=Indo.abund$Mean/mean(Indo.abund$Mean,na.rm=T)
+                    rownames(Indo.abund)=paste('Indo',1:nrow(Indo.abund),sep='.')
+                    Abund=rbind(Abund,Indo.abund)%>%
+                      arrange(index,Year)
+                    
+                  }
                   
                   #Add Q
                   Life.history$Q.inits=Life.history$Q.inits%>%
@@ -1689,11 +1705,12 @@ for(w in 1:n.SS)
                            Fleet.n.new=match('Indo.IUU',FLitinFO$fleetname))
                   Life.history$Q.inits=rbind(Life.history$Q.inits,
                                              Indo.Q)%>%
-                                        mutate(Fleet.n=Fleet.n.new)%>%
-                                        arrange(Fleet.n)%>%
-                                        dplyr::select(-Fleet.n.new)%>%
-                                        distinct(Fleet,.keep_all = TRUE)
+                    mutate(Fleet.n=Fleet.n.new)%>%
+                    arrange(Fleet.n)%>%
+                    dplyr::select(-Fleet.n.new)%>%
+                    distinct(Fleet,.keep_all = TRUE)
                 }
+
 
                 
                 if(First.run=="YES")  

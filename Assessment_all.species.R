@@ -545,8 +545,12 @@ Min.tons.Indo=50 # Estimate INDO IUU F for species with at least Min.tons.Indo
 Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
 estim.F.INDO=TRUE     #estimate INDO IUU F
 set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
-CV_apprehensions=0.2
 set.indo.catches.to.unknown=FALSE
+set.indo.catches.to.very.low=TRUE
+CV_Indo_catch=20
+CV_apprehensions=0.4
+scale.Indo.appre=TRUE
+Indo_F_Method=3 # standard hybrid; 4 used for estim F and vermillion snapper
 
   #21.9 Fit diagnostics
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
