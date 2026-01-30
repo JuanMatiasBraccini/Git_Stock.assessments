@@ -1591,17 +1591,16 @@ for(w in 1:n.SS)
                   Indo.dummy$Indo[match(Indo.ktch$finyear,Indo.dummy$finyear)]=Indo.ktch$LIVEWT.c
                   
                   #Set catches to 'unknown' except for some years
-                  if(set.indo.catches.to.unknown)
+                  if(set.indo.catches.to.unknown) Indo.dummy=Indo.dummy%>%mutate(Indo=-999)
+                  
+                  #Set catches to very low
+                  if(set.indo.catches.to.very.low)  Indo.dummy=Indo.dummy%>%mutate(Indo=0.001) 
+                  
+                  #keep some years catch
+                  if(keep.some.Indo.yrs)
                   {
                     Indo.dummy=Indo.dummy%>%
-                      mutate(Indo=-999,    
-                             Indo=replace(Indo,match(Indo.ktch.years$finyear,KAtch$finyear),Indo.ktch.years$LIVEWT.c))
-                    
-                  }
-                  #Set catches to very low
-                  if(set.indo.catches.to.very.low)
-                  {
-                    Indo.dummy=Indo.dummy%>%mutate(Indo=0.001) 
+                      mutate(Indo=replace(Indo,match(Indo.ktch.years$finyear,KAtch$finyear),Indo.ktch.years$LIVEWT.c))
                   }
                   
                   KAtch=KAtch%>%mutate(Indo=Indo.dummy$Indo,.after = as.character(id.flit.other))
@@ -1673,6 +1672,15 @@ for(w in 1:n.SS)
                       rename(Fleet=new.fleet)
                     Tags.SS.format$recaptures=Tags.SS.format$recaptures%>%
                       left_join(id.tag.flit,by=c('Fleet'='old.fleet'))%>%
+                      mutate(Fleet=new.fleet)%>%
+                      dplyr::select(-new.fleet)
+                  }
+                  #Variance adjustment
+                  if(any(!is.null(Abund),!is.null(Size.com),!is.null(meanbody)))
+                  {
+                    New.var.adj=rbind(id.abun.flit,id.Size.com.flit,id.meanbody.flit)%>%distinct(old.fleet,.keep_all = T)
+                    Var.ad=Var.ad%>%
+                      left_join(New.var.adj,by=c('Fleet'='old.fleet'))%>%
                       mutate(Fleet=new.fleet)%>%
                       dplyr::select(-new.fleet)
                   }

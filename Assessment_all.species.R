@@ -547,6 +547,7 @@ estim.F.INDO=TRUE     #estimate INDO IUU F
 set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
 set.indo.catches.to.unknown=FALSE
 set.indo.catches.to.very.low=TRUE
+keep.some.Indo.yrs=FALSE
 CV_Indo_catch=20
 CV_apprehensions=0.4
 scale.Indo.appre=TRUE

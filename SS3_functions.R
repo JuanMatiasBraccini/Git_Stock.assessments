@@ -1151,7 +1151,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         id.extra.sd.indo=match(paste0('fleet_',Indo.flit.n,'_Q_extraSD'),rownames(ctl$Q_parms))
         if(!is.na(id.extra.sd.indo)) ctl$Q_parms=ctl$Q_parms[-id.extra.sd.indo,]
         id.indo.row=match(paste0('fleet_',Indo.flit.n),rownames(ctl$Q_parms))
-        ctl$Q_parms[id.indo.row,c('HI','INIT')]=c(10,1)
+        ctl$Q_parms[id.indo.row,c('LO','HI','INIT')]=c(-5,20,5)
       }
     }
     if(is.null(abundance))
