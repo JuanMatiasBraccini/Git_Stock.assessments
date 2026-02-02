@@ -433,20 +433,24 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       Indo.flit.n=match('Indo.IUU',fleetinfo$fleetname)
       dat$catch=dat$catch%>%
-                  mutate(catch_se=case_when(fleet==Indo.flit.n~CV_Indo_catch,
+                  mutate(catch_se=case_when(catch>0 & fleet==Indo.flit.n~CV_Indo_catch,
+                                            TRUE~catch_se),
+                         catch_se=case_when(catch>0 & fleet==Indo.flit.n & year%in% indo.unknown.catch.years~CV_Indo_catch_dodgy.yrs,
                                             TRUE~catch_se))
-      dummy.999=dat$catch%>%
-                  filter(fleet==Indo.flit.n)
-      min.dummy.yr=min(dummy.999$year)
-      dummy.999=dummy.999%>%
-                  filter(year==min.dummy.yr)%>%
-                  mutate(year=-999,fleet=as.character(Indo.flit.n),catch=0,catch_se=0.01)
-      id.flit.indo=with(dat$catch,which(fleet==Indo.flit.n & year==min.dummy.yr))
-      dat$catch=add_row(dat$catch, dummy.999, .before = id.flit.indo)
+                         
+      if(add.minus.999.to.INDO)
+      {
+        dummy.999=dat$catch%>%
+          filter(fleet==Indo.flit.n)
+        min.dummy.yr=min(dummy.999$year)
+        dummy.999=dummy.999%>%
+          filter(year==min.dummy.yr)%>%
+          mutate(year=-999,fleet=as.character(Indo.flit.n),catch=0,catch_se=0.01)
+        id.flit.indo=with(dat$catch,which(fleet==Indo.flit.n & year==min.dummy.yr))
+        dat$catch=add_row(dat$catch, dummy.999, .before = id.flit.indo)
+      }
     }
     
-    
-                
     #cpue
     names(dat$CPUEinfo)=capitalize(names(dat$CPUEinfo))
     ddumy=dat$CPUEinfo[rep(1,length(dis.flits)),]
@@ -1151,7 +1155,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         id.extra.sd.indo=match(paste0('fleet_',Indo.flit.n,'_Q_extraSD'),rownames(ctl$Q_parms))
         if(!is.na(id.extra.sd.indo)) ctl$Q_parms=ctl$Q_parms[-id.extra.sd.indo,]
         id.indo.row=match(paste0('fleet_',Indo.flit.n),rownames(ctl$Q_parms))
-        ctl$Q_parms[id.indo.row,c('LO','HI','INIT')]=c(-5,20,5)
+        ctl$Q_parms[id.indo.row,c('LO','HI','INIT')]=c(-10,20,5)
       }
     }
     if(is.null(abundance))

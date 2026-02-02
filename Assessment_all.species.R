@@ -543,17 +543,20 @@ taggroup.sex.combined=TRUE  #group females and male tags due to small sample siz
 
 Min.tons.Indo=50 # Estimate INDO IUU F for species with at least Min.tons.Indo
 Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
-estim.F.INDO=TRUE     #estimate INDO IUU F
+estim.F.INDO=FALSE     #estimate INDO IUU F
 set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
 set.indo.catches.to.unknown=FALSE
 set.indo.catches.to.very.low=FALSE
 set.indo.catches.for.unknown.years=TRUE
 indo.unknown.catch.years=2020:2050  #update as appropriate
 keep.some.Indo.yrs=FALSE
-CV_Indo_catch=20
-CV_apprehensions=0.4
-scale.Indo.appre=TRUE
+CV_Indo_catch=0.2
+CV_Indo_catch_dodgy.yrs=0.2
+CV_apprehensions=0.6
+scale.Indo.appre=FALSE
 Indo_F_Method=4 # 3 standard hybrid; 4 used for estim F and vermillion snapper
+Indo.years.cpue=2000:max(indo.unknown.catch.years)
+add.minus.999.to.INDO=FALSE  #add -999 before start of Indo catch
 
   #21.9 Fit diagnostics
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.

@@ -1709,6 +1709,7 @@ for(w in 1:n.SS)
                       rename(Year=year,
                              Mean=Apprehensions)%>%
                       filter(Year<=max(Abund$Year))%>%
+                      filter(Year%in%Indo.years.cpue)%>%
                       mutate(seas=1,
                              CV=CV_apprehensions,
                              index=match('Indo.IUU',FLitinFO$fleetname))%>%
@@ -1802,6 +1803,9 @@ for(w in 1:n.SS)
               }
               
               #b. Run SS3
+              Where.exe=handl_OneDrive('SS3/ss_win_exe_v3.30.24.1/ss3.exe')
+              #Where.exe=handl_OneDrive('SS3/ss_win.exe')   #old version
+              
                 #run this first time fitting model to define LnRo init value
               if(Find_Init_LnRo)  
               {
@@ -1809,7 +1813,7 @@ for(w in 1:n.SS)
                 start$last_estimation_phase=0
                 r4ss::SS_writestarter(start, dir = this.wd1, overwrite = TRUE,verbose = FALSE)
                 fn.run.SS(where.inputs=this.wd1,
-                          where.exe=handl_OneDrive('SS3/ss_win.exe'),
+                          where.exe=Where.exe,
                           args="-nohess") 
                 Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)  
                 Report$timeseries%>%filter(Era=='VIRG')%>%pull(Bio_all) #JABBA K= 6800 tonnes
@@ -1820,7 +1824,7 @@ for(w in 1:n.SS)
               {
                 #tune ramp years (blue and red lines should match)
                 fn.run.SS(where.inputs=this.wd1,
-                          where.exe=handl_OneDrive('SS3/ss_win.exe'),
+                          where.exe=Where.exe,
                           args='')
                 Report=SS_output(this.wd1)
                 tiff(file=paste(this.wd,'Ramp_years.tiff',sep='/'),
@@ -1849,7 +1853,7 @@ for(w in 1:n.SS)
               if(Run.SS)
               {
                 fn.run.SS(where.inputs=this.wd1,
-                          where.exe=handl_OneDrive('SS3/ss_win.exe'),
+                          where.exe=Where.exe,
                           args=Arg) 
               }
  
