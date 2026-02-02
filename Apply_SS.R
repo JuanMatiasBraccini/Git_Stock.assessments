@@ -1590,6 +1590,23 @@ for(w in 1:n.SS)
                     mutate(Indo=0)
                   Indo.dummy$Indo[match(Indo.ktch$finyear,Indo.dummy$finyear)]=Indo.ktch$LIVEWT.c
                   
+                  #Set  unknown catches to ball park      
+                  if(set.indo.catches.for.unknown.years)
+                  {
+                    id.unknown.yrs=Indo.dummy$finyear[which(Indo.dummy$finyear%in%indo.unknown.catch.years)]
+                    find.comparable.years=Indo_apprehensions%>%filter(year%in%id.unknown.yrs)
+                    all_values=Indo_apprehensions%>%filter(!year%in%indo.unknown.catch.years)
+                    for(fi in 1:nrow(find.comparable.years))
+                    {
+                      iii=find.comparable.years$year[fi]
+                      ref_value=Indo_apprehensions%>%filter(year==iii)%>%pull(Apprehensions)
+                      dumi.ktch=Indo.dummy%>%
+                        filter(finyear==all_values$year[which.min(abs(all_values$Apprehensions - ref_value))])%>%
+                        pull(Indo)
+                      Indo.dummy$Indo[match(iii,Indo.dummy$finyear)]=dumi.ktch
+                    }
+                  }
+                  
                   #Set catches to 'unknown' except for some years
                   if(set.indo.catches.to.unknown) Indo.dummy=Indo.dummy%>%mutate(Indo=-999)
                   

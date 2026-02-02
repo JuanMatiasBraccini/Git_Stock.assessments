@@ -546,12 +546,14 @@ Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are se
 estim.F.INDO=TRUE     #estimate INDO IUU F
 set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
 set.indo.catches.to.unknown=FALSE
-set.indo.catches.to.very.low=TRUE
+set.indo.catches.to.very.low=FALSE
+set.indo.catches.for.unknown.years=TRUE
+indo.unknown.catch.years=2020:2050  #update as appropriate
 keep.some.Indo.yrs=FALSE
 CV_Indo_catch=20
 CV_apprehensions=0.4
 scale.Indo.appre=TRUE
-Indo_F_Method=3 # standard hybrid; 4 used for estim F and vermillion snapper
+Indo_F_Method=4 # 3 standard hybrid; 4 used for estim F and vermillion snapper
 
   #21.9 Fit diagnostics
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
