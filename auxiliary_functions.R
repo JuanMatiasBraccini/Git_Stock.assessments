@@ -4254,8 +4254,7 @@ fn.display.prior.sensitivity=function(d,d2,sp,XLAB,Strx.siz=16,Scen1,Scen2)
     theme(legend.position = "top",
           legend.title=element_blank(),
           plot.title =element_text(size=17))
-  print(p)
-  return(ddd%>%group_by(Species,Scenario)%>%summarise(Mean=mean(var))%>%spread(Scenario,Mean))
+  return(list(p=p,tab=ddd%>%group_by(Species,Scenario)%>%summarise(Mean=mean(var))%>%spread(Scenario,Mean)))
 }
 fn.display.steepness=function(d,sp,XLAB,XLIM)
 {
@@ -4280,11 +4279,9 @@ fn.display.steepness=function(d,sp,XLAB,XLIM)
 }
 fn.display.steepness.sensitivity=function(d,d1,d2,sp,XLAB,Strx.siz=16,Scen1,Scen2,Scen3)
 {
-  for(z in 1:length(d))
-  {
-    d[[z]]$mean=d[[z]]
-    d[[z]]$sd=d1[[z]]$sd
-  }
+  dd=d
+  for(z in 1:length(d)) dd[[z]]=list(mean=d[[z]],sd=d1[[z]]$sd)
+  d=dd
   MinH=Min.h.shark
   MinH=0.2
   dummy=lapply(d[sp],function(x) rtruncnorm(1e4,a=MinH, b=Max.h.shark,mean=x$mean,sd=max(x$sd,0.01)))
@@ -4335,8 +4332,8 @@ fn.display.steepness.sensitivity=function(d,d1,d2,sp,XLAB,Strx.siz=16,Scen1,Scen
           plot.title =element_text(size=17))+
     geom_vline(data=dA,aes(xintercept = V,color=Scenario))+
     geom_text(data = dA,mapping = aes(x = V, y = -Inf, label = round(V,2)),hjust=-0.1,vjust= 0,angle = 90)
-  print(p)
-  return(ddd%>%group_by(Species,Scenario)%>%summarise(Mean=mean(var))%>%spread(Scenario,Mean))
+
+  return(list(p=p,tab=ddd%>%group_by(Species,Scenario)%>%summarise(Mean=mean(var))%>%spread(Scenario,Mean)))
 }
 fn.compare.dist=function(MEAN,CV,XLIM)
 {

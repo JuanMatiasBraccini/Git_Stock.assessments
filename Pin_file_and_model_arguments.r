@@ -82,7 +82,14 @@ Get.CV_youn_old=vector('list',N.sp)
 for(i in 1:N.sp)
 {
   d=fun.cv_young_old(d=Species.data[[i]],NM=names(Species.data)[i])
-  if(First.run=='YES') print(d$p)
+  if(First.run=='YES')
+  {
+    d$p
+    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
+                 "/",AssessYr,"/1_Inputs/Visualise data","/CVs young and old.tiff",sep=''),
+           width = 8,height = 8, dpi = 300, compression = "lzw")
+  }
+    
   Get.CV_youn_old[[i]]=d$d
 }
 Get.CV_youn_old=do.call(rbind,Get.CV_youn_old)

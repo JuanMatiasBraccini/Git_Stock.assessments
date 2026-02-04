@@ -469,11 +469,13 @@ fn.see.avg.wgt=function(b=Avr.wt.yr)
 
 fn.see.avg.wgt.zn=function(b=Avr.wt.yr.zn)
 {
+  b$finyear=as.numeric(substr(b$Finyear,1,4))
   zn=unique(b$zone)
-  N=1:length(unique(b$Finyear))
+  #N=1:length(unique(b$Finyear))
+  N=sort(unique(b$finyear))
   SD=b$mean*(b$CV)
-  plot(N,ylim=c(0,max(b$mean+SD)*1.05),main="",cex.main=1.25,xaxt='n',
-       ylab="",xlab="",pch=19,cex=3,cex.axis=1,col="transparent",xlim=c(0,N[length(N)]+0.5))
+  plot(N,N,ylim=c(0,max(b$mean+SD)*1.05),main="",cex.main=1.25,
+       ylab="",xlab="",pch=19,cex=3,cex.axis=1,col="transparent")
   
   jit=c(0,.1,.2)
   CLOS=COL.prop[match(c("West","Zone1","Zone2"),names(COL.prop))]
@@ -481,7 +483,7 @@ fn.see.avg.wgt.zn=function(b=Avr.wt.yr.zn)
   for(x in 1:length(zn))
   {
     a=subset(b, zone==zn[x])
-    N1=N+jit[x]
+    N1=a$finyear+jit[x]
     SD=a$mean*(a$CV)
     
     points(N1,a$mean,ylim=c(0,max(a$mean+SD)*1.05),main=zn[x],cex.main=1.75,xaxt='n',
@@ -490,7 +492,7 @@ fn.see.avg.wgt.zn=function(b=Avr.wt.yr.zn)
     segments(N1,a$mean,N1,a$mean+SD,lwd=2,col=CLOS[x])
     axis(1,N,F,tck=-0.015)    
   }
-  axis(1,seq(1,length(N),2),a$Finyear[seq(1,length(N),2)],tck=-0.02,cex.axis=1.25)
+  #axis(1,seq(1,length(N),2),a$Finyear[seq(1,length(N),2)],tck=-0.02,cex.axis=1.25)
   legend('bottomleft',zn,pch=19,col=CLOS,pt.cex=1.5,cex=1.2,bty='n')
 }
 
@@ -1637,11 +1639,11 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
  
 
     #create nice table 
-    fn.word.table(TBL=Numbers.SF,Doc.nm="Size.comp.n.observations")
+    fn.word.table(TBL=Numbers.SF,Doc.nm="Size.comp.n.observations")   
     fn.word.table(TBL=Shots.SF,Doc.nm="Size.comp.n.shots")
   }
 
- 
+
   #3. Visualize mean weights 
   if(exists("Avr.wt.yr"))
   {
@@ -1655,7 +1657,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
   }
   if(exists("Avr.wt.yr.zn"))
   {
-   fn.fig("Avg.wgt.zn",2000,2000)
+   fn.fig("Avg.wgt.zn",2000,2000)  
    par(mfcol=c(1,1),las=1,mai=c(0.45,0.35,.1,.15),oma=c(1,2.25,.1,.1),mgp=c(1,.65,0))
    fn.see.avg.wgt.zn(b=Avr.wt.yr.zn)
    mtext("Relative live weight",2,line=.5,cex=1.5,las=3,outer=T)

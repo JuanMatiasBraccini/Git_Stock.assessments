@@ -104,26 +104,31 @@ fn.cpue.corr=function(Dat,AREA,WD,R=NULL)
   #2. Pairwise scatter plots for CPUE indices.
   mat=cast(subset(u,area==AREA),year~name,value="value2")
   names(mat)=gsub(" ", "_",names(mat))
+  mat=mat[,-1]%>%data.frame()
+  mat=mat[!rowSums(is.na(mat))>1,]
   
-  p2=ggpairs(mat[,-1],
-          upper=list(continuous=wrap("cor",size=4, hjust=0.5)),
-          lower=list(continuous = wrap(my_smooth)),
-          diag=list(continuous="bar"))+          
-    theme(legend.position="bottom")  +
-    labs(title='CPUE pairwise scatter plots',
-         caption='X- and Y-axis are scaled indices')
+  p2=NULL
+  if(ncol(mat)>2)
+  {
+    p2=ggpairs(mat,columns=1:2,
+               upper=list(continuous=wrap("cor", na.rm = TRUE,size=4, hjust=0.5)),
+               lower=list(continuous = wrap(my_smooth, na.rm = TRUE)),
+               diag=list(continuous="bar"))+          
+      theme(legend.position="bottom")
+  }
+
   
   
   #3. Correlation matrix for CPUE indices
-  cr=cor(mat[,-1],use="pairwise.complete.obs")
-  dimnames(cr)=list(gsub("_"," ",names(mat)[-1]),gsub("_"," ",names(mat)[-1]))
+  cr=cor(mat,use="pairwise.complete.obs")
+  dimnames(cr)=list(gsub("_"," ",names(mat)),gsub("_"," ",names(mat)))
   cr[is.na(cr)]=0
   p3=NULL         
 
   
   #4. Cross-correlations between CPUE indices
   p4=NULL
-  do.p4='no'
+  do.p4='yes'
   if(do.p4!='no')
   {
     cpue=FLQuants(dlply(subset(u,area==AREA),.(name), with, 

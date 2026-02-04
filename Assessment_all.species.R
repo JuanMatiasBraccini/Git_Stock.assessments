@@ -121,9 +121,12 @@ Send.email.to="matias.braccini@dpird.wa.gov.au"   #send email when model run fin
 
 #---1. DEFINE GLOBALS----- 
 
-#1.New assessment
-New.assessment="NO"
-#New.assessment="YES"   #set to 'YES' if a new assessment is run for the first time
+#1.New assessment and assessed species
+#assess.these.species.only=NULL  #all species meeting criteria are assessed
+assess.these.species.only=c("dusky shark","gummy shark","sandbar shark","whiskery shark")      
+  
+#New.assessment="NO"
+New.assessment="YES"   #set to 'YES' if a new assessment is run for the first time
 
 #2. Control what to implement
 # turn on/off assessment method as appropriate
@@ -146,7 +149,7 @@ do.Dynamic.catch.size.comp=FALSE #superseded by length-only SS3 (also, not yet i
 Do.StateSpaceSPM=FALSE
 
   #2.5 Level 5
-Do.integrated=FALSE  #integrated SS3
+Do.integrated=TRUE  #integrated SS3
 Do.bespoke=FALSE   #bespoke integrated size-based
 Do.sim.Test="NO" #do simulation testing bespoke size-based model
 do.Andre.model=FALSE
@@ -200,6 +203,7 @@ if(KTCH.UNITS=="KGS") Min.ktch=5000
 if(KTCH.UNITS=="TONNES") Min.ktch=5
 
 #10. CPUEs
+use.dusky.cpue=TRUE
 Min.cpue.yrs=5 #minimum number of years in abundance index
 drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not. Superseded by Francis CVs 
 
@@ -213,7 +217,11 @@ tdgdlf_not.representative=c("smooth hammerhead","spinner shark","dusky shark")  
 tdgdlf_monthly_not.representative=c("sandbar shark")   #increasing cpue with increasing catch and very jumpy index 
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
-
+if(use.dusky.cpue)
+{
+  survey_not.representative=subset(survey_not.representative,!survey_not.representative=="dusky shark")
+  tdgdlf_not.representative=subset(tdgdlf_not.representative,!tdgdlf_not.representative=="dusky shark")
+}
   #10.2 Survey
 Calculate.weight_Survey=FALSE #change Naturaliste survey from numbers to weights. Not applicable, now it's done in Survey standardisation)
 survey.year='financial' #'calendar'  Survey standard already using financial year 
@@ -233,8 +241,9 @@ fill.in.zeros=TRUE  #add missing length classes with all 0s
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
 prop.disc.ER=.4  
 
-#13. PSA criteria
-PSA.min.tons=5
+#13. PSA 
+output.PSA=FALSE   #use PSA in WoE or not
+PSA.min.tons=5   #criteria
 PSA.min.years=Min.yrs
 PSA.max.ton=50
 Low.risk=2.64  #risk thresholds from Hobday et al 2007 & Micheli et al 2014
@@ -616,6 +625,7 @@ if(Do.bespoke)
 }
 
 #23. Weight of Evidence
+Ass.flow=FALSE   #create assessment workflow chart
 LoE.Weights=c(Spatial=0,COM=0,JABBA=0,integrated=1)  #if no integrated, use next highest
 RiskColors=c('Negligible'="cornflowerblue",
              'Low'="chartreuse3",  #olivedrab3
@@ -968,7 +978,7 @@ PSA.list=PSA.list%>%filter(!Species%in%assessed.elsewhere)
 
 #Show annual catches
 Exprt=handl_OneDrive("Analyses/Population dynamics/PSA")
-if(First.run=="YES")
+if(First.run=="YES" & output.PSA)
 {
   write.csv(KtCh.method%>%
               mutate(Year=as.numeric(substr(FINYEAR,1,4)),
@@ -1001,7 +1011,7 @@ if(First.run=="YES")
 }
 
 #Export table of species identified in the catch by fishery  (all species including indicator species)
-if(First.run=="YES")
+if(First.run=="YES" & output.PSA)
 {
   write.csv(Get.ktch$Table1%>%
               filter(!is.na(Name))%>%left_join(All.species.names%>%dplyr::select(SPECIES,Scien.nm),by='Scien.nm')%>%
@@ -1011,7 +1021,7 @@ if(First.run=="YES")
 }
 
 #Export species word cloud 
-if(First.run=="YES")
+if(First.run=="YES" & output.PSA)
 {
   Word.cloud=Get.ktch$Table1%>%
     data.frame%>%
@@ -1123,7 +1133,7 @@ UniSp=subset(UniSp,!UniSp%in%names(Indicator.species))
 
 PSA.list=PSA.list%>%filter(Species%in%UniSp)  
 PSA.out=PSA.fn(d=PSA.list,line.sep=.45,size.low=2.1,size.med=2.15,size.hig=2.5,W=10,H=10)
-if(First.run=="YES")
+if(First.run=="YES" & output.PSA)
 {
   PSA.out$p
   ggsave(paste(Exprt,'Figure_PSA.tiff',sep='/'), width = W,height = H, dpi = 300, compression = "lzw")
@@ -1131,6 +1141,7 @@ if(First.run=="YES")
 PSA.out=PSA.out$PSA
 Keep.species=tolower(as.character(PSA.out%>%filter(Vulnerability=="High")%>%pull(Species)))
 Keep.species=sort(c(Keep.species,names(Indicator.species)))
+if(!is.null(assess.these.species.only)) Keep.species=assess.these.species.only 
 Drop.species=UniSp[which(!UniSp%in%Keep.species)]
 
 RAR.species=Keep.species 
@@ -1138,10 +1149,22 @@ if(!is.null(additional.sp)) Keep.species=c(Keep.species,additional.sp)
 Keep.species=sort(Keep.species)
 N.sp=length(Keep.species)
 Other.species=RAR.species[-match(names(Indicator.species),RAR.species)]
-
+if(length(Other.species)==0) Other.species=NULL
 clear.log('PSA.fn')
 clear.log('Agg')
 clear.log('Agg.PSA')
+
+#Create species folder 
+if(First.run=='YES')
+{
+  for(s in 1:N.sp)
+  {
+    new.year=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(names(Species.data)[s]),"/",AssessYr,sep='')
+    if(!file.exists(file.path(new.year))) dir.create(file.path(new.year))
+    if(!file.exists(file.path(paste0(new.year,'/1_Inputs')))) dir.create(file.path(paste0(new.year,'/1_Inputs')))
+    if(!file.exists(file.path(paste0(new.year,'/1_Inputs/Visualise data')))) dir.create(file.path(paste0(new.year,'/1_Inputs/Visualise data')))
+  }
+}
 
 
 #---5. Source demography and steepness functions -------------------------------------------------------
@@ -1183,149 +1206,166 @@ for(s in 1:N.sp)
 }
 
   #6.1 add size composition C. brachyurus MSF (South Australia, pelagic longline)  
-Species.data$`copper shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/SA_Cbrachyurus length data.csv'))%>%
-                  mutate(DATE=as.Date(DATE,"%d/%m/%Y"),
-                         Month=month(DATE),
-                         year=year(DATE),
-                         FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
-                                        paste(year-1,substr(year,3,4),sep='-')),
-                         FL=with(LH.data%>%filter(SPECIES==18001),((TL..mm./10)-b_FL.to.TL )/a_FL.to.TL),
-                         SEX=ifelse(SEX=="Male ","Male",SEX),
-                         SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
-                         filter(SAMPLE.SOURCE=='Commercial catch sampling')%>%
-                         filter(!is.na(SEX))%>%
-                  dplyr::select(Month,FINYEAR,year,FL,SEX)
-
-Species.data$`copper shark`$Size_composition_Other_Observations=data.frame(
-                  FINYEAR=sort(unique(Species.data$`copper shark`$Size_composition_Other$FINYEAR)),
-                  Method='LL',
-                  zone="SA",
-                  SPECIES=18001,
-                  N.shots=30,
-                  N.observations=NA)
-  #6.2 remove dodgy survey estimate Milk shark
-Milk_id=which(Species.data$`milk shark`$Srvy.FixSt$CV>0.7)
-if(length(Milk_id)>0)
+if('copper shark'%in%names(Species.data))
 {
-  Species.data$`milk shark`$Srvy.FixSt[Milk_id,-1]=NA
-  Species.data$`milk shark`$Srvy.FixSt_relative[Milk_id,-1]=NA
+  Species.data$`copper shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/SA_Cbrachyurus length data.csv'))%>%
+              mutate(DATE=as.Date(DATE,"%d/%m/%Y"),
+                     Month=month(DATE),
+                     year=year(DATE),
+                     FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
+                                    paste(year-1,substr(year,3,4),sep='-')),
+                     FL=with(LH.data%>%filter(SPECIES==18001),((TL..mm./10)-b_FL.to.TL )/a_FL.to.TL),
+                     SEX=ifelse(SEX=="Male ","Male",SEX),
+                     SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
+              filter(SAMPLE.SOURCE=='Commercial catch sampling')%>%
+              filter(!is.na(SEX))%>%
+              dplyr::select(Month,FINYEAR,year,FL,SEX)
+  
+  Species.data$`copper shark`$Size_composition_Other_Observations=data.frame(
+            FINYEAR=sort(unique(Species.data$`copper shark`$Size_composition_Other$FINYEAR)),
+            Method='LL',
+            zone="SA",
+            SPECIES=18001,
+            N.shots=30,
+            N.observations=NA)
 }
 
+  #6.2 remove dodgy survey estimate Milk shark
+if('milk shark'%in%names(Species.data))
+{
+  Milk_id=which(Species.data$`milk shark`$Srvy.FixSt$CV>0.7)
+  if(length(Milk_id)>0)
+  {
+    Species.data$`milk shark`$Srvy.FixSt[Milk_id,-1]=NA
+    Species.data$`milk shark`$Srvy.FixSt_relative[Milk_id,-1]=NA
+  }
+}
 
   #6.3 add size composition Angel sharks (GAB Trawl)
 if(use.Gab.trawl)
 {
-  Species.data$`angel sharks`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
-    filter(Species.Csiro==37024002)%>%
-    mutate(DATE=as.Date(Start.Date,"%d/%m/%Y"),
-           Month=month(DATE),
-           year=year(DATE),
-           FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
-                          paste(year-1,substr(year,3,4),sep='-')),
-           FL=with(LH.data%>%filter(SPECIES==24900),((Species.Size)-b_FL.to.TL )/a_FL.to.TL),
-           SEX=Sex,
-           SEX=ifelse(SEX=="Male ","Male",SEX),
-           SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
-    filter(!is.na(SEX))%>%
-    filter(!is.na(year))%>%
-    dplyr::select(Month,FINYEAR,year,FL,SEX,Species.Quantity)%>% 
-    type.convert(as.is = TRUE) %>% 
-    uncount(Species.Quantity)
-  
-  Species.data$`angel sharks`$Size_composition_Other_Observations=data.frame(
-    FINYEAR=sort(unique(Species.data$`angel sharks`$Size_composition_Other$FINYEAR)),
-    Method='Trawl',
-    zone="GAB.trawl",
-    SPECIES=24900,
-    N.shots=23,
-    N.observations=NA)
+  if('angel sharks'%in%names(Species.data))
+  {
+    Species.data$`angel sharks`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
+      filter(Species.Csiro==37024002)%>%
+      mutate(DATE=as.Date(Start.Date,"%d/%m/%Y"),
+             Month=month(DATE),
+             year=year(DATE),
+             FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
+                            paste(year-1,substr(year,3,4),sep='-')),
+             FL=with(LH.data%>%filter(SPECIES==24900),((Species.Size)-b_FL.to.TL )/a_FL.to.TL),
+             SEX=Sex,
+             SEX=ifelse(SEX=="Male ","Male",SEX),
+             SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
+      filter(!is.na(SEX))%>%
+      filter(!is.na(year))%>%
+      dplyr::select(Month,FINYEAR,year,FL,SEX,Species.Quantity)%>% 
+      type.convert(as.is = TRUE) %>% 
+      uncount(Species.Quantity)
+    
+    Species.data$`angel sharks`$Size_composition_Other_Observations=data.frame(
+      FINYEAR=sort(unique(Species.data$`angel sharks`$Size_composition_Other$FINYEAR)),
+      Method='Trawl',
+      zone="GAB.trawl",
+      SPECIES=24900,
+      N.shots=23,
+      N.observations=NA)
+    
+  }
 }
 
   #6.4 add size composition gummy shark (GAB Trawl)
 if(use.Gab.trawl & add.gummy.gab)
 {
-  Species.data$`gummy shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
-    filter(Species.Csiro==37017001)%>%
-    mutate(DATE=as.Date(Start.Date,"%d/%m/%Y"),
-           Month=month(DATE),
-           year=year(DATE),
-           FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
-                          paste(year-1,substr(year,3,4),sep='-')),
-           FL=with(LH.data%>%filter(SPECIES==17001),((Species.Size)-b_FL.to.TL )/a_FL.to.TL),
-           SEX=Sex,
-           SEX=ifelse(SEX=="Male ","Male",SEX),
-           SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
-    filter(!is.na(SEX))%>%
-    filter(!is.na(year))%>%
-    dplyr::select(Month,FINYEAR,year,FL,SEX,Species.Quantity)%>% 
-    type.convert(as.is = TRUE) %>% 
-    uncount(Species.Quantity)
-  
-  Species.data$`gummy shark`$Size_composition_Other_Observations=data.frame(
-    FINYEAR=sort(unique(Species.data$`gummy shark`$Size_composition_Other$FINYEAR)),
-    Method='Trawl',
-    zone="GAB.trawl",
-    SPECIES=17001,
-    N.shots=17,
-    N.observations=NA)
+  if('gummy shark'%in%names(Species.data))
+  {
+    Species.data$`gummy shark`$Size_composition_Other=read.csv(handl_OneDrive('Data/Population dynamics/GABFIS_LengthSharks.csv'))%>%
+                    filter(Species.Csiro==37017001)%>%
+                    mutate(DATE=as.Date(Start.Date,"%d/%m/%Y"),
+                           Month=month(DATE),
+                           year=year(DATE),
+                           FINYEAR=ifelse(Month>6,paste(year,substr(year+1,3,4),sep='-'),
+                                          paste(year-1,substr(year,3,4),sep='-')),
+                           FL=with(LH.data%>%filter(SPECIES==17001),((Species.Size)-b_FL.to.TL )/a_FL.to.TL),
+                           SEX=Sex,
+                           SEX=ifelse(SEX=="Male ","Male",SEX),
+                           SEX=ifelse(SEX=='Female','F',ifelse(SEX=='Male','M',NA)))%>%
+                    filter(!is.na(SEX))%>%
+                    filter(!is.na(year))%>%
+                    dplyr::select(Month,FINYEAR,year,FL,SEX,Species.Quantity)%>% 
+                    type.convert(as.is = TRUE) %>% 
+                    uncount(Species.Quantity)
+    
+    Species.data$`gummy shark`$Size_composition_Other_Observations=data.frame(
+                    FINYEAR=sort(unique(Species.data$`gummy shark`$Size_composition_Other$FINYEAR)),
+                    Method='Trawl',
+                    zone="GAB.trawl",
+                    SPECIES=17001,
+                    N.shots=17,
+                    N.observations=NA)
+  }
 }
 
   #6.5 add size composition Spotted wobbegong and Western wobbegong to Wobbegongs
-other.wobbies=c('Spotted wobbegong','Western wobbegong')
-Wobbies.data=vector('list',length(other.wobbies))
-names(Wobbies.data)=other.wobbies
-    #6.5.1. bring in data
-for(s in 1:length(other.wobbies)) 
+if('wobbegongs'%in%names(Species.data))
 {
-  print(paste('Reading in data for -----',other.wobbies[s]))
-  this.one=other.wobbies[s]
-  files <- list.files(path = paste(Dat.repository,this.one,sep=""), pattern = "*.csv", full.names = T)
-  file.names <- list.files(path = paste(Dat.repository,this.one,sep=""), pattern = "*.csv", full.names = F)
-  removE <- c(".csv", paste(this.one,"_",sep=''), this.one)
-  file.names <- gsub("^\\.","",str_remove_all(file.names, paste(removE, collapse = "|")))
-  if(length(files)>0)
+  other.wobbies=c('Spotted wobbegong','Western wobbegong')
+  Wobbies.data=vector('list',length(other.wobbies))
+  names(Wobbies.data)=other.wobbies
+  #6.5.1. bring in data
+  for(s in 1:length(other.wobbies)) 
   {
-    if(length(files)>1)
+    print(paste('Reading in data for -----',other.wobbies[s]))
+    this.one=other.wobbies[s]
+    files <- list.files(path = paste(Dat.repository,this.one,sep=""), pattern = "*.csv", full.names = T)
+    file.names <- list.files(path = paste(Dat.repository,this.one,sep=""), pattern = "*.csv", full.names = F)
+    removE <- c(".csv", paste(this.one,"_",sep=''), this.one)
+    file.names <- gsub("^\\.","",str_remove_all(file.names, paste(removE, collapse = "|")))
+    if(length(files)>0)
     {
-      getfiles=sapply(files, fread, data.table=FALSE)
-      if(is.matrix(getfiles))
+      if(length(files)>1)
       {
-        getfiles=vector('list',length(file.names))
-        for(g in 1:length(getfiles)) getfiles[[g]]=read.csv(files[g])
+        getfiles=sapply(files, fread, data.table=FALSE)
+        if(is.matrix(getfiles))
+        {
+          getfiles=vector('list',length(file.names))
+          for(g in 1:length(getfiles)) getfiles[[g]]=read.csv(files[g])
+        }
+      }else
+      {
+        getfiles=list(read.csv(files))
       }
-    }else
-    {
-      getfiles=list(read.csv(files))
+      names(getfiles)=file.names
+      Wobbies.data[[s]]=getfiles
     }
-    names(getfiles)=file.names
-    Wobbies.data[[s]]=getfiles
+    rm(files)
+  }  
+  #6.5.2. add to Wobbegongs
+  for(s in 1:length(other.wobbies)) 
+  {
+    Species.data$wobbegongs$Size_composition_Observations=rbind(Species.data$wobbegongs$Size_composition_Observations,
+                                                                Wobbies.data[[s]]$Size_composition_Observations)
+    Species.data$wobbegongs$Size_composition_West.6.5.inch.raw=rbind(Species.data$wobbegongs$Size_composition_West.6.5.inch.raw,
+                                                                     Wobbies.data[[s]]$Size_composition_West.6.5.inch.raw)
+    Species.data$wobbegongs$Size_composition_West.7.inch.raw=rbind(Species.data$wobbegongs$Size_composition_West.7.inch.raw,
+                                                                   Wobbies.data[[s]]$Size_composition_West.7.inch.raw)
+    Species.data$wobbegongs$Size_composition_Zone1.6.5.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone1.6.5.inch.raw,
+                                                                      Wobbies.data[[s]]$Size_composition_Zone1.6.5.inch.raw)
+    Species.data$wobbegongs$Size_composition_Zone1.7.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone1.7.inch.raw,
+                                                                    Wobbies.data[[s]]$Size_composition_Zone1.7.inch.raw)
+    Species.data$wobbegongs$Size_composition_Zone2.6.5.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone2.6.5.inch.raw,
+                                                                      Wobbies.data[[s]]$Size_composition_Zone2.6.5.inch.raw)
+    Species.data$wobbegongs$Size_composition_Zone2.7.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone2.7.inch.raw,
+                                                                    Wobbies.data[[s]]$Size_composition_Zone2.7.inch.raw)
   }
-  rm(files)
-}  
-    #6.5.2. add to Wobbegongs
-for(s in 1:length(other.wobbies)) 
-{
-  Species.data$wobbegongs$Size_composition_Observations=rbind(Species.data$wobbegongs$Size_composition_Observations,
-                                                              Wobbies.data[[s]]$Size_composition_Observations)
-  Species.data$wobbegongs$Size_composition_West.6.5.inch.raw=rbind(Species.data$wobbegongs$Size_composition_West.6.5.inch.raw,
-                                                                   Wobbies.data[[s]]$Size_composition_West.6.5.inch.raw)
-  Species.data$wobbegongs$Size_composition_West.7.inch.raw=rbind(Species.data$wobbegongs$Size_composition_West.7.inch.raw,
-                                                                 Wobbies.data[[s]]$Size_composition_West.7.inch.raw)
-  Species.data$wobbegongs$Size_composition_Zone1.6.5.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone1.6.5.inch.raw,
-                                                                    Wobbies.data[[s]]$Size_composition_Zone1.6.5.inch.raw)
-  Species.data$wobbegongs$Size_composition_Zone1.7.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone1.7.inch.raw,
-                                                                  Wobbies.data[[s]]$Size_composition_Zone1.7.inch.raw)
-  Species.data$wobbegongs$Size_composition_Zone2.6.5.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone2.6.5.inch.raw,
-                                                                    Wobbies.data[[s]]$Size_composition_Zone2.6.5.inch.raw)
-  Species.data$wobbegongs$Size_composition_Zone2.7.inch.raw=rbind(Species.data$wobbegongs$Size_composition_Zone2.7.inch.raw,
-                                                                  Wobbies.data[[s]]$Size_composition_Zone2.7.inch.raw)
+  Species.data$wobbegongs$Size_composition_Observations=Species.data$wobbegongs$Size_composition_Observations%>%
+    mutate(SPECIES=13000)%>%
+    group_by(FINYEAR,Method,zone,SPECIES)%>%
+    summarise(N.shots=mean(N.shots),
+              N.observations=sum(N.observations))%>%
+    ungroup()
+  
 }
-Species.data$wobbegongs$Size_composition_Observations=Species.data$wobbegongs$Size_composition_Observations%>%
-  mutate(SPECIES=13000)%>%
-  group_by(FINYEAR,Method,zone,SPECIES)%>%
-  summarise(N.shots=mean(N.shots),
-            N.observations=sum(N.observations))%>%
-  ungroup()
 
   #6.6 remove Pilbara trawl length comp as it's not used at all
 for(i in 1:N.sp) 
@@ -1336,11 +1376,16 @@ for(i in 1:N.sp)
   }
 }
 
-  #6.7 remove NA sex in length composition data
+  #6.7 remove NA sex in length composition data and 'Table.6.5.and.7'
 for(i in 1:N.sp) 
 {
   if(any(grepl('Size_composition',names(Species.data[[i]]))))
   {
+    #Table.6.5.and.7
+    id.dumi=grep('Table.6.5.and.7',names(Species.data[[i]]))
+    if(length(id.dumi)>0) Species.data[[i]]=Species.data[[i]][-id.dumi]
+    
+    #Na sex
     d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
                                   names(Species.data[[i]]))]
     if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
@@ -1410,6 +1455,7 @@ for(s in 1:N.sp)
 }
 
   #6.11 Remove F series from TDGDLF due to structural uncertainty (different growth and M estimation) and sample size
+#note: this is superseded by calculating F from tags in the SS model
 for(s in 1:N.sp)
 {
   iid=grep('Fishing.mortality.TDGDLF',names(Species.data[[s]]))
@@ -1441,7 +1487,7 @@ for(s in 1:N.sp)
     Acous.tag=grep('Acous.Tag',names(Species.data[[s]]))
     if(length(Acous.tag)>0) Species.data[[s]]=Species.data[[s]][-Acous.tag]
     
-    #Manipulate conventional tags
+    #Manipulate conventional tags  
     Con.tag=grep('Con_tag',names(Species.data[[s]]))
     if(length(Con.tag)>0)
     {
@@ -1501,7 +1547,8 @@ for(s in 1:N.sp)
                   p2+theme(legend.position = 'none'),
                   p3,
                   ncol=1,nrow=3)
-        ggsave(paste0(Outputs,'/Data/1.',capitalize(names(Species.data)[s]),"/",AssessYr,"/1_Inputs/Visualise data/Tags by zone.tiff"),
+        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(names(Species.data)[s]),"/",AssessYr,'/1_Inputs/Visualise data/Tags by zone.tiff',sep=''),
                width = 7,height = 10, dpi = 300, compression = "lzw")
         
         p1=Species.data[[s]]$Con_tag_SS.format_releases%>%
@@ -1533,10 +1580,9 @@ for(s in 1:N.sp)
           scale_fill_discrete(drop = FALSE)
         
         ggarrange(p1,p2,ncol=2,nrow=1)
-        ggsave(paste0(Outputs,'/Data/1.',capitalize(names(Species.data)[s]),"/",AssessYr,"/1_Inputs/Visualise data/Tags by zone_bubbleplot.tiff"),
+        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(names(Species.data)[s]),"/",AssessYr,'/1_Inputs/Visualise data/Tags by zone_bubbleplot.tiff',sep=''),
                width = 10,height = 6, dpi = 300, compression = "lzw")
-        
-        
       }
     }
   }
@@ -1560,25 +1606,7 @@ for(i in 1:N.sp)
   }
 }
 
-  #6.14 Look at L50:Linf ratio, should be [0.75;0.85] ; Cortes 2000: mean is 0.75
-if(First.run=="YES")
-{
-  L50_Linf_ratio=data.frame(Species=names(List.sp),L50.Linf.ratio=NA)
-  for(i in 1:N.sp)  L50_Linf_ratio$L50.Linf.ratio[i]=with(List.sp[[i]],TL.50.mat/(Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))
-  
-  L50_Linf_ratio%>%
-    mutate(id = row_number())%>%
-    ggplot(aes(id,L50.Linf.ratio))+
-    geom_point()+
-    geom_text_repel(aes(label=Species))+
-    theme_PA()+
-    geom_hline(yintercept = 0.70,color='red')+
-    geom_hline(yintercept = 0.85,color='red')
-  ggsave(handl_OneDrive('Analyses/Population dynamics/L50_Linf_ratio.tiff'),
-         width = 6,height = 6, dpi = 300, compression = "lzw")
-}
-
-  #6.15 Display annual proportional effort by zone and mesh
+  #6.14 Display annual proportional effort by zone and mesh
 if(First.run=="YES")
 {
   mesh.prop.effort%>%
@@ -1693,7 +1721,9 @@ for(l in 1:N.sp)
 rm(sumsq,ObjFunc,L)
 
   #Export table of life history parameters for use in RAR
-Rar.path=paste(handl_OneDrive('Reports/RARs'), AssessYr,'Figures_and_Tables',sep="/")
+Rar.path=paste(handl_OneDrive('Reports/RARs'), AssessYr,sep="/")
+if(!dir.exists(Rar.path))dir.create(Rar.path)
+Rar.path=paste0(Rar.path,'/Figures_and_Tables')
 if(!dir.exists(Rar.path))dir.create(Rar.path)
 if(First.run=="YES")
 {
@@ -1764,7 +1794,7 @@ if(do.this)
 }
  
 #Compare Max Age and tmax 
-if(First.run=="YES")
+if(First.run=="YES" & is.null(assess.these.species.only))
 {
   d1=fn.get.stuff.from.list(List.sp,"Max.age.F")
   d1=do.call(rbind,d1)%>%
@@ -1800,7 +1830,8 @@ if(First.run=="YES")
                                Linf=List.sp[[i]]$Growth.F$FL_inf,
                                Linf.m=List.sp[[i]]$Growth.M$FL_inf,
                                TLmax=mean(List.sp[[i]]$TLmax))
-      ggsave(paste0(Outputs,'/Data/1.',Name,"/",AssessYr,"/1_Inputs/Visualise data/Length comps_survey_Linf.tiff"),
+      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                   capitalize(names(Species.data)[s]),"/",AssessYr,'/1_Inputs/Visualise data/Length comps_survey_Linf.tiff',sep=''),
              width=6,height=6,compression = "lzw") 
     }
     
@@ -1811,16 +1842,43 @@ if(First.run=="YES")
                                Linf=List.sp[[i]]$Growth.F$FL_inf,
                                Linf.m=List.sp[[i]]$Growth.M$FL_inf,
                                TLmax=mean(List.sp[[i]]$TLmax))
-      ggsave(paste0(Outputs,'/Data/1.',Name,"/",AssessYr,"/1_Inputs/Visualise data/Length comps_NSF_Linf.tiff"),
+      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                   capitalize(names(Species.data)[s]),"/",AssessYr,'/1_Inputs/Visualise data/Length comps_NSF_Linf.tiff',sep=''),
              width=6,height=6,compression = "lzw") 
       
     }
   }
 }
 
+#Look at L50:Linf ratio, should be [0.75;0.85] ; Cortes 2000: mean is 0.75
+if(First.run=="YES" & is.null(assess.these.species.only))
+{
+  L50_Linf_ratio=data.frame(Species=names(List.sp),L50.Linf.ratio=NA)
+  for(i in 1:N.sp)  L50_Linf_ratio$L50.Linf.ratio[i]=with(List.sp[[i]],TL.50.mat/(Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))
+  
+  L50_Linf_ratio%>%
+    mutate(id = row_number())%>%
+    ggplot(aes(id,L50.Linf.ratio))+
+    geom_point()+
+    geom_text_repel(aes(label=Species))+
+    theme_PA()+
+    geom_hline(yintercept = 0.70,color='red')+
+    geom_hline(yintercept = 0.85,color='red')
+  ggsave(handl_OneDrive('Analyses/Population dynamics/L50_Linf_ratio.tiff'),
+         width = 6,height = 6, dpi = 300, compression = "lzw")
+}
+
+
 #---8. Create list of species groups for RAR outputs ----- 
-Lista.sp.outputs=list(Other.species,names(Indicator.species))
-names(Lista.sp.outputs)=c('Other.sp','Indicator.sp')
+Lista.sp.outputs=list(names(Indicator.species))
+names(Lista.sp.outputs)=c('Indicator.sp')
+
+if(!is.null(Other.species))
+{
+  Lista.sp.outputs=list(Other.species,names(Indicator.species))
+  names(Lista.sp.outputs)=c('Other.sp','Indicator.sp')
+}
+
 if(!is.null(additional.sp))
 {
   Lista.sp.outputs[[3]]=additional.sp
@@ -2111,59 +2169,66 @@ if(do.r.prior)
                                      Strx.siz=STXSIZ,
                                      Scen1='Constant M',
                                      Scen2='M.at.age')
+    out$p
     ggsave(paste(Rar.path,'/Prior_r_',names(Lista.sp.outputs)[l],'_M.at.age_vs_Constant.M.tiff',sep=''),
            width = 12,height = 10,compression = "lzw")
-    write.csv(out,paste(Rar.path,'/Prior_r_',names(Lista.sp.outputs)[l],'_M.at.age_vs_Constant.M.csv',sep=''),row.names=F)
+    write.csv(out$tab,paste(Rar.path,'/Prior_r_',names(Lista.sp.outputs)[l],'_M.at.age_vs_Constant.M.csv',sep=''),row.names=F)
   }
   
-  pdf(handl_OneDrive('Analyses/Population dynamics/M_constant_VS_at.age_store_M.pdf'))
-  smart.par(N.sp,c(1,1.5,1,1),c(1,1,1,1),c(3, 1, 0))
-  for(x in 1:N.sp)
+  if(is.null(assess.these.species.only))
   {
-    print(paste("Display each run of M.at.age vs Constant M for","--",Keep.species[x]))
-    id=match(Keep.species[x],names(store.species.M_M.at.age))
-    plot(unlist(store.species.M_M.at.age[[id]][1,]),ylim=c(0,0.8),xaxt='n',main=Keep.species[x],xlab='Length',ylab="M")
-    for(q in 1:nrow(store.species.M_M.at.age[[id]]))lines(unlist(store.species.M_M.at.age[[id]][q,]))
-    for(q in 1:nrow(store.species.M_M.at.age[[id]]))lines(unlist(store.species.M_M.age.invariant[[id]][q,]),col=2)
+    pdf(handl_OneDrive('Analyses/Population dynamics/M_constant_VS_at.age_store_M.pdf'))
+    smart.par(N.sp,c(1,1.5,1,1),c(1,1,1,1),c(3, 1, 0))
+    for(x in 1:N.sp)
+    {
+      print(paste("Display each run of M.at.age vs Constant M for","--",Keep.species[x]))
+      id=match(Keep.species[x],names(store.species.M_M.at.age))
+      plot(unlist(store.species.M_M.at.age[[id]][1,]),ylim=c(0,0.8),xaxt='n',main=Keep.species[x],xlab='Length',ylab="M")
+      for(q in 1:nrow(store.species.M_M.at.age[[id]]))lines(unlist(store.species.M_M.at.age[[id]][q,]))
+      for(q in 1:nrow(store.species.M_M.at.age[[id]]))lines(unlist(store.species.M_M.age.invariant[[id]][q,]),col=2)
+    }
+    dev.off()
   }
-  dev.off()
+
 }
 
   #compare M and r
 if(do.r.prior)
 {
-  Omit.these=NULL
-  CompR=data.frame(Name=names(store.species.r_M.age.invariant),r=NA,M=NA)
-  for(l in 1:N.sp)
+  if(is.null(assess.these.species.only))
   {
-    CompR$r[l]=store.species.r_M.age.invariant[[l]]$mean
-    CompR$M[l]=mean(unlist(store.species.M_M.age.invariant[[l]]),na.rm=T)
+    Omit.these=NULL
+    CompR=data.frame(Name=names(store.species.r_M.age.invariant),r=NA,M=NA)
+    for(l in 1:N.sp)
+    {
+      CompR$r[l]=store.species.r_M.age.invariant[[l]]$mean
+      CompR$M[l]=mean(unlist(store.species.M_M.age.invariant[[l]]),na.rm=T)
+    }
+    COL=rgb(.1,.2,.8,alpha=.45)
+    CompR=CompR%>%
+      arrange(r)%>%
+      mutate(Name=capitalize(Name))
+    my_formula=y ~ x
+    
+    p=CompR%>%
+      ggplot(aes(M, r, label = Name)) +
+      geom_point(shape = 21, size = 5,fill=COL) + 
+      geom_smooth(method = "lm", data = CompR%>%filter(!Name%in%Omit.these),
+                  se = F, fullrange = TRUE,colour="red")+
+      stat_poly_eq(aes(label =  paste(after_stat(eq.label),after_stat(adj.rr.label),after_stat(p.value.label),
+                                      sep = "*\", \"*")),
+                   formula = my_formula, parse = TRUE,
+                   label.y = "top", label.x = "right", size = 4)+
+      geom_text_repel(segment.colour='black',col='black',box.padding = 0.5) + 
+      scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
+      theme_PA(axs.T.siz=14,axs.t.siz=12)+
+      theme(panel.background = element_blank(),
+            axis.line = element_line(colour = "black"),
+            panel.border = element_rect(colour = "black", fill=NA, linewidth=1))
+    p
+    ggsave(handl_OneDrive('Analyses/Population dynamics/M_vs_r.tiff'), 
+           width = 8,height = 6, dpi = 300, compression = "lzw")
   }
-  COL=rgb(.1,.2,.8,alpha=.45)
-  CompR=CompR%>%
-    arrange(r)%>%
-    mutate(Name=capitalize(Name))
-  my_formula=y ~ x
-  
-  p=CompR%>%
-    ggplot(aes(M, r, label = Name)) +
-    geom_point(shape = 21, size = 5,fill=COL) + 
-    geom_smooth(method = "lm", data = CompR%>%filter(!Name%in%Omit.these),
-                se = F, fullrange = TRUE,colour="red")+
-    stat_poly_eq(aes(label =  paste(after_stat(eq.label),after_stat(adj.rr.label),after_stat(p.value.label),
-                                    sep = "*\", \"*")),
-                 formula = my_formula, parse = TRUE,
-                 label.y = "top", label.x = "right", size = 4)+
-    geom_text_repel(segment.colour='black',col='black',box.padding = 0.5) + 
-    scale_colour_manual(values = cols,aesthetics = c("colour", "fill"))+ 
-    theme_PA(axs.T.siz=14,axs.t.siz=12)+
-    theme(panel.background = element_blank(),
-          axis.line = element_line(colour = "black"),
-          panel.border = element_rect(colour = "black", fill=NA, linewidth=1))
-  p
-  ggsave(handl_OneDrive('Analyses/Population dynamics/M_vs_r.tiff'), 
-         width = 8,height = 6, dpi = 300, compression = "lzw")
-  
 }
 
   #FishLife approach
@@ -2327,7 +2392,7 @@ for(l in 1:N.sp)
 }
 
 #display selectivities    
-if(First.run=="YES")
+if(First.run=="YES" & is.null(assess.these.species.only))
 {
   #selectivity at age
   N.sp.with.sel=which(sapply(Selectivity.at.age,function(x) !is.null(x)),TRUE)
@@ -2556,7 +2621,6 @@ if(Calculate.weight_Survey)
     }
   }
 }
-
 
 # get SE if only CV available and define if using CV or SE in assessment model  
 for(i in 1:N.sp)
@@ -2799,7 +2863,7 @@ h_too.high=c("great hammerhead","tiger shark","smooth hammerhead","whiskery shar
 h_too.low=c('sawsharks','green sawfish','milk shark') 
 h_too.long.converge=NULL
 Omit.these.h=capitalize(c(h_too.high,h_too.low))
-if(do.steepness)
+if(do.steepness & is.null(assess.these.species.only))
 {
   CompR=data.frame(Name=names(store.species.steepness_M.at.age),
                    h=unlist(sapply(store.species.steepness_M.at.age, `[`, 1)),
@@ -2853,10 +2917,13 @@ dis.sp.h=tolower(Omit.these.h)
 if("dwarf sawfish" %in% Keep.species) dis.sp.h=c(dis.sp.h,"dwarf sawfish","freshwater sawfish")
 for(s in 1:length(dis.sp.h))
 {
-  set.seed(1234)
-  id=match(dis.sp.h[s],names(store.species.steepness_M.at.age))
-  new.h=store.species.r_M.age.invariant[[id]]$mean*Mod.Pred$slope+Mod.Pred$intercept
-  store.species.steepness.S2[[id]]=rnorm(1,new.h,new.h/100)
+  if(dis.sp.h[s]%in%Keep.species)
+  {
+    set.seed(1234)
+    id=match(dis.sp.h[s],names(store.species.steepness_M.at.age))
+    new.h=store.species.r_M.age.invariant[[id]]$mean*Mod.Pred$slope+Mod.Pred$intercept
+    store.species.steepness.S2[[id]]=rnorm(1,new.h,new.h/100)
+  }
 }
 if(test.Sedar)
 {
@@ -2897,9 +2964,10 @@ if(do.steepness)
                                          Scen1='steepness S2',
                                          Scen2='M at age',
                                          Scen3='M invariant')
+    out$p
     ggsave(paste(Rar.path,'/Prior_steepness_',names(Lista.sp.outputs)[l],'_M.at.age_vs_Constant.M.tiff',sep=''),
            width = 12,height = 10,compression = "lzw")
-    write.csv(out,paste(Rar.path,'/Prior_steepness_',names(Lista.sp.outputs)[l],'_M.at.age_vs_Constant.M.csv',sep=''),row.names=F)
+    write.csv(out$tab,paste(Rar.path,'/Prior_steepness_',names(Lista.sp.outputs)[l],'_M.at.age_vs_Constant.M.csv',sep=''),row.names=F)
   }
 }
 clear.log('fn.display.priors')
@@ -2946,8 +3014,11 @@ names(Fmsy.M.scaler)=Keep.species
 for(l in 1:N.sp) Fmsy.M.scaler[[l]]=Cortes.Brooks.2018(alpha=median(unlist(store.species.alpha_M.at.age[[l]])))
 for(l in 1:length(dis.sp.h)) #reset dis.sp.h consistently with h resetting
 {
-  s=match(dis.sp.h[l],names(Fmsy.M.scaler))
-  Fmsy.M.scaler[[s]]=0.5
+  if(dis.sp.h[l]%in%Keep.species)
+  {
+    s=match(dis.sp.h[l],names(Fmsy.M.scaler))
+    Fmsy.M.scaler[[s]]=0.5
+  }
 }
 
 clear.log('store.species.alpha_M.at.age')
@@ -3021,7 +3092,7 @@ if(First.run=="YES")
       xlab('Total length (cm)')+
       ggtitle(paste(Title,' (',unique(Sel$type),' selectivity)',sep=''))
     
-    print(p)
+    base::print(p)
   }
   for(l in 1:N.sp)
   {
@@ -3219,7 +3290,6 @@ if(First.run=="YES")
   clear.log('fn.cpue.corr')
 }
 
-#Check if observed FL is within Lo +/- CV and FLinf +/- 
 #remove "Size.type"
 for(i in 1:length(Species.data))
 {
@@ -3238,6 +3308,8 @@ for(i in 1:length(Species.data))
 
   }
 }
+
+#Check if observed FL is within Lo +/- CV and FLinf +/- 
 if(First.run=="YES") 
 {
   for(i in 1:length(Species.data))
@@ -3398,7 +3470,7 @@ if(First.run=="YES")
 }
 
 #Compare r dist and life history invariant r~ 1.5-2 M
-if(First.run=="YES")
+if(First.run=="YES" & is.null(assess.these.species.only))
 {
   r.within.m.range=vector('list',N.sp)
   for(i in 1:N.sp)
@@ -3534,26 +3606,26 @@ if(First.run=="YES")
 
 #---17. Display catches by fishery,life history & available time series ----
 Tot.ktch=KtCh %>%      
-  mutate(
-    Type = case_when(
-      FishCubeCode=='WRL'~'WRL',
-      FishCubeCode=='WTB'~'WTB',
-      FishCubeCode%in%c('Discards_TDGDLF','TEP')~'TEP',
-      FishCubeCode=='Recreational'~'Recreational',
-      FishCubeCode=='SA MSF'~'SA MSF',
-      FishCubeCode=='NSW fisheries'~'NSW fisheries',
-      FishCubeCode=='NT'~'NT',
-      FishCubeCode=='GAB'~'GAB Trawl',
-      FishCubeCode=='Indo'~'Indonesia',
-      FishCubeCode=='Taiwan'~'Taiwan',
-      FishCubeCode=='Historic'~'Historic',
-      FishCubeCode%in%c('JASDGDL','WCDGDL','C070','OAWC')~'TDGDLF',
-      FishCubeCode%in%c('JANS','OANCGC','WANCS')~'NSF',   
-      TRUE  ~ "Other WA Commercial"),
-    Type=factor(Type,levels=c("Recreational","TDGDLF","NSF",
-                              "Historic","Other WA Commercial","TEP","WRL",
-                              "NT","NSW fisheries","SA MSF","GAB Trawl","WTB",
-                              "Taiwan","Indonesia")))
+          mutate(
+            Type = case_when(
+              FishCubeCode=='WRL'~'WRL',
+              FishCubeCode=='WTB'~'WTB',
+              FishCubeCode%in%c('Discards_TDGDLF','TEP')~'TEP',
+              FishCubeCode=='Recreational'~'Recreational',
+              FishCubeCode=='SA MSF'~'SA MSF',
+              FishCubeCode=='NSW fisheries'~'NSW fisheries',
+              FishCubeCode=='NT'~'NT',
+              FishCubeCode=='GAB'~'GAB Trawl',
+              FishCubeCode=='Indo'~'Indonesia',
+              FishCubeCode=='Taiwan'~'Taiwan',
+              FishCubeCode=='Historic'~'Historic',
+              FishCubeCode%in%c('JASDGDL','WCDGDL','C070','OAWC')~'TDGDLF',
+              FishCubeCode%in%c('JANS','OANCGC','WANCS')~'NSF',   
+              TRUE  ~ "Other WA Commercial"),
+            Type=factor(Type,levels=c("Recreational","TDGDLF","NSF",
+                                      "Historic","Other WA Commercial","TEP","WRL",
+                                      "NT","NSW fisheries","SA MSF","GAB Trawl","WTB",
+                                      "Taiwan","Indonesia")))
 all.yrs=min(Tot.ktch$finyear):max(KtCh$finyear)
 Fishry.type=levels(Tot.ktch$Type)
 COLs.type=colfunc(length(Fishry.type))
@@ -3561,7 +3633,7 @@ names(COLs.type)=Fishry.type
 All.N.sp=sort(unique(Tot.ktch$Name))
 All.N.sp=subset(All.N.sp,!All.N.sp%in%names(Indicator.species))
 
-if(First.run=="YES")
+if(First.run=="YES") 
 {
   #By species groups
   for(l in 1:length(Lista.sp.outputs))
@@ -3943,11 +4015,11 @@ if(do.dis)
     {
       p1=ggplot() + theme_void()+ ggtitle(paste(this.fleet,Keep.species[l],sep=' --- ')) 
     }
-    print(p1)
+    base::print(p1)
     rm(p1)
     if(exists('p2'))
     {
-      print(p2)
+      base::print(p2)
       rm(p2)
     }
   }
@@ -4325,7 +4397,7 @@ clear.log('dummy.store.Kobe.probs')
 clear.log('State.Space.SPM')
 
 #---25. Integrated Stock Synthesis (Age-based) Model-------------------------------------------------
-  #Run Stock Synthesis
+  #Run Stock Synthesis   ACA
 HandL.out=handl_OneDrive("Analyses/Population dynamics/1.")
 HandL.out.RAR=Rar.path
 if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours
@@ -4472,7 +4544,6 @@ if(Do.bespoke) fn.source1("Integrated_size_based.R")
 #---27. Weight of Evidence Assessment ------
 
 #0. Stock assessment flow chart
-Ass.flow=TRUE
 if(Ass.flow)
 {
   library(igraph)
@@ -4580,56 +4651,61 @@ if(Ass.flow)
 
 #1. Calculate risk for each line of evidence  
   #1.1. PSA 
-#note: only use PSA scores for species dropped by the PSA as this is the only available LoE 
-Drop.species=subset(Drop.species,!Drop.species=="other sharks")
-Risk.PSA=vector('list',length(Drop.species))  
-names(Risk.PSA)=Drop.species
-for(s in 1:length(Risk.PSA))
+#note: only use PSA scores for species dropped by the PSA as this is the only available LoE
+if(output.PSA)
 {
-  xxx=PSA.out%>%mutate(Species=tolower(Species))%>%filter(Species==tolower(names(Risk.PSA)[s]))
-  if(xxx$Vulnerability=='Low') dummy=data.frame(Species=capitalize(xxx$Species),
-                                                Consequence=1:4,
-                                                Likelihood=c(2,1,1,1),
-                                                w=0.5)  
-  if(xxx$Vulnerability=='Medium') dummy=data.frame(Species=capitalize(xxx$Species),
-                                                   Consequence=1:4,
-                                                   Likelihood=c(4,2,1,1),
-                                                   w=0.5)  
-  Risk.PSA[[s]]=dummy
-  rm(xxx,dummy)
+  Drop.species=subset(Drop.species,!Drop.species=="other sharks")
+  Risk.PSA=vector('list',length(Drop.species))  
+  names(Risk.PSA)=Drop.species
+  for(s in 1:length(Risk.PSA))
+  {
+    xxx=PSA.out%>%mutate(Species=tolower(Species))%>%filter(Species==tolower(names(Risk.PSA)[s]))
+    if(xxx$Vulnerability=='Low') dummy=data.frame(Species=capitalize(xxx$Species),
+                                                  Consequence=1:4,
+                                                  Likelihood=c(2,1,1,1),
+                                                  w=0.5)  
+    if(xxx$Vulnerability=='Medium') dummy=data.frame(Species=capitalize(xxx$Species),
+                                                     Consequence=1:4,
+                                                     Likelihood=c(4,2,1,1),
+                                                     w=0.5)  
+    Risk.PSA[[s]]=dummy
+    rm(xxx,dummy)
+  }
+  Risk.PSA=do.call(rbind,Risk.PSA)
+  Risk.PSA$LoE='PSA' 
 }
-Risk.PSA=do.call(rbind,Risk.PSA)
-Risk.PSA$LoE='PSA'
 
 #1.2 Spatial distribution of catch and effort
-Risk.Spatial=fun.risk.spatial.dist(d=data.frame(Species=c("angel sharks","copper shark","dusky shark","hammerheads","grey nurse shark",
-                                                          "gummy shark","lemon shark","sandbar shark","sawsharks","shortfin mako",
-                                                          "spinner shark","spurdogs","tiger shark","whiskery shark","wobbegongs"))%>%
-                                     mutate(Market=case_when(Species%in%c("grey nurse shark")~'zero',
-                                                             Species%in%c("spurdogs","sawsharks","angel sharks")~'decreasing',
-                                                             Species%in%c("sandbar shark","copper shark","hammerheads",
-                                                                          "spinner shark","tiger shark","wobbegongs")~'increasing',
-                                                             TRUE~'stable'),
-                                            Conservation=case_when(Species=='grey nurse shark'~'yes',
-                                                                   TRUE~'no'),
-                                            Blocks.fished=case_when(Species%in%c('grey nurse shark',"tiger shark","sandbar shark")~'decreasing',
-                                                                    TRUE~'stable'),
-                                            Blocks.fished.with.catch=case_when(Species%in%c('grey nurse shark',"spurdogs","sawsharks","angel sharks")~'decreasing',
-                                                                               Species%in%c("sandbar shark","copper shark","hammerheads",
-                                                                                            "spinner shark","tiger shark","wobbegongs")~'increasing',
-                                                                               TRUE~'stable'),
-                                            Effort='decreasing',
-                                            Catch='decreasing'),
-                                   outpath=Rar.path)
-Risk.Spatial=Risk.Spatial%>%
-              mutate(LoE='Spatial',
-                     Species=ifelse(Species=="Hammerheads","Smooth hammerhead",Species),
-                     Likelihood=ifelse(Species%in%c('Angel sharks','Copper shark') & Consequence==4,2,
-                                       Likelihood))   #increase risk due to unknown trends for GAB Trawl and SA MSF
+if(Do.Spatio.temporal.catch.effort) 
+{
+  Risk.Spatial=fun.risk.spatial.dist(d=data.frame(Species=c("angel sharks","copper shark","dusky shark","hammerheads","grey nurse shark",
+                                                            "gummy shark","lemon shark","sandbar shark","sawsharks","shortfin mako",
+                                                            "spinner shark","spurdogs","tiger shark","whiskery shark","wobbegongs"))%>%
+                                       mutate(Market=case_when(Species%in%c("grey nurse shark")~'zero',
+                                                               Species%in%c("spurdogs","sawsharks","angel sharks")~'decreasing',
+                                                               Species%in%c("sandbar shark","copper shark","hammerheads",
+                                                                            "spinner shark","tiger shark","wobbegongs")~'increasing',
+                                                               TRUE~'stable'),
+                                              Conservation=case_when(Species=='grey nurse shark'~'yes',
+                                                                     TRUE~'no'),
+                                              Blocks.fished=case_when(Species%in%c('grey nurse shark',"tiger shark","sandbar shark")~'decreasing',
+                                                                      TRUE~'stable'),
+                                              Blocks.fished.with.catch=case_when(Species%in%c('grey nurse shark',"spurdogs","sawsharks","angel sharks")~'decreasing',
+                                                                                 Species%in%c("sandbar shark","copper shark","hammerheads",
+                                                                                              "spinner shark","tiger shark","wobbegongs")~'increasing',
+                                                                                 TRUE~'stable'),
+                                              Effort='decreasing',
+                                              Catch='decreasing'),
+                                     outpath=Rar.path)
+  Risk.Spatial=Risk.Spatial%>%
+    mutate(LoE='Spatial',
+           Species=ifelse(Species=="Hammerheads","Smooth hammerhead",Species),
+           Likelihood=ifelse(Species%in%c('Angel sharks','Copper shark') & Consequence==4,2,
+                             Likelihood))   #increase risk due to unknown trends for GAB Trawl and SA MSF
+  
+}
 
-
-
-  #1.2. COMS  
+  #1.3. COMS  
 if(exists("Store.cons.Like_COM"))
 {
   if(COM_use.this.for.risk=='catch')
@@ -4644,7 +4720,7 @@ if(exists("Store.cons.Like_COM"))
   Risk.COM$LoE='COM'
 }
 
-#1.3. Catch curve
+#1.4. Catch curve
 if(exists("Store.cons.Like_CatchCurve"))
 {
   if(Choose.probability=="Depletion")   Risk.CatchCurve=fn.risk(d=Store.cons.Like_CatchCurve$Depletion,w=1)
@@ -4652,7 +4728,7 @@ if(exists("Store.cons.Like_CatchCurve"))
   Risk.CatchCurve$LoE='CatchCurve'
 }
 
-  #1.4. JABBA
+  #1.5. JABBA
 if(exists("Store.cons.Like_JABBA"))
 {
   #Biomass based
@@ -4663,13 +4739,14 @@ if(exists("Store.cons.Like_JABBA"))
   #F based
   Risk.JABBA_f=fn.risk_f(d=Store.cons.Like_JABBA$f,w=1)  
   Risk.JABBA_f$LoE='JABBA'
+  
+  do.this=FALSE
+  if(do.this) fn.compare.risk.ref.point(Depletion=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=1)%>%filter(finyear==2021),
+                                        B.over.Bmsy=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=1)%>%filter(finyear==2021),
+                                        TITL='JABBA')
 }
-do.this=FALSE
-if(do.this) fn.compare.risk.ref.point(Depletion=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=1)%>%filter(finyear==2021),
-                               B.over.Bmsy=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=1)%>%filter(finyear==2021),
-                               TITL='JABBA')
 
-  #1.5. SS3
+  #1.6. SS3
 if(exists("Store.cons.Like_Age.based"))
 {
   #Biomass based
@@ -4685,36 +4762,50 @@ if(exists("Store.cons.Like_Age.based"))
 
 #2. Overall risk   
 
-  #2.1 extract future risk   
-Risk.JABBA_future=Risk.JABBA%>%filter(finyear==max(Risk.JABBA$finyear))
-Risk.integrated_future=Risk.integrated%>%filter(finyear==max(Risk.integrated$finyear))
-Risk.JABBA=Risk.JABBA%>%filter(finyear==min(Risk.JABBA$finyear))%>%dplyr::select(-finyear)
-Risk.integrated=Risk.integrated%>%filter(finyear==min(Risk.integrated$finyear))%>%dplyr::select(-finyear)
+  #2.1 extract future risk
+if(exists("Risk.JABBA"))
+{
+  Risk.JABBA_future=Risk.JABBA%>%filter(finyear==max(Risk.JABBA$finyear))
+  Risk.JABBA=Risk.JABBA%>%filter(finyear==min(Risk.JABBA$finyear))%>%dplyr::select(-finyear)
+}
+if(exists("Risk.integrated"))
+{
+  Risk.integrated_future=Risk.integrated%>%filter(finyear==max(Risk.integrated$finyear))
+  Risk.integrated=Risk.integrated%>%filter(finyear==min(Risk.integrated$finyear))%>%dplyr::select(-finyear)
+}
+    
 
   #2.2. Combine Risks from all individual LoEs 
-Risk.COM=Risk.COM%>%
-  relocate(names(Risk.JABBA))
-LOE.risks=list(PSA=Risk.PSA,Spatial=Risk.Spatial,COM=Risk.COM,JABBA=Risk.JABBA,integrated=Risk.integrated)
+if(exists('Risk.COM')) Risk.COM=Risk.COM%>%relocate(names(Risk.JABBA))
+LOE.risks=list()
+if(exists("Risk.PSA")) LOE.risks$PSA=Risk.PSA
+if(exists("Risk.Spatial")) LOE.risks$Spatial=Risk.Spatial 
+if(exists("Risk.COM")) LOE.risks$COM=Risk.COM
 if(exists("Store.cons.Like_CatchCurve")) LOE.risks$CatchCurve=Risk.CatchCurve 
+if(exists("Risk.JABBA")) LOE.risks$JABBA=Risk.JABBA
+if(exists("Risk.integrated")) LOE.risks$integrated=Risk.integrated
 Store.risks=LOE.risks
 for(r in 1:length(LOE.risks))
 {
   Store.risks[[r]]=fn.risk.figure(d=LOE.risks[[r]], Risk.colors=RiskColors, out.plot=FALSE)%>%
-    dplyr::select(Species,LoE,Consequence,Likelihood,Risk,Score)
+                    dplyr::select(Species,LoE,Consequence,Likelihood,Risk,Score)
 }
 Store.risks=do.call(rbind,Store.risks)
 Table.risks=Store.risks%>%
-  mutate(Risk=paste0(Risk, ' (', Consequence,'x',Likelihood,')'))%>%
-  dplyr::select(-c(Consequence,Likelihood,Score))%>%
-  mutate(LoE=factor(LoE,levels=names(LOE.risks)))%>%
-  spread(LoE,Risk)%>%
-  rename(Integrated=integrated)
+              mutate(Risk=paste0(Risk, ' (', Consequence,'x',Likelihood,')'))%>%
+              dplyr::select(-c(Consequence,Likelihood,Score))%>%
+              mutate(LoE=factor(LoE,levels=names(LOE.risks)))%>%
+              spread(LoE,Risk)%>%
+              rename(Integrated=integrated)
 
-  #2.3. Calculate and display overall risk 
-Weighted.overall.risk=do.call(rbind,LOE.risks[-match('PSA',names(LOE.risks))])%>%
-  left_join(data.frame(LoE=names(LoE.Weights),
-                       LoE.weight=LoE.Weights),by='LoE')%>%
-  mutate(LoE.weight=ifelse(LoE=='PSA',1,LoE.weight))
+
+  #2.3. Calculate and display overall risk
+this.loe.risks=LOE.risks
+if('PSA'%in%names(LOE.risks)) this.loe.risks=LOE.risks[-match('PSA',names(LOE.risks))]
+Weighted.overall.risk=do.call(rbind,this.loe.risks)%>%
+                              left_join(data.frame(LoE=names(LoE.Weights),
+                                                   LoE.weight=LoE.Weights),by='LoE')%>%
+                              mutate(LoE.weight=ifelse(LoE=='PSA',1,LoE.weight))
   
   #if no integrated assessment, use next highest assessment
   en.spi=unique(Weighted.overall.risk$Species)
@@ -4755,8 +4846,11 @@ Weighted.overall.risk=Weighted.overall.risk%>%
                 distinct(Species,Consequence,Likelihood,w)%>%
                 mutate(Likelihood=round(Likelihood))
 
-Store.risk_Drop.species=fn.risk.figure(d=LOE.risks$PSA, Risk.colors=RiskColors, out.plot=FALSE)%>%
-  dplyr::select(-LoE)
+if('PSA'%in%names(LOE.risks))
+{
+  Store.risk_Drop.species=fn.risk.figure(d=LOE.risks$PSA, Risk.colors=RiskColors, out.plot=FALSE)%>%
+                            dplyr::select(-LoE)
+}
 
 Store.risk_Other.sp=fn.risk.figure(d=Weighted.overall.risk%>%filter(tolower(Species)%in%Lista.sp.outputs$Other.sp),
                                    Risk.colors=RiskColors,
@@ -4768,16 +4862,24 @@ Store.risk_Indicator.sp=fn.risk.figure(d=Weighted.overall.risk%>%filter(tolower(
                                        out.plot=TRUE)
 ggsave(paste(Rar.path,"Risk_Indicator.sp.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
 
+
   #2.4. Export Risk table
-Out.overall.risk=rbind(Store.risk_Drop.species,Store.risk_Other.sp,Store.risk_Indicator.sp)%>%
-  mutate(Risk.overall=paste0(Risk,' (',Consequence,'x',Likelihood,')'))%>%
-  dplyr::select(Species,Risk.overall)
+Out.overall.risk=rbind(Store.risk_Other.sp,Store.risk_Indicator.sp)
+if(exists('Store.risk_Drop.species'))
+{
+  Out.overall.risk=rbind(Store.risk_Drop.species,Store.risk_Other.sp,Store.risk_Indicator.sp)
+}
+Out.overall.risk=Out.overall.risk%>%
+                    mutate(Risk.overall=paste0(Risk,' (',Consequence,'x',Likelihood,')'))%>%
+                    dplyr::select(Species,Risk.overall)
 write.csv(Table.risks%>%left_join(Out.overall.risk,by='Species'),
           paste(Rar.path,'Table 13. Risk of each LoE and Overall.csv',sep='/'),row.names=F)
+
 
   #2.5. Export future Risk from JABBA and Integrated
 write.csv(rbind(Risk.JABBA_future,Risk.integrated_future),
           paste(Rar.path,'Table 14. Risk_Future.csv',sep='/'),row.names=F)
+
 
   #2.6. Export current and future Risk based on F from JABBA and Integrated  
 write.csv(rbind(Risk.JABBA_f,Risk.integrated_f),
@@ -4785,24 +4887,31 @@ write.csv(rbind(Risk.JABBA_f,Risk.integrated_f),
 
 
 #3. Display final risk for all species combined 
-Final.risk_Drop.species=Store.risk_Drop.species%>%
-                          group_by(Score,Risk)%>%
-                          tally()%>%
-                          mutate(Species=paste0("PSA-only species \n", "(n=",n,")"))%>%
-                          dplyr::select(Species,Score,Risk)
+if(exists('Store.risk_Drop.species'))
+{
+  Final.risk_Drop.species=Store.risk_Drop.species%>%
+                            group_by(Score,Risk)%>%
+                            tally()%>%
+                            mutate(Species=paste0("PSA-only species \n", "(n=",n,")"))%>%
+                            dplyr::select(Species,Score,Risk) 
+}
 Final.risk_Other.sp=Store.risk_Other.sp%>%dplyr::select(Species,Score,Risk)
 Final.risk_Indicator.sp=Store.risk_Indicator.sp%>%dplyr::select(Species,Score,Risk)
 
   #3.1 Overall risk by species (combined PSA species)
-fn.risk.all.sp(d=rbind(Final.risk_Drop.species,Final.risk_Other.sp,Final.risk_Indicator.sp))
+dd1=rbind(Final.risk_Other.sp,Final.risk_Indicator.sp)
+if(exists('Final.risk_Drop.species')) dd1=rbind(Final.risk_Drop.species,Final.risk_Other.sp,Final.risk_Indicator.sp)
+fn.risk.all.sp(d=dd1)
 ggsave(paste(Rar.path,"Risk_all species together.tiff",sep='/'),width = 8,height = 10,compression = "lzw")
 
   #3.2 Overall risk by species (all species)
 add.non.interacting.species=FALSE
-p1=rbind(Store.risk_Drop.species%>%
-          dplyr::select(Species,Score,Risk),
-        Final.risk_Other.sp ,
-        Final.risk_Indicator.sp)
+p1=rbind(Final.risk_Other.sp,Final.risk_Indicator.sp)
+if(exists('Store.risk_Drop.species'))
+{
+  p1=rbind(Store.risk_Drop.species%>%dplyr::select(Species,Score,Risk),
+           Final.risk_Other.sp,Final.risk_Indicator.sp)
+}
 if(add.non.interacting.species)  #display species not interacting with fishing?
 {
   All.WA.species= #missing
@@ -4829,60 +4938,82 @@ fn.risk.figure.all.LOE(d=Store.risks%>%filter(!Species%in%capitalize(names(Indic
 ggsave(paste(Rar.path,"Risk_all LoE for each species_non_indicators only.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
 
 
-#Compare MSY estimates by method  
-Catch.only_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Indicator.sp.csv'))
-Catch.only_MSY_Indicator.sp.appendix=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Indicator.sp_Appendix.csv'))
-Catch.only_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp.csv'))
-Catch.only_MSY_Other.sp.appendix=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp_Appendix.csv'))
-JABBA_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 8. JABBA CPUE_estimates_Indicator.sp.csv'))
-JABBA_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 8. JABBA CPUE_estimates_Other.sp.csv'))
-SS_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 11. Age.based_SS_quantities_Indicator.sp.csv'))
-SS_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 11. Age.based_SS_quantities_Other.sp.csv'))
-Catch.only_MSY_Indicator.sp=Catch.only_MSY_Indicator.sp%>%
-                              dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
-                              mutate(Method='CoM_ensemble')
-Catch.only_MSY_Other.sp=Catch.only_MSY_Other.sp%>%
-                            dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
-                            mutate(Method='CoM_ensemble')
-Catch.only_MSY_Indicator.sp.appendix=Catch.only_MSY_Indicator.sp.appendix%>%
-                        mutate(Method=paste0('CoM_',Model))%>%
-                        dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-Catch.only_MSY_Other.sp.appendix=Catch.only_MSY_Other.sp.appendix%>%
-                        mutate(Method=paste0('CoM_',Model))%>%
-                        dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-JABBA_MSY_Indicator.sp=JABBA_MSY_Indicator.sp%>%
-                        filter(Parameter=="MSY")%>%
-                        mutate(Method=paste0('JABBA_',Scenario))%>%
-                        rename(MSY_Lower.95=Lower.95,
-                               MSY_Median=Median,
-                               MSY_Upper.95=Upper.95)%>%
-                    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-JABBA_MSY_Other.sp=JABBA_MSY_Other.sp%>%
-                  filter(Parameter=="MSY")%>%
-                  mutate(Method=paste0('JABBA_',Scenario))%>%
-                  rename(MSY_Lower.95=Lower.95,
-                         MSY_Median=Median,
-                         MSY_Upper.95=Upper.95)%>%
-                  dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-SS_MSY_Indicator.sp=SS_MSY_Indicator.sp%>%
-                    filter(Label=='MSY')%>%
-                    mutate(Method=paste0('SS3_',Scenario),
-                           MSY_Lower.95=Median-1.96*SE,
-                           MSY_Median=Median,
-                           MSY_Upper.95=Median+1.96*SE)%>%
-              dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-SS_MSY_Other.sp=SS_MSY_Other.sp%>%
-                filter(Label=='MSY')%>%
-                mutate(Method=paste0('SS3_',Scenario),
-                       MSY_Lower.95=Median-1.96*SE,
-                       MSY_Median=Median,
-                       MSY_Upper.95=Median+1.96*SE)%>%
-                dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+#Compare MSY estimates by method
+MSY_combined=vector('list')
+if(exists("Store.cons.Like_COM")) 
+{
+  Catch.only_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Indicator.sp.csv'))
+  Catch.only_MSY_Indicator.sp.appendix=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Indicator.sp_Appendix.csv'))
+  Catch.only_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp.csv'))
+  Catch.only_MSY_Other.sp.appendix=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp_Appendix.csv'))
+  
+  Catch.only_MSY_Indicator.sp=Catch.only_MSY_Indicator.sp%>%
+    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
+    mutate(Method='CoM_ensemble')
+  Catch.only_MSY_Other.sp=Catch.only_MSY_Other.sp%>%
+    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
+    mutate(Method='CoM_ensemble')
+  Catch.only_MSY_Indicator.sp.appendix=Catch.only_MSY_Indicator.sp.appendix%>%
+    mutate(Method=paste0('CoM_',Model))%>%
+    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+  Catch.only_MSY_Other.sp.appendix=Catch.only_MSY_Other.sp.appendix%>%
+    mutate(Method=paste0('CoM_',Model))%>%
+    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+  
+  MSY_combined$Catch.only_MSY_Indicator.sp=Catch.only_MSY_Indicator.sp
+  MSY_combined$Catch.only_MSY_Other.sp=Catch.only_MSY_Other.sp
+  MSY_combined$Catch.only_MSY_Indicator.sp.appendix=Catch.only_MSY_Indicator.sp.appendix
+  MSY_combined$Catch.only_MSY_Other.sp.appendix=Catch.only_MSY_Other.sp.appendix
+}
+if(exists("Store.cons.Like_JABBA"))
+{
+  JABBA_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 8. JABBA CPUE_estimates_Indicator.sp.csv'))
+  JABBA_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 8. JABBA CPUE_estimates_Other.sp.csv'))
+  
+  JABBA_MSY_Indicator.sp=JABBA_MSY_Indicator.sp%>%
+    filter(Parameter=="MSY")%>%
+    mutate(Method=paste0('JABBA_',Scenario))%>%
+    rename(MSY_Lower.95=Lower.95,
+           MSY_Median=Median,
+           MSY_Upper.95=Upper.95)%>%
+    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+  JABBA_MSY_Other.sp=JABBA_MSY_Other.sp%>%
+    filter(Parameter=="MSY")%>%
+    mutate(Method=paste0('JABBA_',Scenario))%>%
+    rename(MSY_Lower.95=Lower.95,
+           MSY_Median=Median,
+           MSY_Upper.95=Upper.95)%>%
+    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+  
+  MSY_combined$JABBA_MSY_Indicator.sp=JABBA_MSY_Indicator.sp
+  MSY_combined$JABBA_MSY_Other.sp=JABBA_MSY_Other.sp
+}
+if(exists("Store.cons.Like_Age.based"))
+{
+  SS_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 11. Age.based_SS_quantities_Indicator.sp.csv'))
+  SS_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 11. Age.based_SS_quantities_Other.sp.csv'))
+  
+  SS_MSY_Indicator.sp=SS_MSY_Indicator.sp%>%
+    filter(Label=='MSY')%>%
+    mutate(Method=paste0('SS3_',Scenario),
+           MSY_Lower.95=Median-1.96*SE,
+           MSY_Median=Median,
+           MSY_Upper.95=Median+1.96*SE)%>%
+    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+  SS_MSY_Other.sp=SS_MSY_Other.sp%>%
+    filter(Label=='MSY')%>%
+    mutate(Method=paste0('SS3_',Scenario),
+           MSY_Lower.95=Median-1.96*SE,
+           MSY_Median=Median,
+           MSY_Upper.95=Median+1.96*SE)%>%
+    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+  
+  MSY_combined$SS_MSY_Indicator.sp=SS_MSY_Indicator.sp
+  MSY_combined$SS_MSY_Other.sp=SS_MSY_Other.sp
+}
 
-MSY_combined=rbind(Catch.only_MSY_Indicator.sp,Catch.only_MSY_Other.sp,Catch.only_MSY_Indicator.sp.appendix,
-                   Catch.only_MSY_Other.sp.appendix,JABBA_MSY_Indicator.sp,JABBA_MSY_Other.sp,
-                   SS_MSY_Indicator.sp,SS_MSY_Other.sp)%>%
-            arrange(Species,Method)
+MSY_combined=do.call(rbind,MSY_combined)%>%arrange(Species,Method)
+
 write.csv(MSY_combined,paste0(Rar.path,'/Table_Compare MSY estimates.csv'),row.names = F)
 
 fn.compare.MSY(d=MSY_combined%>%filter(Species%in%capitalize(names(Indicator.species))),ncols=2)
