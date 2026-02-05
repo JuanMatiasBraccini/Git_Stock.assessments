@@ -38,7 +38,7 @@ fn.ktch.sex.ratio.zone=function(size.data)
     filter(Total>Min.obs)
   if(nrow(size.data)>0)
   {
-    print(size.data%>%
+    base::print(size.data%>%
             ggplot(aes(year,Prop.female,color=log(Total)))+
             geom_point()+
             facet_wrap(~Zone,ncol=1)+theme_PA()+ylim(0,1)+

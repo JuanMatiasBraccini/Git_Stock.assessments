@@ -125,8 +125,8 @@ Send.email.to="matias.braccini@dpird.wa.gov.au"   #send email when model run fin
 #assess.these.species.only=NULL  #all species meeting criteria are assessed
 assess.these.species.only=c("dusky shark","gummy shark","sandbar shark","whiskery shark")      
   
-#New.assessment="NO"
-New.assessment="YES"   #set to 'YES' if a new assessment is run for the first time
+New.assessment="NO"
+#New.assessment="YES"   #set to 'YES' if a new assessment is run for the first time
 
 #2. Control what to implement
 # turn on/off assessment method as appropriate
@@ -283,6 +283,7 @@ Demo.published.values=data.frame(Species=c("angel sharks","copper shark","grey n
                         h=c(rep(NA,11),Dusky.Sedar,GreatHH.Sedar,Sandbar.Sedar,ScallopedHH.Sedar,Mako.ICCAT,SmoothHH.Sedar),
                         Reference=c(rep('Cortes 2016',11),'SEDAR 21','SEDAR 77','SEDAR 21','SEDAR 77','ICCAT 2019','SEDAR 77'))
 test.Sedar=TRUE     #consider Dusky and Sandbar h estimates used in SEDAR in the modelled scenarios
+test.lower.gummy.h=test.lower.whiskery.h=TRUE   #test lower h values in SS sensitivity tests
 Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
 
 #16. Stock recruitment
@@ -418,9 +419,9 @@ evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
 #21. Integrated age-based model 
 Integrated.age.based='SS'   # define model types used
 do.parallel.SS=TRUE         #do SS in parallel or not
-do.all.sensitivity.tests=FALSE #set to TRUE or FALSE as per required
+do.all.sensitivity.tests=TRUE #set to TRUE or FALSE as per required
 SS3.run='final' #'test'     # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, MCMC, etc)
-create.SS.inputs=FALSE       #set to FALSE once happy with SS input files and only need to run the model
+create.SS.inputs=TRUE       #set to FALSE once happy with SS input files and only need to run the model
 run_SS_plots=FALSE          #set to TRUE once happy with model and want to plot outputs
 if(SS3.run=='final') run_SS_plots=TRUE
 Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
@@ -437,7 +438,7 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
 estim.sel.pars_SS=c("sandbar shark")
 extra.SD.Q.species=c("sandbar shark")
 estim.sel.pars_SS.prior=NULL
-estim.growth.pars_SS=c("sandbar shark")
+estim.growth.pars_SS=c("sandbar shark","dusky shark","gummy shark","whiskery shark")
 Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
 combine_NSF_Survey=NULL   #combine length composition data to estimate logistic selectivity
 combine.sexes.tdgdlf=NULL 
@@ -478,7 +479,8 @@ alternative.forecasting=NULL  #forecasting F rather than catch
 alternative.like.weigthing=NULL  #test alternative lambdas for survey and length comps
 
 #spatial.model=NULL # build areas-as-fleets model
-spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')   
+spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')
+test.single.area.model=FALSE  #set to TRUE if want to test single area model scenario for spatial.model species
 
 alternative.Linf=NULL # "sandbar shark" reduce Linf to match length comps. Superseded, now estimating Linf
 if(!is.null(alternative.Linf))names(alternative.Linf)=0.9
@@ -489,8 +491,7 @@ WRL.species=c("copper shark","dusky shark","shortfin mako",
 
   #21.2 Sensitivity for NSF logistic selectivity for these species
 #alternative.NSF.selectivity=NULL
-alternative.NSF.selectivity=c("sandbar shark","dusky shark","spinner shark",
-                              "great hammerhead","scalloped hammerhead","smooth hammerhead")
+alternative.NSF.selectivity=c("dusky shark","tiger shark","great hammerhead")
 
   #21.3 No empirical Selectivity for main fleet or length comp sample size is too small
 #  so cannot implement any length-based assessment (Catch curve, SS3, etc)
@@ -534,12 +535,13 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
 Drop.single.year.size.comp=FALSE
 
   #21.8 Finyears used for SS tag recaptures
-Use.these.tag.years=list("dusky shark"=1994:1996,
+Use.these.tag.years=list("dusky shark"=1994:1995,
                          "gummy shark"=1994:1995,
                          "sandbar shark"=c(2000,2001:2003),   #added 2000
-                         "whiskery shark"=1994:1995)
+                         "whiskery shark"=1994:1996)
 use.tag.data=names(Use.these.tag.years) 
 #use.tag.data=NULL  #use tagging data to estimate F
+test.using.tags=FALSE  #set to TRUE to test effect of using tags in models of use.tag.data species
 tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
                                   "gummy shark"=c("Zone2"),
                                   "sandbar shark"=c("West","Zone1"),
@@ -1159,7 +1161,7 @@ if(First.run=='YES')
 {
   for(s in 1:N.sp)
   {
-    new.year=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(names(Species.data)[s]),"/",AssessYr,sep='')
+    new.year=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(Keep.species[s]),"/",AssessYr,sep='')
     if(!file.exists(file.path(new.year))) dir.create(file.path(new.year))
     if(!file.exists(file.path(paste0(new.year,'/1_Inputs')))) dir.create(file.path(paste0(new.year,'/1_Inputs')))
     if(!file.exists(file.path(paste0(new.year,'/1_Inputs/Visualise data')))) dir.create(file.path(paste0(new.year,'/1_Inputs/Visualise data')))
@@ -1651,7 +1653,7 @@ for(l in 1:N.sp)
 {
   print(paste("---------Set up input parameters for --",names(List.sp)[l]))
   LH=LH.data%>%filter(SPECIES==List.sp[[l]]$Species)
-  if(names(List.sp)[l]=="sandbar shark") LH$Fecu_a=LH$Fecu_b=NA  #non significant relationship  NEW
+  if(names(List.sp)[l]=="sandbar shark") LH$Fecu_a=LH$Fecu_b=NA  #non significant relationship  
   if(!is.na(LH$Fecu_mean)) LH$Fecu_min=LH$Fecu_max=LH$Fecu_mean
   List.sp[[l]]=list.append(List.sp[[l]],
                            pup.sx.ratio=0.5,
@@ -2929,6 +2931,15 @@ if(test.Sedar)
 {
   store.species.steepness.S2$`dusky shark`=Dusky.Sedar
   store.species.steepness.S2$`sandbar shark`=Sandbar.Sedar
+}
+if(test.lower.gummy.h)
+{
+  store.species.steepness.S2$`gummy shark`=store.species.steepness_M.at.age$`gummy shark`$mean*.8
+}
+if(test.lower.whiskery.h)
+{
+  dis.H=min(store.species.steepness.S2$`whiskery shark`,store.species.steepness_M.at.age$`whiskery shark`$mean*.8)
+  store.species.steepness.S2$`whiskery shark`=dis.H
 }
 
   #display h2 priors  
@@ -4397,10 +4408,10 @@ clear.log('dummy.store.Kobe.probs')
 clear.log('State.Space.SPM')
 
 #---25. Integrated Stock Synthesis (Age-based) Model-------------------------------------------------
-  #Run Stock Synthesis   ACA
+  #Run Stock Synthesis   
 HandL.out=handl_OneDrive("Analyses/Population dynamics/1.")
 HandL.out.RAR=Rar.path
-if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours
+if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours for 24 species ACA
 
   #Get Consequence and likelihoods 
 if(any(grepl("Table 12. Age.based_SS_current.depletion",list.files(Rar.path))))

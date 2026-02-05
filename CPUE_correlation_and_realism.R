@@ -128,7 +128,7 @@ fn.cpue.corr=function(Dat,AREA,WD,R=NULL)
   
   #4. Cross-correlations between CPUE indices
   p4=NULL
-  do.p4='yes'
+  do.p4='no'
   if(do.p4!='no')
   {
     cpue=FLQuants(dlply(subset(u,area==AREA),.(name), with, 

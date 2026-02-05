@@ -474,9 +474,9 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(!is.null(abundance)) dat$CPUE=abundance%>%mutate(Mean=ifelse(Mean<1e-6,1e-6,Mean))
     if(is.null(abundance))  dat$CPUE=NULL
     
-    #Add WRL selectivity if appropriate 
+    #Add WRL if appropriate 
     WRL.fleet=dat$fleetinfo%>%filter(fleetname=='WRL')
-    if(nrow(WRL.fleet)>0)  
+    if(nrow(WRL.fleet)>0 & !"WRL"%in%rownames(dat$CPUEinfo))  
     {
       WRLinfo=dat$CPUEinfo[1,]%>%
         mutate(Fleet=match('WRL',dat$fleetinfo$fleetname))
@@ -643,10 +643,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       dumifleetinfo=data.frame(dat$fleetinfo1[,1])
       colnames(dumifleetinfo)='WRL'
-      dat$fleetinfo1=cbind(dat$fleetinfo1,dumifleetinfo)
+      if(!"WRL"%in%colnames(dat$fleetinfo1)) dat$fleetinfo1=cbind(dat$fleetinfo1,dumifleetinfo)
+      
       dumifleetinfo=data.frame(dat$fleetinfo2[,1])
       colnames(dumifleetinfo)='WRL'
-      dat$fleetinfo2=cbind(dat$fleetinfo2,dumifleetinfo)
+      if(!"WRL"%in%colnames(dat$fleetinfo2)) dat$fleetinfo2=cbind(dat$fleetinfo2,dumifleetinfo)
     }
     if(!is.null(F.tagging))
     {
@@ -776,7 +777,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   ctl$MG_parms["CV_young_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_young,2)
   ctl$MG_parms["CV_old_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_old,2)
   
-  #estimate growth params
+  #estimate growth params  
   if(Scenario$Model=='SS' & life.history$SS3.estim.growth.pars)  
   {
     if('Linf'%in%names(life.history$Growth.F.prior))
@@ -1006,14 +1007,18 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       {
         ctl$Q_options$fleet=ctl$Q_options$fleet-1
       }
-      if('Northern.shark'%in%fleetinfo$fleetname & !'Northern.shark'%in%rownames(ctl$Q_options))
+      if('Northern.shark'%in%fleetinfo$fleetname & 
+         'Northern.shark'%in%flits.with.cpue$fleetname & 
+         !'Northern.shark'%in%rownames(ctl$Q_options))
       {
         addNSFQ=ctl$Q_options[1,]%>%
           mutate(fleet=match('Northern.shark',fleetinfo$fleetname))
         rownames(addNSFQ)="Northern.shark"
         ctl$Q_options=rbind(addNSFQ,ctl$Q_options)
       }
-      if('Northern.shark'%in%fleetinfo$fleetname & !any(grepl('Northern.shark',rownames(ctl$Q_parms))))
+      if('Northern.shark'%in%fleetinfo$fleetname &
+         'Northern.shark'%in%flits.with.cpue$fleetname &
+         !any(grepl('Northern.shark',rownames(ctl$Q_parms))))
       {
         addNSFQ=ctl$Q_parms[1,]%>%mutate(INIT=-7)
         rownames(addNSFQ)="Northern.shark"
@@ -1141,11 +1146,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       }
       
       #Order fleets  
-      q.order=rownames(ctl$Q_parms)
-      names(q.order)=as.numeric(str_remove(str_remove(q.order,'fleet_'),'_Q_extraSD'))
-      q.order=order(as.numeric(names(q.order)))
-      ctl$Q_parms=ctl$Q_parms[q.order,]
-      
+      ctl$Q_parms=ctl$Q_parms[match(rownames(ctl$Q_parms)[order(match(rownames(ctl$Q_parms),fleetinfo$fleetname))],rownames(ctl$Q_parms)),]
+
       #Indo IUU no extra SD  
       if(Scenario$Estim.Indo.IUU=='Yes')
       {
@@ -1272,15 +1274,16 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       ddumy.sel=ddumy[rownames(ddumy)=='Survey',]%>%
                 mutate(Fleet=dat$CPUEinfo[match('Survey',rownames(dat$CPUEinfo)),'Fleet'])
       ddumy=ddumy[!rownames(ddumy)=='Survey',]
+      if('WRL'%in%rownames(ddumy))  ddumy=ddumy[!rownames(ddumy)=='WRL',]
       if(all(!is.na(WRL.sel[,c('P_1','P_2','P_3','P_4','P_5','P_6')]))) Ptrn=24
       if(all(is.na(WRL.sel[,c('P_3','P_4','P_5','P_6')]))) Ptrn=1
-      dumi.lbster=data.frame(fleetname='WRL', Pattern=Ptrn, Discard=0, Male=0, Special=0,
+      dumi.lbster=data.frame(Pattern=Ptrn, Discard=0, Male=0, Special=0,
                              Fleet=dat$CPUEinfo[match('WRL',rownames(dat$CPUEinfo)),'Fleet'])
       row.names(dumi.lbster)='WRL'
       ddumy=rbind(ddumy,dumi.lbster,ddumy.sel)%>%
             arrange(Fleet)  
       
-      if(!is.null(dat$len_info))
+      if(!is.null(dat$len_info) & !'WRL'%in%rownames(dat$len_info))
       {
         ddummy=dat$len_info[1,] 
         rownames(ddummy)='WRL'
@@ -1293,15 +1296,19 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         }
       }
 
-      ddummy=dat$age_info[1,]
-      rownames(ddummy)='WRL'
-      if("Survey"%in%rownames(dat$age_info))
+      if(!'WRL'%in%rownames(dat$age_info))
       {
-        dat$age_info=rbind(dat$age_info[-match("Survey",rownames(dat$age_info)),],ddummy,dat$age_info[match("Survey",rownames(dat$age_info)),]) 
-      }else
-      {
-        dat$age_info=rbind(dat$age_info,ddummy)
+        ddummy=dat$age_info[1,]
+        rownames(ddummy)='WRL'
+        if("Survey"%in%rownames(dat$age_info))
+        {
+          dat$age_info=rbind(dat$age_info[-match("Survey",rownames(dat$age_info)),],ddummy,dat$age_info[match("Survey",rownames(dat$age_info)),]) 
+        }else
+        {
+          dat$age_info=rbind(dat$age_info,ddummy)
+        }
       }
+
       
       if(!is.null(dat$len_info)) dat$len_info=dat$len_info[match(rownames(dat$CPUEinfo),rownames(dat$len_info)),]
       dat$age_info=dat$age_info[match(rownames(dat$CPUEinfo),rownames(dat$age_info)),]
@@ -1474,7 +1481,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
 
     #add WRL  
-    if(nrow(WRL.sel)>0)
+    if(nrow(WRL.sel)>0 & !'WRL'%in%rownames(ctl$size_selex_parms))
     {
       add.this=ctl$size_selex_parms[which(row_nm_size_selex_parms%in%dis.flits),]
       add.WRL=add.this[which(row_nm_size_selex_parms==dis.flits[1]),]
@@ -1482,20 +1489,20 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       if(Ptrn==1) add.WRL=add.WRL[1:2,]
       if(any(!rownames(add.WRL)%in%rownames(ctl$size_selex_parms)))
       {
-        ctl$size_selex_parms=rbind(ctl$size_selex_parms,add.WRL)
-        ctl$size_selex_parms$fleet=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_", paste0(1:6,"_")), collapse = "|")))
-        ctl$size_selex_parms$order=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_",paste0("_",ctl$size_selex_parms$fleet)), collapse = "|")))
-        ctl$size_selex_parms=ctl$size_selex_parms%>%
+        aaaa=rbind(ctl$size_selex_parms,add.WRL)
+        aaaa=aaaa%>%
+          mutate(fleet=str_replace(rownames(aaaa), "^([^_]*_){2}[^_]*_", ""),
+                 order=parse_number(rownames(aaaa)))%>%
           left_join(data.frame(fleet=rownames(ctl$size_selex_types%>%filter(Special==0)))%>%mutate(Fleet.order=row_number()),
                     by='fleet')%>%
           arrange(Fleet.order,order)
-        rownames(ctl$size_selex_parms)=paste0('SizeSel_P_',ctl$size_selex_parms$order,'_',ctl$size_selex_parms$fleet)
-        ctl$size_selex_parms=ctl$size_selex_parms%>%
-          dplyr::select(-order,-fleet,-Fleet.order)
+        rownames(aaaa)=paste0('SizeSel_P_',aaaa$order,'_',aaaa$fleet)
+        aaaa=aaaa%>%dplyr::select(-order,-fleet,-Fleet.order)
+        ctl$size_selex_parms=aaaa
       }
     }
     
-    #allocated species specific values to sel pars 
+    #allocated species specific values to sel pars   #ACA, didn't work, it removed all TGDDLF fleets!
     Mirrored.sels=rownames(ctl$size_selex_types%>%filter(Pattern==15))
     if(length(Mirrored.sels)>0)
     {
@@ -1658,7 +1665,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       }
     }
     
-    #set NSF and Survey to logistic if specified in scenario 
+    #set NSF and Survey to specified in scenario 
     if(!is.na(Scenario$NSF.selectivity))
     {
       if(Scenario$NSF.selectivity=='Logistic')
@@ -2199,7 +2206,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                       relocate(seas,.before=fleet)%>%
                       rename(Year=finyear)
     }
-    fore$ForeCatch=Future.catch 
+    fore$ForeCatch=Future.catch%>%data.frame 
   }
 
   #age composition 

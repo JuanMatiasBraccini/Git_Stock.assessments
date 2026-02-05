@@ -490,10 +490,7 @@ for(l in 1:N.sp)
   List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,
                                   List.sp[[l]]$Sens.test$SS[1,]%>%
                                     mutate(M.at.age="constant",Scenario=paste0('S',N.rowSS+1)))
-    #Use length composition in likelihood?
-  List.sp[[l]]$drop.length.comp=FALSE
-  if(NeiM%in%drop.len.comp.like) List.sp[[l]]$drop.length.comp=TRUE
-  
+
     #Cpues
   N.rowSS=nrow(List.sp[[l]]$Sens.test$SS)
   List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,N.rowSS)
@@ -504,19 +501,13 @@ for(l in 1:N.sp)
              Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
-  List.sp[[l]]$drop.monthly.cpue=NULL
-  if(NeiM%in%c("gummy shark")) List.sp[[l]]$drop.monthly.cpue=1975:1985
-  
-    #Use cpue in likelihood?
-  List.sp[[l]]$drop.cpue=FALSE
-  #if(NeiM%in%c("spinner shark"))  List.sp[[l]]$drop.cpue=TRUE
-  
+
     #Calculate extra SD for Q or only when CV is small?
   extra.es.d='NO'
   if(NeiM%in%extra.SD.Q.species) extra.es.d='YES'
   List.sp[[l]]$Sens.test$SS$extra.SD.Q=extra.es.d 
   
-    #Alternative selectivity for NSF and survey
+    #Alternative dome-shaped selectivity for NSF and survey
   SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
   if(NeiM%in%alternative.NSF.selectivity)
   {
@@ -542,10 +533,10 @@ for(l in 1:N.sp)
   # Zfrac is fraction of density dependence (0 to 1; 0.4 for S. acanthias)
   # Beta is point where density dependence is fastest (1, linear; <1 surv increase faster at low spawning biomass;
   #                                                   >1, surv increase faster at high spawning biomass; 1 for S. acanthias)
+  List.sp[[l]]$Sens.test$SS$SR_surv_zfrac=NA
+  List.sp[[l]]$Sens.test$SS$SR_surv_Beta=NA
   if(NeiM%in%alternative.SR_type)
   {
-    List.sp[[l]]$Sens.test$SS$SR_surv_zfrac=NA
-    List.sp[[l]]$Sens.test$SS$SR_surv_Beta=NA
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
       mutate(SR_type=7,
              SR_surv_zfrac=ramp.yrs$SR_surv_zfrac,  
@@ -604,7 +595,7 @@ for(l in 1:N.sp)
   #Spatial model 
   if(!NeiM%in%spatial.model) List.sp[[l]]$Sens.test$SS$Spatial='single area'
   if(NeiM%in%spatial.model) List.sp[[l]]$Sens.test$SS$Spatial='areas-as-fleets'
-  if(NeiM%in%spatial.model)
+  if(NeiM%in%spatial.model & test.single.area.model)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
@@ -626,10 +617,11 @@ for(l in 1:N.sp)
   }
   
   #Tagging 
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
-                    mutate(Tagging='No')
-  if(NeiM%in%use.tag.data)
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='No')
+  if(NeiM%in%use.tag.data) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='Yes') 
+  if(NeiM%in%use.tag.data & test.using.tags)
   {
+    List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='No')
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
       mutate(Tagging='Yes',
@@ -638,8 +630,7 @@ for(l in 1:N.sp)
   }
   
   #Indo IUU - F estimation
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
-                              mutate(Estim.Indo.IUU='No')
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Estim.Indo.IUU='No')
   Indo.IUU.sp=KtCh%>%filter(Name==NeiM & Data.set=='Indonesia')
   if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo & estim.F.INDO) 
   {
@@ -651,8 +642,7 @@ for(l in 1:N.sp)
   }
   
   #Estimate initial F before time series
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
-                              mutate(Estim.initial.F='No')
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Estim.initial.F='No')
   if(set.initial.F)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
@@ -662,7 +652,6 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
     
   }
-  
   
   #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
@@ -698,6 +687,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$SS3.estim.growth.pars=TRUE
     List.sp[[l]]$Growth.prior.type=Type.growth.prior    
   }
+  
     
       #4.1.3 Qs (in log space)
   List.sp[[l]]$Q.inits=data.frame(Fleet=c('Northern.shark','Other',
@@ -714,6 +704,7 @@ for(l in 1:N.sp)
     #use analytical solution if not splitting Q in blocks   
   List.sp[[l]]$SS3.q.an.sol=SS3.q.analit.solu
   if(NeiM%in%block.species_Q)   List.sp[[l]]$SS3.q.an.sol=FALSE
+  
   
     #4.1.4 selectivity
   
@@ -1152,6 +1143,7 @@ for(l in 1:N.sp)
   List.sp[[l]]$recdev_early_phase=-3
   List.sp[[l]]$First.yr.main.rec.dev='min.obs'   #'min.ktch'
   
+  
   #4.1.7 Catchabilities
   if(NeiM=="whiskery shark")
   {
@@ -1189,6 +1181,18 @@ for(l in 1:N.sp)
     
   }
 
+  
+  #4.1.8 Use length composition in likelihood?
+  List.sp[[l]]$drop.length.comp=FALSE
+  if(NeiM%in%drop.len.comp.like) List.sp[[l]]$drop.length.comp=TRUE
+  
+  
+  #4.1.9 Use cpue in likelihood?
+  List.sp[[l]]$drop.cpue=FALSE
+  #if(NeiM%in%c("spinner shark"))  List.sp[[l]]$drop.cpue=TRUE
+  List.sp[[l]]$drop.monthly.cpue=NULL
+  if(NeiM%in%c("gummy shark")) List.sp[[l]]$drop.monthly.cpue=1975:1985
+  
   
   #-- 4.2 Bespoke Size-based integrated model
   if(Do.bespoke)

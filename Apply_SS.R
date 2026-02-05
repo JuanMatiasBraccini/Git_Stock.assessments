@@ -1,4 +1,4 @@
-#---Run models -------------------------------------------------
+#---Create input files and Run models -------------------------------------------------
 n.SS=length(Integrated.age.based)  
 Age.based=vector('list',n.SS)
 names(Age.based)=Integrated.age.based
@@ -47,7 +47,8 @@ for(w in 1:n.SS)
           ktch.zone=KtCh.zone%>%
             ungroup()%>%
             filter(Name==Neim)
-          #allocated historic Southern.shark to zones
+            
+            #allocated historic Southern.shark to zones
           if('Historic'%in%unique(ktch.zone$FishCubeCode))
           {
             historic=ktch.zone%>%
@@ -189,8 +190,9 @@ for(w in 1:n.SS)
                 #add extra bins for smooth fit to size comps
                 Maximum_size=Max.population.TL
                 Mx.size=max(d.list[[s]]$size.class)
-                extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
-                if(length(extra.bins))
+                extra.bins=NA
+                if(Maximum_size>Mx.size+TL.bins.cm) extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
+                if(any(!is.na(extra.bins)))
                 {
                   add.dumi.size=d.list[[s]][1:length(extra.bins),]%>%
                     mutate(size.class=extra.bins,
@@ -446,8 +448,9 @@ for(w in 1:n.SS)
                 #add extra bins for smooth fit to size comps
                 Maximum_size=Max.population.TL
                 Mx.size=max(d.list[[s]]$size.class)
-                extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
-                if(length(extra.bins))
+                extra.bins=NA
+                if(Maximum_size>Mx.size+TL.bins.cm) extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
+                if(any(!is.na(extra.bins)))
                 {
                   add.dumi.size=d.list[[s]][1:length(extra.bins),]%>%
                     mutate(size.class=extra.bins,
@@ -1027,8 +1030,10 @@ for(w in 1:n.SS)
           if(names(Species.data)[i]%in%use.tag.data)
           {
             #Extract data
-            releases=Species.data[[i]]$Con_tag_SS.format_releases
-            recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures
+            releases=Species.data[[i]]$Con_tag_SS.format_releases%>%
+                          filter(Yr.rel<=Last.yr.ktch.numeric)
+            recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
+                          filter(Yr.rec<=Last.yr.ktch.numeric)
             
             #Keep relevant finyears
             dis.yrs.tag=Use.these.tag.years[[match(names(Species.data)[i],names(Use.these.tag.years))]]
@@ -1042,17 +1047,17 @@ for(w in 1:n.SS)
             
             #Recalculate TagGroup
             releases=releases%>%
-              arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-              mutate(rowid = row_number())
+                      arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+                      mutate(rowid = row_number())
             TagGroup=releases%>%distinct(Tag.group,rowid)
             recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
             releases=releases%>%
-              mutate(Tag.group=rowid)%>%
-              dplyr::select(-rowid)
+                      mutate(Tag.group=rowid)%>%
+                      dplyr::select(-rowid)
             recaptures=recaptures%>%
-              mutate(Tag.group=rowid)%>%
-              dplyr::select(-rowid)
-            
+                      mutate(Tag.group=rowid)%>%
+                      dplyr::select(-rowid)
+                    
             #group sex  
             if(taggroup.sex.combined)   
             {
@@ -1085,28 +1090,28 @@ for(w in 1:n.SS)
             }
             
             releases=releases%>%
-              rename(Area=Rel.zone)%>%
-              mutate(Area=1)
+                    rename(Area=Rel.zone)%>%
+                    mutate(Area=1)
             get.fleet=recaptures%>%
-              distinct(Yr.rec,Rec.zone)
+                   distinct(Yr.rec,Rec.zone)
             Rec.ZonEs=unique(recaptures$Rec.zone)
             a1=ktch.zone%>%
-              ungroup()%>%
-              dplyr::select(-c(SPECIES,Name))%>%
-              gather(Fleet,Ktch,-finyear)%>%
-              mutate(zone=case_when(Fleet=="Northern.shark"~'North',
-                                    grepl("Zone1",Fleet)~"Zone1",
-                                    grepl("West",Fleet)~"West",
-                                    grepl("Zone2",Fleet)~"Zone2",
-                                    TRUE~''))%>%
-              filter(Ktch>0)%>%
-              filter(zone%in%unique(get.fleet$Rec.zone))%>%
-              filter(finyear%in%unique(get.fleet$Yr.rec))%>%
-              distinct(finyear,Fleet,zone)%>%
-              left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
-                        by='Fleet')
+                    ungroup()%>%
+                    dplyr::select(-c(SPECIES,Name))%>%
+                    gather(Fleet,Ktch,-finyear)%>%
+                    mutate(zone=case_when(Fleet=="Northern.shark"~'North',
+                                          grepl("Zone1",Fleet)~"Zone1",
+                                          grepl("West",Fleet)~"West",
+                                          grepl("Zone2",Fleet)~"Zone2",
+                                          TRUE~''))%>%
+                    filter(Ktch>0)%>%
+                    filter(zone%in%unique(get.fleet$Rec.zone))%>%
+                    filter(finyear%in%unique(get.fleet$Yr.rec))%>%
+                    distinct(finyear,Fleet,zone)%>%
+                    left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
+                              by='Fleet')
             get.fleet=get.fleet%>%
-              left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
+                      left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
             recaptures=recaptures%>%
               left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
                         by=c('Rec.zone','Yr.rec'))%>%
@@ -1736,8 +1741,6 @@ for(w in 1:n.SS)
                     dplyr::select(-Fleet.n.new)%>%
                     distinct(Fleet,.keep_all = TRUE)
                 }
-
-
                 
                 if(First.run=="YES")  
                 {
@@ -1757,11 +1760,10 @@ for(w in 1:n.SS)
                 Abund1=Abund
                 if(!is.null(Abund1)) Abund1=Abund1%>%rename_with(tolower)
                 Min.yr.obs=min(unlist(lapply(list(Abund1,Size.com,meanbody),function(x) if(!is.null(x))min(x$year))))
-                
                 if(Life.history$First.yr.main.rec.dev=='min.obs') MainRdevYrFirst=Min.yr.obs-round(min(Life.history$Age.50.mat))
                 if(Life.history$First.yr.main.rec.dev=='min.ktch') MainRdevYrFirst=min(ktch$finyear)
-                
                 Life.history$MainRdevYrFirst=MainRdevYrFirst
+                
                 
                 #a.3 need to reset rec pars for tuning
                 if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
@@ -1780,6 +1782,7 @@ for(w in 1:n.SS)
                   #Comps variance adjustment
                   Var.ad.factr=Var.ad.factr.zone=NULL
                 }
+                
                 
                 #a.4 create file  
                 fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
@@ -1842,7 +1845,7 @@ for(w in 1:n.SS)
                 tune_info <- tune_comps(option = "Francis",
                                         niters_tuning = 1,
                                         dir = this.wd1,
-                                        exe=handl_OneDrive('SS3/ss_win.exe'),
+                                        exe=Where.exe,
                                         allow_up_tuning = TRUE,
                                         verbose = FALSE)
                 write.csv(tune_info$weights[[1]]%>%mutate(Method='Francis'),paste(this.wd,'Tuned_size_comp.csv',sep='/'),row.names = F)
@@ -2297,7 +2300,7 @@ if(do.SS3.diagnostics)
                       M.vec=M.range,
                       depl.vec=Depl.range,
                       curSB.vec=CurSB.range,
-                      exe_path=handl_OneDrive('SS3/ss_win.exe'),
+                      exe_path=Where.exe,
                       start.retro=Retro_start,
                       end.retro=Retro_end,
                       do.retros=TRUE,
