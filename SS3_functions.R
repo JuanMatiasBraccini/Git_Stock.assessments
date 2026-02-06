@@ -1502,7 +1502,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       }
     }
     
-    #allocated species specific values to sel pars   #ACA, didn't work, it removed all TGDDLF fleets!
+    #allocated species specific values to sel pars   
     Mirrored.sels=rownames(ctl$size_selex_types%>%filter(Pattern==15))
     if(length(Mirrored.sels)>0)
     {
@@ -1804,8 +1804,9 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       dumiSel$dumi=paste(paste(paste(dumi.f$E,1,sep='_'),sapply(kkk, `[`, 2),sep='_'),sapply(kkk, `[`, 3),sep='_')
       
       ctl$size_selex_parms=rbind(dumiSel,retention_params,discard_mortality)%>%
-                              arrange(dumi)%>%
-                              dplyr::select(-dumi)
+                            mutate(dumi=as.numeric(str_remove_all(str_remove_all(dumi, "_"), "[a-zA-Z]")))%>%
+                            arrange(dumi)%>%
+                            dplyr::select(-dumi)
     }
     
     #Male offset 

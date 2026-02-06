@@ -1851,18 +1851,20 @@ Whaler_SA=Whaler_SA[rep(1:N.SA,each=2),]%>%
 
 
 #-- 3.2.5 Indonesian illegal fishing in Australia waters   
+Indo_apprehensions=Indo_apprehensions%>%mutate(Apprehensions_original=Apprehensions)
 if(replace.appre.with.forfeiture)  
 {
     Indo_apprehensions=Indo_apprehensions%>%
                       mutate(Apprehensions=ifelse(year>=first.yr.forfeit,LF,Apprehensions))
-  } 
-Indo_apprehensions=rbind(Indo_apprehensions.Stacey,Indo_apprehensions%>%dplyr::select(year,Apprehensions))
+} 
+Indo_apprehensions=rbind(Indo_apprehensions.Stacey%>%mutate(Apprehensions_original=Apprehensions),
+                         Indo_apprehensions%>%dplyr::select(year,Apprehensions,Apprehensions_original))
 Missn.appr=which(is.na(Indo_apprehensions$Apprehensions))
 if(length(Missn.appr)>0)
 {
   Miss.appr.yrs=Indo_apprehensions$year[Missn.appr]
   Missing.appre=with(Indo_apprehensions,approx(year,Apprehensions,xout=Miss.appr.yrs))
-  Indo_apprehensions$Apprehensions[Missn.appr]=Missing.appre$y
+  Indo_apprehensions$Apprehensions[Missn.appr]=Indo_apprehensions$Apprehensions_original[Missn.appr]=Missing.appre$y
 }
 write.csv(Indo_apprehensions,handl_OneDrive('Analyses/Data_outs/Indo_apprehensions_SS.csv'),row.names = F) #export apprehensions for SS estimation of Indo IUU
  
@@ -1929,18 +1931,20 @@ Indo_avrg.ktch.per.vessel.day=Indo_shark.comp%>%
 Indo_avrg.ktch.per.year=Indo_avrg.ktch.per.vessel.day%>%
   mutate(kg.year=kg.day.vessel*Indo_FFV_vessel.days.2005*Indo_Prop.Shark.vesl.Salini)
 
-#Indonesian. Calculate Total catch by year
+#Indonesian. Calculate Total catch by year 
 Indo_total.annual.ktch=Indo_avrg.ktch.per.year[rep(1:nrow(Indo_avrg.ktch.per.year),nrow(Indo_apprehensions)),]%>%
               mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_avrg.ktch.per.year)))%>%
               left_join(Indo_apprehensions,by='year')%>%
               mutate(Ap.prop.2005=Apprehensions/Indo_apprehensions$Apprehensions[which.max(Indo_apprehensions$Apprehensions)],
-                     LIVEWT.c=kg.year*Ap.prop.2005)  
+                     Ap.prop.2005.orig=Apprehensions_original/Indo_apprehensions$Apprehensions_original[which.max(Indo_apprehensions$Apprehensions_original)],
+                     LIVEWT.c=kg.year*Ap.prop.2005,
+                     LIVEWT.c.orig=kg.year*Ap.prop.2005.orig)  
 
 Indo_total.annual.ktch=Indo_total.annual.ktch%>%
-            mutate(Species=as.character(Species),
-                   FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
-            left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Species'='Name'))%>%
-            dplyr::select(FINYEAR,SPECIES,LIVEWT.c)
+                          mutate(Species=as.character(Species),
+                                 FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
+                          left_join(All.species.names%>%dplyr::select(-Scien.nm),by=c('Species'='Name'))%>%
+                          dplyr::select(FINYEAR,SPECIES,LIVEWT.c,LIVEWT.c.orig)
 
 
   #MOU box. Calculate Total catch by year
@@ -1956,6 +1960,7 @@ Indo_total.annual.ktch_MOU=Indo_total.annual.ktch_MOU[rep(1:nrow(Indo_total.annu
           mutate(year=rep(Indo_apprehensions$year,each=nrow(Indo_total.annual.ktch_MOU)))%>%
           left_join(Indo_MOU.annual.trips.prop,by='year')%>%
           mutate(LIVEWT.c=kg.year*trips.prop,
+                 LIVEWT.c.orig=LIVEWT.c,
                  Species=as.character(Species),
                  FINYEAR=paste(year,substr(year+1,3,4),sep='-'))%>%
   dplyr::select(colnames(Indo_total.annual.ktch))
@@ -1964,8 +1969,10 @@ Indo_total.annual.ktch_MOU=Indo_total.annual.ktch_MOU[rep(1:nrow(Indo_total.annu
   #Combine Indonesian illegal and legal Mou box
 Indo_total.annual.ktch=rbind(Indo_total.annual.ktch,Indo_total.annual.ktch_MOU)%>%
               group_by(FINYEAR,SPECIES)%>%
-              summarise(LIVEWT.c=sum(LIVEWT.c))%>%
-              data.frame
+              summarise(LIVEWT.c=sum(LIVEWT.c),
+                        LIVEWT.c.orig=sum(LIVEWT.c.orig))%>%
+              data.frame%>%
+              filter(!is.na(SPECIES))
 
 
 # Amend banjo and wedgefish catches using observer data   
@@ -2006,7 +2013,7 @@ if(Do.recons.paper=="YES")
                                 Prop=prop_banjo_wedge_north)
 }
 
-show.this=FALSE  
+show.this=FALSE  #not working right
 if(show.this)
 {
   source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/ggplot.themes.R'))
@@ -2028,7 +2035,7 @@ if(show.this)
           legend.title=element_blank(),
           plot.caption = element_text(hjust = 1))
   
-  #Indo_total.annual.ktch1=Indo_total.annual.ktch #base case
+  Indo_total.annual.ktch1=Indo_total.annual.ktch #base case
   Indo_total.annual.ktch1=Indo_total.annual.ktch1%>%mutate(Effort='Apprehensions')
   Indo_total.annual.ktch=Indo_total.annual.ktch%>%mutate(Effort='Legislative forfeiture')
   a=rbind(Indo_total.annual.ktch1,Indo_total.annual.ktch)%>%
@@ -2254,7 +2261,15 @@ fn.out(d=Bronze.whaler_NSW%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Bronzewha
   #Indonesian illegal fishing in Australia waters
     #recons catches
 Indo_total.annual.ktch$zone=NA
-fn.out(d=Indo_total.annual.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Indo.IUU.csv')
+fn.out(d=Indo_total.annual.ktch%>%
+              dplyr::select(FINYEAR,SPECIES,LIVEWT.c,zone)%>%
+              filter(FINYEAR%in%This.fin.yr),
+      NM='recons_Indo.IUU.csv')
+fn.out(d=Indo_total.annual.ktch%>%   
+         dplyr::select(FINYEAR,SPECIES,LIVEWT.c.orig,zone)%>%
+         rename(LIVEWT.c=LIVEWT.c.orig)%>%
+         filter(FINYEAR%in%This.fin.yr),
+       NM='recons_Indo.IUU_based only on apprehensions.csv')
 
     #apprehensions and forfeitures as a measure of effort for SS
 Indo_apprehensions.and.Legis.Forfeit=Indo_apprehensions.and.Legis.Forfeit%>%

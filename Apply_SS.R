@@ -1746,15 +1746,14 @@ for(w in 1:n.SS)
                 {
                   p=see.SS3.length.comp.matrix(dd=Size.com%>%
                                                  dplyr::select(year,Fleet,names(Size.com)[grep('f',names(Size.com))]))
-                  print(p)
+                  base::print(p)
                   ggsave(paste0(this.wd1,"/Length comps used in SS_female.tiff"),width=7,height=6,compression = "lzw")
                   p=see.SS3.length.comp.matrix(dd=Size.com%>%
                                                  dplyr::select(year,Fleet,names(Size.com)[grep('m',names(Size.com))][-1]))
-                  print(p)
+                  base::print(p)
                   ggsave(paste0(this.wd1,"/Length comps used in SS_male.tiff"),width=7,height=6,compression = "lzw")
                   
                 }
-                
                 
                 #a.2 set MainRdevYrFirst
                 Abund1=Abund
@@ -1763,7 +1762,6 @@ for(w in 1:n.SS)
                 if(Life.history$First.yr.main.rec.dev=='min.obs') MainRdevYrFirst=Min.yr.obs-round(min(Life.history$Age.50.mat))
                 if(Life.history$First.yr.main.rec.dev=='min.ktch') MainRdevYrFirst=min(ktch$finyear)
                 Life.history$MainRdevYrFirst=MainRdevYrFirst
-                
                 
                 #a.3 need to reset rec pars for tuning
                 if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
@@ -1783,8 +1781,28 @@ for(w in 1:n.SS)
                   Var.ad.factr=Var.ad.factr.zone=NULL
                 }
                 
+                #a.4 test effect of INDO IUU catch calculation using only Apprehensions
+                if(Scens$Test.Indo.IUU.catch[s]=='Yes')  
+                {
+                  Indo.IUU=Indo.IUU.apprehensions%>%
+                              filter(SPECIES==List.sp[[i]]$Species)
+                  Indo.IUU.app=Indo.IUU.apprehensions.only%>%
+                              filter(SPECIES==List.sp[[i]]$Species)
+                  des.flt=match(match('Other',FLitinFO$fleetname),colnames(KAtch))
+                  des.yrs=match(as.numeric(substr(Indo.IUU$FINYEAR,1,4)),KAtch$finyear)
+                  KAtch[des.yrs,des.flt]=unlist(KAtch[des.yrs,des.flt])-(Indo.IUU$LIVEWT.c/1000)+(Indo.IUU.app$LIVEWT.c/1000)
+                   
+                }
                 
-                #a.4 create file  
+                #a.5 remove 2001 and 2002 from survey as too many juveniles, shots done all over the place
+                if(!is.null(Size.com))
+                {
+                  id.survey=match('Survey',FLitinFO$fleetname)
+                  Size.com=Size.com%>%
+                            filter(!(Fleet==id.survey & year%in%c(2001,2002)))
+                }
+                
+                #a.6 create file  
                 fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
                              new.path=this.wd1,
                              Scenario=Scens[s,]%>%mutate(Model='SS'),

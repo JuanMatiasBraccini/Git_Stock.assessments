@@ -491,7 +491,7 @@ WRL.species=c("copper shark","dusky shark","shortfin mako",
 
   #21.2 Sensitivity for NSF logistic selectivity for these species
 #alternative.NSF.selectivity=NULL
-alternative.NSF.selectivity=c("dusky shark","tiger shark","great hammerhead")
+alternative.NSF.selectivity=c("tiger shark")
 
   #21.3 No empirical Selectivity for main fleet or length comp sample size is too small
 #  so cannot implement any length-based assessment (Catch curve, SS3, etc)
@@ -701,6 +701,10 @@ ktch.combined=KtCh%>%
         summarise(Tonnes=sum(LIVEWT.c,na.rm=T))
 
 clear.log('fn.import.catch.data')
+
+Indo.IUU.apprehensions.only=read.csv(paste0(Dat.repository,'recons_Indo.IUU_based only on apprehensions.csv'))
+Indo.IUU.apprehensions=read.csv(paste0(Dat.repository,'recons_Indo.IUU.csv'))
+
 
 #export catch by species for Rays Report Card
 doRayRepCard=FALSE

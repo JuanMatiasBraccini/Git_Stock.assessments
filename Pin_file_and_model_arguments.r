@@ -653,6 +653,18 @@ for(l in 1:N.sp)
     
   }
   
+  #Test effect of using only Apprehensions for Indo IUU catch reconstruction
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Test.Indo.IUU.catch='No')
+  if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo)
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Test.Indo.IUU.catch='Yes',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+    
+  }
+  
   #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%
