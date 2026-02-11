@@ -655,7 +655,7 @@ for(l in 1:N.sp)
   
   #Test effect of using only Apprehensions for Indo IUU catch reconstruction
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Test.Indo.IUU.catch='No')
-  if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo)
+  if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo & NeiM%in% estim.F.INDO)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
@@ -664,6 +664,18 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
     
   }
+  
+  #Test effect of using CPUE
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(test.use.cpue='No')
+  if(NeiM%in%test.using.cpue)
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(test.use.cpue='Yes',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
   
   #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%

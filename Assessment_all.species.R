@@ -203,7 +203,8 @@ if(KTCH.UNITS=="KGS") Min.ktch=5000
 if(KTCH.UNITS=="TONNES") Min.ktch=5
 
 #10. CPUEs
-use.dusky.cpue=TRUE
+use.dusky.cpue=FALSE
+test.using.cpue=c('dusky shark')  #have one scenario using cpue  NULL
 Min.cpue.yrs=5 #minimum number of years in abundance index
 drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not. Superseded by Francis CVs 
 
@@ -233,9 +234,14 @@ TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
 Min.annual.obs.ktch=150 #Minimum number of annual observations per sex-yr-fleet for using length composition data
+Min.annual.obs.ktch.zone=100 #min number obs per zone for areas as fleet model
+Min.annual.obs.ktch_NSF=50
 Min.annual.obs.ktch_survey=20
 prop.min.N.accepted_other=0.5
 Min.Nsamp=10   #Minimum number of trips for catch mean weight or length composition
+Min.Nsamp.Survey=Min.Nsamp
+Min.Nsamp.zone=5
+Min.Nsamp.NSF=5
 fill.in.zeros=TRUE  #add missing length classes with all 0s
 
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
@@ -440,13 +446,13 @@ extra.SD.Q.species=c("sandbar shark")
 estim.sel.pars_SS.prior=NULL
 estim.growth.pars_SS=c("sandbar shark","dusky shark","gummy shark","whiskery shark")
 Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
-combine_NSF_Survey=NULL   #combine length composition data to estimate logistic selectivity
+combine_NSF_Survey=NULL   #combine length composition from NSF and Survey data to estimate logistic selectivity
 combine.sexes.tdgdlf=NULL 
 combine.sexes.tdgdlf.daily=NULL 
 combine.sexes.survey=c("dusky shark")
-combine.sexes.nsf=NULL
-combine.sexes=c(combine.sexes.survey,combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,
-                "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark")
+combine.sexes.nsf=c("dusky shark")
+combine.sexes=unique(c(combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,combine.sexes.survey,combine.sexes.nsf,
+                "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark"))
 combine.sex_type=0  #0, 0 means combined male and female ; 3, 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
 SS.sex.length.type=3  #1 if want to maintain males and females separated
 fit.to.mean.weight.Southern2=c("dusky shark","gummy shark","sandbar shark","whiskery shark","spinner shark")  #get model to fit mean weight regardless of available length comp
@@ -480,7 +486,7 @@ alternative.like.weigthing=NULL  #test alternative lambdas for survey and length
 
 #spatial.model=NULL # build areas-as-fleets model
 spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')
-test.single.area.model=FALSE  #set to TRUE if want to test single area model scenario for spatial.model species
+test.single.area.model=TRUE  #set to TRUE if want to test single area model scenario for spatial.model species
 
 alternative.Linf=NULL # "sandbar shark" reduce Linf to match length comps. Superseded, now estimating Linf
 if(!is.null(alternative.Linf))names(alternative.Linf)=0.9

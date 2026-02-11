@@ -202,7 +202,7 @@ for(w in 1:n.SS)
               }
               d.list <- d.list[!is.na(d.list)]
               d.list=do.call(rbind,d.list)   
-              if(Neim%in%combine_NSF_Survey) #assume same sel NSF and survey so combined to increase sample size
+              if(Neim%in%combine_NSF_Survey) 
               {
                 d.list=d.list%>%
                   mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
@@ -256,9 +256,13 @@ for(w in 1:n.SS)
               {
                 Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
               }
+              Min.size.NSF=Min.annual.obs.ktch_NSF
+              if(Neim%in%c("dusky shark")) Min.size.NSF=20
               Table.n=d.list%>%group_by(year,fishry,sex)%>%
                 summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,Min.annual.obs.ktch_survey))%>%
+                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
+                                                fishry=='NSF'~Min.size.NSF,
+                                                TRUE~Min.size))%>%   
                 filter(N>=Min.accepted.N)%>%
                 mutate(dummy=paste(year,fishry,sex))  
               
@@ -396,10 +400,21 @@ for(w in 1:n.SS)
                 dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
                   arrange(Fleet,year,Sex)
                 
+                #select min sample size (shots) 
                 min.nsamp=Min.Nsamp
-                if(!Neim%in%Indicator.species) min.nsamp=min.nsamp/2
+                if(!Neim%in%names(Indicator.species)) min.nsamp=ceiling(min.nsamp/2)
+                size.flits.min.samp=size.flits%>%
+                            mutate(Min.nsamp=case_when(Fleet.name=='Northern.shark'~Min.Nsamp.NSF,
+                                                       Fleet.name=='Survey'~Min.Nsamp.Survey,
+                                                       TRUE~min.nsamp))%>%
+                            dplyr::select(-Fleet.name)%>%
+                            rename(Fleet=Fleet.number)%>%
+                            filter(Fleet%in%unique(dummy.Size.compo.SS.format$Fleet))
                 dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
-                  filter(year<=max(ktch$finyear) & Nsamp>=min.nsamp)  
+                                            left_join(size.flits.min.samp,by='Fleet')%>%
+                                            filter(year<=max(ktch$finyear) & Nsamp>=Min.nsamp)%>%
+                                            dplyr::select(-Min.nsamp)
+                
                 if(nrow(dummy.Size.compo.SS.format)>0) Size.compo.SS.format=dummy.Size.compo.SS.format
                 
               }
@@ -460,7 +475,7 @@ for(w in 1:n.SS)
               }
               d.list <- d.list[!is.na(d.list)]
               d.list=do.call(rbind,d.list)   
-              if(Neim%in%combine_NSF_Survey) #assume same sel NSF and survey so combined to increase sample size
+              if(Neim%in%combine_NSF_Survey) 
               {
                 d.list=d.list%>%
                   mutate(fishry=ifelse(fishry=='NSF',"Survey",fishry))
@@ -509,16 +524,21 @@ for(w in 1:n.SS)
               }
               if(Neim%in%names(Indicator.species))
               {
-                Min.size=Min.annual.obs.ktch
+                Min.size=Min.annual.obs.ktch.zone
               }else
               {
-                Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+                Min.size=Min.annual.obs.ktch.zone*prop.min.N.accepted_other
               }
-              Table.n=d.list%>%group_by(year,fishry,sex)%>%
-                summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=ifelse(!fishry=='Survey',Min.size,Min.annual.obs.ktch_survey))%>%
-                filter(N>=Min.accepted.N)%>%
-                mutate(dummy=paste(year,fishry,sex))
+              Min.size.NSF=Min.annual.obs.ktch_NSF
+              if(Neim%in%c("dusky shark")) Min.size.NSF=20
+              Table.n=d.list%>%
+                        group_by(year,fishry,sex)%>%
+                        summarise(N=sum(n))%>%
+                        mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
+                                                        fishry=='NSF'~Min.size.NSF,
+                                                        TRUE~Min.size))%>%
+                        filter(N>=Min.accepted.N)%>%
+                        mutate(dummy=paste(year,fishry,sex))
               
               if(nrow(Table.n)>0)
               {
@@ -656,12 +676,24 @@ for(w in 1:n.SS)
                 clear.log('dummy.Size.compo.SS.format_Sex0')
                 clear.log('dummy.Size.compo.SS.format_Sex')
                 dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
-                  arrange(Fleet,year,Sex)
+                                            arrange(Fleet,year,Sex)
                 
-                min.nsamp=Min.Nsamp
-                if(!Neim%in%Indicator.species) min.nsamp=min.nsamp/2
+                #select min sample size (shots)
+                min.nsamp=Min.Nsamp.zone
+                if(!Neim%in%names(Indicator.species)) min.nsamp=ceiling(min.nsamp/2)
+                size.flits.min.samp=size.flits.zone%>%
+                                    mutate(Min.nsamp=case_when(Fleet.name=='Northern.shark'~Min.Nsamp.NSF,
+                                                               Fleet.name=='Survey'~Min.Nsamp.Survey,
+                                                               TRUE~min.nsamp))%>%
+                                    dplyr::select(-Fleet.name)%>%
+                                    rename(Fleet=Fleet.number)%>%
+                                    filter(Fleet%in%unique(dummy.Size.compo.SS.format$Fleet))
                 dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
-                  filter(year<=max(ktch$finyear) & Nsamp>=min.nsamp)  
+                                            left_join(size.flits.min.samp,by='Fleet')%>%
+                                            filter(year<=max(ktch$finyear) & Nsamp>=Min.nsamp)%>%
+                                            dplyr::select(-Min.nsamp)
+
+                
                 if(nrow(dummy.Size.compo.SS.format)>0) Size.compo.SS.format.zone=dummy.Size.compo.SS.format
                 
               }
@@ -693,10 +725,10 @@ for(w in 1:n.SS)
                 filter(Fleet%in%Fleet.more.one.year.obs)
             }
           }
-            #Reset sex type if required
+            #Reset sex type if required  
           if(SS.sex.length.type==3)
           {
-            #zones combined  #why no 2004 males in Survey? remove that year if not meeting criteria...
+            #zones combined  
             Kombo=Size.compo.SS.format%>%distinct(year,Seas,Fleet)
             Kombo.list=vector('list',nrow(Kombo))  
             for(kk in 1:length(Kombo.list))
@@ -854,9 +886,7 @@ for(w in 1:n.SS)
           CPUE=compact(Catch.rate.series[[i]])
           if(!is.null(CPUE))
           {
-            if(Neim%in%survey_not.representative & any(grepl("Survey",names(CPUE)))) CPUE=CPUE[-grep("Survey",names(CPUE))]
             if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
-            if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE)))) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
             if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF.monthly",names(CPUE))]
             if(!is.null(Life.history$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%Life.history$drop.monthly.cpue)
             CPUE.zone=CPUE
@@ -1026,6 +1056,7 @@ for(w in 1:n.SS)
           
           
           #7. Tagging data
+            # zones together
           Tags.SS.format=NULL
           if(names(Species.data)[i]%in%use.tag.data)
           {
@@ -1045,6 +1076,14 @@ for(w in 1:n.SS)
             releases=releases%>%filter(Rel.zone%in%this.zone)
             recaptures=recaptures%>%filter(Rec.zone%in%this.zone)
             
+            #Allocate West, Zone1 and Zone 2 to Southern 1 or 2
+            releases=releases%>%
+              mutate(Rel.zone=case_when(Yr.rel<=2005 ~'Southern.shark_1',
+                                        Yr.rel>2005 ~'Southern.shark_2'))
+            recaptures=recaptures%>%
+                mutate(Rec.zone=case_when(Yr.rec<=2005 ~'Southern.shark_1',
+                                          Yr.rec>2005 ~'Southern.shark_2'))
+              
             #Recalculate TagGroup
             releases=releases%>%
                       arrange(Rel.zone,Yr.rel,Sex,Age)%>%
@@ -1095,23 +1134,172 @@ for(w in 1:n.SS)
             get.fleet=recaptures%>%
                    distinct(Yr.rec,Rec.zone)
             Rec.ZonEs=unique(recaptures$Rec.zone)
-            a1=ktch.zone%>%
+            a1=ktch%>%
                     ungroup()%>%
                     dplyr::select(-c(SPECIES,Name))%>%
                     gather(Fleet,Ktch,-finyear)%>%
                     mutate(zone=case_when(Fleet=="Northern.shark"~'North',
-                                          grepl("Zone1",Fleet)~"Zone1",
-                                          grepl("West",Fleet)~"West",
-                                          grepl("Zone2",Fleet)~"Zone2",
+                                          grepl("Southern.shark_1",Fleet)~"Southern.shark_1",
+                                          grepl("Southern.shark_2",Fleet)~"Southern.shark_2",
                                           TRUE~''))%>%
                     filter(Ktch>0)%>%
                     filter(zone%in%unique(get.fleet$Rec.zone))%>%
                     filter(finyear%in%unique(get.fleet$Yr.rec))%>%
                     distinct(finyear,Fleet,zone)%>%
-                    left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
+                    left_join(data.frame(Fleet.ID=Flits,Fleet=names(Flits)),
                               by='Fleet')
             get.fleet=get.fleet%>%
                       left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
+            recaptures=recaptures%>%
+              left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
+                        by=c('Rec.zone','Yr.rec'))%>%
+              dplyr::select(-Rec.zone)%>%
+              relocate(Tag.group,Yr.rec,season,Fleet,N.recapture)
+            
+            Initial.tag.loss=1e-4  #tag-induced mortality immediately after tagging 
+            Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x  #annual rate of tag loss; McAuley et al 2007 tag shedding
+            
+            Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_%>%
+              dplyr::select(-Species)%>%
+              gather(Zone,Non.reporting,-Finyear)%>%
+              mutate(Reporting=1-Non.reporting,
+                     Zone=case_when(Zone%in%c('South','South.west','West') & Finyear<=2005 ~'Southern.shark_1',
+                                    Zone%in%c('South','South.west','West') & Finyear>2005 ~'Southern.shark_2',
+                                    Zone=='North'~'North'))%>%
+              filter(Zone%in%Rec.ZonEs)%>%
+              group_by(Finyear,Zone)%>%
+              summarise(Non.reporting=mean(Non.reporting,na.rm=T),
+                        Reporting=mean(Reporting,na.rm=T))%>%
+              ungroup()%>%
+              mutate(Reporting.logit=fn.inv.logit(Reporting))%>%
+              dplyr::select(-Non.reporting)
+            get.fleet1=get.fleet%>%
+              dplyr::select(-Fleet)%>%
+              rename(Fleet=Fleet.ID)%>%
+              mutate(dummy=paste(Yr.rec,Rec.zone))
+            not.in.init.rep=paste(Initial.reporting.rate$Finyear,Initial.reporting.rate$Zone)
+            not.in.init.rep=not.in.init.rep[which(!not.in.init.rep%in%get.fleet1$dummy)]
+            if(length(not.in.init.rep)>0)
+            {
+              ad.get.flit=get.fleet1[1:length(not.in.init.rep),]%>%
+                mutate(dummy=not.in.init.rep,
+                       Yr.rec=word(dummy, 1),
+                       Rec.zone=word(dummy, 2),
+                       Fleet=NA)
+              get.fleet1=rbind(get.fleet1,ad.get.flit)%>%
+                arrange(Rec.zone,Yr.rec)%>%
+                fill(Fleet, .direction = "up")
+            }
+            get.fleet1=get.fleet1%>%dplyr::select(-dummy)%>%mutate(Yr.rec=as.numeric(Yr.rec))
+            Initial.reporting.rate=Initial.reporting.rate%>%
+              left_join(get.fleet1,
+                        by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))
+            Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
+            
+            Tags.SS.format=list(
+                              releases=releases%>%data.frame,
+                              recaptures=recaptures%>%data.frame,
+                              Initial.tag.loss=fn.inv.logit(Initial.tag.loss),
+                              Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
+                              Initial.reporting.rate=Initial.reporting.rate%>%
+                                filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))])%>%
+                                dplyr::select(-Reporting)%>%
+                                rename(Reporting=Reporting.logit),
+                              Reporting.rate.decay=Reporting.rate.decay,
+                              overdispersion=1.001,       # Andre's Gummy model
+                              mixing_latency_period=0,    # Andre's Gummy model 
+                              max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
+            
+            rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
+          }
+          
+            # by zones
+          Tags.SS.format.zone=NULL
+          if(names(Species.data)[i]%in%use.tag.data)
+          {
+            #Extract data
+            releases=Species.data[[i]]$Con_tag_SS.format_releases%>%
+              filter(Yr.rel<=Last.yr.ktch.numeric)
+            recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
+              filter(Yr.rec<=Last.yr.ktch.numeric)
+            
+            #Keep relevant finyears
+            dis.yrs.tag=Use.these.tag.years[[match(names(Species.data)[i],names(Use.these.tag.years))]]
+            releases=releases%>%filter(Yr.rel%in%dis.yrs.tag)
+            recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+            
+            #Keep relevant zones
+            this.zone=tag.data.zones$releases[[match(names(Species.data)[1],names(tag.data.zones$releases))]]
+            releases=releases%>%filter(Rel.zone%in%this.zone)
+            recaptures=recaptures%>%filter(Rec.zone%in%this.zone)
+            
+            #Recalculate TagGroup
+            releases=releases%>%
+              arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+              mutate(rowid = row_number())
+            TagGroup=releases%>%distinct(Tag.group,rowid)
+            recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+            releases=releases%>%
+              mutate(Tag.group=rowid)%>%
+              dplyr::select(-rowid)
+            recaptures=recaptures%>%
+              mutate(Tag.group=rowid)%>%
+              dplyr::select(-rowid)
+            
+            #group sex  
+            if(taggroup.sex.combined)   
+            {
+              releases=releases%>%
+                mutate(Sex=0)%>%
+                group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+                mutate(N.release=sum(N.release))%>%
+                ungroup()%>%
+                group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age) %>%
+                mutate(Tag.groups = paste(Tag.group, collapse = ", "))%>%
+                ungroup()
+              recaptures=recaptures%>%   
+                left_join(releases%>%
+                            dplyr::select(Tag.group,Tag.groups),
+                          by='Tag.group')%>%
+                group_by(Yr.rec,season,Rec.zone,Tag.groups)%>%
+                summarise(N.recapture=sum(N.recapture))%>%
+                ungroup()
+              releases=releases%>%
+                distinct(Tag.groups,Rel.zone,Yr.rel,season,t.fill,Sex,Age,N.release)%>%
+                arrange(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+                mutate(Tag.group = row_number())%>%
+                relocate(Tag.group)
+              recaptures=recaptures%>%
+                left_join(releases%>%distinct(Tag.group,Tag.groups),
+                          by='Tag.groups')%>%
+                dplyr::select(-Tag.groups)%>%
+                relocate(Tag.group)
+              releases=releases%>%dplyr::select(-Tag.groups)
+            }
+            
+            releases=releases%>%
+              rename(Area=Rel.zone)%>%
+              mutate(Area=1)
+            get.fleet=recaptures%>%
+              distinct(Yr.rec,Rec.zone)
+            Rec.ZonEs=unique(recaptures$Rec.zone)
+            a1=ktch.zone%>%
+              ungroup()%>%
+              dplyr::select(-c(SPECIES,Name))%>%
+              gather(Fleet,Ktch,-finyear)%>%
+              mutate(zone=case_when(Fleet=="Northern.shark"~'North',
+                                    grepl("Zone1",Fleet)~"Zone1",
+                                    grepl("West",Fleet)~"West",
+                                    grepl("Zone2",Fleet)~"Zone2",
+                                    TRUE~''))%>%
+              filter(Ktch>0)%>%
+              filter(zone%in%unique(get.fleet$Rec.zone))%>%
+              filter(finyear%in%unique(get.fleet$Yr.rec))%>%
+              distinct(finyear,Fleet,zone)%>%
+              left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
+                        by='Fleet')
+            get.fleet=get.fleet%>%
+              left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
             recaptures=recaptures%>%
               left_join(get.fleet%>%dplyr::select(-Fleet)%>%rename(Fleet=Fleet.ID),
                         by=c('Rec.zone','Yr.rec'))%>%
@@ -1155,22 +1343,23 @@ for(w in 1:n.SS)
                         by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))
             Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
             
-            Tags.SS.format=list(
-              releases=releases%>%data.frame,
-              recaptures=recaptures%>%data.frame,
-              Initial.tag.loss=fn.inv.logit(Initial.tag.loss),
-              Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
-              Initial.reporting.rate=Initial.reporting.rate%>%
-                filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))])%>%
-                dplyr::select(-Reporting)%>%
-                rename(Reporting=Reporting.logit),
-              Reporting.rate.decay=Reporting.rate.decay,
-              overdispersion=1.001,       # Andre's Gummy model
-              mixing_latency_period=0,    # Andre's Gummy model 
-              max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
-            
+            Tags.SS.format.zone=list(
+                                  releases=releases%>%data.frame,
+                                  recaptures=recaptures%>%data.frame,
+                                  Initial.tag.loss=fn.inv.logit(Initial.tag.loss),
+                                  Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
+                                  Initial.reporting.rate=Initial.reporting.rate%>%
+                                    filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))])%>%
+                                    dplyr::select(-Reporting)%>%
+                                    rename(Reporting=Reporting.logit),
+                                  Reporting.rate.decay=Reporting.rate.decay,
+                                  overdispersion=1.001,       # Andre's Gummy model
+                                  mixing_latency_period=0,    # Andre's Gummy model 
+                                  max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
+                                
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
           }
+
           
           
           #8. Conditional age at length
@@ -1336,8 +1525,8 @@ for(w in 1:n.SS)
                 CPUE[[x]]=dd%>%filter(!is.na(Mean))
               }
               Abundance.SS.format=do.call(rbind,CPUE)%>%
-                relocate(Year,seas,index,Mean,CV)%>%
-                arrange(index,Year)
+                                    relocate(Year,seas,index,Mean,CV)%>%
+                                    arrange(index,Year)
               
               #by zone
               len.cpue.zone=length(CPUE.zone)
@@ -1369,8 +1558,8 @@ for(w in 1:n.SS)
                 CPUE.zone[[x]]=dd%>%filter(!is.na(Mean))
               }
               Abundance.SS.format.zone=do.call(rbind,CPUE.zone)%>%
-                relocate(Year,seas,index,Mean,CV)%>%
-                arrange(index,Year)
+                                        relocate(Year,seas,index,Mean,CV)%>%
+                                        arrange(index,Year)
             }
             
             #Scenarios
@@ -1449,19 +1638,41 @@ for(w in 1:n.SS)
               if(!dir.exists(this.wd1))dir.create(this.wd1)
               
               #cpues
+              Abund.single.area=Abundance.SS.format
+              Abund.areas.as.fleets=Abundance.SS.format.zone
+              
               #remove daily years  
               if(!is.na(Scens$Daily.cpues[s]) & 'TDGDLF.daily'%in%names(CPUE))
               {
                 rid.of=as.numeric(unlist(str_split(Scens$Daily.cpues[s], "&")))
-                  #zones combined
-                drop.dis=Abundance.SS.format%>%
-                          mutate(this=grepl('TDGDLF.daily',rownames(Abundance.SS.format)) & Year%in%rid.of)
-                if(any(drop.dis$this)) Abundance.SS.format=Abundance.SS.format[-which(drop.dis$this),]
-                  #by zone
-                drop.dis=Abundance.SS.format.zone%>%
-                  mutate(this=grepl('TDGDLF.daily',rownames(Abundance.SS.format.zone)) & Year%in%rid.of)
-                if(any(drop.dis$this)) Abundance.SS.format.zone=Abundance.SS.format.zone[-which(drop.dis$this),]
+                #zones combined
+                drop.dis=Abund.single.area%>%
+                  mutate(this=grepl('TDGDLF.daily',rownames(Abund.single.area)) & Year%in%rid.of)
+                if(any(drop.dis$this)) Abund.single.area=Abund.single.area[-which(drop.dis$this),]
+                #by zone
+                drop.dis=Abund.areas.as.fleets%>%
+                  mutate(this=grepl('TDGDLF.daily',rownames(Abund.areas.as.fleets)) & Year%in%rid.of)
+                if(any(drop.dis$this)) Abund.areas.as.fleets=Abund.areas.as.fleets[-which(drop.dis$this),]
               }
+              
+                #remove TDGDLF and Survey CPUE
+              if(Neim%in%survey_not.representative & any(grepl("Survey",names(CPUE))) & !(Scens$test.use.cpue[s]=='Yes') )
+              {
+                drop.dis.rows=grep("Survey",row.names(Abund.single.area))
+                if(length(drop.dis.rows)>0) Abund.single.area=Abund.single.area[-drop.dis.rows,]
+                drop.dis.rows=grep("Survey",row.names(Abund.areas.as.fleets))
+                if(length(drop.dis.rows)>0) Abund.areas.as.fleets=Abund.areas.as.fleets[-drop.dis.rows,]
+              }
+              if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE))) & !(Scens$test.use.cpue[s]=='Yes') )
+              {
+                drop.dis.rows=grep("TDGDLF",row.names(Abund.single.area))
+                if(length(drop.dis.rows)>0) Abund.single.area=Abund.single.area[-drop.dis.rows,]
+                drop.dis.rows=grep("TDGDLF",row.names(Abund.areas.as.fleets))
+                if(length(drop.dis.rows)>0) Abund.areas.as.fleets=Abund.areas.as.fleets[-drop.dis.rows,]
+              }
+              if(!is.null(Abund.single.area)) if(nrow(Abund.single.area)==0) Abund.single.area=NULL
+              if(!is.null(Abund.areas.as.fleets)) if(nrow(Abund.areas.as.fleets)==0) Abund.areas.as.fleets=NULL
+
               
               #use cpue or length comp in likelihood?
               if(Life.history$drop.length.comp)
@@ -1519,9 +1730,10 @@ for(w in 1:n.SS)
                 {
                   KAtch=ktch
                   FLitinFO=flitinfo
-                  Abund=Abundance.SS.format
+                  Abund=Abund.single.area
                   Size.com=Size.compo.SS.format
                   meanbody=meanbodywt.SS.format
+                  tags=Tags.SS.format 
                   Var.ad=Var.ad.factr
                   add.future=add.ct.or.F_future
                 }
@@ -1529,9 +1741,10 @@ for(w in 1:n.SS)
                 {
                   KAtch=ktch.zone
                   FLitinFO=flitinfo.zone
-                  Abund=Abundance.SS.format.zone
+                  Abund=Abund.areas.as.fleets
                   Size.com=Size.compo.SS.format.zone
                   meanbody=meanbodywt.SS.format.zone
+                  tags=Tags.SS.format.zone  
                   Var.ad=Var.ad.factr.zone
                   add.future=add.ct.or.F_future.zone
                   
@@ -1578,10 +1791,10 @@ for(w in 1:n.SS)
                       mutate(old.fleet=sort(unique(meanbody$fleet)),new.fleet=NA)
                     
                   }
-                  if(!is.null(Tags.SS.format))
+                  if(!is.null(tags))
                   {
-                    id.tag.flit=FLitinFO[sort(unique(Tags.SS.format$recaptures$Fleet)),]%>%
-                      mutate(old.fleet=sort(unique(Tags.SS.format$recaptures$Fleet)),new.fleet=NA)
+                    id.tag.flit=FLitinFO[sort(unique(tags$recaptures$Fleet)),]%>%
+                      mutate(old.fleet=sort(unique(tags$recaptures$Fleet)),new.fleet=NA)
                   }
                   
                   #add Indo as separate fleet
@@ -1682,17 +1895,17 @@ for(w in 1:n.SS)
                       dplyr::select(-new.fleet)
                   }
                   #Tags
-                  if(!is.null(Tags.SS.format))
+                  if(!is.null(tags))
                   {
                     id.tag.flit$new.fleet=FLitinFO%>%mutate(row_id = row_number())%>%filter(fleetname%in%id.tag.flit$fleetname)%>%pull(row_id)
                     id.tag.flit=id.tag.flit%>%
                       dplyr::select(old.fleet,new.fleet)
                     
-                    Tags.SS.format$Initial.reporting.rate=Tags.SS.format$Initial.reporting.rate%>%
+                    tags$Initial.reporting.rate=tags$Initial.reporting.rate%>%
                       left_join(id.tag.flit,by=c('Fleet'='old.fleet'))%>%
                       dplyr::select(-Fleet)%>%
                       rename(Fleet=new.fleet)
-                    Tags.SS.format$recaptures=Tags.SS.format$recaptures%>%
+                    tags$recaptures=tags$recaptures%>%
                       left_join(id.tag.flit,by=c('Fleet'='old.fleet'))%>%
                       mutate(Fleet=new.fleet)%>%
                       dplyr::select(-new.fleet)
@@ -1782,6 +1995,7 @@ for(w in 1:n.SS)
                 }
                 
                 #a.4 test effect of INDO IUU catch calculation using only Apprehensions
+                #note: this is incomplete, see 'Code for Andre Reply.R' in '...\2025_Andre assessment review\R code'
                 if(Scens$Test.Indo.IUU.catch[s]=='Yes')  
                 {
                   Indo.IUU=Indo.IUU.apprehensions%>%
@@ -1814,7 +2028,7 @@ for(w in 1:n.SS)
                              abundance=Abund,   
                              size.comp=Size.com,
                              meanbodywt=meanbody,
-                             Tags=Tags.SS.format,
+                             Tags=tags,
                              F.tagging=F.SS.format,
                              cond.age.len=Cond.age.len.SS.format,
                              MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
