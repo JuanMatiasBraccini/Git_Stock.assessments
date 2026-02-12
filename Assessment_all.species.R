@@ -444,7 +444,9 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
 estim.sel.pars_SS=c("sandbar shark")
 extra.SD.Q.species=c("sandbar shark")
 estim.sel.pars_SS.prior=NULL
+test.using.male.sel.offset=NULL #c("gummy shark","whiskery shark") apply selectivity offsets for males
 estim.growth.pars_SS=c("sandbar shark","dusky shark","gummy shark","whiskery shark")
+test.growth.estim=c("gummy shark","whiskery shark")
 Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
 combine_NSF_Survey=NULL   #combine length composition from NSF and Survey data to estimate logistic selectivity
 combine.sexes.tdgdlf=NULL 
@@ -545,9 +547,8 @@ Use.these.tag.years=list("dusky shark"=1994:1995,
                          "gummy shark"=1994:1995,
                          "sandbar shark"=c(2000,2001:2003),   #added 2000
                          "whiskery shark"=1994:1996)
-use.tag.data=names(Use.these.tag.years) 
-#use.tag.data=NULL  #use tagging data to estimate F
-test.using.tags=FALSE  #set to TRUE to test effect of using tags in models of use.tag.data species
+use.tag.data=names(Use.these.tag.years) #NULL; use tagging data to estimate F
+test.use.tags.single.area=use.tag.data  #NULL; test effect of using tagging data in model
 tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
                                   "gummy shark"=c("Zone2"),
                                   "sandbar shark"=c("West","Zone1"),
@@ -557,11 +558,11 @@ tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
                                     "sandbar shark"=c("West","Zone1"),  
                                     "whiskery shark"=c("West","Zone1","Zone2")))
 taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
-
-Min.tons.Indo=50 # Estimate INDO IUU F for species with at least Min.tons.Indo
-Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
-estim.F.INDO=FALSE     #estimate INDO IUU F
 set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
+
+Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
+Min.tons.Indo=50 # Indo IUU - F estimation and test of catch recons based on Apprehension for species with at least Min.tons.Indo
+estim.F.INDO=FALSE     #Indo IUU - F estimation. Didn't work (see reply to Andre's suggestion)
 set.indo.catches.to.unknown=FALSE
 set.indo.catches.to.very.low=FALSE
 set.indo.catches.for.unknown.years=TRUE

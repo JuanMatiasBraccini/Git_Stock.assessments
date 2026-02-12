@@ -619,12 +619,15 @@ for(l in 1:N.sp)
   #Tagging 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='No')
   if(NeiM%in%use.tag.data) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='Yes') 
-  if(NeiM%in%use.tag.data & test.using.tags)
+  
+  #Test effect of using Tags on original single-area model
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(test.use.tags.single.area='No')
+  if(NeiM%in%test.use.tags.single.area)
   {
-    List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='No')
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
-    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
-      mutate(Tagging='Yes',
+    add.dumi=List.sp[[l]]$Sens.test$SS%>%filter(Spatial=='single area')%>%
+      mutate(test.use.tags.single.area='Yes',
+             Tagging='No',
              Scenario=paste0('S',(nnN+1)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
@@ -641,6 +644,17 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
+  #Indo IUU- Test effect of using only Apprehensions for catch reconstruction
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Test.Indo.IUU.catch='No')
+  if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo)
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Test.Indo.IUU.catch='Yes',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
   #Estimate initial F before time series
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Estim.initial.F='No')
   if(set.initial.F)
@@ -650,19 +664,6 @@ for(l in 1:N.sp)
                       mutate(Estim.initial.F='Yes',
                              Scenario=paste0('S',(nnN+1)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
-    
-  }
-  
-  #Test effect of using only Apprehensions for Indo IUU catch reconstruction
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Test.Indo.IUU.catch='No')
-  if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo & NeiM%in% estim.F.INDO)
-  {
-    nnN=nrow(List.sp[[l]]$Sens.test$SS)
-    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
-      mutate(Test.Indo.IUU.catch='Yes',
-             Scenario=paste0('S',(nnN+1)))
-    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
-    
   }
   
   #Test effect of using CPUE
@@ -676,6 +677,35 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
+  #Test effect of using selectivity offset
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Use.male.sel.offset='No')
+  if(NeiM%in%test.using.male.sel.offset)
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Use.male.sel.offset='Yes',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
+  #Estimate growth pars  
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(estim.growth='No')
+  if(NeiM%in%estim.growth.pars_SS)
+  {
+    List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(estim.growth='Yes')
+    if(NeiM%in%test.growth.estim)
+    {
+      List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(estim.growth='No')
+      
+      nnN=nrow(List.sp[[l]]$Sens.test$SS)
+      add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+        mutate(estim.growth='Yes',
+               Scenario=paste0('S',(nnN+1)))
+      List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+      
+      
+    }
+  }
   
   #Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
