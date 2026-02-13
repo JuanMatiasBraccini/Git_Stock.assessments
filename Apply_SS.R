@@ -881,7 +881,7 @@ for(w in 1:n.SS)
           
           
           #4. Abundance series           
-          Abundance.SS.format=NULL
+          Abundance.SS.format=Abundance.SS.format.zone=NULL
           Var.ad.factr=Var.ad.factr.zone=NULL
           CPUE=compact(Catch.rate.series[[i]])
           if(!is.null(CPUE))

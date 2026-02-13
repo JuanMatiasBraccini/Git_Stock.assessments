@@ -1208,9 +1208,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       id.FleeT=match(life.history$SS_selectivity_mimic$Fleet,rownames(ddumy))
       id.FleeT=id.FleeT[!is.na(id.FleeT)]
+      id.FleeT=subset(id.FleeT,!id.FleeT%in%unique(c(meanbodywt$fleet,size.comp$Fleet)))  #remove if there is length data
+      Fleet.mimik=life.history$SS_selectivity_mimic
+      Fleet.mimik=subset(Fleet.mimik,Fleet%in%fleetinfo[id.FleeT,]$fleetname)
+
       if(length(id.FleeT)>0)
       {
-        id.FleeT.mimic=match(life.history$SS_selectivity_mimic$Fleet.mimic,rownames(ddumy))
+        id.FleeT.mimic=match(Fleet.mimik$Fleet.mimic,rownames(ddumy))
         ddumy[id.FleeT,'Pattern']=15
         ddumy[id.FleeT,'Special']=ddumy$Fleet[id.FleeT.mimic]
       }
@@ -1337,7 +1341,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       }
     }
 
-    
     #replace size_selex_types
     ctl$size_selex_types=ddumy%>%dplyr::select(-Fleet)  
     
@@ -1590,18 +1593,22 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(!is.null(size.comp))   
     {
       if(length(Mirrored.sels)>0) flit.no.size.comp.obs=subset(flit.no.size.comp.obs,!flit.no.size.comp.obs%in%Mirrored.sels)
-      if("Southern.shark_2"%in%flit.no.size.comp.obs & isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt))
-      {
-        flit.no.size.comp.obs=subset(flit.no.size.comp.obs,!flit.no.size.comp.obs=="Southern.shark_2") 
-      }
       if(length(flit.no.size.comp.obs)>0)
       {
-        for(px in 1:length(flit.no.size.comp.obs))
+        if("Southern.shark_2"%in%flit.no.size.comp.obs & isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt))
         {
-          iid=grep(flit.no.size.comp.obs[px],rownames(ctl$size_selex_parms))
-          ctl$size_selex_parms[iid,]$PHASE=-2
+          flit.no.size.comp.obs=subset(flit.no.size.comp.obs,!flit.no.size.comp.obs=="Southern.shark_2") 
+        }
+        if(length(flit.no.size.comp.obs)>0)
+        {
+          for(px in 1:length(flit.no.size.comp.obs))
+          {
+            iid=grep(flit.no.size.comp.obs[px],rownames(ctl$size_selex_parms))
+            ctl$size_selex_parms[iid,]$PHASE=-2
+          }
         }
       }
+
     }
     # if(isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt) & !is.null(meanbodywt))
     # {
@@ -1625,11 +1632,10 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       #turn on Southern.shark_1 if available meanbodywt (because Southern.shark_2 mirrors Southern.shark_1) 
     if(!is.null(meanbodywt) & !is.null(size.comp))
     {
-      
       xx=size.comp%>%filter(Fleet%in%grep('Southern.shark',fleetinfo$fleetname))
       if(nrow(xx)==0)   #only need to turn off if there is no size comp for Southern.shark_1 or Southern.shark_2
       {
-        iiD=grepl('P_1_Southern.shark_1',rownames(ctl$size_selex_parms))
+        iiD=grep('P_1_Southern.shark_1',rownames(ctl$size_selex_parms))
         ctl$size_selex_parms[iiD,"PHASE"]=abs(ctl$size_selex_parms[iiD,"PHASE"])
         ctl$size_selex_parms[iiD,'PRIOR']=ctl$size_selex_parms[iiD,c('INIT')]
         ctl$size_selex_parms[iiD,'PR_SD']=ctl$size_selex_parms[iiD,c('INIT')]*.2
@@ -1642,7 +1648,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         }
       }
     }
-    ctl$size_selex_parms[grep('Southern.shark_2',rownames(ctl$size_selex_parms)),'PHASE']=-2
+      #turn off all Southern.shark_2 unless size comp or meanbodywt data
+    if(!any(which(grep('Southern.shark_2',fleetinfo$fleetname)%in%unique(c(meanbodywt$fleet,size.comp$Fleet)))))
+    {
+      ctl$size_selex_parms[grep('Southern.shark_2',rownames(ctl$size_selex_parms)),'PHASE']=-2
+    }
     if(!is.null(size.comp) | !is.null(meanbodywt))
     {
       dis.daily.size.comp.flit=NA
@@ -1650,7 +1660,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       {
         daily.fleets=grep('Southern.shark_2',fleetinfo$fleetname)
         daily.size.comp=size.comp%>%filter(year>2005)%>%filter(Fleet%in%daily.fleets)
-        if(nrow(daily.size.comp)>0) dis.daily.size.comp.flit=unique(daily.size.comp$Fleet)
+        if(nrow(daily.size.comp)>0) dis.daily.size.comp.flit=fleetinfo$fleetname[unique(daily.size.comp$Fleet)]
       }
       dis.mean.w.flit=NA
       if(!is.null(meanbodywt)) dis.mean.w.flit=fleetinfo$fleetname[unique(meanbodywt$fleet)]
@@ -1659,7 +1669,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       id.fleet.to.estim=id.fleet.to.estim[!is.na(id.fleet.to.estim)]
       if(length(id.fleet.to.estim)>0)
       {
-        id.fleet.to.estim=paste0(c('SizeSel_P_1_','SizeSel_P_3_'),id.fleet.to.estim)
+        id.fleet.to.estim=paste0(sort(rep(c('SizeSel_P_1_','SizeSel_P_3_'),times=length(id.fleet.to.estim))),rep(id.fleet.to.estim,times=2))
         id.fleet.to.estim=paste(id.fleet.to.estim,collapse='|')
         ctl$size_selex_parms[grep(id.fleet.to.estim,rownames(ctl$size_selex_parms)),'PHASE']=3
       }
@@ -1918,6 +1928,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     
     if('Fleet'%in%colnames(ctl$size_selex_parms))ctl$size_selex_parms=ctl$size_selex_parms%>%dplyr::select(-Fleet)
+    
+    #Make sure selectivity is not estimated if no size comp or meanbodywt data available for the fleet 
+    fleets.no.length.data=fleetinfo[-unique(c(meanbodywt$fleet,size.comp$Fleet)),]$fleetname
+    if(length(fleets.no.length.data)>0)
+    {
+      id.no.length.data=grep(paste(fleets.no.length.data,collapse='|'),rownames(ctl$size_selex_parms))
+      if(length(id.no.length.data)>0) ctl$size_selex_parms[id.no.length.data,'PHASE']=-2 
+    }
+
     
     #2. age_selex
     ctl$age_selex_types=ctl$size_selex_types%>%

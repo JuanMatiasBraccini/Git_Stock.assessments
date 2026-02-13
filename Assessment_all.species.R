@@ -514,7 +514,7 @@ no.empirical.sel.main.fleet=c(GAB.main="angel sharks",
                               WRL.main="tiger shark",
                               Multispecies.no.sel="wobbegongs")
 resample.h.greynurse=FALSE  #no need to resample h
-
+overwrite.sel.inits=FALSE
 
   #21.4 Specific SS model run arguments
 if(SS3.run=='final') Arg=''

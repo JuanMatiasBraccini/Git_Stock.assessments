@@ -474,24 +474,25 @@ for(l in 1:N.sp)
   List.sp[[l]]$Sens.test$SS=do.call("rbind", replicate(length(tested.h), List.sp[[l]]$Sens.test$SS, simplify = FALSE))%>%
                               mutate(Steepness=tested.h,
                                      Scenario=paste('S',row_number(),sep=''))
-    #LnR0 init
+    #4.1.1.1 LnR0 init
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
                               mutate(Ln_R0_init=runif(1,Ln_R0_max*.3,Ln_R0_max*.6))
-    #Ramp
+    #4.1.1.2 Ramp
   if(!is.na(ramp.yrs$LnRo))
   {
     List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
                                 mutate(Ln_R0_init=ramp.yrs$LnRo,
                                        Ln_R0_max=ramp.yrs$Ln_R0_max)
   }
-   #M at age  
+  
+   #4.1.1.3 M at age  
   N.rowSS=nrow(List.sp[[l]]$Sens.test$SS)
   List.sp[[l]]$Sens.test$SS$M.at.age=rep('Mmean.mean.at.age',N.rowSS) #use Mean M for consistency with h
   List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,
                                   List.sp[[l]]$Sens.test$SS[1,]%>%
                                     mutate(M.at.age="constant",Scenario=paste0('S',N.rowSS+1)))
 
-    #Cpues
+    #4.1.1.4 Cpues
   N.rowSS=nrow(List.sp[[l]]$Sens.test$SS)
   List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,N.rowSS)
   if(evaluate.07.08.cpue)
@@ -502,12 +503,12 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
 
-    #Calculate extra SD for Q or only when CV is small?
+    #4.1.1.5 Calculate extra SD for Q or only when CV is small?
   extra.es.d='NO'
   if(NeiM%in%extra.SD.Q.species) extra.es.d='YES'
   List.sp[[l]]$Sens.test$SS$extra.SD.Q=extra.es.d 
   
-    #Alternative dome-shaped selectivity for NSF and survey
+    #4.1.1.6 Alternative dome-shaped selectivity for NSF and survey
   SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
   if(NeiM%in%alternative.NSF.selectivity)
   {
@@ -517,7 +518,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Alternative SR_sigmaR
+    #4.1.1.7 Alternative SR_sigmaR
   if(NeiM%in%alternative.sigmaR)
   {
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
@@ -529,7 +530,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi,add.dumi2)
   }
   
-  #Alternativev SR_type 7 (Taylor)
+    #4.1.1.8 Alternativev SR_type 7 (Taylor)
   # Zfrac is fraction of density dependence (0 to 1; 0.4 for S. acanthias)
   # Beta is point where density dependence is fastest (1, linear; <1 surv increase faster at low spawning biomass;
   #                                                   >1, surv increase faster at high spawning biomass; 1 for S. acanthias)
@@ -546,7 +547,7 @@ for(l in 1:N.sp)
     
   }
   
-  #Alternative do_recdev
+    #4.1.1.9 Alternative do_recdev
   if(NeiM%in%alternative.do_recdev)
   {
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
@@ -556,7 +557,7 @@ for(l in 1:N.sp)
     
   }
   
-  #Alternative do_recdev & SR_sigmaR
+    #4.1.1.10 Alternative do_recdev & SR_sigmaR
   if(NeiM%in%alternative.sigmaR & NeiM%in%alternative.do_recdev)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
@@ -567,7 +568,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Forecasting
+    #4.1.1.11 Forecasting
   if(NeiM%in%alternative.forecasting)
   {
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
@@ -577,7 +578,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$F.forecasting.value=F.forecasting.values[[match(NeiM,names(F.forecasting.values))]] 
   }
   
-  #Likelihood weighting
+    #4.1.1.12 Likelihood weighting
   List.sp[[l]]$Sens.test$SS$like_comp.w=NA
   List.sp[[l]]$Sens.test$SS$like_comp_fleet.w=NA
   List.sp[[l]]$Sens.test$SS$like_comp.w.val=NA
@@ -592,7 +593,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Spatial model 
+    #4.1.1.13 Spatial model 
   if(!NeiM%in%spatial.model) List.sp[[l]]$Sens.test$SS$Spatial='single area'
   if(NeiM%in%spatial.model) List.sp[[l]]$Sens.test$SS$Spatial='areas-as-fleets'
   if(NeiM%in%spatial.model & test.single.area.model)
@@ -604,7 +605,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Alternative Linf due to uncertainty in growth pars
+    #4.1.1.14 Alternative Linf due to uncertainty in growth pars
   List.sp[[l]]$Sens.test$SS$alternative.Linf=1  #multiplier
   if(NeiM%in%alternative.Linf) 
   {
@@ -616,11 +617,11 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Tagging 
+    #4.1.1.15 Tagging 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='No')
   if(NeiM%in%use.tag.data) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='Yes') 
   
-  #Test effect of using Tags on original single-area model
+    #4.1.1.16 Test effect of using Tags on original single-area model
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(test.use.tags.single.area='No')
   if(NeiM%in%test.use.tags.single.area)
   {
@@ -632,7 +633,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Indo IUU - F estimation
+    #4.1.1.17 Indo IUU - F estimation
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Estim.Indo.IUU='No')
   Indo.IUU.sp=KtCh%>%filter(Name==NeiM & Data.set=='Indonesia')
   if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo & estim.F.INDO) 
@@ -644,7 +645,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Indo IUU- Test effect of using only Apprehensions for catch reconstruction
+    #4.1.1.18 Indo IUU- Test effect of using only Apprehensions for catch reconstruction
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Test.Indo.IUU.catch='No')
   if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo)
   {
@@ -655,7 +656,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Estimate initial F before time series
+    #4.1.1.19 Estimate initial F before time series
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Estim.initial.F='No')
   if(set.initial.F)
   {
@@ -666,7 +667,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Test effect of using CPUE
+    #4.1.1.20 Test effect of using CPUE
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(test.use.cpue='No')
   if(NeiM%in%test.using.cpue)
   {
@@ -677,7 +678,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Test effect of using selectivity offset
+    #4.1.1.21 Test effect of using selectivity offset
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Use.male.sel.offset='No')
   if(NeiM%in%test.using.male.sel.offset)
   {
@@ -688,7 +689,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-  #Estimate growth pars  
+    #4.1.1.22 Estimate growth pars  
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(estim.growth='No')
   if(NeiM%in%estim.growth.pars_SS)
   {
@@ -707,14 +708,15 @@ for(l in 1:N.sp)
     }
   }
   
-  #Remove SSS inputs
+    #4.1.1.23 Remove 07.08.cpue evaluation if not testing
+  if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
+  
+    #4.1.1.24 Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%
     dplyr::select(-c(Final.dpl,Sims))
   
-  if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
   
-
       #4.1.2 Growth
   List.sp[[l]]$Growth.CV_young=Young.CV  
   if(List.sp[[l]]$Max.age.F[1]<20) List.sp[[l]]$Growth.CV_old=Old.CV_short.lived 
@@ -729,13 +731,12 @@ for(l in 1:N.sp)
 
   List.sp[[l]]$compress.tail=FALSE  #compress the size distribution tail into plus group. 
   
-    #growth priors
+    #4.1.2.1 growth priors
   if(!NeiM%in%estim.growth.pars_SS)
   {
     List.sp[[l]]$SS3.estim.growth.pars=FALSE
     List.sp[[l]]$Growth.F.prior=List.sp[[l]]$Growth.M.prior=List.sp[[l]]$Growth.prior.type=NULL
   }
-  
   if(NeiM%in%estim.growth.pars_SS)
   {
     List.sp[[l]]$SS3.estim.growth.pars=TRUE
@@ -755,7 +756,7 @@ for(l in 1:N.sp)
                                           fn.ji(1e-2),fn.ji(1e-3),
                                           rep(fn.ji(1e-3),3),rep(fn.ji(4e-4),3))))
   
-    #use analytical solution if not splitting Q in blocks   
+    #4.1.3.1 use analytical solution if not splitting Q in blocks   
   List.sp[[l]]$SS3.q.an.sol=SS3.q.analit.solu
   if(NeiM%in%block.species_Q)   List.sp[[l]]$SS3.q.an.sol=FALSE
   
@@ -773,7 +774,7 @@ for(l in 1:N.sp)
   #       logistic: p1. inflection
   #                 p2. 95% width (>0)
   
-    #init values
+    #4.1.4.1.1 Init values
       #NSF, Survey and Others
     p1.sel=SS.sel.init.pars$NSF_p1       
     p2.sel=SS.sel.init.pars$NSF_p2 
@@ -782,12 +783,15 @@ for(l in 1:N.sp)
     p5.sel=SS.sel.init.pars$NSF_p5 
     p6.sel=SS.sel.init.pars$NSF_p6 
 
-    p1.sel_NSF=p1.sel_Other=p1.sel_Survey=p1.sel       #Indo, Taiwan, survey and other fisheries set to NSF
-    p2.sel_NSF=p2.sel_Other=p2.sel_Survey=p2.sel 
+    p1.sel_NSF=p1.sel_Other=p1.sel       #Indo, Taiwan, survey and other fisheries set to NSF
+    p2.sel_NSF=p2.sel_Other=p2.sel 
     p3.sel_NSF=p3.sel_Other=p3.sel_Survey=p3.sel
     p4.sel_NSF=p4.sel_Other=p4.sel_Survey=p4.sel 
     p5.sel_NSF=p5.sel_Other=p5.sel_Survey=p5.sel 
     p6.sel_NSF=p6.sel_Other=p6.sel_Survey=p6.sel 
+    
+    p1.sel_Survey=SS.sel.init.pars$Survey_p1
+    p2.sel_Survey=SS.sel.init.pars$Survey_p2 
   
     if(!is.na(SS.sel.init.pars$Other_p1))
     {
@@ -811,18 +815,18 @@ for(l in 1:N.sp)
     p3.sel_TDGDLF2=p3.sel_TDGDLF
     p4.sel_TDGDLF2=p4.sel_TDGDLF
     
-    if(NeiM=="sandbar shark")
+    if(overwrite.sel.inits)
     {
-      p1.sel_Survey=160
+      if(NeiM=="gummy shark")
+      {
+        p1.sel_TDGDLF2=111.106
+        p2.sel_TDGDLF2=-13.235
+        p3.sel_TDGDLF3=4.14896
+        p4.sel_TDGDLF4=6.0187
+      } 
     }
-    if(NeiM=="gummy shark")
-    {
-      p1.sel_TDGDLF2=111.106
-      p2.sel_TDGDLF2=-13.235
-      p3.sel_TDGDLF3=4.14896
-      p4.sel_TDGDLF4=6.0187
-    }  
-    
+ 
+      #Combine in list
     List.sp[[l]]$SS_selectivity=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                            P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF2,p1.sel_Survey),
                                            P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF2,p2.sel_Survey),
@@ -830,7 +834,6 @@ for(l in 1:N.sp)
                                            P_4=c(p4.sel_NSF,p4.sel_Other,p4.sel_TDGDLF,p4.sel_TDGDLF2,p4.sel_Survey),
                                            P_5=c(p5.sel_NSF,p5.sel_Other,p5.sel_TDGDLF,p5.sel_TDGDLF,p5.sel_Survey),
                                            P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))
-    
 
     if(NeiM%in%alternative.NSF.selectivity)
     {
@@ -849,7 +852,6 @@ for(l in 1:N.sp)
                                              P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))
       
     }
-    
     if(NeiM%in%WRL.species)  
     {
       WRL.sel.pars=data.frame(Fleet="WRL",
@@ -872,9 +874,8 @@ for(l in 1:N.sp)
       }
     }
     
-    #mimicking
+    #Mimicking
     List.sp[[l]]$SS_selectivity_mimic=NULL
-    
     if(NeiM=="sandbar shark")
     {
       List.sp[[l]]$SS_selectivity_mimic=data.frame(Fleet=c('Southern.shark_1_Zone2',
@@ -883,7 +884,7 @@ for(l in 1:N.sp)
                                                                  'Southern.shark_2_Zone1'))
     }
     
-    #retention & discard mortality
+    #Retention & discard mortality
     if(any(!is.na(SS.sel.init.pars[,grepl('Ret_',names(SS.sel.init.pars))])))
     {
       xx=SS.sel.init.pars[,grepl('Ret_',names(SS.sel.init.pars))]
@@ -908,7 +909,6 @@ for(l in 1:N.sp)
                                                      P_3=yy$Disc_Fleet_L3,
                                                      P_4=yy$Disc_Fleet_L4)
       }
-      
     }
     
     #Male offsets
@@ -937,10 +937,9 @@ for(l in 1:N.sp)
       }
     }
     
-    #block pattern for time changing selectivity for Monthly TDGDLF
+    #Block pattern for time changing selectivity for Monthly TDGDLF
     List.sp[[l]]$Nblock_Patterns=0
     List.sp[[l]]$autogen=rep(1,5) #1st biology, 2nd SR, 3rd Q, 4th reserved, 5th selex. Set to 0 if par is estimated, 1 if par is fixed 
-    
     if(NeiM=="sandbar shark")
     {
       N.bpp=2
@@ -969,8 +968,7 @@ for(l in 1:N.sp)
       }
     }
     
-    
-    #phases
+    #4.1.4.1.2 Phases 
       #NSF, Survey and Others
     p1.sel=SS.sel.init.pars$Phase_NSF_p1       
     p2.sel=SS.sel.init.pars$Phase_NSF_p2 
@@ -1038,7 +1036,7 @@ for(l in 1:N.sp)
         
     }
       
-
+    #put in list
     List.sp[[l]]$SS_selectivity_phase=data.frame(Fleet=c("Northern.shark","Other","Southern.shark_1","Southern.shark_2","Survey"),
                                                  P_1=c(p1.sel_NSF,p1.sel_Other,p1.sel_TDGDLF,p1.sel_TDGDLF2,p1.sel_Survey),
                                                  P_2=c(p2.sel_NSF,p2.sel_Other,p2.sel_TDGDLF,p2.sel_TDGDLF2,p2.sel_Survey),
@@ -1065,7 +1063,6 @@ for(l in 1:N.sp)
                                                    P_6=c(p6.sel_NSF,p6.sel_Other,p6.sel_TDGDLF,p6.sel_TDGDLF,p6.sel_Survey))%>%
         replace(is.na(.), -2)
     }
-    
     if(NeiM%in%WRL.species)  
     {
       WRL.sel.phases=data.frame(Fleet="WRL",
@@ -1088,7 +1085,7 @@ for(l in 1:N.sp)
       }
     }
     
-    #Populate values for Zones
+    #4.1.4.1.3 Populate Zones values for spatial model   
     List.sp[[l]]$SS_selectivity=rbind(List.sp[[l]]$SS_selectivity,
                                       fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity,
                                                             x='Southern.shark_1',
@@ -1103,6 +1100,70 @@ for(l in 1:N.sp)
                                             fn.add.fleet.zone.sel(d=List.sp[[l]]$SS_selectivity_phase,
                                                                   x='Southern.shark_2',
                                                                   y=c('Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2')))
+    if(NeiM%in%spatial.model)  
+    {
+      List.sp[[l]]$SS_selectivity=List.sp[[l]]$SS_selectivity%>%
+              mutate(P_1=case_when(Fleet=='Southern.shark_1_West'~SS.sel.init.pars$TDGDLF_p1_west_1,
+                                   Fleet=='Southern.shark_1_Zone1'~SS.sel.init.pars$TDGDLF_p1_zn1_1,
+                                   Fleet=='Southern.shark_1_Zone2'~SS.sel.init.pars$TDGDLF_p1_zn2_1,
+                                   Fleet=='Southern.shark_2_West'~SS.sel.init.pars$TDGDLF_p1_west_2,
+                                   Fleet=='Southern.shark_2_Zone1'~SS.sel.init.pars$TDGDLF_p1_zn1_2,
+                                   Fleet=='Southern.shark_2_Zone2'~SS.sel.init.pars$TDGDLF_p1_zn2_2,
+                                   TRUE~P_1),
+                     P_2=case_when(Fleet=='Southern.shark_1_West'~SS.sel.init.pars$TDGDLF_p2_west_1,
+                                   Fleet=='Southern.shark_1_Zone1'~SS.sel.init.pars$TDGDLF_p2_zn1_1,
+                                   Fleet=='Southern.shark_1_Zone2'~SS.sel.init.pars$TDGDLF_p2_zn2_1,
+                                   Fleet=='Southern.shark_2_West'~SS.sel.init.pars$TDGDLF_p2_west_2,
+                                   Fleet=='Southern.shark_2_Zone1'~SS.sel.init.pars$TDGDLF_p2_zn1_2,
+                                   Fleet=='Southern.shark_2_Zone2'~SS.sel.init.pars$TDGDLF_p2_zn2_2,
+                                   TRUE~P_2),
+                     P_3=case_when(Fleet=='Southern.shark_1_West'~SS.sel.init.pars$TDGDLF_p3_west_1,
+                                   Fleet=='Southern.shark_1_Zone1'~SS.sel.init.pars$TDGDLF_p3_zn1_1,
+                                   Fleet=='Southern.shark_1_Zone2'~SS.sel.init.pars$TDGDLF_p3_zn2_1,
+                                   Fleet=='Southern.shark_2_West'~SS.sel.init.pars$TDGDLF_p3_west_2,
+                                   Fleet=='Southern.shark_2_Zone1'~SS.sel.init.pars$TDGDLF_p3_zn1_2,
+                                   Fleet=='Southern.shark_2_Zone2'~SS.sel.init.pars$TDGDLF_p3_zn2_2,
+                                   TRUE~P_3),
+                     P_4=case_when(Fleet=='Southern.shark_1_West'~SS.sel.init.pars$TDGDLF_p4_west_1,
+                                   Fleet=='Southern.shark_1_Zone1'~SS.sel.init.pars$TDGDLF_p4_zn1_1,
+                                   Fleet=='Southern.shark_1_Zone2'~SS.sel.init.pars$TDGDLF_p4_zn2_1,
+                                   Fleet=='Southern.shark_2_West'~SS.sel.init.pars$TDGDLF_p4_west_2,
+                                   Fleet=='Southern.shark_2_Zone1'~SS.sel.init.pars$TDGDLF_p4_zn1_2,
+                                   Fleet=='Southern.shark_2_Zone2'~SS.sel.init.pars$TDGDLF_p4_zn2_2,
+                                   TRUE~P_4))
+      
+      List.sp[[l]]$SS_selectivity_phase=List.sp[[l]]$SS_selectivity_phase%>%
+              mutate(P_1=case_when(Fleet=='Southern.shark_1_West'~SS.sel.init.pars$Phase_TDGDLF_p1_west_1,
+                                   Fleet=='Southern.shark_1_Zone1'~SS.sel.init.pars$Phase_TDGDLF_p1_zn1_1,
+                                   Fleet=='Southern.shark_1_Zone2'~SS.sel.init.pars$Phase_TDGDLF_p1_zn2_1,
+                                   Fleet=='Southern.shark_2_West'~SS.sel.init.pars$Phase_TDGDLF_p1_west_2,
+                                   Fleet=='Southern.shark_2_Zone1'~SS.sel.init.pars$Phase_TDGDLF_p1_zn1_2,
+                                   Fleet=='Southern.shark_2_Zone2'~SS.sel.init.pars$Phase_TDGDLF_p1_zn2_2,
+                                   TRUE~P_1),
+                     P_2=case_when(Fleet=='Southern.shark_1_West'~SS.sel.init.pars$Phase_TDGDLF_p2_west_1,
+                                   Fleet=='Southern.shark_1_Zone1'~SS.sel.init.pars$Phase_TDGDLF_p2_zn1_1,
+                                   Fleet=='Southern.shark_1_Zone2'~SS.sel.init.pars$Phase_TDGDLF_p2_zn2_1,
+                                   Fleet=='Southern.shark_2_West'~SS.sel.init.pars$Phase_TDGDLF_p2_west_2,
+                                   Fleet=='Southern.shark_2_Zone1'~SS.sel.init.pars$Phase_TDGDLF_p2_zn1_2,
+                                   Fleet=='Southern.shark_2_Zone2'~SS.sel.init.pars$Phase_TDGDLF_p2_zn2_2,
+                                   TRUE~P_2),
+                     P_3=case_when(Fleet=='Southern.shark_1_West'~SS.sel.init.pars$Phase_TDGDLF_p3_west_1,
+                                   Fleet=='Southern.shark_1_Zone1'~SS.sel.init.pars$Phase_TDGDLF_p3_zn1_1,
+                                   Fleet=='Southern.shark_1_Zone2'~SS.sel.init.pars$Phase_TDGDLF_p3_zn2_1,
+                                   Fleet=='Southern.shark_2_West'~SS.sel.init.pars$Phase_TDGDLF_p3_west_2,
+                                   Fleet=='Southern.shark_2_Zone1'~SS.sel.init.pars$Phase_TDGDLF_p3_zn1_2,
+                                   Fleet=='Southern.shark_2_Zone2'~SS.sel.init.pars$Phase_TDGDLF_p3_zn2_2,
+                                   TRUE~P_3),
+                     P_4=case_when(Fleet=='Southern.shark_1_West'~SS.sel.init.pars$Phase_TDGDLF_p4_west_1,
+                                   Fleet=='Southern.shark_1_Zone1'~SS.sel.init.pars$Phase_TDGDLF_p4_zn1_1,
+                                   Fleet=='Southern.shark_1_Zone2'~SS.sel.init.pars$Phase_TDGDLF_p4_zn2_1,
+                                   Fleet=='Southern.shark_2_West'~SS.sel.init.pars$Phase_TDGDLF_p4_west_2,
+                                   Fleet=='Southern.shark_2_Zone1'~SS.sel.init.pars$Phase_TDGDLF_p4_zn1_2,
+                                   Fleet=='Southern.shark_2_Zone2'~SS.sel.init.pars$Phase_TDGDLF_p4_zn2_2,
+                                   TRUE~P_4))
+    }
+    
+    #4.1.4.1.4 Populate priors  
     if(!is.null(List.sp[[l]]$SS_selectivity.sensitivity))
     {
       List.sp[[l]]$SS_selectivity.sensitivity=rbind(List.sp[[l]]$SS_selectivity.sensitivity,
@@ -1121,44 +1182,19 @@ for(l in 1:N.sp)
                                                                                 y=c('Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2')))
     }
     
-    if(NeiM=="sandbar shark")
-    {
-      List.sp[[l]]$SS_selectivity=List.sp[[l]]$SS_selectivity%>%
-                                  mutate(P_1=case_when(Fleet=='Southern.shark_1_Zone1'~100,
-                                                       TRUE~P_1),
-                                         P_2=case_when(Fleet=='Southern.shark_1_West'~-10,
-                                                       Fleet=='Southern.shark_1_Zone1'~-8.6,
-                                                       Fleet=='Southern.shark_2_Zone1'~-4.23,
-                                                       TRUE~P_2),
-                                         P_3=case_when(Fleet=='Southern.shark_2_West'~5.76,
-                                                       Fleet=='Southern.shark_2_Zone1'~4.93,
-                                                       TRUE~P_3),
-                                         P_4=case_when(Fleet=='Southern.shark_2_West'~7.98,
-                                                       Fleet=='Southern.shark_2_Zone1'~5.94,
-                                                       TRUE~P_4))
-      
-      List.sp[[l]]$SS_selectivity_phase=List.sp[[l]]$SS_selectivity_phase%>%
-                                  mutate(P_2=case_when(Fleet=='Southern.shark_1_West'~-4,
-                                                       Fleet=='Southern.shark_1_Zone1'~-4,
-                                                       TRUE~P_2),
-                                        P_4=case_when(Fleet=='Southern.shark_1_Zone1'~4,
-                                                       TRUE~P_4))
-    }
-    
-    #Populate priors
+    #4.1.4.1.5 Populate priors  
     List.sp[[l]]$Sel.prior.sd_type=NULL
     if(NeiM%in%estim.sel.pars_SS.prior)  
     {
       List.sp[[l]]$Sel.prior.sd_type=data.frame(P1.sd=10,P1.type=6,P2.sd=5,P2.type=6)
     }
     
-    
-    #turn on Southern2 if meanbodywt
+    #4.1.4.1.6 Turn on Southern2 if meanbodywt
     fit_SS.to.mean.weight=FALSE
     if(NeiM%in%fit.to.mean.weight.Southern2) fit_SS.to.mean.weight=TRUE
     List.sp[[l]]$fit.Southern.shark_2.to.meanbodywt=fit_SS.to.mean.weight  #this has been superseded in fn.set.up.SS
     
-
+   
     #4.1.4.2 AgeSelex 
     List.sp[[l]]$age_selex_pattern=0  #0,Selectivity = 1.0 for ages 0+; 10, Selectivity = 1.0 for all ages beginning at age 1
     if(NeiM=="spinner shark") List.sp[[l]]$age_selex_pattern=10  #to allow convergence
