@@ -411,7 +411,11 @@ for(w in 1:n.SS)
                             rename(Fleet=Fleet.number)%>%
                             filter(Fleet%in%unique(dummy.Size.compo.SS.format$Fleet))
                 dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
-                                            left_join(size.flits.min.samp,by='Fleet')%>%
+                                            left_join(size.flits.min.samp,by='Fleet')
+                
+                dummy.Size.compo.SS.format.all=dummy.Size.compo.SS.format%>%
+                                                dplyr::select(-Min.nsamp)
+                dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
                                             filter(year<=max(ktch$finyear) & Nsamp>=Min.nsamp)%>%
                                             dplyr::select(-Min.nsamp)
                 
@@ -689,7 +693,11 @@ for(w in 1:n.SS)
                                     rename(Fleet=Fleet.number)%>%
                                     filter(Fleet%in%unique(dummy.Size.compo.SS.format$Fleet))
                 dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
-                                            left_join(size.flits.min.samp,by='Fleet')%>%
+                                            left_join(size.flits.min.samp,by='Fleet')
+                
+                dummy.Size.compo.SS.format.all_zone=dummy.Size.compo.SS.format%>%
+                                                      dplyr::select(-Min.nsamp)
+                dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
                                             filter(year<=max(ktch$finyear) & Nsamp>=Min.nsamp)%>%
                                             dplyr::select(-Min.nsamp)
 
@@ -735,6 +743,18 @@ for(w in 1:n.SS)
             {
               dumi.kk=Size.compo.SS.format%>%
                                 filter(year==Kombo$year[kk] & Seas==Kombo$Seas[kk] & Fleet==Kombo$Fleet[kk])
+              if(nrow(dumi.kk)==1 & SS.sex.3_use.missing.sex) 
+              {
+                if(!dumi.kk$Sex==0)
+                {
+                  msin.sx=which(!1:2%in%dumi.kk$Sex)
+                  dumi.kk.missing=dumi.kk%>%
+                    mutate(Sex=msin.sx,
+                           across(-all_of(c('year','Seas','Fleet','Sex','Part','Nsamp')), ~0))
+                  dumi.kk=rbind(dumi.kk,dumi.kk.missing)%>%
+                    arrange(Sex)
+                }
+              }
               if(!0%in%dumi.kk$Sex)
               {
                 if(nrow(dumi.kk)<2) dumi.kk=NA
@@ -763,6 +783,18 @@ for(w in 1:n.SS)
             {
               dumi.kk=Size.compo.SS.format.zone%>%
                 filter(year==Kombo$year[kk] & Seas==Kombo$Seas[kk] & Fleet==Kombo$Fleet[kk])
+              if(nrow(dumi.kk)==1 & SS.sex.3_use.missing.sex.zone) 
+              {
+                if(!dumi.kk$Sex==0)
+                {
+                  msin.sx=which(!1:2%in%dumi.kk$Sex)
+                  dumi.kk.missing=dumi.kk%>%
+                    mutate(Sex=msin.sx,
+                           across(-all_of(c('year','Seas','Fleet','Sex','Part','Nsamp')), ~0))
+                  dumi.kk=rbind(dumi.kk,dumi.kk.missing)%>%
+                    arrange(Sex)
+                }
+              }
               if(!0%in%dumi.kk$Sex)
               {
                 if(nrow(dumi.kk)<2) dumi.kk=NA
@@ -1731,6 +1763,7 @@ for(w in 1:n.SS)
                   FLitinFO=flitinfo
                   Abund=Abund.single.area
                   Size.com=Size.compo.SS.format
+                  Size.com_all=dummy.Size.compo.SS.format.all
                   meanbody=meanbodywt.SS.format
                   tags=Tags.SS.format 
                   Var.ad=Var.ad.factr
@@ -1742,6 +1775,7 @@ for(w in 1:n.SS)
                   FLitinFO=flitinfo.zone
                   Abund=Abund.areas.as.fleets
                   Size.com=Size.compo.SS.format.zone
+                  Size.com_all=dummy.Size.compo.SS.format.all_zone
                   meanbody=meanbodywt.SS.format.zone
                   tags=Tags.SS.format.zone  
                   Var.ad=Var.ad.factr.zone
@@ -2014,21 +2048,32 @@ for(w in 1:n.SS)
                 if(!is.null(Size.com))
                 {
                   id.survey=match('Survey',FLitinFO$fleetname)
-                  Size.com=Size.com%>%
-                            filter(!(Fleet==id.survey & year%in%c(2001,2002)))
+                  if(!is.na(id.survey)) Size.com=Size.com%>%filter(!(Fleet==id.survey & year%in%c(2001,2002)))
                 }
                 
-                #a.7 plot Length comps used
-                if(Scens$Scenario[s]=='S1')  
+                #a.7 plot Length comps used and all  
+                if(First.run=='YES')  
                 {
+                  #Used on model  
                   p=see.SS3.length.comp.matrix(dd=Size.com%>%
-                                                 dplyr::select(year,Fleet,names(Size.com)[grep('f',names(Size.com))]))
+                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('f',names(Size.com))]))
                   base::print(p)
-                  ggsave(paste0(this.wd,"/Length comps used in SS_female.tiff"),width=7,height=6,compression = "lzw")
+                  ggsave(paste0(this.wd1,"/Length comps used in SS_female.tiff"),width=7,height=6,compression = "lzw")
                   p=see.SS3.length.comp.matrix(dd=Size.com%>%
-                                                 dplyr::select(year,Fleet,names(Size.com)[grep('m',names(Size.com))][-1]))
+                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('m',names(Size.com))][-1]))
                   base::print(p)
-                  ggsave(paste0(this.wd,"/Length comps used in SS_male.tiff"),width=7,height=6,compression = "lzw")
+                  ggsave(paste0(this.wd1,"/Length comps used in SS_male.tiff"),width=7,height=6,compression = "lzw")
+                  
+                  #All available
+                  p=see.SS3.length.comp.matrix(dd=Size.com_all%>%
+                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('f',names(Size.com))]))
+                  base::print(p)
+                  ggsave(paste0(this.wd1,"/Length comps used in SS_female_all years.tiff"),width=7,height=6,compression = "lzw")
+                  p=see.SS3.length.comp.matrix(dd=Size.com_all%>%
+                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('m',names(Size.com))][-1]))
+                  base::print(p)
+                  ggsave(paste0(this.wd1,"/Length comps used in SS_male_all years.tiff"),width=7,height=6,compression = "lzw")
+                  
                   
                 }
                 

@@ -233,15 +233,15 @@ MN.SZE=0    # initial bin size
 TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
-Min.annual.obs.ktch=150 #Minimum number of annual observations per sex-yr-fleet for using length composition data
+Min.annual.obs.ktch=150 #Minimum number of annual observations (i.e., records) per sex-yr-fleet for using length composition data
 Min.annual.obs.ktch.zone=100 #min number obs per zone for areas as fleet model
 Min.annual.obs.ktch_NSF=50
 Min.annual.obs.ktch_survey=20
 prop.min.N.accepted_other=0.5
-Min.Nsamp=10   #Minimum number of trips for catch mean weight or length composition
-Min.Nsamp.Survey=Min.Nsamp
-Min.Nsamp.zone=5
-Min.Nsamp.NSF=5
+Min.Nsamp=20   #Minimum number of shots for catch mean weight or length composition
+Min.Nsamp.Survey=10
+Min.Nsamp.zone=10
+Min.Nsamp.NSF=10
 fill.in.zeros=TRUE  #add missing length classes with all 0s
 
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
@@ -457,7 +457,10 @@ combine.sexes=unique(c(combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,combine.s
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark"))
 combine.sex_type=0  #0, 0 means combined male and female ; 3, 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
 SS.sex.length.type=3  #1 if want to maintain males and females separated
+SS.sex.3_use.missing.sex=FALSE # use length comp year's data even if one sex is missing (e.g. whiskery sexual segregation)
+SS.sex.3_use.missing.sex.zone=TRUE
 fit.to.mean.weight.Southern2=c("dusky shark","gummy shark","sandbar shark","whiskery shark","spinner shark")  #get model to fit mean weight regardless of available length comp
+estim.Southern2='length and mean.wt' #'length or mean.wt'  decide to turn on Southern2 estimation if this condition
 drop.len.comp.like=NULL    
 survey.like.weight=NULL  #"dusky shark"  
 use.Gab.trawl=TRUE   #note that this has only 1 year of data
@@ -548,7 +551,7 @@ Use.these.tag.years=list("dusky shark"=1994:1995,
                          "sandbar shark"=c(2000,2001:2003),   #added 2000
                          "whiskery shark"=1994:1996)
 use.tag.data=names(Use.these.tag.years) #NULL; use tagging data to estimate F
-test.use.tags.single.area=use.tag.data  #NULL; test effect of using tagging data in model
+test.use.tags=use.tag.data  #NULL; test effect of using tagging data in model
 tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
                                   "gummy shark"=c("Zone2"),
                                   "sandbar shark"=c("West","Zone1"),

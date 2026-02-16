@@ -620,18 +620,33 @@ for(l in 1:N.sp)
     #4.1.1.15 Tagging 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='No')
   if(NeiM%in%use.tag.data) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='Yes') 
+  if(NeiM%in%spatial.model & test.single.area.model) # test efect of using original single-area model
+  {
+    List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
+                                mutate(Tagging=case_when(Spatial=='single area'~'No',
+                                                         TRUE~Tagging))
+  }
   
-    #4.1.1.16 Test effect of using Tags on original single-area model
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(test.use.tags.single.area='No')
-  if(NeiM%in%test.use.tags.single.area)
+  #4.1.1.16 Test effect of using Tags 
+  if(NeiM%in%test.use.tags)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
-    add.dumi=List.sp[[l]]$Sens.test$SS%>%filter(Spatial=='single area')%>%
-      mutate(test.use.tags.single.area='Yes',
-             Tagging='No',
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Tagging='No',
              Scenario=paste0('S',(nnN+1)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
+  #   #4.1.1.16 Test effect of using Tags on original single-area model  #ACA
+  # List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(test.use.tags.single.area='No')
+  # if(NeiM%in%test.use.tags.single.area)
+  # {
+  #   nnN=nrow(List.sp[[l]]$Sens.test$SS)
+  #   add.dumi=List.sp[[l]]$Sens.test$SS%>%filter(Spatial=='single area')%>%
+  #     mutate(test.use.tags.single.area='Yes',
+  #            Tagging='No',
+  #            Scenario=paste0('S',(nnN+1)))
+  #   List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  # }
   
     #4.1.1.17 Indo IUU - F estimation
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Estim.Indo.IUU='No')

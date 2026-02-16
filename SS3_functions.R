@@ -1333,6 +1333,16 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       id.mean.body.w=unique(dat$meanbodywt$fleet)
       id.length.comp=unique(dat$lencomp$Fleet)
       turn.on=id.Southern.shark2.fleet[which(id.Southern.shark2.fleet%in%unique(c(id.mean.body.w,id.length.comp)))]
+      if(estim.Southern2=='length and mean.wt')
+      {
+        turn.on=id.Southern.shark2.fleet[which(id.Southern.shark2.fleet%in%id.length.comp & id.Southern.shark2.fleet%in%id.mean.body.w)]
+      }
+        
+      if(estim.Southern2=='length or mean.wt')
+      {
+        turn.on=turn.on
+      }
+        
       if(length(turn.on)>0)
       {
         ddumy=ddumy%>%
@@ -1710,7 +1720,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
           mutate(Fleet=rownames(ctl$size_selex_types)[id_disc])
       }
       colnames.xx=names(xx)[-1]
-      ctl$size_selex_types$Discard[id_disc]=Discard_option 
+      ctl$size_selex_types$Discard[id_disc]=Discard_option   #ACA. Dropping Southern.shark_2_West because No length comp but adding retention?
       
       retention_params=ctl$size_selex_parms[grep(paste(xx$Fleet,collapse='|'),rownames(ctl$size_selex_parms)),]
       retention_params=retention_params%>%
@@ -1730,8 +1740,9 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
      retention_params=retention_params%>%
                         arrange(Fleet,P)
      retention_params=retention_params%>%dplyr::select(-c(rowname,Fleet,P))
-     retention_params$dumi=paste(rep(paste(grep(paste(xx$Fleet,collapse='|'),fleetinfo$fleetname),2,sep='_'),each=ncol(xx)-1),
+     dumi.x=paste(rep(paste(grep(paste(xx$Fleet,collapse='|'),fleetinfo$fleetname),2,sep='_'),each=ncol(xx)-1),
                                  rep(colnames.xx,nrow(xx)),sep='_')
+     retention_params$dumi=dumi.x
       retention_params=retention_params%>%    
                                   mutate(INIT=c(t(xx[,2:(ncol(xx))])),
                                          PRIOR=INIT)
@@ -3722,12 +3733,33 @@ fn.check.SS.sel.used=function(d,check.fleet=NULL)
 }
 see.SS3.length.comp.matrix=function(dd)
 {
-  return(dd%>%
-           gather(Size,n,-c(year ,Fleet))%>%
-           mutate(Fleet=as.character(Fleet),
-                  Size=as.numeric(substr(Size,2,10)))%>%
-           ggplot(aes(Size,n))+
-           geom_line(aes(color=Fleet))+
-           facet_wrap(~year)+
-           theme_PA()+theme(legend.position = 'top')+xlab('TL (cm)'))
+  dd=dd%>%
+    rowwise() %>%
+    mutate(total_sum = sum(c_across(4:last_col()), na.rm = TRUE)) %>%
+    ungroup()%>%
+    data.frame()%>%
+    filter(total_sum>0)%>%
+    dplyr::select(-total_sum)
+    
+  pp=dd%>%
+    gather(Size,n,-c(year ,Fleet,Nsamp))%>%
+    mutate(Fleet=as.character(Fleet),
+           Size=as.numeric(substr(Size,2,10)))
+  
+  d.lbl=pp%>%
+    group_by(year,Fleet,Nsamp)%>%
+    summarise(n = max(n, na.rm = TRUE))%>%
+    ungroup()%>%
+    left_join(pp,by=c('year','Fleet','Nsamp','n'))%>%
+    mutate(Nsamp=paste0(Nsamp,' shots'))
+  
+  pp=pp%>%
+      ggplot(aes(Size,n))+
+      geom_line(aes(color=Fleet))+
+      facet_wrap(~year)+
+      theme_PA()+theme(legend.position = 'top')+xlab('TL (cm)')+
+      geom_text_repel(data = d.lbl,aes(color=Fleet,label = Nsamp),
+                      arrow = arrow(length = unit(0.02, "npc")),
+                      box.padding = 2,show.legend = FALSE)
+  return(pp)
 }
