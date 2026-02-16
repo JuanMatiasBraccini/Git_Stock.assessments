@@ -1719,8 +1719,14 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
           slice(rep(1:n(), each = length(id_disc)))%>%
           mutate(Fleet=rownames(ctl$size_selex_types)[id_disc])
       }
+      id.x.drop=which(xx$Fleet%in%rownames(ctl$size_selex_types%>%filter(Pattern==15)))
+      if(length(id.x.drop)>0)
+      {
+        id_disc=id_disc[-id.x.drop]
+        xx=xx[-id.x.drop,]
+      }
       colnames.xx=names(xx)[-1]
-      ctl$size_selex_types$Discard[id_disc]=Discard_option   #ACA. Dropping Southern.shark_2_West because No length comp but adding retention?
+      ctl$size_selex_types$Discard[id_disc]=Discard_option   
       
       retention_params=ctl$size_selex_parms[grep(paste(xx$Fleet,collapse='|'),rownames(ctl$size_selex_parms)),]
       retention_params=retention_params%>%
@@ -1740,9 +1746,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
      retention_params=retention_params%>%
                         arrange(Fleet,P)
      retention_params=retention_params%>%dplyr::select(-c(rowname,Fleet,P))
-     dumi.x=paste(rep(paste(grep(paste(xx$Fleet,collapse='|'),fleetinfo$fleetname),2,sep='_'),each=ncol(xx)-1),
+     retention_params$dumi=paste(rep(paste(grep(paste(xx$Fleet,collapse='|'),fleetinfo$fleetname),2,sep='_'),each=ncol(xx)-1),
                                  rep(colnames.xx,nrow(xx)),sep='_')
-     retention_params$dumi=dumi.x
       retention_params=retention_params%>%    
                                   mutate(INIT=c(t(xx[,2:(ncol(xx))])),
                                          PRIOR=INIT)
