@@ -238,9 +238,9 @@ Min.annual.obs.ktch.zone=100 #min number obs per zone for areas as fleet model
 Min.annual.obs.ktch_NSF=50
 Min.annual.obs.ktch_survey=20
 prop.min.N.accepted_other=0.5
-Min.Nsamp=20   #Minimum number of shots for catch mean weight or length composition
+Min.Nsamp=10   #Minimum number of shots for catch mean weight or length composition
 Min.Nsamp.Survey=10
-Min.Nsamp.zone=10
+Min.Nsamp.zone=10  #lower Nsamp causes  sel pars estimation issues
 Min.Nsamp.NSF=10
 fill.in.zeros=TRUE  #add missing length classes with all 0s
 
@@ -457,8 +457,9 @@ combine.sexes=unique(c(combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,combine.s
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark"))
 combine.sex_type=0  #0, 0 means combined male and female ; 3, 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
 SS.sex.length.type=3  #1 if want to maintain males and females separated
-SS.sex.3_use.missing.sex=FALSE # use length comp year's data even if one sex is missing (e.g. whiskery sexual segregation)
+SS.sex.3_use.missing.sex=TRUE # set to FALSE if only use years when both sexes sampled (e.g. whiskery sexual segregation). Adding all 0s affects sel par estim when Sex=3
 SS.sex.3_use.missing.sex.zone=TRUE
+SS.sex.1_2.dont.change.to_3=TRUE #keep sex 1 or 2 for years with one sex is missing in sample
 fit.to.mean.weight.Southern2=c("dusky shark","gummy shark","sandbar shark","whiskery shark","spinner shark")  #get model to fit mean weight regardless of available length comp
 estim.Southern2='length and mean.wt' #'length or mean.wt'  decide to turn on Southern2 estimation if this condition
 drop.len.comp.like=NULL    

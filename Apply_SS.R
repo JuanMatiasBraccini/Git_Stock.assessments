@@ -733,7 +733,7 @@ for(w in 1:n.SS)
                 filter(Fleet%in%Fleet.more.one.year.obs)
             }
           }
-            #Reset sex type if required  
+            #Reset sex type if required 
           if(SS.sex.length.type==3)
           {
             #zones combined  
@@ -742,10 +742,10 @@ for(w in 1:n.SS)
             for(kk in 1:length(Kombo.list))
             {
               dumi.kk=Size.compo.SS.format%>%
-                                filter(year==Kombo$year[kk] & Seas==Kombo$Seas[kk] & Fleet==Kombo$Fleet[kk])
+                filter(year==Kombo$year[kk] & Seas==Kombo$Seas[kk] & Fleet==Kombo$Fleet[kk])
               if(nrow(dumi.kk)==1 & SS.sex.3_use.missing.sex) 
               {
-                if(!dumi.kk$Sex==0)
+                if(!dumi.kk$Sex==0 & !SS.sex.1_2.dont.change.to_3) 
                 {
                   msin.sx=which(!1:2%in%dumi.kk$Sex)
                   dumi.kk.missing=dumi.kk%>%
@@ -757,7 +757,7 @@ for(w in 1:n.SS)
               }
               if(!0%in%dumi.kk$Sex)
               {
-                if(nrow(dumi.kk)<2) dumi.kk=NA
+                if(!SS.sex.1_2.dont.change.to_3) if(nrow(dumi.kk)<2) dumi.kk=NA   
                 if(any(!is.na(dumi.kk)))
                 {
                   if(nrow(dumi.kk)==2)
@@ -783,21 +783,21 @@ for(w in 1:n.SS)
             {
               dumi.kk=Size.compo.SS.format.zone%>%
                 filter(year==Kombo$year[kk] & Seas==Kombo$Seas[kk] & Fleet==Kombo$Fleet[kk])
-              if(nrow(dumi.kk)==1 & SS.sex.3_use.missing.sex.zone) 
+              if(nrow(dumi.kk)==1 & SS.sex.3_use.missing.sex.zone)
               {
-                if(!dumi.kk$Sex==0)
+                if(!dumi.kk$Sex==0 & !SS.sex.1_2.dont.change.to_3)
                 {
                   msin.sx=which(!1:2%in%dumi.kk$Sex)
                   dumi.kk.missing=dumi.kk%>%
                     mutate(Sex=msin.sx,
                            across(-all_of(c('year','Seas','Fleet','Sex','Part','Nsamp')), ~0))
                   dumi.kk=rbind(dumi.kk,dumi.kk.missing)%>%
-                    arrange(Sex)
+                    arrange(Sex) 
                 }
               }
               if(!0%in%dumi.kk$Sex)
               {
-                if(nrow(dumi.kk)<2) dumi.kk=NA
+                if(!SS.sex.1_2.dont.change.to_3) if(nrow(dumi.kk)<2) dumi.kk=NA
                 if(any(!is.na(dumi.kk)))
                 {
                   if(nrow(dumi.kk)==2)
@@ -816,6 +816,7 @@ for(w in 1:n.SS)
             Kombo.list=Kombo.list[!is.na(Kombo.list)]
             Size.compo.SS.format.zone=do.call(rbind,Kombo.list)
           }
+
           
           
           #3. meanbodywt
@@ -2050,27 +2051,42 @@ for(w in 1:n.SS)
                   id.survey=match('Survey',FLitinFO$fleetname)
                   if(!is.na(id.survey)) Size.com=Size.com%>%filter(!(Fleet==id.survey & year%in%c(2001,2002)))
                 }
+                if(Neim=="gummy shark") # dodgy sampling trips 
+                {
+                  id.flit=match('Southern.shark_1_Zone1',FLitinFO$fleetname)
+                  if(!is.na(id.flit)) Size.com=Size.com%>%filter(!(Fleet==id.flit & year%in%c(1994)))
+                  id.flit=match('Southern.shark_2_Zone1',FLitinFO$fleetname)
+                  if(!is.na(id.flit)) Size.com=Size.com%>%filter(!(Fleet==id.flit & year%in%c(2012)))
+                }
                 
                 #a.7 plot Length comps used and all  
                 if(First.run=='YES')  
                 {
                   #Used on model  
                   p=see.SS3.length.comp.matrix(dd=Size.com%>%
-                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('f',names(Size.com))]))
+                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('f',names(Size.com))]),
+                                               LVLS=sort(unique(Size.com_all$Fleet)),
+                                               yr.LVLS=sort(unique(Size.com_all$year)))
                   base::print(p)
                   ggsave(paste0(this.wd1,"/Length comps used in SS_female.tiff"),width=7,height=6,compression = "lzw")
                   p=see.SS3.length.comp.matrix(dd=Size.com%>%
-                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('m',names(Size.com))][-1]))
+                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('m',names(Size.com))][-1]),
+                                               LVLS=sort(unique(Size.com_all$Fleet)),
+                                               yr.LVLS=sort(unique(Size.com_all$year)))
                   base::print(p)
                   ggsave(paste0(this.wd1,"/Length comps used in SS_male.tiff"),width=7,height=6,compression = "lzw")
                   
                   #All available
                   p=see.SS3.length.comp.matrix(dd=Size.com_all%>%
-                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('f',names(Size.com))]))
+                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('f',names(Size.com))]),
+                                               LVLS=sort(unique(Size.com_all$Fleet)),
+                                               yr.LVLS=sort(unique(Size.com_all$year)))
                   base::print(p)
                   ggsave(paste0(this.wd1,"/Length comps used in SS_female_all years.tiff"),width=7,height=6,compression = "lzw")
                   p=see.SS3.length.comp.matrix(dd=Size.com_all%>%
-                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('m',names(Size.com))][-1]))
+                                                 dplyr::select(year,Fleet,Nsamp,names(Size.com)[grep('m',names(Size.com))][-1]),
+                                               LVLS=sort(unique(Size.com_all$Fleet)),
+                                               yr.LVLS=sort(unique(Size.com_all$year)))
                   base::print(p)
                   ggsave(paste0(this.wd1,"/Length comps used in SS_male_all years.tiff"),width=7,height=6,compression = "lzw")
                   

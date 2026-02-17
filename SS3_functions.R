@@ -1337,12 +1337,10 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       {
         turn.on=id.Southern.shark2.fleet[which(id.Southern.shark2.fleet%in%id.length.comp & id.Southern.shark2.fleet%in%id.mean.body.w)]
       }
-        
       if(estim.Southern2=='length or mean.wt')
       {
         turn.on=turn.on
       }
-        
       if(length(turn.on)>0)
       {
         ddumy=ddumy%>%
@@ -1431,7 +1429,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       if(dummy.sel.pat[y]==24)ctl$size_selex_parms[grep('P_5',row.names(ctl$size_selex_parms)),"PHASE"]=-2
     }
-    
     rownames(ctl$size_selex_parms)=paste(added.bit,row_nm_size_selex_parms,sep="_")
     
     #turn on Southern.shark_2 if size compo data OR if meanbodywt and specified in life.history
@@ -1476,20 +1473,23 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         }
         if( !any(grepl('Southern.shark_2',rownames(ctl$size_selex_parms))) &  (!is.null(meanbodywt) & isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt)))
         {
-          ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_2",]=ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_1",]
-          add.Southern.shark_2.pars=ctl$size_selex_parms[grepl('Southern.shark_1',rownames(ctl$size_selex_parms)),]
-          rownames(add.Southern.shark_2.pars)=str_replace(rownames(add.Southern.shark_2.pars), "k_1", "k_2")
-          ctl$size_selex_parms=rbind(ctl$size_selex_parms,add.Southern.shark_2.pars)
-          ctl$size_selex_parms$fleet=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_", paste0(1:6,"_")), collapse = "|")))
-          ctl$size_selex_parms$order=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_",paste0("_",ctl$size_selex_parms$fleet)), collapse = "|")))
-          ctl$size_selex_parms=ctl$size_selex_parms%>%
-            left_join(data.frame(fleet=rownames(ctl$size_selex_types%>%filter(Special==0)))%>%mutate(Fleet.order=row_number()),
-                      by='fleet')%>%
-            arrange(Fleet.order,order)
-          rownames(ctl$size_selex_parms)=paste0('SizeSel_P_',ctl$size_selex_parms$order,'_',ctl$size_selex_parms$fleet)
-          ctl$size_selex_parms=ctl$size_selex_parms%>%
-            dplyr::select(-order,-fleet,-Fleet.order)
-        }
+          if(estim.Southern2=='length or mean.wt')
+          {
+            ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_2",]=ctl$size_selex_types[rownames(ctl$size_selex_types)=="Southern.shark_1",]
+            add.Southern.shark_2.pars=ctl$size_selex_parms[grepl('Southern.shark_1',rownames(ctl$size_selex_parms)),]
+            rownames(add.Southern.shark_2.pars)=str_replace(rownames(add.Southern.shark_2.pars), "k_1", "k_2")
+            ctl$size_selex_parms=rbind(ctl$size_selex_parms,add.Southern.shark_2.pars)
+            ctl$size_selex_parms$fleet=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_", paste0(1:6,"_")), collapse = "|")))
+            ctl$size_selex_parms$order=gsub("^\\.","",str_remove_all(rownames(ctl$size_selex_parms), paste(c("SizeSel_P_",paste0("_",ctl$size_selex_parms$fleet)), collapse = "|")))
+            ctl$size_selex_parms=ctl$size_selex_parms%>%
+                      left_join(data.frame(fleet=rownames(ctl$size_selex_types%>%filter(Special==0)))%>%mutate(Fleet.order=row_number()),
+                                by='fleet')%>%
+                      arrange(Fleet.order,order)
+            rownames(ctl$size_selex_parms)=paste0('SizeSel_P_',ctl$size_selex_parms$order,'_',ctl$size_selex_parms$fleet)
+            ctl$size_selex_parms=ctl$size_selex_parms%>%
+                        dplyr::select(-order,-fleet,-Fleet.order)
+          }
+         }
       } 
     }
 
@@ -1681,7 +1681,8 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       {
         id.fleet.to.estim=paste0(sort(rep(c('SizeSel_P_1_','SizeSel_P_3_'),times=length(id.fleet.to.estim))),rep(id.fleet.to.estim,times=2))
         id.fleet.to.estim=paste(id.fleet.to.estim,collapse='|')
-        ctl$size_selex_parms[grep(id.fleet.to.estim,rownames(ctl$size_selex_parms)),'PHASE']=3
+        id.fleet.to.estim=grep(id.fleet.to.estim,rownames(ctl$size_selex_parms))
+        if(length(id.fleet.to.estim)>0) ctl$size_selex_parms[id.fleet.to.estim,'PHASE']=3
       }
     }
     
@@ -3736,7 +3737,7 @@ fn.check.SS.sel.used=function(d,check.fleet=NULL)
   if(!is.null(p2)) p.list=list(p1=p1,p2=p2)
   return(p.list)
 }
-see.SS3.length.comp.matrix=function(dd)
+see.SS3.length.comp.matrix=function(dd,LVLS,yr.LVLS)
 {
   dd=dd%>%
     rowwise() %>%
@@ -3749,22 +3750,28 @@ see.SS3.length.comp.matrix=function(dd)
   pp=dd%>%
     gather(Size,n,-c(year ,Fleet,Nsamp))%>%
     mutate(Fleet=as.character(Fleet),
-           Size=as.numeric(substr(Size,2,10)))
+           Size=as.numeric(substr(Size,2,10)),
+           Fleet=factor(Fleet,levels=LVLS),
+           year=factor(year,levels=yr.LVLS))
   
   d.lbl=pp%>%
     group_by(year,Fleet,Nsamp)%>%
     summarise(n = max(n, na.rm = TRUE))%>%
     ungroup()%>%
     left_join(pp,by=c('year','Fleet','Nsamp','n'))%>%
-    mutate(Nsamp=paste0(Nsamp,' shots'))
+    mutate(Nsamp=paste0(Nsamp,' shots'),
+           Fleet=factor(Fleet,levels=LVLS),
+           year=factor(year,levels=yr.LVLS))%>%
+    distinct(year,Fleet,Nsamp,.keep_all = TRUE)
   
   pp=pp%>%
       ggplot(aes(Size,n))+
-      geom_line(aes(color=Fleet))+
-      facet_wrap(~year)+
+      geom_line(aes(color=Fleet, group = Fleet))+
+      facet_wrap(~year, drop = FALSE)+
       theme_PA()+theme(legend.position = 'top')+xlab('TL (cm)')+
       geom_text_repel(data = d.lbl,aes(color=Fleet,label = Nsamp),
                       arrow = arrow(length = unit(0.02, "npc")),
-                      box.padding = 2,show.legend = FALSE)
+                      box.padding = 2,show.legend = FALSE)+
+    scale_color_discrete(drop = FALSE)
   return(pp)
 }
