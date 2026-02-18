@@ -1863,7 +1863,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       
       id.offset.flits=rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,])
       any.zonE=str_extract(id.offset.flits, "^[^_]+_[^_]+")
-      if(length(any.zonE)>1)
+      if(length(any.zonE)>1 & !Scenario$Spatial=="single area")
       {
         xx=xx %>%
           uncount(length(any.zonE))%>%
