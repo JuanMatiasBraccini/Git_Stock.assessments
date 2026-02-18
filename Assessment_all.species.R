@@ -438,15 +438,16 @@ do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
 Mean.Size.at.age.species=NULL   #  Mean.Size.at.age.species=c("gummy shark","whiskery shark" )
                                 # Not implemented. Wrong SS3 format. May be applicable to gummy and 
                                 # whiskery (only for these species length-@-age data collected from gillnet fishery)
+SS.first.mature_1=FALSE # set to TRUE to set to 1 and leave Mat ogive take control (Jason Cope and Andre comment) 
 SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
 estim.sel.pars_SS=c("sandbar shark")
 extra.SD.Q.species=c("sandbar shark")
 estim.sel.pars_SS.prior=NULL
-test.using.male.sel.offset=NULL #c("gummy shark","whiskery shark") apply selectivity offsets for males
+test.using.male.sel.offset=c("gummy shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
 estim.growth.pars_SS=c("sandbar shark","dusky shark","gummy shark","whiskery shark")
-test.growth.estim=c("gummy shark","whiskery shark")
+test.growth.estim=NULL #c("gummy shark","whiskery shark")
 Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
 combine_NSF_Survey=NULL   #combine length composition from NSF and Survey data to estimate logistic selectivity
 combine.sexes.tdgdlf=NULL 
@@ -1673,9 +1674,11 @@ for(l in 1:N.sp)
   List.sp[[l]]=list.append(List.sp[[l]],
                            pup.sx.ratio=0.5,
                            Growth.F=data.frame(k=LH$K,FL_inf=LH$FL_inf,to=LH$to,k.sd=LH$k.sd,FL_inf.sd=LH$FL_inf.sd),
-                           Growth.F.prior=data.frame(k=LH$K_prior,k.se=LH$K_prior.sd, Linf=LH$TL_inf_prior, Linf.se=LH$TL_inf_prior.sd),
+                           Growth.F.prior=data.frame(k=LH$K_prior,k.se=LH$K_prior.sd,K_prior.phase=LH$K_prior.phase,
+                                                     Linf=LH$TL_inf_prior, Linf.se=LH$TL_inf_prior.sd,TL_inf_prior.phase=LH$TL_inf_prior.phase),
                            Growth.M=data.frame(k=LH$male_K,FL_inf=LH$male_FL_inf),
-                           Growth.M.prior=data.frame(k=LH$male_K_prior,k.se=LH$male_K_prior.sd, Linf=LH$male_TL_inf_prior, Linf.se=LH$male_TL_inf_prior.sd),
+                           Growth.M.prior=data.frame(k=LH$male_K_prior,k.se=LH$male_K_prior.sd,K_prior.phase=LH$K_prior.phase,
+                                                     Linf=LH$male_TL_inf_prior, Linf.se=LH$male_TL_inf_prior.sd,TL_inf_prior.phase=LH$TL_inf_prior.phase),
                            k.Linf.cor=-0.99,    #assumed correlation between growth parameters
                            Max.age.F=c(LH$Max_Age,LH$Max_Age_max),
                            Age.50.mat=c(LH$Age_50_Mat_min,LH$Age_50_Mat_max),

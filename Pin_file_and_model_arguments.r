@@ -697,9 +697,10 @@ for(l in 1:N.sp)
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Use.male.sel.offset='No')
   if(NeiM%in%test.using.male.sel.offset)
   {
+    List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Use.male.sel.offset='Yes')
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
-      mutate(Use.male.sel.offset='Yes',
+      mutate(Use.male.sel.offset='No',
              Scenario=paste0('S',(nnN+1)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
@@ -889,39 +890,26 @@ for(l in 1:N.sp)
       }
     }
     
-    #Mimicking
+    #Mimicking (these are fleets with dodgy length comps or no length comps at all)
     List.sp[[l]]$SS_selectivity_mimic=NULL
     if(NeiM=="sandbar shark")
     {
-      List.sp[[l]]$SS_selectivity_mimic=data.frame(Fleet=c('Southern.shark_1_Zone2',
-                                                           'Southern.shark_2_Zone2'),
-                                                   Fleet.mimic=c('Southern.shark_1_Zone1',
-                                                                 'Southern.shark_1_Zone2'))
+      List.sp[[l]]$SS_selectivity_mimic=data.frame(Fleet=c('Southern.shark_2_Zone1'),
+                                                   Fleet.mimic=c('Southern.shark_1_Zone1'))
     }
-    #Replacing
-    List.sp[[l]]$SS_selectivity_replace=NULL
-    
-    if(NeiM=="dusky shark")
-    {
-      List.sp[[l]]$SS_selectivity_replace=data.frame(Fleet=c('Southern.shark_1_West',
-                                                           'Southern.shark_2_West',
-                                                           'Southern.shark_1_Zone2',
-                                                           'Southern.shark_2_Zone2'),
-                                                   Fleet.mimic=c('Southern.shark_1_Zone1',
-                                                                 'Southern.shark_2_Zone1',
-                                                                 'Southern.shark_1_Zone1',
-                                                                 'Southern.shark_2_Zone1'))
-    }
-    if(NeiM=="gummy shark")
-    {
-      List.sp[[l]]$SS_selectivity_replace=data.frame(Fleet=c('Southern.shark_1_West',
-                                                           'Southern.shark_2_West'),
-                                                   Fleet.mimic=c('Southern.shark_1_Zone1',
-                                                                 'Southern.shark_1_Zone1'))
-    }
+    # if(NeiM=="dusky shark")
+    # {
+    #   List.sp[[l]]$SS_selectivity_mimic=data.frame(Fleet=c('Southern.shark_2_Zone2'),  
+    #                                                Fleet.mimic=c('Southern.shark_1_Zone2'))
+    # }
+    # if(NeiM=="gummy shark")
+    # {
+    #   List.sp[[l]]$SS_selectivity_mimic=data.frame(Fleet=c('Southern.shark_2_West'),
+    #                                                Fleet.mimic=c('Southern.shark_1_West'))
+    # }
     if(NeiM=="whiskery shark")
     {
-      List.sp[[l]]$SS_selectivity_replace=data.frame(Fleet=c('Southern.shark_2_Zone1'),
+      List.sp[[l]]$SS_selectivity_mimic=data.frame(Fleet=c('Southern.shark_2_Zone1'),
                                                    Fleet.mimic=c('Southern.shark_1_Zone1'))
     }
     
@@ -964,11 +952,6 @@ for(l in 1:N.sp)
                                                       P_4=xx$Offset_p4,
                                                       P_5=xx$Offset_p5,
                                                       P_6=xx$Offset_p6)
-        if(NeiM=="gummy shark")
-        {
-          List.sp[[l]]$SS_offset_selectivity[List.sp[[l]]$SS_offset_selectivity$Fleet=='Southern.shark_2',
-                                             c('P_1','P_3','P_4')]=c(26.4585,-1.9885,3.9267)
-        }
         List.sp[[l]]$SS_offset_selectivity_phase=expand.grid(Fleet=str_split_1(xx$Offset_fleet, ','),
                                                              P_1=xx$Phase_Offset_p1,
                                                              P_3=xx$Phase_Offset_p3,

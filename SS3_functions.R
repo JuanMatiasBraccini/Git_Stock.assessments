@@ -717,8 +717,9 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   }
   
   #maturity & fecundity pars
-  ctl$First_Mature_Age=0   # Set to 0 and leave Mat ogive take control
-  #ctl$First_Mature_Age=life.history$First_Mature_Age 
+  if(!SS.first.mature_1) First.Mat=life.history$First_Mature_Age
+  if(SS.first.mature_1) First.Mat=1  
+  ctl$First_Mature_Age=First.Mat   
   fec.option=4   #options: (1)eggs=Wt*(a+b*Wt); (2)eggs=a*L^b; (3)eggs=a*Wt^b; (4)eggs=a+b*L; (5)eggs=a+b*W
   if(life.history$Fecu_type_SS=="2_exponential")  fec.option=2
   ctl$fecundity_option=fec.option
@@ -746,7 +747,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   ctl$MG_parms["NatM_p_1_Fem_GP_1", c("INIT","PRIOR")]=rep(Scenario$Mmean,2)
   ctl$MG_parms["NatM_p_1_Fem_GP_1", c("LO","HI")]=c(ctl$MG_parms["NatM_p_1_Fem_GP_1", "INIT"]*.1,ctl$MG_parms["NatM_p_1_Fem_GP_1", "INIT"]*4)
   ctl$MG_parms["L_at_Amin_Fem_GP_1", c("INIT","PRIOR")]=rep(with(life.history,Lzero*a_FL.to.TL+b_FL.to.TL),2)  #size for specified _Age(post-settlement)_for_L1
-  ctl$MG_parms["L_at_Amin_Fem_GP_1", c("LO","HI")]=round(c(ctl$MG_parms["L_at_Amin_Fem_GP_1", "INIT"]*.25,ctl$MG_parms["L_at_Amin_Fem_GP_1", "INIT"]*2))
+  ctl$MG_parms["L_at_Amin_Fem_GP_1", c("LO","HI")]=round(c(ctl$MG_parms["L_at_Amin_Fem_GP_1", "INIT"]*.99,ctl$MG_parms["L_at_Amin_Fem_GP_1", "INIT"]*2))
   ctl$MG_parms["L_at_Amax_Fem_GP_1", c("INIT","PRIOR")]=Linf.multi*rep(with(life.history,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL),2) #life.history$TLmax  #set at Linf as _Growth_Age_for_L2 was set at 999
   ctl$MG_parms["L_at_Amax_Fem_GP_1", c("LO","HI")]=round(c(ctl$MG_parms["L_at_Amax_Fem_GP_1", "INIT"]*.8,ctl$MG_parms["L_at_Amax_Fem_GP_1", "INIT"]*1.4))
   ctl$MG_parms["Wtlen_1_Fem_GP_1", c("INIT","PRIOR")]=rep(life.history$AwT,2)
@@ -782,7 +783,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   {
     if('Linf'%in%names(life.history$Growth.F.prior))
     {
-      ctl$MG_parms["L_at_Amax_Fem_GP_1", "PHASE"]=2
+      ctl$MG_parms["L_at_Amax_Fem_GP_1", "PHASE"]=life.history$Growth.F.prior$TL_inf_prior.phase
       ctl$MG_parms["L_at_Amax_Fem_GP_1", c("PRIOR")]=life.history$Growth.F.prior$Linf
       ctl$MG_parms["L_at_Amax_Fem_GP_1", c("LO","HI")]=round(c(life.history$Growth.F.prior$Linf*.7,life.history$Growth.F.prior$Linf*1.3))
       ctl$MG_parms["L_at_Amax_Fem_GP_1", "PR_SD"]=life.history$Growth.F.prior$Linf.se  
@@ -790,7 +791,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     if('Linf'%in%names(life.history$Growth.M.prior))
     {
-      ctl$MG_parms["L_at_Amax_Mal_GP_1", "PHASE"]=2
+      ctl$MG_parms["L_at_Amax_Mal_GP_1", "PHASE"]=life.history$Growth.F.prior$TL_inf_prior.phase
       ctl$MG_parms["L_at_Amax_Mal_GP_1", c("PRIOR")]=life.history$Growth.M.prior$Linf 
       ctl$MG_parms["L_at_Amax_Mal_GP_1", c("LO","HI")]=round(c(life.history$Growth.M.prior$Linf*.7,life.history$Growth.M.prior$Linf*1.3))
       ctl$MG_parms["L_at_Amax_Mal_GP_1", "PR_SD"]=life.history$Growth.M.prior$Linf.se   
@@ -799,7 +800,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     
     if('k'%in%names(life.history$Growth.F.prior))
     {
-      ctl$MG_parms["VonBert_K_Fem_GP_1", "PHASE"]=3
+      ctl$MG_parms["VonBert_K_Fem_GP_1", "PHASE"]=life.history$Growth.F.prior$K_prior.phase
       ctl$MG_parms["VonBert_K_Fem_GP_1", c("PRIOR")]=life.history$Growth.F.prior$k
       ctl$MG_parms["VonBert_K_Fem_GP_1", c("LO","HI")]=round(c(life.history$Growth.F.prior$k*.60,life.history$Growth.F.prior$k*1.60),3)
       ctl$MG_parms["VonBert_K_Fem_GP_1", "PR_SD"]=life.history$Growth.F.prior$k.se 
@@ -807,7 +808,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     }
     if('k'%in%names(life.history$Growth.M.prior))
     {
-      ctl$MG_parms["VonBert_K_Mal_GP_1", "PHASE"]=3
+      ctl$MG_parms["VonBert_K_Mal_GP_1", "PHASE"]=life.history$Growth.F.prior$K_prior.phase
       ctl$MG_parms["VonBert_K_Mal_GP_1", c("PRIOR")]=life.history$Growth.M.prior$k
       ctl$MG_parms["VonBert_K_Mal_GP_1", c("LO","HI")]=round(c(life.history$Growth.M.prior$k*.60,life.history$Growth.M.prior$k*1.60),3)
       ctl$MG_parms["VonBert_K_Mal_GP_1", "PR_SD"]=life.history$Growth.M.prior$k.se  
@@ -1208,15 +1209,20 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     {
       id.FleeT=match(life.history$SS_selectivity_mimic$Fleet,rownames(ddumy))
       id.FleeT=id.FleeT[!is.na(id.FleeT)]
-      id.FleeT=subset(id.FleeT,!id.FleeT%in%unique(c(meanbodywt$fleet,size.comp$Fleet)))  #remove if there is length data
+      # DROP.this=unique(c(meanbodywt$fleet,size.comp$Fleet)) superseded
+      #id.FleeT=subset(id.FleeT,!id.FleeT%in%DROP.this)  
       Fleet.mimik=life.history$SS_selectivity_mimic
       Fleet.mimik=subset(Fleet.mimik,Fleet%in%fleetinfo[id.FleeT,]$fleetname)
 
       if(length(id.FleeT)>0)
       {
+        #set fleet to mimic
         id.FleeT.mimic=match(Fleet.mimik$Fleet.mimic,rownames(ddumy))
         ddumy[id.FleeT,'Pattern']=15
         ddumy[id.FleeT,'Special']=ddumy$Fleet[id.FleeT.mimic]
+        
+        #remove the length comp from that fishery
+        dat$lencomp=dat$lencomp%>%filter(!Fleet%in%id.FleeT)
       }
     }
     

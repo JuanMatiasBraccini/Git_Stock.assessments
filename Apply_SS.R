@@ -2304,14 +2304,59 @@ for(w in 1:n.SS)
                                                                          harvest=Kobe.harvest)%>%
                                                                         filter(stock>=0 & harvest>=0)
               
-              #Posterior vs prior
+              #Posterior vs prior 
+                #Steepness
               if(Report$parameters%>%filter(Label=='SR_BH_steep')%>%pull(Phase)>0)
               {
-                pdf(paste(this.wd,paste('Steepness prior vs posterior_',names(Store.sens)[s],'.pdf',sep=''),sep='/'))
+                pdf(paste(this.wd1,paste('Prior vs Posterior_Steepness.pdf',sep=''),sep='/'))
                 fn.compare.prior.post(d=Report$parameters%>%filter(Label=='SR_BH_steep'),
                                       Par='Steepness',
                                       prior_type='beta')
                 dev.off()
+              }
+                #Growth pars
+              Growth.prior.post=Report$parameters%>%
+                filter(grepl(paste(c('L_at_Amax','VonBert_K'),collapse='|'),Label))%>%
+                filter(Phase>0)
+              if(nrow(Growth.prior.post)>0)
+              {
+                Growth.prior.post=Growth.prior.post%>%
+                  dplyr::select(Label,Value,Parm_StDev,Pr_type,Prior,Pr_SD)%>%
+                  rename(Parameter=Label)
+                
+                df.prior=Growth.prior.post%>%
+                  dplyr::select(Parameter,Prior,Pr_SD)%>%
+                  rename(mu=Prior,
+                         sigma=Pr_SD)
+                df.post=Growth.prior.post%>%
+                  dplyr::select(Parameter,Value,Parm_StDev)%>%
+                  rename(mu=Value,
+                         sigma=Parm_StDev)
+                
+                df_long.prior <- df.prior %>%
+                  rowwise() %>%
+                  reframe(
+                    x = seq(mu - 4*sigma, mu + 4*sigma, length.out = 100),
+                    y = dnorm(x, mu, sigma),
+                    id = Parameter)%>%
+                  mutate(type='Prior')
+                
+                df_long.post <- df.post %>%
+                  rowwise() %>%
+                  reframe(
+                    x = seq(mu - 4*sigma, mu + 4*sigma, length.out = 100),
+                    y = dnorm(x, mu, sigma),
+                    id = Parameter)%>%
+                  mutate(type='Posterior')
+                
+                rbind(df_long.prior,df_long.post)%>%
+                  ggplot(aes(x, y, color = type)) +
+                  geom_line()+
+                  facet_wrap(~id,scales='free') +
+                  theme_PA()+ylab('Density')+xlab('')+
+                  theme(legend.position = 'top',
+                        legend.title = element_blank())
+                ggsave(paste(this.wd1,paste('Prior vs Posterior_growth.tiff',sep=''),sep='/'),width=7,height=6,compression = "lzw")
               }
               
               # Evaluate fit diagnostics
