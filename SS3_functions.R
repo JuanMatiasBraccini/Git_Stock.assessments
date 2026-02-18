@@ -1861,10 +1861,22 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       ctl$size_selex_types=ctl$size_selex_types%>%
                               mutate(Male=ifelse(Pattern==15,0,Male))
       
+      id.offset.flits=rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,])
+      any.zonE=str_extract(id.offset.flits, "^[^_]+_[^_]+")
+      if(length(any.zonE)>1)
+      {
+        xx=xx %>%
+          uncount(length(any.zonE))%>%
+          mutate(Fleet=paste(Fleet,str_remove(id.offset.flits, "^[^_]+_[^_]+_"),sep='_'))
+        xx.phase=xx.phase%>%
+          uncount(length(any.zonE))%>%
+          mutate(Fleet=paste(Fleet,str_remove(id.offset.flits, "^[^_]+_[^_]+_"),sep='_'))
+          
+      }
       xx=xx%>%
-            filter(grepl(paste(rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,]),collapse='|'),Fleet))
+            filter(grepl(paste(id.offset.flits,collapse='|'),Fleet))
       xx.phase=xx.phase%>%
-            filter(grepl(paste(rownames(ctl$size_selex_types[ctl$size_selex_types$Male>0,]),collapse='|'),Fleet))
+            filter(grepl(paste(id.offset.flits,collapse='|'),Fleet))
       if(is.null(size.comp) & is.null(meanbodywt)) xx.phase[,-1]=-1
       
       xx.min=xx%>%mutate(P_1=-50,P_3=-5,P_4=-5,P_5=-8,P_6=0)
