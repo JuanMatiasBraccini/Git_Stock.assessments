@@ -971,7 +971,7 @@ for(l in 1:N.sp)
       List.sp[[l]]$blocks_per_pattern=N.bpp
       List.sp[[l]]$Sel_param_Blk_Fxn=2 #0: P_block=P_base*exp(TVP); 1: P_block=P_base+TVP; 2: P_block=TVP; 3: P_block=P_block(-1) + TVP
       Pat.rnge=range(KtCh%>%filter(Name==NeiM)%>%pull(finyear))
-      List.sp[[l]]$block_pattern_begin_end=list(c(Pat.rnge[1],2000), c(2001,Pat.rnge[2])) 
+      List.sp[[l]]$block_pattern_begin_end=list(c(Pat.rnge[1],2000), c(2001,(Pat.rnge[2]-1))) 
       List.sp[[l]]$autogen[5]=1 #Have to fix it, crap SE
       List.sp[[l]]$SizeSelex_Block=c(P_1=1,P_2=1,P_3=1,P_4=1,P_5=0,P_6=0) #params with negative _L0 not accepted
       List.sp[[l]]$Sel.Block.fleet='Southern.shark_1'

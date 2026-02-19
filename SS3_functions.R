@@ -777,7 +777,12 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   ctl$MG_parms["VonBert_K_Mal_GP_1", c("LO","HI")]=c(life.history$Growth.M$k*.5,life.history$Growth.M$k*2)
   ctl$MG_parms["CV_young_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_young,2)
   ctl$MG_parms["CV_old_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_old,2)
-  
+  if(Scenario$Model=='SS' & !is.null(size.comp))
+  {
+    Max_Linf=max(c(ctl$MG_parms["L_at_Amax_Fem_GP_1", "INIT"],ctl$MG_parms["L_at_Amax_Mal_GP_1", "INIT"]))
+    if(!dat$maximum_size>=(1.05 * Max_Linf)) dat$maximum_size=TL.bins.cm*ceiling(1*dat$maximum_size*1.005/TL.bins.cm)
+  }
+    
   #estimate growth params  
   if(Scenario$Model=='SS' & life.history$SS3.estim.growth.pars)  
   {
@@ -1867,11 +1872,12 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       {
         xx=xx %>%
           uncount(length(any.zonE))%>%
-          mutate(Fleet=paste(Fleet,str_remove(id.offset.flits, "^[^_]+_[^_]+_"),sep='_'))
+          mutate(Fleet=paste(Fleet,str_remove(id.offset.flits, "^[^_]+_[^_]+_"),sep='_'))%>%
+          distinct(Fleet,.keep_all = T)
         xx.phase=xx.phase%>%
           uncount(length(any.zonE))%>%
-          mutate(Fleet=paste(Fleet,str_remove(id.offset.flits, "^[^_]+_[^_]+_"),sep='_'))
-          
+          mutate(Fleet=paste(Fleet,str_remove(id.offset.flits, "^[^_]+_[^_]+_"),sep='_'))%>%
+          distinct(Fleet,.keep_all = T)
       }
       xx=xx%>%
             filter(grepl(paste(id.offset.flits,collapse='|'),Fleet))
@@ -2233,6 +2239,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   fore$Ydecl=-1
   fore$Yinit=-1
   fore$fleet_relative_F=1
+  fore$HCR_anchor=2 #0 or 2 uses unfished benchmark SSB (old hardwired approach); 1 = virgin SSB; 3 = BMSY
   
   fore$basis_for_fcast_catch_tuning=2 #2=total catch biomass; 3=retained catch biomass; 5=total catch numbers; 6=retained total numbers
   fore$N_allocation_groups=0

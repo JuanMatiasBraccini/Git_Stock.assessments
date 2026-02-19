@@ -446,7 +446,7 @@ estim.sel.pars_SS=c("sandbar shark")
 extra.SD.Q.species=c("sandbar shark")
 estim.sel.pars_SS.prior=NULL
 test.using.male.sel.offset=c("gummy shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
-estim.growth.pars_SS=c("sandbar shark","dusky shark","gummy shark","whiskery shark")
+estim.growth.pars_SS=c("sandbar shark") #for other species, no great contrast in other data types
 test.growth.estim=NULL #c("gummy shark","whiskery shark")
 Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
 combine_NSF_Survey=NULL   #combine length composition from NSF and Survey data to estimate logistic selectivity
@@ -462,7 +462,7 @@ SS.sex.3_use.missing.sex=TRUE # set to FALSE if only use years when both sexes s
 SS.sex.3_use.missing.sex.zone=TRUE
 SS.sex.1_2.dont.change.to_3=TRUE #keep sex 1 or 2 for years with one sex is missing in sample
 fit.to.mean.weight.Southern2=c("dusky shark","gummy shark","sandbar shark","whiskery shark","spinner shark")  #get model to fit mean weight regardless of available length comp
-estim.Southern2='length and mean.wt' #'length or mean.wt'  decide to turn on Southern2 estimation if this condition
+estim.Southern2='length or mean.wt' #'length and mean.wt' decide to turn on Southern2 estimation if this condition
 drop.len.comp.like=NULL    
 survey.like.weight=NULL  #"dusky shark"  
 use.Gab.trawl=TRUE   #note that this has only 1 year of data
@@ -979,6 +979,25 @@ SS3.tune_size_comp_effective_sample=read.csv(handl_OneDrive('Analyses/Population
 SS3.tune_size_comp_effective_sample_spatial=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample_spatial.csv'))
 
 Depletion.levels<- read_excel(handl_OneDrive('Analyses/Population dynamics/K_&_depletion.levels.xlsx'),sheet = "K_&_depletion.levels")
+
+List.published.growth=data.frame(NAME=c("dusky shark","dusky shark","dusky shark",
+                                        "sandbar shark","sandbar shark","sandbar shark",
+                                        "gummy shark","gummy shark"),
+                                 Reference=c('McAuley','Geraghty','Natanson',
+                                             'McAuley','Geraghty','Hale',
+                                             'AFMA','Pribac'),
+                                 TLinf.f=c(451,357,420,
+                                           280,211,210,
+                                           185,202),
+                                 k.f=c(0.037,0.095,0.039,
+                                       0.04,0.182,0.12,
+                                       0.044,0.123),
+                                 TLinf.m=c(405,338,449,
+                                           261,195,200,
+                                           148,139),
+                                 k.m=c(0.045,0.104,0.038,
+                                       0.044,0.214,0.15,
+                                       0.06,0.253))
 
 #---4. Productivity Susceptibility Analyses -----------------------------------------------  
 #note: run a PSA aggregating the susceptibilities of multiple fleets (Micheli et al 2014)

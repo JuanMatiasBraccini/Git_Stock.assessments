@@ -2014,7 +2014,7 @@ for(w in 1:n.SS)
                     theme_PA()+
                     theme(legend.position = 'top',
                           legend.title=element_blank())
-                  ggsave(paste0(this.wd,"/Catch_other_ see Indo catch recons_Apprehensions_Forfeitures.tiff"),width=7,height=6,compression = "lzw")
+                  ggsave(paste0(this.wd,"/Catch Other fleet_Indo catch recons_Apprehensions or Forfeitures.tiff"),width=7,height=6,compression = "lzw")
 
                   KAtch[des.yrs,des.flt]=new.ktch
                 }
@@ -2349,13 +2349,33 @@ for(w in 1:n.SS)
                     id = Parameter)%>%
                   mutate(type='Posterior')
                 
-                rbind(df_long.prior,df_long.post)%>%
+                p=rbind(df_long.prior,df_long.post)%>%
                   ggplot(aes(x, y, color = type)) +
-                  geom_line()+
+                  geom_line(linewidth = 1.15)+
                   facet_wrap(~id,scales='free') +
                   theme_PA()+ylab('Density')+xlab('')+
                   theme(legend.position = 'top',
                         legend.title = element_blank())
+                if(Neim%in%unique(List.published.growth$NAME)) 
+                {
+                  add.publsh=List.published.growth%>%
+                              filter(NAME==Neim)%>%
+                              dplyr::select(-NAME)%>%
+                                        rename(L_at_Amax_Fem_GP_1=TLinf.f,
+                                               VonBert_K_Fem_GP_1=k.f,
+                                               L_at_Amax_Mal_GP_1=TLinf.m,
+                                               VonBert_K_Mal_GP_1=k.m)%>%
+                              gather(id,x,-Reference)
+                  add.publsh=rbind(add.publsh,
+                                   data.frame(Reference='TLmax',
+                                              id='L_at_Amax_Fem_GP_1',
+                                              x=Life.history$TLmax))
+                  p=p+
+                    geom_vline(data = add.publsh, aes(xintercept = x,color=Reference),linetype = "dotted")
+                    
+                  
+                }
+                print(p)
                 ggsave(paste(this.wd1,paste('Prior vs Posterior_growth.tiff',sep=''),sep='/'),width=7,height=6,compression = "lzw")
               }
               
