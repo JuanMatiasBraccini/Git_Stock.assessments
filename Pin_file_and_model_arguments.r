@@ -1253,9 +1253,10 @@ for(l in 1:N.sp)
   List.sp[[l]]$last_yr_fullbias_adj_in_MPD=ramp.yrs$last_yr_fullbias_adj_in_MPD
   List.sp[[l]]$first_recent_yr_nobias_adj_in_MPD=ramp.yrs$first_recent_yr_nobias_adj_in_MPD
   List.sp[[l]]$max_bias_adj_in_MPD=ramp.yrs$max_bias_adj_in_MPD
-  List.sp[[l]]$recdev_early_start=2 #20   #allow several years for population to stabilize
-  List.sp[[l]]$recdev_early_phase=-3
-  List.sp[[l]]$First.yr.main.rec.dev='min.obs'   #'min.ktch'
+  List.sp[[l]]$recdev_early_start=Early_rec_dev_start
+  List.sp[[l]]$recdev_early_phase=Early_rec_dev_phase  
+  List.sp[[l]]$First.yr.main.rec.dev=Main.rec.dev_first.year
+  List.sp[[l]]$First.yr.main.rec.dev_buffer=Main.rec.dev_first.year_buffer
   
   
   #4.1.7 Catchabilities

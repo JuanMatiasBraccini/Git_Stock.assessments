@@ -2023,7 +2023,12 @@ for(w in 1:n.SS)
                 Abund1=Abund
                 if(!is.null(Abund1)) Abund1=Abund1%>%rename_with(tolower)
                 Min.yr.obs=min(unlist(lapply(list(Abund1,Size.com,meanbody),function(x) if(!is.null(x))min(x$year))))
-                if(Life.history$First.yr.main.rec.dev=='min.obs') MainRdevYrFirst=Min.yr.obs-round(min(Life.history$Age.50.mat))
+                if(Life.history$First.yr.main.rec.dev=='min.obs')
+                {
+                  Min.yR=Min.yr.obs
+                  if(Life.history$First.yr.main.rec.dev_buffer)  Min.yR=Min.yr.obs-round(min(Life.history$Age.50.mat))
+                  MainRdevYrFirst=Min.yR
+                }
                 if(Life.history$First.yr.main.rec.dev=='min.ktch') MainRdevYrFirst=min(ktch$finyear)
                 Life.history$MainRdevYrFirst=MainRdevYrFirst
                 

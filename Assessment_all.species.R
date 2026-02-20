@@ -534,6 +534,12 @@ Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation. Used for Monte C
 #MCMCsims=1e5; Thin=10; burning=1:(5*length(seq(1,MCMCsims,by=Thin))/100)   #5%  burning
 #Arg=paste(' -mcmc',MCMCsims,' -mcsave', 100)  #MCMC
 
+Early_rec_dev_start=0 #0 gummy Andre 2009; set to MaxAge allow several years for population to stabilize (any non 0 will plot long series of early rec devs)
+Early_rec_dev_phase=3 # if >0, then estim early.rec.devs for years set in recdev_early_start & MainRdevYrFirst; if set to <0, then don't estimate early rec devs
+Main.rec.dev_first.year='min.obs'   #'min.ktch' to use first year of catch; 'min.obs' first year abundance or length comps
+Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years before, defined by age at maturity
+
+
   #21.5 Assumed error distribution for abundance series
 Abundance.error.dist='Lognormal'  #'Lognormal' if stand. cpue in normal space and CVs; 'Normal'
 

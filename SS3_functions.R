@@ -882,7 +882,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     ctl$do_recdev=Scenario$do_recdev   # 0=none; 1=devvector (R=F(SSB)+dev). Sum to 0; 2=deviations (R=F(SSB)+dev). Does not sum to 0; 3=deviations (R=R0*dev; dev2=R-f(SSB)); 4=like 3 with sum(dev2) adding penalty
     RecDev_Phase=life.history$RecDev_Phase
     ctl$recdev_phase=RecDev_Phase
-     
+    Recdev_early_phase=life.history$recdev_early_phase 
     if(is.null(abundance))
     {
       ctl$recdev_phase=1
@@ -897,6 +897,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         {
           ctl$do_recdev=0
           ctl$recdev_phase=-1
+          Recdev_early_phase=-1
         }
       }
     }
@@ -904,14 +905,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
     if(RecDev_Phase<0)
     {
       ctl$recdev_early_start=0
-      ctl$recdev_early_phase=-1
+      Recdev_early_phase=-1
     }
       
     if(RecDev_Phase>0) 
     {
       ctl$recdev_early_start=life.history$recdev_early_start  
-      ctl$recdev_early_phase=life.history$recdev_early_phase
+      
     }
+    ctl$recdev_early_phase=Recdev_early_phase
     ctl$max_bias_adj=0.8
     ctl$min_rec_dev=-1
     ctl$max_rec_dev=abs(ctl$min_rec_dev)
