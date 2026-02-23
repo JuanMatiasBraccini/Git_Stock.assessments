@@ -233,8 +233,8 @@ MN.SZE=0    # initial bin size
 TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
-Min.annual.obs.ktch=150 #Minimum number of annual observations (i.e., records) per sex-yr-fleet for using length composition data
-Min.annual.obs.ktch.zone=100 #min number obs per zone for areas as fleet model
+Min.annual.obs.ktch=50 #Minimum number of annual observations (i.e., records) per sex-yr-fleet for using length composition data
+Min.annual.obs.ktch.zone=50 #min number obs per zone for areas as fleet model
 Min.annual.obs.ktch_NSF=50
 Min.annual.obs.ktch_survey=20
 prop.min.N.accepted_other=0.5
@@ -445,7 +445,7 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
 estim.sel.pars_SS=c("sandbar shark")
 extra.SD.Q.species=c("sandbar shark")
 estim.sel.pars_SS.prior=NULL
-test.using.male.sel.offset=c("gummy shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
+test.using.male.sel.offset=c("gummy shark","whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
 estim.growth.pars_SS=c("sandbar shark") #for other species, no great contrast in other data types
 test.growth.estim=NULL #c("gummy shark","whiskery shark")
 Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
@@ -474,6 +474,7 @@ rescaled.species.sel=sort(c('great hammerhead','scalloped hammerhead','grey nurs
                        'shortfin mako','sawsharks','spinner shark',
                        'tiger shark','wobbegongs'))   #this species have no species-specific empirical sel (family was used)
 Plus.gp.size=1.25  #add 25% to max size make sure no accumulation of survivals in last size class
+bump.up.max.size.population=FALSE  #leave as FALSE so SS flags when Linf is too high
 
 alternative.SR_type=NULL #Sensitivity for Spawner-Recruitment; "sandbar shark"
 

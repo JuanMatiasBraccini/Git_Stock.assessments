@@ -35,7 +35,7 @@ fn.ktch.sex.ratio.zone=function(size.data)
     spread(SEX,n,fill=0)%>%
     mutate(Total=F+M,
            Prop.female=F/Total)%>%
-    filter(Total>Min.obs)
+    filter(Total>5)
   if(nrow(size.data)>0)
   {
     base::print(size.data%>%

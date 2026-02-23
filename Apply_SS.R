@@ -188,10 +188,15 @@ for(w in 1:n.SS)
                             ungroup()
                           
                 #add extra bins for smooth fit to size comps
-                Maximum_size=Max.population.TL
+                Maximum_size=ceiling(max(Max.population.TL,with(Life.history,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)*1.06))
                 Mx.size=max(d.list[[s]]$size.class)
                 extra.bins=NA
-                if(Maximum_size>Mx.size+TL.bins.cm) extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
+                if(Maximum_size>Mx.size)
+                {
+                  extra.bins=seq((Mx.size+TL.bins.cm),Maximum_size,by=TL.bins.cm)
+                  #extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm)
+                }
+                   
                 if(any(!is.na(extra.bins)))
                 {
                   add.dumi.size=d.list[[s]][1:length(extra.bins),]%>%
@@ -465,10 +470,15 @@ for(w in 1:n.SS)
                 
                 
                 #add extra bins for smooth fit to size comps
-                Maximum_size=Max.population.TL
+                Maximum_size=ceiling(max(Max.population.TL,with(Life.history,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)*1.06))
                 Mx.size=max(d.list[[s]]$size.class)
                 extra.bins=NA
-                if(Maximum_size>Mx.size+TL.bins.cm) extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
+                if(Maximum_size>Mx.size)
+                {
+                  extra.bins=seq((Mx.size+TL.bins.cm),Maximum_size,by=TL.bins.cm)
+                  #extra.bins=seq(Mx.size+TL.bins.cm,10*round(Maximum_size/10),by=TL.bins.cm) 
+                }
+                  
                 if(any(!is.na(extra.bins)))
                 {
                   add.dumi.size=d.list[[s]][1:length(extra.bins),]%>%

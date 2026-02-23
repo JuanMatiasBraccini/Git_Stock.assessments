@@ -388,10 +388,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   
   #population size classes
   dat$binwidth=TL.bins.cm
-  dat$minimum_size=TL.bins.cm*floor(1*with(life.history,Lzero*a_FL.to.TL+b_FL.to.TL)/TL.bins.cm)
-  dat$maximum_size=TL.bins.cm*ceiling(1*with(life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))/TL.bins.cm)
+  dat$minimum_size=with(life.history,Lzero*a_FL.to.TL+b_FL.to.TL)
+  dat$maximum_size=with(life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)))
   if(!is.null(life.history$Min.population.TL)) dat$minimum_size=life.history$Min.population.TL
   if(!is.null(life.history$Max.population.TL)) dat$maximum_size=life.history$Max.population.TL
+  dat$minimum_size=TL.bins.cm*floor(1*dat$minimum_size/TL.bins.cm)
+  dat$maximum_size=TL.bins.cm*ceiling(1*dat$maximum_size/TL.bins.cm)
+  
   styr=min(Catch$finyear)
   endyr=max(Catch$finyear)
   dat$styr=styr
@@ -777,10 +780,10 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   ctl$MG_parms["VonBert_K_Mal_GP_1", c("LO","HI")]=c(life.history$Growth.M$k*.5,life.history$Growth.M$k*2)
   ctl$MG_parms["CV_young_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_young,2)
   ctl$MG_parms["CV_old_Mal_GP_1", c("INIT","PRIOR")]=rep(life.history$Growth.CV_old,2)
-  if(Scenario$Model=='SS' & !is.null(size.comp))
+  if(Scenario$Model=='SS' & !is.null(size.comp) & bump.up.max.size.population)
   {
     Max_Linf=max(c(ctl$MG_parms["L_at_Amax_Fem_GP_1", "INIT"],ctl$MG_parms["L_at_Amax_Mal_GP_1", "INIT"]))
-    if(!dat$maximum_size>=(1.05 * Max_Linf)) dat$maximum_size=TL.bins.cm*ceiling(1*dat$maximum_size*1.005/TL.bins.cm)
+    if(!dat$maximum_size>=(1.05 * Max_Linf)) dat$maximum_size=TL.bins.cm*ceiling(1*dat$maximum_size*1.005/TL.bins.cm) 
   }
     
   #estimate growth params  
@@ -1574,7 +1577,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
         {
           up.bound=sapply(up.bound, function(x) min(dat$maximum_size*.975,x))
         }
-        ctl$size_selex_parms[iid,"HI"]=up.bound
+        ctl$size_selex_parms[iid,"HI"]=up.bound  
       }else
       {
         ctl$size_selex_parms[iid,]=NA
