@@ -7,6 +7,12 @@ fn.get.and.name=function(LISTA,x)
 }
 fn.logit=function(x) 1/(1+exp(-x))
 fn.inv.logit=function(x) -log((1-x)/x)
+fn.SE.from.95.CI=function(lower,upper)
+{
+  Marginal.error=(upper-lower)/2
+  SE=Marginal.error/1.96
+  return(SE)
+}
 fn.extract.dat.perl=function(STRING,nm.Dat) grepl(STRING, nm.Dat, perl = TRUE)
 objects.exist <- function(...)
 {

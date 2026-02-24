@@ -856,7 +856,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
   {
     ctl$SR_parms["SR_BH_steep", "PHASE"]=life.history$Steepness_Phase
     ctl$SR_parms["SR_BH_steep", "PR_SD"]=Scenario$Steepness.sd  
-    ctl$SR_parms["SR_BH_steep", "PR_type"]=1 #0, no prior; 1, symmetric beta; 2, beta; 3, lognormal; 4, lognormal with bias correction; 5, gamma; 6, normal
+    ctl$SR_parms["SR_BH_steep", "PR_type"]=0 #0, no prior; 1, symmetric beta; 2, beta; 3, lognormal; 4, lognormal with bias correction; 5, gamma; 6, normal
     if(ctl$SR_parms["SR_BH_steep", "PR_type"]==1) ctl$SR_parms["SR_BH_steep", "PR_SD"]=0.5  #increase CV to avoid bounds
     if(is.null(abundance)) ctl$SR_parms["SR_BH_steep", "PHASE"]=-4
   }
@@ -2074,7 +2074,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                                HI=10,
                                PRIOR=INIT,
                                PR_SD=99,
-                               PR_type=6,
+                               PR_type=0,  #0, no prior; 1,symmetric beta; 2,full beta; 3,log-normal without bias adjustment; 4,log-normal with bias adjustment; 5,gamma; 6,normal
                                PHASE=-4,
                                'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
     rownames(ctl$TG_Loss_init)=paste0('TG_Loss_init_',seg.TG)
@@ -2085,7 +2085,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                              HI=10,
                              PRIOR=INIT,
                              PR_SD=99,
-                             PR_type=6,
+                             PR_type=0,
                              PHASE=-4,
                              'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
     rownames(ctl$TG_Loss_chronic)=paste0('TG_Loss_chronic_',seg.TG)
@@ -2096,7 +2096,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                              HI=100,
                              PRIOR=INIT,
                              PR_SD=99,
-                             PR_type=6,
+                             PR_type=0,
                              PHASE=-4,
                              'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
     rownames(ctl$TG_overdispersion)=paste0('TG_overdispersion_',seg.TG)
@@ -2108,7 +2108,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                                  INIT=-10,   #set to low all fleets other than relevant ones
                                  PRIOR=INIT,
                                  PR_SD=99,
-                                 PR_type=6,
+                                 PR_type=0,
                                  PHASE=-4,
                                  'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
     rownames(ctl$TG_Report_fleet)=paste0('TG_report_fleet_par',seq(1,N.flits.tag))
@@ -2120,7 +2120,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
                                          HI=10,
                                          PRIOR=INIT,
                                          PR_SD=99,
-                                         PR_type=6,
+                                         PR_type=0,
                                          PHASE=-4,
                                          'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
     rownames(ctl$TG_Report_fleet_decay)=paste0('TG_report_decay_par',seq(1,N.flits.tag))
@@ -3805,3 +3805,37 @@ see.SS3.length.comp.matrix=function(dd,LVLS,yr.LVLS)
     scale_color_discrete(drop = FALSE)
   return(pp)
 }
+fn.SS3.retention=function(p1,p2,p3,p4,p5,p6,p7,len.vec)
+{
+  #logistic  
+    #p1, ascending inflection (size at 50% selection)
+    #p2, ascending slope
+    #p3, maximum retention (in logit space ranging between -10 and 10; 999 set asymptotic retention to 1)
+    #p4, male offset to ascending inflection (arithmetic, not multiplicative) 
+    p3_prima=1/((1+exp(-p3)))
+    retention.logistic=p3_prima/(1+exp((-(len.vec-(p1+p4))/p2)))
+
+    #dome-shaped
+    #p5, descending inflection (i.e., max size limit)
+    #p6, descending slope
+    #p7,male offset to descending inflection
+    retention.dome.shaped=NULL
+    if(!is.na(p5))
+    {
+      retention.dome.shaped=retention.logistic*(1-(1/(1+exp(-(len.vec-(p5+p7))/p6))))
+    }
+    return(list(logistic=retention.logistic,dome.shaped=retention.dome.shaped,len.vec=len.vec))
+}
+fn.SS3.discard.mort=function(p1,p2,p3,p4,len.vec)
+{
+  #logistic  
+  #p1, descending inflection
+  #p2, descending slope
+  #p3, maximum discard mortality (i.e. the assumed post capture mortality)
+  #p4, male offset to descending inflection
+  discard.mort=1-((1-p3)/(1+exp(-(len.vec-(p1+p4))/p2)))
+  
+  return(list(discard.mort=discard.mort,len.vec=len.vec))
+}
+
+

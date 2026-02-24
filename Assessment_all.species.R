@@ -237,7 +237,7 @@ Min.annual.obs.ktch=50 #Minimum number of annual observations (i.e., records) pe
 Min.annual.obs.ktch.zone=50 #min number obs per zone for areas as fleet model
 Min.annual.obs.ktch_NSF=50
 Min.annual.obs.ktch_survey=20
-prop.min.N.accepted_other=0.5
+prop.min.N.accepted_other=1 # set to 0.5 when Min.annual.obs.ktch of indicators was 150
 Min.Nsamp=10   #Minimum number of shots for catch mean weight or length composition
 Min.Nsamp.Survey=10
 Min.Nsamp.zone=10  #lower Nsamp causes  sel pars estimation issues
@@ -3775,6 +3775,56 @@ if(First.run=="YES")
   }
   write.csv(do.call(rbind,compact(Export.table.sels.man.fleet)),
             paste(Rar.path,'Table_SS selectivities by fleets and prop of total catch.csv',sep='/'),row.names = F)  
+
+  
+  #Display retention and discard mortality parameters
+  {
+    for(i in 1:N.sp)
+    {
+      dd=SS_selectivity_init_pars%>%filter(Species==Keep.species[i] & !is.na(Ret_p1))
+      if(nrow(dd)>0)
+      {
+        #Retention
+        L.vec=round(with(List.sp[[i]],Lzero*a_FL.to.TL+b_FL.to.TL)*.9):
+                round(with(List.sp[[i]],Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))
+        A=fn.SS3.retention(p1=dd$Ret_p1,
+                           p2=dd$Ret_p2,
+                           p3=dd$Ret_p3,
+                           p4=dd$Ret_p4,
+                           p5=dd$Ret_p5,
+                           p6=dd$Ret_p6,
+                           p7=dd$Ret_p7,
+                           len.vec=L.vec)
+        if(is.na(dd$Ret_p5))
+        {
+          dat1=data.frame(TL=A$len.vec,Retention=A$logistic)
+        }
+        if(!is.na(dd$Ret_p5))
+        {
+          dat1=data.frame(TL=A$len.vec,Retention=A$dome.shaped)
+        }
+        p1=dat1%>%
+              ggplot(aes(TL,Retention))+
+              geom_line(color=2)+ylim(0,1)+theme_PA()+xlab('')
+
+        #Discard Mortality
+        A=fn.SS3.discard.mort(p1=dd$Disc_Fleet_L1, 
+                              p2=dd$Disc_Fleet_L2,
+                              p3=dd$Disc_Fleet_L3,
+                              p4=dd$Disc_Fleet_L4,
+                              len.vec=L.vec)
+        p2=data.frame(TL=A$len.vec,Discard.mort=A$discard.mort)%>%
+          ggplot(aes(TL,Discard.mort))+
+          geom_line(color=2)+ylim(0,1)+theme_PA()+
+          xlab('Total length (cm)')+ylab('Discard mortality')
+        
+        ggarrange(p1,p2,nrow=2)  
+        jndl.out=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(Keep.species[i]),"/",AssessYr,sep='')
+       
+        ggsave(paste(jndl.out,'/SS3_integrated_Retention and discard mortality.tiff',sep=''), width = 6,height = 6,compression = "lzw")
+      }
+    }
+  }
 }
 
 
