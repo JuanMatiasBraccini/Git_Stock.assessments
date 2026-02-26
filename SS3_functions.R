@@ -351,7 +351,7 @@ fn.create.SS_DL_tool_inputs=function(Life.history,CACH,this.wd,Neim,InputData,Kt
 }
 # Create SS input files ------------------------------------------------------
 fn.get.in.betwee=function(x,PATRN="_") str_before_nth(str_after_nth(x, PATRN, 1), PATRN, 2)
-fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.yr,fleets=NULL,
+fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.history,depletion.yr,fleets=NULL,
                       fleetinfo=NULL,abundance=NULL,size.comp=NULL,age.comp=NULL,meanbodywt=NULL,
                       Tags=NULL,F.tagging=NULL,cond.age.len=NULL,MeanSize.at.Age.obs=NULL,Lamdas=NULL,
                       RecDev_Phase=-3,SR_sigmaR=0.2,Var.adjust.factor=NULL,Future.project=NULL,
@@ -454,6 +454,18 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,life.history,depletion.y
       }
     }
     
+    #discards #ACA
+    if(!is.null(Catch.ret.disc))
+    {
+      disc.flits=unique(Catch.ret.disc$fleet)
+      dat$N_discard_fleets=length(disc.flits)
+      dat$discard_fleet_info=data.frame(Fleet=disc.flits,
+                                        units=1,   # 1= same as catch units(bio/num); 2=fraction; 3=numbers
+                                        errtype=-1)  #>0 for DF of T-dist(read CV below); 0 for normal with CV; -1 for normal with se; -2 for lognormal
+      dat$discard_data=Catch.ret.disc
+      
+    }
+      
     #cpue
     names(dat$CPUEinfo)=capitalize(names(dat$CPUEinfo))
     ddumy=dat$CPUEinfo[rep(1,length(dis.flits)),]

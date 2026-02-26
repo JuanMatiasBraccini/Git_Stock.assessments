@@ -499,6 +499,8 @@ test.single.area.model=TRUE  #set to TRUE if want to test single area model scen
 alternative.Linf=NULL # "sandbar shark" reduce Linf to match length comps. Superseded, now estimating Linf
 if(!is.null(alternative.Linf))names(alternative.Linf)=0.9
 
+retained.discarded.sp=c("dusky shark") #these are commercial species with size limits. Note that PCM already accounted for in catch recons so set to 1 in SS
+
   #21.1 Set WRL as a separate fleet for these species
 WRL.species=c("copper shark","dusky shark","shortfin mako",
               "smooth hammerhead","spinner shark","tiger shark") 

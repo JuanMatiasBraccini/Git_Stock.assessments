@@ -32,10 +32,28 @@ for(w in 1:n.SS)
           #1. Catch
             #1.1. zones together
           ktch=KtCh%>%
-            filter(Name==Neim)%>%
+            filter(Name==Neim)
+          retained.discarded.ktch=NULL
+          discard.specs=c('TEP','Discards_TDGDLF')
+          if(Neim%in%retained.discarded.sp)
+          {
+            if(Neim=="dusky shark") this.discard.sp='TEP'
+            if(exists('this.discard.sp'))
+            {
+              retained.discarded.ktch=ktch%>%
+                        filter(FishCubeCode==this.discard.sp)%>%
+                        mutate(Fishry='Southern.shark_2')%>%
+                        group_by(SPECIES,Name,finyear,Fishry)%>%
+                        summarise(Tonnes=sum(LIVEWT.c,na.rm=T)) 
+              discard.specs=subset(discard.specs,!discard.specs==this.discard.sp)
+              ktch=ktch%>%
+                     filter(!FishCubeCode==this.discard.sp)
+            }
+          }
+          ktch=ktch%>%
             mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
                           ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                  'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                                                   discard.specs),'Southern.shark',
                           ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
                           'Other'))))%>%
             group_by(SPECIES,Name,finyear,Fishry)%>%
@@ -74,10 +92,25 @@ for(w in 1:n.SS)
             ktch.zone=rbind(ktch.zone,historic)
             
           }
+          retained.discarded.ktch.zone=NULL  
+          if(Neim%in%retained.discarded.sp)
+          {
+            if(Neim=="dusky shark") this.discard.sp='TEP'
+            if(exists('this.discard.sp'))
+            {
+              retained.discarded.ktch.zone=ktch.zone%>%
+                      filter(FishCubeCode==this.discard.sp)%>%
+                      mutate(Fishry=paste('Southern.shark_2',zone,sep='_'))%>%
+                      group_by(SPECIES,Name,finyear,Fishry)%>%
+                      summarise(Tonnes=sum(LIVEWT.c,na.rm=T)) 
+              ktch.zone=ktch.zone%>%
+                    filter(!FishCubeCode==this.discard.sp)
+            }
+          }
           ktch.zone=ktch.zone%>%
             mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
                           ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                  'TEP_greynurse','TEP_dusky','Discards_TDGDLF'),'Southern.shark',
+                                                   discard.specs),'Southern.shark',
                           ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
                           'Other'))),
                    Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
@@ -1772,6 +1805,21 @@ for(w in 1:n.SS)
                 {
                   KAtch=ktch
                   FLitinFO=flitinfo
+                  KAtch.ret.disc=NULL
+                  if(!is.null(retained.discarded.ktch))
+                  {
+                      KAtch.ret.disc=retained.discarded.ktch%>%
+                                        ungroup()%>%
+                                        left_join(FLitinFO%>%dplyr::select(fleetname)%>%mutate(fleet=1:nrow(FLitinFO)),
+                                                  by=c('Fishry'='fleetname'))%>%
+                                        dplyr::select(-c('SPECIES','Name','Fishry'))%>%
+                                        mutate(seas=1,stderr=0.5)%>%
+                                        rename(yr=finyear,
+                                               obs=Tonnes)%>%
+                                        relocate(yr,seas,fleet,obs,stderr)%>%
+                                        arrange(fleet,yr)%>%
+                                        data.frame
+                    }
                   Abund=Abund.single.area
                   Size.com=Size.compo.SS.format
                   Size.com_all=dummy.Size.compo.SS.format.all
@@ -1784,6 +1832,21 @@ for(w in 1:n.SS)
                 {
                   KAtch=ktch.zone
                   FLitinFO=flitinfo.zone
+                  KAtch.ret.disc=NULL
+                  if(!is.null(retained.discarded.ktch.zone))
+                  {
+                    KAtch.ret.disc=retained.discarded.ktch.zone%>%
+                                      ungroup()%>%
+                                      left_join(FLitinFO%>%dplyr::select(fleetname)%>%mutate(fleet=1:nrow(FLitinFO)),
+                                                by=c('Fishry'='fleetname'))%>%
+                                      dplyr::select(-c('SPECIES','Name','Fishry'))%>%
+                                      mutate(seas=1,stderr=0.5)%>%
+                                      rename(yr=finyear,
+                                             obs=Tonnes)%>%
+                                      relocate(yr,seas,fleet,obs,stderr)%>%
+                                      arrange(fleet,yr)%>%
+                                      data.frame
+                  }
                   Abund=Abund.areas.as.fleets
                   Size.com=Size.compo.SS.format.zone
                   Size.com_all=dummy.Size.compo.SS.format.all_zone
@@ -2131,7 +2194,8 @@ for(w in 1:n.SS)
                 fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
                              new.path=this.wd1,
                              Scenario=Scens[s,]%>%mutate(Model='SS'),
-                             Catch=KAtch,  
+                             Catch=KAtch,
+                             Catch.ret.disc=KAtch.ret.disc,
                              life.history=Life.history1,
                              depletion.yr=NULL,
                              fleets=names(KAtch)[which(!names(KAtch)%in%c("SPECIES","Name","finyear"))],
