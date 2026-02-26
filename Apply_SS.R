@@ -355,7 +355,7 @@ for(w in 1:n.SS)
                 d.list.n.shots=do.call(rbind,d.list.n.shots)
                 
                 d.list=left_join(d.list,d.list.n.shots,by=c('year','fishry'))%>%
-                  mutate(Part=0)%>%
+                  mutate(Part=SS.part_length.comps)%>%
                   dplyr::rename(Fleet=fishry,
                                 Sex=sex,
                                 Seas=month)%>%
@@ -638,7 +638,7 @@ for(w in 1:n.SS)
                 d.list.n.shots=do.call(rbind,d.list.n.shots)
                 
                 d.list=left_join(d.list,d.list.n.shots,by=c('year','fishry'))%>%
-                  mutate(Part=0)%>%
+                  mutate(Part=SS.part_length.comps)%>%
                   dplyr::rename(Fleet=fishry,
                                 Sex=sex,
                                 Seas=month)%>%
@@ -1804,22 +1804,7 @@ for(w in 1:n.SS)
                 if(Scens$Spatial[s]=='single area')
                 {
                   KAtch=ktch
-                  FLitinFO=flitinfo
-                  KAtch.ret.disc=NULL
-                  if(!is.null(retained.discarded.ktch))
-                  {
-                      KAtch.ret.disc=retained.discarded.ktch%>%
-                                        ungroup()%>%
-                                        left_join(FLitinFO%>%dplyr::select(fleetname)%>%mutate(fleet=1:nrow(FLitinFO)),
-                                                  by=c('Fishry'='fleetname'))%>%
-                                        dplyr::select(-c('SPECIES','Name','Fishry'))%>%
-                                        mutate(seas=1,stderr=0.5)%>%
-                                        rename(yr=finyear,
-                                               obs=Tonnes)%>%
-                                        relocate(yr,seas,fleet,obs,stderr)%>%
-                                        arrange(fleet,yr)%>%
-                                        data.frame
-                    }
+                  FLitinFO=flitinfo                  
                   Abund=Abund.single.area
                   Size.com=Size.compo.SS.format
                   Size.com_all=dummy.Size.compo.SS.format.all
@@ -1827,15 +1812,10 @@ for(w in 1:n.SS)
                   tags=Tags.SS.format 
                   Var.ad=Var.ad.factr
                   add.future=add.ct.or.F_future
-                }
-                if(Scens$Spatial[s]=='areas-as-fleets')
-                {
-                  KAtch=ktch.zone
-                  FLitinFO=flitinfo.zone
                   KAtch.ret.disc=NULL
-                  if(!is.null(retained.discarded.ktch.zone))
+                  if(!is.null(retained.discarded.ktch))   
                   {
-                    KAtch.ret.disc=retained.discarded.ktch.zone%>%
+                    KAtch.ret.disc=retained.discarded.ktch%>%
                                       ungroup()%>%
                                       left_join(FLitinFO%>%dplyr::select(fleetname)%>%mutate(fleet=1:nrow(FLitinFO)),
                                                 by=c('Fishry'='fleetname'))%>%
@@ -1846,7 +1826,42 @@ for(w in 1:n.SS)
                                       relocate(yr,seas,fleet,obs,stderr)%>%
                                       arrange(fleet,yr)%>%
                                       data.frame
+                    Length.limit=Life.history$SS_retention$P_5
+                    discard.flits=unique(KAtch.ret.disc$fleet)
+                    id.rel.cols=names(Size.com)[grep(paste(c('f','m'),collapse = '|'),names(Size.com))]
+                    id.rel.cols=unique(as.numeric(gsub("[a-zA-Z]", "", subset(id.rel.cols,!id.rel.cols%in%c("Nsamp")))))
+                    from.to=seq(id.rel.cols[which.min(abs(id.rel.cols - Length.limit))],max(id.rel.cols),by=TL.bins.cm)
+                    id.rel.cols=grep(paste(from.to,collapse = '|'),names(Size.com))
+                    id.irrel.cols=grep(paste(names(Size.com)[-c(which(c("year","Seas","Fleet","Sex","Part","Nsamp")%in%
+                                                                        names(Size.com)),id.rel.cols)],collapse = '|'),
+                                       names(Size.com))
+                    Size.com.discards=Size.com%>%filter(Fleet%in%discard.flits)
+                    Size.com=Size.com%>%filter(!Fleet%in%discard.flits)
+                    Size.com.discards_retained=Size.com.discards
+                    Size.com.discards_discarded=Size.com.discards
+                    Size.com.discards_retained[,id.rel.cols]=0
+                    Size.com.discards_retained$Part=2
+                    Size.com.discards_discarded[,id.irrel.cols]=0
+                    Size.com.discards_discarded$Part=1
+                    Size.com.discards=Size.com.discards_retained
+                    drop.yrs=rowSums(Size.com.discards_discarded[,id.rel.cols])
+                    drop.yrs=which(drop.yrs<Min.annual.obs.ktch)
+                    if(length(drop.yrs)>0)
+                    {
+                      Size.com.discards_discarded=Size.com.discards_discarded[-drop.yrs,]
+                    }
+                    if(nrow(Size.com.discards_discarded)>0)
+                    {
+                      Size.com.discards=rbind(Size.com.discards_retained,Size.com.discards_discarded)
+                    }
+                    Size.com=rbind(Size.com,Size.com.discards)%>%
+                      arrange(Fleet,year)
                   }
+                }
+                if(Scens$Spatial[s]=='areas-as-fleets')
+                {
+                  KAtch=ktch.zone
+                  FLitinFO=flitinfo.zone
                   Abund=Abund.areas.as.fleets
                   Size.com=Size.compo.SS.format.zone
                   Size.com_all=dummy.Size.compo.SS.format.all_zone
@@ -1854,6 +1869,53 @@ for(w in 1:n.SS)
                   tags=Tags.SS.format.zone  
                   Var.ad=Var.ad.factr.zone
                   add.future=add.ct.or.F_future.zone
+                  KAtch.ret.disc=NULL
+                  if(!is.null(retained.discarded.ktch.zone))
+                  {
+                    KAtch.ret.disc=retained.discarded.ktch.zone%>%
+                                  ungroup()%>%
+                                  left_join(FLitinFO%>%dplyr::select(fleetname)%>%mutate(fleet=1:nrow(FLitinFO)),
+                                            by=c('Fishry'='fleetname'))%>%
+                                  dplyr::select(-c('SPECIES','Name','Fishry'))%>%
+                                  mutate(seas=1,stderr=0.5)%>%
+                                  rename(yr=finyear,
+                                         obs=Tonnes)%>%
+                                  relocate(yr,seas,fleet,obs,stderr)%>%
+                                  arrange(fleet,yr)%>%
+                                  data.frame
+                    
+                    Length.limit=Life.history$SS_retention$P_5
+                    discard.flits=unique(KAtch.ret.disc$fleet)
+                    id.rel.cols=names(Size.com)[grep(paste(c('f','m'),collapse = '|'),names(Size.com))]
+                    id.rel.cols=unique(as.numeric(gsub("[a-zA-Z]", "", subset(id.rel.cols,!id.rel.cols%in%c("Nsamp")))))
+                    from.to=seq(id.rel.cols[which.min(abs(id.rel.cols - Length.limit))],max(id.rel.cols),by=TL.bins.cm)
+                    id.rel.cols=grep(paste(from.to,collapse = '|'),names(Size.com))
+                    id.irrel.cols=grep(paste(names(Size.com)[-c(which(c("year","Seas","Fleet","Sex","Part","Nsamp")%in%
+                                                                        names(Size.com)),id.rel.cols)],collapse = '|'),
+                                       names(Size.com))
+                    Size.com.discards=Size.com%>%filter(Fleet%in%discard.flits)
+                    Size.com=Size.com%>%filter(!Fleet%in%discard.flits)
+                    Size.com.discards_retained=Size.com.discards
+                    Size.com.discards_discarded=Size.com.discards
+                    Size.com.discards_retained[,id.rel.cols]=0
+                    Size.com.discards_retained$Part=2
+                    Size.com.discards_discarded[,id.irrel.cols]=0
+                    Size.com.discards_discarded$Part=1
+                    Size.com.discards=Size.com.discards_retained
+                    drop.yrs=rowSums(Size.com.discards_discarded[,id.rel.cols])
+                    drop.yrs=which(drop.yrs<Min.annual.obs.ktch.zone)
+                    if(length(drop.yrs)>0)
+                    {
+                      Size.com.discards_discarded=Size.com.discards_discarded[-drop.yrs,]
+                    }
+                    if(nrow(Size.com.discards_discarded)>0)
+                    {
+                      Size.com.discards=rbind(Size.com.discards_retained,Size.com.discards_discarded)
+                    }
+                    Size.com=rbind(Size.com,Size.com.discards)%>%
+                      arrange(Fleet,year)
+                  }
+
                   
                   #Change species specific sel pars for spatial model
                   if(Neim=="sandbar shark" & !is.null(Life.history$SS_offset_selectivity))   
