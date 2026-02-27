@@ -457,7 +457,7 @@ combine.sexes.nsf=c("dusky shark")
 combine.sexes=unique(c(combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,combine.sexes.survey,combine.sexes.nsf,
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark"))
 combine.sex_type=0  #0, 0 means combined male and female ; 3, 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
-SS.part_length.comps=2 #0, retain and discarded; 1, discards only; 2, retained only
+SS.part_length.comps=0 #0, retain and discarded; 1, discards only; 2, retained only. Note, use 2 or 1 for fleets with discards
 SS.sex.length.type=3  #1 if want to maintain males and females separated
 SS.sex.3_use.missing.sex=TRUE # set to FALSE if only use years when both sexes sampled (e.g. whiskery sexual segregation). Adding all 0s affects sel par estim when Sex=3
 SS.sex.3_use.missing.sex.zone=TRUE

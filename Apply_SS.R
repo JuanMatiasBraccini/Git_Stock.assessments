@@ -871,7 +871,7 @@ for(w in 1:n.SS)
                                     mutate(year=as.numeric(substr(Finyear,1,4)),
                                            month=1,
                                            Fleet='Southern.shark_2',
-                                           part=0,   #0, combined; 1: discard only; 2: retained only
+                                           part=SS.part_length.comps,   
                                            type=2)%>%
                                     filter(year<=max(ktch$finyear))%>%
                                     dplyr::select(-Finyear)%>%
@@ -915,7 +915,7 @@ for(w in 1:n.SS)
                   mutate(year=as.numeric(substr(Finyear,1,4)),
                          month=1,
                          Fleet=paste('Southern.shark_2',ZnE,sep='_'),
-                         part=0,   #0, combined; 1: discard only; 2: retained only
+                         part=SS.part_length.comps,   
                          type=2)%>%
                   filter(year<=max(ktch.zone$finyear))%>%
                   dplyr::select(-Finyear)
@@ -1856,6 +1856,9 @@ for(w in 1:n.SS)
                     }
                     Size.com=rbind(Size.com,Size.com.discards)%>%
                       arrange(Fleet,year)
+                    
+                    meanbody=meanbody%>%
+                      mutate(part=ifelse(fleet%in%discard.flits,2,part))
                   }
                 }
                 if(Scens$Spatial[s]=='areas-as-fleets')
@@ -1914,6 +1917,9 @@ for(w in 1:n.SS)
                     }
                     Size.com=rbind(Size.com,Size.com.discards)%>%
                       arrange(Fleet,year)
+                    
+                    meanbody=meanbody%>%
+                      mutate(part=ifelse(fleet%in%discard.flits,2,part))
                   }
 
                   
