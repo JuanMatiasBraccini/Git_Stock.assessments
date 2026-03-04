@@ -439,7 +439,7 @@ for(l in 1:N.sp)
   # 4... Integrated models
   
   #-- 4.1 SS
-  sigmaR=0.2 #Default (Spiny dogfish SS assessment)
+  sigmaR=sigmaR.steepness.shark%>%filter(Species=='dogfish')%>%pull(sigmaR)
   if(!is.na(ramp.yrs$SR_sigmaR)) sigmaR=min(ramp.yrs$SR_sigmaR,Max.SR_sigmaR.shark)#from Report$sigma_R_info$alternative_sigma_R
   
       #4.1.1 Scenarios
@@ -617,18 +617,51 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.15 Tagging 
+    #4.1.1.15 Remove tagging data from single area model 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='No')
   if(NeiM%in%use.tag.data) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='Yes') 
-  if(NeiM%in%spatial.model & test.single.area.model) # test efect of using original single-area model
+  if(NeiM%in%spatial.model & test.single.area.model) # test effect of using original single-area model
   {
     List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
                                 mutate(Tagging=case_when(Spatial=='single area'~'No',
                                                          TRUE~Tagging))
   }
   
-  #4.1.1.16 Test effect of using Tags 
-  if(NeiM%in%test.use.tags)
+    #4.1.1.16 Test effect of using CPUE  
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(CPUE='Yes')
+  if(NeiM%in%test.using.cpue) #test.using.length.comps test.using.mean.body
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(CPUE='No',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
+    #4.1.1.17 Test effect of using length.comps  
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Length.comps='Yes')
+  if(NeiM%in%test.using.length.comps) 
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Length.comps='No',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
+    #4.1.1.18 Test effect of using mean body weight  
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Mean.body='Yes')
+  if(NeiM%in%test.using.mean.body)  
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Mean.body='No',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
+    #4.1.1.19 Test effect of using Tags  
+  if(NeiM%in%test.using.tags)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
@@ -636,19 +669,8 @@ for(l in 1:N.sp)
              Scenario=paste0('S',(nnN+1)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
-  #   #4.1.1.16 Test effect of using Tags on original single-area model  #ACA
-  # List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(test.use.tags.single.area='No')
-  # if(NeiM%in%test.use.tags.single.area)
-  # {
-  #   nnN=nrow(List.sp[[l]]$Sens.test$SS)
-  #   add.dumi=List.sp[[l]]$Sens.test$SS%>%filter(Spatial=='single area')%>%
-  #     mutate(test.use.tags.single.area='Yes',
-  #            Tagging='No',
-  #            Scenario=paste0('S',(nnN+1)))
-  #   List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
-  # }
-  
-    #4.1.1.17 Indo IUU - F estimation
+
+    #4.1.1.20 Indo IUU - F estimation
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Estim.Indo.IUU='No')
   Indo.IUU.sp=KtCh%>%filter(Name==NeiM & Data.set=='Indonesia')
   if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo & estim.F.INDO) 
@@ -660,7 +682,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.18 Indo IUU- Test effect of using only Apprehensions for catch reconstruction
+    #4.1.1.21 Indo IUU- Test effect of using only Apprehensions for catch reconstruction
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Test.Indo.IUU.catch='No')
   if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo)
   {
@@ -671,7 +693,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.19 Estimate initial F before time series
+    #4.1.1.22 Estimate initial F before time series
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Estim.initial.F='No')
   if(set.initial.F)
   {
@@ -682,18 +704,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.20 Test effect of using CPUE
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(test.use.cpue='No')
-  if(NeiM%in%test.using.cpue)
-  {
-    nnN=nrow(List.sp[[l]]$Sens.test$SS)
-    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
-      mutate(test.use.cpue='Yes',
-             Scenario=paste0('S',(nnN+1)))
-    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
-  }
-  
-    #4.1.1.21 Test effect of using selectivity offset
+    #4.1.1.23 Test effect of using selectivity offset
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Use.male.sel.offset='No')
   if(NeiM%in%test.using.male.sel.offset)
   {
@@ -705,7 +716,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.22 Estimate growth pars  
+    #4.1.1.24 Estimate growth pars  
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(estim.growth='No')
   if(NeiM%in%estim.growth.pars_SS)
   {
@@ -724,10 +735,10 @@ for(l in 1:N.sp)
     }
   }
   
-    #4.1.1.23 Remove 07.08.cpue evaluation if not testing
+    #4.1.1.25 Remove 07.08.cpue evaluation if not testing
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
   
-    #4.1.1.24 Remove SSS inputs
+    #4.1.1.26 Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%
     dplyr::select(-c(Final.dpl,Sims))

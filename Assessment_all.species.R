@@ -1,8 +1,9 @@
 # ------ Script for running stock assessments for WA sharks---- ###################
 
 #Notes:
-#     1. '4. Productivity Susceptibility Analyses' filters out species based on '9. Catch criteria for selecting what species to assess quantitatively'
-#     2. Assumption: If catches have never been >1% carrying capacity, then it's in unexploited 
+#     1. '4. Productivity Susceptibility Analyses' filters out species 
+#                 based on '9. Catch criteria for selecting what species to assess quantitatively'
+#     2. Assumption: If catches have never been high (e.g. >1% carrying capacity), then it's in unexploited 
 #                    status so catch series have no information on productivity
 #     3. Total (reconstructed) catches are used (commercial, recreational and TDGDLF discards);
 #             note that 'recons_NT_catch.csv' only includes dusky and sandbar
@@ -13,7 +14,10 @@
 #               . Catch-only
 
 #Steps: 
-#     1. For each new assessment, update 'New.assessment', 'Year.of.assessment' and 'Last.yr.ktch' in '1. DEFINE GLOBALS'  
+#     1. For each new assessment, update 'assess.these.species.only','New.assessment', 
+#           'Year.of.assessment' and 'Last.yr.ktch' in '1. DEFINE GLOBALS',
+#            'Do.Ktch.only', etc in '2. Control what to implement' to turn on assessment types,
+#           and 'Run.SS', 'SS3.run' in '21. Integrated age-based model'
 #     2. Define arguments (inputs) used in each of the shark species/species-complex assessed.
 #     3. Bring in updated available data and parameters (see 'Matias\Reports\Steps for creating RAR and SFRAR.docx')
 #     4. Determine which species to assess based on PSA
@@ -124,9 +128,8 @@ Send.email.to="matias.braccini@dpird.wa.gov.au"   #send email when model run fin
 #1.New assessment and assessed species
 #assess.these.species.only=NULL  #all species meeting criteria are assessed
 assess.these.species.only=c("dusky shark","gummy shark","sandbar shark","whiskery shark")      
-  
-New.assessment="NO"
-#New.assessment="YES"   #set to 'YES' if a new assessment is run for the first time
+New.assessment="NO"   #'YES' if a new assessment is run for the first time
+ 
 
 #2. Control what to implement
 # turn on/off assessment method as appropriate
@@ -173,11 +176,11 @@ catches.futures="constant.last.n.yrs"
 future.color="brown4"
 
 #4. Model run
-if(New.assessment=="YES") First.run="YES"  else #create all model input data sets and data presentation for new assessment
+if(New.assessment=="YES") First.run="YES"  else   #create model inputs and data presentation for new assessment
   First.run="NO"
 
 #5. Add additional species of interest not selected by PSA given low catch trajectories but needed for specific assessment
-additional.sp=NULL  #if no additional species assessment required
+additional.sp=NULL  #no additional species assessment required
 #if(Year.of.assessment==2022) additional.sp=c('green sawfish','narrow sawfish')   # 2022 sawfish assessment; 
                                     # dwarf and freshwater sawfish not assessed; reconstructed
                                     # catches do not consider TO catch or beach rec fishing
@@ -203,8 +206,6 @@ if(KTCH.UNITS=="KGS") Min.ktch=5000
 if(KTCH.UNITS=="TONNES") Min.ktch=5
 
 #10. CPUEs
-use.dusky.cpue=FALSE
-test.using.cpue=c('dusky shark')  #have one scenario using cpue  NULL
 Min.cpue.yrs=5 #minimum number of years in abundance index
 drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not. Superseded by Francis CVs 
 
@@ -214,15 +215,11 @@ survey_not.representative=c("scalloped hammerhead","great hammerhead",
 NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue not used as unlikely to be representative
                           "lemon shark","pigeye shark","tiger shark",
                          "dusky shark","sandbar shark")
-tdgdlf_not.representative=c("smooth hammerhead","spinner shark","dusky shark")   #catch rates are for 'hammerheads' and for both species cpue tracks catch so no depletion signal
-tdgdlf_monthly_not.representative=c("sandbar shark")   #increasing cpue with increasing catch and very jumpy index 
+tdgdlf_not.representative=c("smooth hammerhead","spinner shark")   #catch rates are for 'hammerheads' and for both species cpue tracks catch so no depletion signal
+tdgdlf_monthly_not.representative=c("sandbar shark","dusky shark")   #Sandbar increasing cpue with increasing catch and very jumpy index; Dusky massive recruitment drop follow moderate catches 
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
-if(use.dusky.cpue)
-{
-  survey_not.representative=subset(survey_not.representative,!survey_not.representative=="dusky shark")
-  tdgdlf_not.representative=subset(tdgdlf_not.representative,!tdgdlf_not.representative=="dusky shark")
-}
+
   #10.2 Survey
 Calculate.weight_Survey=FALSE #change Naturaliste survey from numbers to weights. Not applicable, now it's done in Survey standardisation)
 survey.year='financial' #'calendar'  Survey standard already using financial year 
@@ -269,14 +266,27 @@ fill.NA.Max.Age.Max=TRUE  #fill in NA max.Age.max with Max.Age.up.Scaler
 externally.increase.M=FALSE   #increase M in pin_file to all SS to converge
 species.too.high.M1=NULL #c("gummy shark","whiskery shark")  
 
-#15.1 published steepness  
-Dusky.Sedar=mean(c(0.25,0.35))  #SEDAR 21, they also obtained too high h estimates (page 30)
-Sandbar.Sedar=mean(c(0.25,0.4)) #SEDAR 21 & 54
+  #15.1 published steepness and sigmaR
+sigmaR.steepness.shark=data.frame(Species=c('dusky shark','sandbar shark','gummy shark','blacktip shark',
+                                            'dogfish',rep('blue shark',2),'big skate',
+                                            'scalloped hammerhead','great hammerhead','smooth hammerhead','shortfin mako'),
+                                  sigmaR=c(0,0.18,0.4,0.28,
+                                           0.2,c(0.3,0.5),0.3,
+                                           rep(0.28,3), NA),
+                                  Steepness=c(mean(c(0.25,0.35)),mean(c(0.25,0.4)),0.9, 0.4,
+                                              0.283, c(0.73, 0.8),0.4, 
+                                              mean(c(0.69,0.71,0.67)),0.71 ,0.78,0.345 ),
+                                  Source=c('SEDAR 21','SEDARs 21 & 54','Andre model','SEDAR 65',
+                                           'Ian T',rep('ICCAT 2023',2),'Ian T',
+                                           rep('SEDAR 77',3),'ICCAT 2019')) 
+
+Dusky.Sedar=sigmaR.steepness.shark%>%filter(Species=='dusky shark')%>%pull(Steepness)
+Sandbar.Sedar=sigmaR.steepness.shark%>%filter(Species=='sandbar shark')%>%pull(Steepness)
 bump.h_sandbar=FALSE  #bump up Sandbar shark h to allow random rec_devs, otherwise model tries to compensate for lower productivity
-ScallopedHH.Sedar=mean(c(0.69,0.71,0.67))  #SEDAR 77
-SmoothHH.Sedar=0.78 #SEDAR 77
-GreatHH.Sedar=0.71 #SEDAR 77
-Mako.ICCAT=0.345   #ICCAT 2019
+ScallopedHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='scalloped hammerhead')%>%pull(Steepness)
+SmoothHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='smooth hammerhead')%>%pull(Steepness)
+GreatHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='great hammerhead')%>%pull(Steepness)
+Mako.ICCAT=sigmaR.steepness.shark%>%filter(Species=='shortfin mako')%>%pull(Steepness)
 
 
   #15.2 published demographic parameters
@@ -295,7 +305,7 @@ Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
 #16. Stock recruitment
 Max.h.shark=.8   #mean of h for blue shark (ICCAT 2023 assessment; Cortes 2016, Kai & Fujinami 2018).
 Min.h.shark=.3  #He et al 2006, Jason Cope pers comm
-Max.SR_sigmaR.shark=0.4   #maximum recruitment variability (blue shark ICCAT 2023 0.29 for North, 0.5 for South, 0.3 bigskate; 0.2 dogfish; 0.18 sandbar)
+Max.SR_sigmaR.shark=max(sigmaR.steepness.shark$sigmaR,na.rm=T)   #maximum recruitment variability 
 do.random.h=TRUE  #take a random sample of h and M for SS or use empirical distributions
 
 #17. Reference points
@@ -425,13 +435,13 @@ evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
 #21. Integrated age-based model 
 Integrated.age.based='SS'   # define model types used
 do.parallel.SS=TRUE         #do SS in parallel or not
+Run.SS=FALSE                 #switch to TRUE if want to run parameter estimation
 do.all.sensitivity.tests=TRUE #set to TRUE or FALSE as per required
 SS3.run='final' #'test'     # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, MCMC, etc)
 create.SS.inputs=TRUE       #set to FALSE once happy with SS input files and only need to run the model
 run_SS_plots=FALSE          #set to TRUE once happy with model and want to plot outputs
 if(SS3.run=='final') run_SS_plots=TRUE
 Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
-Run.SS=FALSE                 #switch to TRUE if want to run parameter estimation
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
                                   # for all 4 species observations were collected over multiple years
@@ -445,6 +455,12 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
 estim.sel.pars_SS=c("sandbar shark")
 extra.SD.Q.species=c("sandbar shark")
 estim.sel.pars_SS.prior=NULL
+
+test.using.cpue=c("dusky shark","gummy shark","sandbar shark","whiskery shark")          #NULL; have one scenario not using cpue  
+test.using.length.comps=test.using.cpue   #NULL; have one scenario not using length comps 
+test.using.mean.body=test.using.cpue      #NULL; have one scenario not using mean body weight
+test.using.tags=test.using.cpue           #NULL; have one scenario not using tagging data
+
 test.using.male.sel.offset=c("gummy shark","whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
 estim.growth.pars_SS=c("sandbar shark") #for other species, no great contrast in other data types
 test.growth.estim=NULL #c("gummy shark","whiskery shark")
@@ -458,6 +474,7 @@ combine.sexes=unique(c(combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,combine.s
                 "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark"))
 combine.sex_type=0  #0, 0 means combined male and female ; 3, 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
 SS.part_length.comps=0 #0, retain and discarded; 1, discards only; 2, retained only. Note, use 2 or 1 for fleets with discards
+SS.part_meanbodywt=2   #this is retained catch
 SS.sex.length.type=3  #1 if want to maintain males and females separated
 SS.sex.3_use.missing.sex=TRUE # set to FALSE if only use years when both sexes sampled (e.g. whiskery sexual segregation). Adding all 0s affects sel par estim when Sex=3
 SS.sex.3_use.missing.sex.zone=TRUE
@@ -501,7 +518,14 @@ alternative.Linf=NULL # "sandbar shark" reduce Linf to match length comps. Super
 if(!is.null(alternative.Linf))names(alternative.Linf)=0.9
 
 retained.discarded.sp=c("dusky shark") #these are commercial species with size limits. Note that PCM already accounted for in catch recons so set to 1 in SS
-
+retained.discarded.units='numbers'  #input discarded catch in numbers in SS (1000s of individuals)
+CV.discards=1
+discard_fleet_info_units=1 # 1, same as catch units(bio/num); 2, fraction; 3, numbers (1000s of individuals)
+if(retained.discarded.units=='numbers')
+{
+  CV.discards=0.1
+  discard_fleet_info_units=3
+}
   #21.1 Set WRL as a separate fleet for these species
 WRL.species=c("copper shark","dusky shark","shortfin mako",
               "smooth hammerhead","spinner shark","tiger shark") 
@@ -563,7 +587,6 @@ Use.these.tag.years=list("dusky shark"=1994:1995,
                          "sandbar shark"=c(2000,2001:2003),   #added 2000
                          "whiskery shark"=1994:1996)
 use.tag.data=names(Use.these.tag.years) #NULL; use tagging data to estimate F
-test.use.tags=use.tag.data  #NULL; test effect of using tagging data in model
 tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
                                   "gummy shark"=c("Zone2"),
                                   "sandbar shark"=c("West","Zone1"),
@@ -727,6 +750,8 @@ clear.log('fn.import.catch.data')
 Indo.IUU.apprehensions.only=read.csv(paste0(Dat.repository,'recons_Indo.IUU_based only on apprehensions.csv'))
 Indo.IUU.apprehensions=read.csv(paste0(Dat.repository,'recons_Indo.IUU.csv'))
 
+TEPS_dusky_n.discards=fn.in(NM='recons_TEPS_dusky.csv')%>%   #oversized duskies in 1000s of individuals
+  mutate(Discards.n_1000s=Discards.n/1e3)
 
 #export catch by species for Rays Report Card
 doRayRepCard=FALSE

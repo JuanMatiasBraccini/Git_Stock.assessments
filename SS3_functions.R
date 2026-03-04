@@ -454,13 +454,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       }
     }
     
-    #discards #ACA
+    #discards 
     if(!is.null(Catch.ret.disc))
     {
       disc.flits=unique(Catch.ret.disc$fleet)
       dat$N_discard_fleets=length(disc.flits)
       dat$discard_fleet_info=data.frame(Fleet=disc.flits,
-                                        units=1,   # 1= same as catch units(bio/num); 2=fraction; 3=numbers
+                                        units=discard_fleet_info_units,
                                         errtype=-1)  #>0 for DF of T-dist(read CV below); 0 for normal with CV; -1 for normal with se; -2 for lognormal
       dat$discard_data=Catch.ret.disc
       
@@ -1862,6 +1862,14 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
                             mutate(dumi=as.numeric(str_remove_all(str_remove_all(dumi, "_"), "[a-zA-Z]")))%>%
                             arrange(dumi)%>%
                             dplyr::select(-dumi)
+      
+      #reset discard data if not length comp or meanbody weight (and hence no retention pars)
+      if(length(id_disc)<dat$N_discard_fleets)
+      {
+        dat$discard_data=dat$discard_data%>%filter(fleet%in%id_disc)
+        dat$discard_fleet_info=dat$discard_fleet_info%>%filter(Fleet%in%id_disc)
+        dat$N_discard_fleets=nrow(dat$discard_fleet_info)
+      }
     }
     
     #Male offset 

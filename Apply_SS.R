@@ -41,13 +41,28 @@ for(w in 1:n.SS)
             if(exists('this.discard.sp'))
             {
               retained.discarded.ktch=ktch%>%
-                        filter(FishCubeCode==this.discard.sp)%>%
-                        mutate(Fishry='Southern.shark_2')%>%
-                        group_by(SPECIES,Name,finyear,Fishry)%>%
-                        summarise(Tonnes=sum(LIVEWT.c,na.rm=T)) 
+                            filter(FishCubeCode==this.discard.sp)%>%
+                            mutate(Fishry='Southern.shark_2')%>%
+                            group_by(SPECIES,Name,finyear,Fishry)%>%
+                            summarise(Tonnes=sum(LIVEWT.c,na.rm=T)) 
               discard.specs=subset(discard.specs,!discard.specs==this.discard.sp)
               ktch=ktch%>%
-                     filter(!FishCubeCode==this.discard.sp)
+                filter(!FishCubeCode==this.discard.sp)
+              if(retained.discarded.units=='numbers' & Neim=="dusky shark")  
+              {
+                retained.discarded.ktch=retained.discarded.ktch%>%
+                  left_join(TEPS_dusky_n.discards%>%
+                              mutate(finyear=as.numeric(substr(FINYEAR,1,4)))%>%
+                              group_by(finyear)%>%
+                              summarise(Discards.n_1000s=sum(Discards.n_1000s))%>%
+                              ungroup(),
+                            by='finyear')%>%
+                  mutate(Discards.n_1000s=ifelse(is.na(Discards.n_1000s),0,Discards.n_1000s),
+                         Tonnes=0,
+                         Tonnes=Discards.n_1000s)%>%
+                  dplyr::select(-Discards.n_1000s)
+                
+              }
             }
           }
           ktch=ktch%>%
@@ -105,6 +120,22 @@ for(w in 1:n.SS)
                       summarise(Tonnes=sum(LIVEWT.c,na.rm=T)) 
               ktch.zone=ktch.zone%>%
                     filter(!FishCubeCode==this.discard.sp)
+              if(retained.discarded.units=='numbers' & Neim=="dusky shark")  
+              {
+                retained.discarded.ktch.zone=retained.discarded.ktch.zone%>%
+                  left_join(TEPS_dusky_n.discards%>%
+                              mutate(Fishry=paste('Southern.shark_2',zone,sep='_'),
+                                     finyear=as.numeric(substr(FINYEAR,1,4)))%>%
+                              group_by(finyear,Fishry)%>%
+                              summarise(Discards.n_1000s=sum(Discards.n_1000s))%>%
+                              ungroup(),
+                            by=c('finyear','Fishry'))%>%
+                  mutate(Discards.n_1000s=ifelse(is.na(Discards.n_1000s),0,Discards.n_1000s),
+                         Tonnes=0,
+                         Tonnes=Discards.n_1000s)%>%
+                  dplyr::select(-Discards.n_1000s)
+                
+              }
             }
           }
           ktch.zone=ktch.zone%>%
@@ -871,7 +902,7 @@ for(w in 1:n.SS)
                                     mutate(year=as.numeric(substr(Finyear,1,4)),
                                            month=1,
                                            Fleet='Southern.shark_2',
-                                           part=SS.part_length.comps,   
+                                           part=SS.part_meanbodywt,   
                                            type=2)%>%
                                     filter(year<=max(ktch$finyear))%>%
                                     dplyr::select(-Finyear)%>%
@@ -915,7 +946,7 @@ for(w in 1:n.SS)
                   mutate(year=as.numeric(substr(Finyear,1,4)),
                          month=1,
                          Fleet=paste('Southern.shark_2',ZnE,sep='_'),
-                         part=SS.part_length.comps,   
+                         part=SS.part_meanbodywt,   
                          type=2)%>%
                   filter(year<=max(ktch.zone$finyear))%>%
                   dplyr::select(-Finyear)
@@ -1283,7 +1314,7 @@ for(w in 1:n.SS)
                                 rename(Reporting=Reporting.logit),
                               Reporting.rate.decay=Reporting.rate.decay,
                               overdispersion=1.001,       # Andre's Gummy model
-                              mixing_latency_period=0,    # Andre's Gummy model 
+                              mixing_latency_period=1, # Andre's Gummy model set at 0 but this yields worse fit
                               max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
             
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
@@ -1430,7 +1461,7 @@ for(w in 1:n.SS)
                                     rename(Reporting=Reporting.logit),
                                   Reporting.rate.decay=Reporting.rate.decay,
                                   overdispersion=1.001,       # Andre's Gummy model
-                                  mixing_latency_period=0,    # Andre's Gummy model 
+                                  mixing_latency_period=1, # Andre's Gummy model set at 0 but this yields worse fit 
                                   max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
                                 
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
@@ -1566,75 +1597,82 @@ for(w in 1:n.SS)
           
           #11. Run scenarios if available abundance index or size comps
           len.cpue=length(CPUE)
+          len.cpue.zone=length(CPUE.zone)
           len.size.comp=length(Size.compo.SS.format) 
-          if(len.cpue>0|len.size.comp>0)
+          if(len.cpue>0 | len.cpue.zone>0 | len.size.comp>0)
           {
             #Put CPUE in SS format
-            if(len.cpue>0)
+            if(len.cpue>0 | len.cpue.zone>0)
             {
               MAX.CV=Life.history$MAX.CV
               
               #zones together
-              for(x in 1:len.cpue)    
+              if(len.cpue>0)
               {
-                nm=names(CPUE)[x]
-                if(nm=="NSF") nm="Northern.shark"
-                if(nm=="TDGDLF.monthly") nm="Southern.shark_1"
-                if(nm=="TDGDLF.daily") nm="Southern.shark_2"
-                
-                dd=CPUE[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE[[x]]))]%>%
-                  relocate(yr.f)
-                if(drop.large.CVs)
+                for(x in 1:len.cpue)    
                 {
-                  iid=which(dd$CV>MAX.CV)
-                  dd$Mean[iid]=NA
-                  dd$CV[iid]=NA 
+                  nm=names(CPUE)[x]
+                  if(nm=="NSF") nm="Northern.shark"
+                  if(nm=="TDGDLF.monthly") nm="Southern.shark_1"
+                  if(nm=="TDGDLF.daily") nm="Southern.shark_2"
+                  
+                  dd=CPUE[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE[[x]]))]%>%
+                    relocate(yr.f)
+                  if(drop.large.CVs)
+                  {
+                    iid=which(dd$CV>MAX.CV)
+                    dd$Mean[iid]=NA
+                    dd$CV[iid]=NA 
+                  }
+                  dd=dd%>%
+                    dplyr::rename(Year=yr.f)%>%
+                    mutate(seas=1,
+                           index.dummy=nm)%>%
+                    left_join(Flits.and.survey,by=c('index.dummy'='Fleet.name'))%>%
+                    mutate(index=Fleet.number)%>%
+                    dplyr::select(-c(index.dummy,Fleet.number))
+                  CPUE[[x]]=dd%>%filter(!is.na(Mean))
                 }
-                dd=dd%>%
-                  dplyr::rename(Year=yr.f)%>%
-                  mutate(seas=1,
-                         index.dummy=nm)%>%
-                  left_join(Flits.and.survey,by=c('index.dummy'='Fleet.name'))%>%
-                  mutate(index=Fleet.number)%>%
-                  dplyr::select(-c(index.dummy,Fleet.number))
-                CPUE[[x]]=dd%>%filter(!is.na(Mean))
+                Abundance.SS.format=do.call(rbind,CPUE)%>%
+                  relocate(Year,seas,index,Mean,CV)%>%
+                  arrange(index,Year)
               }
-              Abundance.SS.format=do.call(rbind,CPUE)%>%
-                                    relocate(Year,seas,index,Mean,CV)%>%
-                                    arrange(index,Year)
               
               #by zone
-              len.cpue.zone=length(CPUE.zone)
-              for(x in 1:len.cpue.zone)    
+              if(len.cpue.zone>0)
               {
-                nm=names(CPUE.zone)[x]
-                if(nm=="NSF") nm="Northern.shark"
-                if(nm=="TDGDLF.monthly.West") nm="Southern.shark_1_West"
-                if(nm=="TDGDLF.monthly.Zone1") nm="Southern.shark_1_Zone1"
-                if(nm=="TDGDLF.monthly.Zone2") nm="Southern.shark_1_Zone2"
-                if(nm=="TDGDLF.daily.West") nm="Southern.shark_2_West"
-                if(nm=="TDGDLF.daily.Zone1") nm="Southern.shark_2_Zone1"
-                if(nm=="TDGDLF.daily.Zone2") nm="Southern.shark_2_Zone2"
-                dd=CPUE.zone[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE.zone[[x]]))]%>%
-                  relocate(yr.f)
-                if(drop.large.CVs)
+                for(x in 1:len.cpue.zone)    
                 {
-                  iid=which(dd$CV>MAX.CV)
-                  dd$Mean[iid]=NA
-                  dd$CV[iid]=NA 
+                  nm=names(CPUE.zone)[x]
+                  if(nm=="NSF") nm="Northern.shark"
+                  if(nm=="TDGDLF.monthly.West") nm="Southern.shark_1_West"
+                  if(nm=="TDGDLF.monthly.Zone1") nm="Southern.shark_1_Zone1"
+                  if(nm=="TDGDLF.monthly.Zone2") nm="Southern.shark_1_Zone2"
+                  if(nm=="TDGDLF.daily.West") nm="Southern.shark_2_West"
+                  if(nm=="TDGDLF.daily.Zone1") nm="Southern.shark_2_Zone1"
+                  if(nm=="TDGDLF.daily.Zone2") nm="Southern.shark_2_Zone2"
+                  dd=CPUE.zone[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE.zone[[x]]))]%>%
+                    relocate(yr.f)
+                  if(drop.large.CVs)
+                  {
+                    iid=which(dd$CV>MAX.CV)
+                    dd$Mean[iid]=NA
+                    dd$CV[iid]=NA 
+                  }
+                  dd=dd%>%
+                    dplyr::rename(Year=yr.f)%>%
+                    mutate(seas=1,
+                           index.dummy=nm)%>%
+                    left_join(Flits.and.survey.zone,by=c('index.dummy'='Fleet.name'))%>%
+                    mutate(index=Fleet.number)%>%
+                    dplyr::select(-c(index.dummy,Fleet.number))
+                  CPUE.zone[[x]]=dd%>%filter(!is.na(Mean))
                 }
-                dd=dd%>%
-                  dplyr::rename(Year=yr.f)%>%
-                  mutate(seas=1,
-                         index.dummy=nm)%>%
-                  left_join(Flits.and.survey.zone,by=c('index.dummy'='Fleet.name'))%>%
-                  mutate(index=Fleet.number)%>%
-                  dplyr::select(-c(index.dummy,Fleet.number))
-                CPUE.zone[[x]]=dd%>%filter(!is.na(Mean))
+                Abundance.SS.format.zone=do.call(rbind,CPUE.zone)%>%
+                  relocate(Year,seas,index,Mean,CV)%>%
+                  arrange(index,Year)
               }
-              Abundance.SS.format.zone=do.call(rbind,CPUE.zone)%>%
-                                        relocate(Year,seas,index,Mean,CV)%>%
-                                        arrange(index,Year)
+ 
             }
             
             #Scenarios
@@ -1717,39 +1755,73 @@ for(w in 1:n.SS)
               Abund.areas.as.fleets=Abundance.SS.format.zone
               
               #remove daily years  
-              if(!is.na(Scens$Daily.cpues[s]) & 'TDGDLF.daily'%in%names(CPUE))
+              if(!is.na(Scens$Daily.cpues[s]))
               {
-                rid.of=as.numeric(unlist(str_split(Scens$Daily.cpues[s], "&")))
-                #zones combined
-                drop.dis=Abund.single.area%>%
-                  mutate(this=grepl('TDGDLF.daily',rownames(Abund.single.area)) & Year%in%rid.of)
-                if(any(drop.dis$this)) Abund.single.area=Abund.single.area[-which(drop.dis$this),]
-                #by zone
-                drop.dis=Abund.areas.as.fleets%>%
-                  mutate(this=grepl('TDGDLF.daily',rownames(Abund.areas.as.fleets)) & Year%in%rid.of)
-                if(any(drop.dis$this)) Abund.areas.as.fleets=Abund.areas.as.fleets[-which(drop.dis$this),]
+                if('TDGDLF.daily'%in%names(CPUE) | any(grep('TDGDLF.daily',names(CPUE.zone))))
+                {
+                  rid.of=as.numeric(unlist(str_split(Scens$Daily.cpues[s], "&")))
+                  
+                  #zones combined
+                  if(!is.null(Abund.single.area))
+                  {
+                    drop.dis=Abund.single.area%>%
+                      mutate(this=grepl('TDGDLF.daily',rownames(Abund.single.area)) & Year%in%rid.of)
+                    if(any(drop.dis$this)) Abund.single.area=Abund.single.area[-which(drop.dis$this),]
+                  }
+                  
+                  #by zone
+                  if(!is.null(Abund.areas.as.fleets))
+                  {
+                    drop.dis=Abund.areas.as.fleets%>%
+                      mutate(this=grepl('TDGDLF.daily',rownames(Abund.areas.as.fleets)) & Year%in%rid.of)
+                    if(any(drop.dis$this)) Abund.areas.as.fleets=Abund.areas.as.fleets[-which(drop.dis$this),]
+                  }
+                }
               }
               
-                #remove TDGDLF and Survey CPUE
-              if(Neim%in%survey_not.representative & any(grepl("Survey",names(CPUE))) & !(Scens$test.use.cpue[s]=='Yes') )
+              #remove TDGDLF CPUE 
+              if(Scens$CPUE[s]=='No') 
               {
-                drop.dis.rows=grep("Survey",row.names(Abund.single.area))
-                if(length(drop.dis.rows)>0) Abund.single.area=Abund.single.area[-drop.dis.rows,]
-                drop.dis.rows=grep("Survey",row.names(Abund.areas.as.fleets))
-                if(length(drop.dis.rows)>0) Abund.areas.as.fleets=Abund.areas.as.fleets[-drop.dis.rows,]
+                Abund.single.area=Abund.areas.as.fleets=NULL
               }
-              if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE))) & !(Scens$test.use.cpue[s]=='Yes') )
+              if('test.use.cpue'%in%names(Scens[s,]))
               {
-                drop.dis.rows=grep("TDGDLF",row.names(Abund.single.area))
-                if(length(drop.dis.rows)>0) Abund.single.area=Abund.single.area[-drop.dis.rows,]
-                drop.dis.rows=grep("TDGDLF",row.names(Abund.areas.as.fleets))
-                if(length(drop.dis.rows)>0) Abund.areas.as.fleets=Abund.areas.as.fleets[-drop.dis.rows,]
+                if(!(Scens$test.use.cpue[s]=='Yes'))
+                {
+                  if(any(grepl("TDGDLF",names(CPUE))))
+                  {
+                    drop.dis.rows=grep("TDGDLF",row.names(Abund.single.area))
+                    if(length(drop.dis.rows)>0) Abund.single.area=Abund.single.area[-drop.dis.rows,]
+                  }
+                  if(any(grepl("TDGDLF",names(CPUE.zone))))
+                  {
+                    drop.dis.rows=grep("TDGDLF",row.names(Abund.areas.as.fleets))
+                    if(length(drop.dis.rows)>0) Abund.areas.as.fleets=Abund.areas.as.fleets[-drop.dis.rows,] 
+                  }
+                }
+                if(!is.null(Abund.single.area)) if(nrow(Abund.single.area)==0) Abund.single.area=NULL
+                if(!is.null(Abund.areas.as.fleets)) if(nrow(Abund.areas.as.fleets)==0) Abund.areas.as.fleets=NULL
+                
               }
-              if(!is.null(Abund.single.area)) if(nrow(Abund.single.area)==0) Abund.single.area=NULL
-              if(!is.null(Abund.areas.as.fleets)) if(nrow(Abund.areas.as.fleets)==0) Abund.areas.as.fleets=NULL
 
+              #remove Length.comps
+              Size.comp.single.area=Size.compo.SS.format
+              Size.comp.areas.as.fleets=Size.compo.SS.format.zone
+              if(Scens$Length.comps[s]=='No') 
+              {
+                Size.comp.single.area=Size.comp.areas.as.fleets=NULL
+              }
+              
+              #remove Mean.body
+              Meanbodywt.single.area=meanbodywt.SS.format
+              Meanbodywt.areas.as.fleets=meanbodywt.SS.format.zone
+              if(Scens$Mean.body[s]=='No') 
+              {
+                Meanbodywt.single.area=Meanbodywt.areas.as.fleets=NULL
+              }
               
               #use cpue or length comp in likelihood?
+              #note: superseded
               if(Life.history$drop.length.comp)
               {
                 Size.compo.SS.format=NULL
@@ -1806,9 +1878,9 @@ for(w in 1:n.SS)
                   KAtch=ktch
                   FLitinFO=flitinfo                  
                   Abund=Abund.single.area
-                  Size.com=Size.compo.SS.format
+                  Size.com=Size.comp.single.area
                   Size.com_all=dummy.Size.compo.SS.format.all
-                  meanbody=meanbodywt.SS.format
+                  meanbody=Meanbodywt.single.area
                   tags=Tags.SS.format 
                   Var.ad=Var.ad.factr
                   add.future=add.ct.or.F_future
@@ -1820,7 +1892,7 @@ for(w in 1:n.SS)
                                       left_join(FLitinFO%>%dplyr::select(fleetname)%>%mutate(fleet=1:nrow(FLitinFO)),
                                                 by=c('Fishry'='fleetname'))%>%
                                       dplyr::select(-c('SPECIES','Name','Fishry'))%>%
-                                      mutate(seas=1,stderr=0.5)%>%
+                                      mutate(seas=1,stderr=CV.discards)%>%
                                       rename(yr=finyear,
                                              obs=Tonnes)%>%
                                       relocate(yr,seas,fleet,obs,stderr)%>%
@@ -1828,37 +1900,45 @@ for(w in 1:n.SS)
                                       data.frame
                     Length.limit=Life.history$SS_retention$P_5
                     discard.flits=unique(KAtch.ret.disc$fleet)
-                    id.rel.cols=names(Size.com)[grep(paste(c('f','m'),collapse = '|'),names(Size.com))]
-                    id.rel.cols=unique(as.numeric(gsub("[a-zA-Z]", "", subset(id.rel.cols,!id.rel.cols%in%c("Nsamp")))))
-                    from.to=seq(id.rel.cols[which.min(abs(id.rel.cols - Length.limit))],max(id.rel.cols),by=TL.bins.cm)
-                    id.rel.cols=grep(paste(from.to,collapse = '|'),names(Size.com))
-                    id.irrel.cols=grep(paste(names(Size.com)[-c(which(c("year","Seas","Fleet","Sex","Part","Nsamp")%in%
-                                                                        names(Size.com)),id.rel.cols)],collapse = '|'),
-                                       names(Size.com))
-                    Size.com.discards=Size.com%>%filter(Fleet%in%discard.flits)
-                    Size.com=Size.com%>%filter(!Fleet%in%discard.flits)
-                    Size.com.discards_retained=Size.com.discards
-                    Size.com.discards_discarded=Size.com.discards
-                    Size.com.discards_retained[,id.rel.cols]=0
-                    Size.com.discards_retained$Part=2
-                    Size.com.discards_discarded[,id.irrel.cols]=0
-                    Size.com.discards_discarded$Part=1
-                    Size.com.discards=Size.com.discards_retained
-                    drop.yrs=rowSums(Size.com.discards_discarded[,id.rel.cols])
-                    drop.yrs=which(drop.yrs<Min.annual.obs.ktch)
-                    if(length(drop.yrs)>0)
-                    {
-                      Size.com.discards_discarded=Size.com.discards_discarded[-drop.yrs,]
-                    }
-                    if(nrow(Size.com.discards_discarded)>0)
-                    {
-                      Size.com.discards=rbind(Size.com.discards_retained,Size.com.discards_discarded)
-                    }
-                    Size.com=rbind(Size.com,Size.com.discards)%>%
-                      arrange(Fleet,year)
                     
-                    meanbody=meanbody%>%
-                      mutate(part=ifelse(fleet%in%discard.flits,2,part))
+                    if(!is.null(Size.com))
+                    {
+                      id.rel.cols=names(Size.com)[grep(paste(c('f','m'),collapse = '|'),names(Size.com))]
+                      id.rel.cols=unique(as.numeric(gsub("[a-zA-Z]", "", subset(id.rel.cols,!id.rel.cols%in%c("Nsamp")))))
+                      from.to=seq(id.rel.cols[which.min(abs(id.rel.cols - Length.limit))],max(id.rel.cols),by=TL.bins.cm)
+                      id.rel.cols=grep(paste(from.to,collapse = '|'),names(Size.com))
+                      id.irrel.cols=grep(paste(names(Size.com)[-c(which(c("year","Seas","Fleet","Sex","Part","Nsamp")%in%
+                                                                          names(Size.com)),id.rel.cols)],collapse = '|'),
+                                         names(Size.com))
+                      Size.com.discards=Size.com%>%filter(Fleet%in%discard.flits)
+                      Size.com=Size.com%>%filter(!Fleet%in%discard.flits)
+                      Size.com.discards_retained=Size.com.discards
+                      Size.com.discards_discarded=Size.com.discards
+                      Size.com.discards_retained[,id.rel.cols]=0
+                      Size.com.discards_retained$Part=2
+                      Size.com.discards_discarded[,id.irrel.cols]=0
+                      Size.com.discards_discarded$Part=1
+                      Size.com.discards=Size.com.discards_retained
+                      drop.yrs=rowSums(Size.com.discards_discarded[,id.rel.cols])
+                      drop.yrs=which(drop.yrs<Min.annual.obs.ktch)
+                      if(length(drop.yrs)>0)
+                      {
+                        Size.com.discards_discarded=Size.com.discards_discarded[-drop.yrs,]
+                      }
+                      if(nrow(Size.com.discards_discarded)>0)
+                      {
+                        Size.com.discards=rbind(Size.com.discards_retained,Size.com.discards_discarded)
+                      }
+                      Size.com=rbind(Size.com,Size.com.discards)%>%
+                        arrange(Fleet,year)
+                    }
+                    
+                    if(!is.null(meanbody))
+                    {
+                      meanbody=meanbody%>%
+                        mutate(part=ifelse(fleet%in%discard.flits,2,part)) 
+                    }
+
                   }
                 }
                 if(Scens$Spatial[s]=='areas-as-fleets')
@@ -1866,9 +1946,9 @@ for(w in 1:n.SS)
                   KAtch=ktch.zone
                   FLitinFO=flitinfo.zone
                   Abund=Abund.areas.as.fleets
-                  Size.com=Size.compo.SS.format.zone
+                  Size.com=Size.comp.areas.as.fleets
                   Size.com_all=dummy.Size.compo.SS.format.all_zone
-                  meanbody=meanbodywt.SS.format.zone
+                  meanbody=Meanbodywt.areas.as.fleets
                   tags=Tags.SS.format.zone  
                   Var.ad=Var.ad.factr.zone
                   add.future=add.ct.or.F_future.zone
@@ -1880,7 +1960,7 @@ for(w in 1:n.SS)
                                   left_join(FLitinFO%>%dplyr::select(fleetname)%>%mutate(fleet=1:nrow(FLitinFO)),
                                             by=c('Fishry'='fleetname'))%>%
                                   dplyr::select(-c('SPECIES','Name','Fishry'))%>%
-                                  mutate(seas=1,stderr=0.5)%>%
+                                  mutate(seas=1,stderr=CV.discards)%>%
                                   rename(yr=finyear,
                                          obs=Tonnes)%>%
                                   relocate(yr,seas,fleet,obs,stderr)%>%
@@ -1889,37 +1969,44 @@ for(w in 1:n.SS)
                     
                     Length.limit=Life.history$SS_retention$P_5
                     discard.flits=unique(KAtch.ret.disc$fleet)
-                    id.rel.cols=names(Size.com)[grep(paste(c('f','m'),collapse = '|'),names(Size.com))]
-                    id.rel.cols=unique(as.numeric(gsub("[a-zA-Z]", "", subset(id.rel.cols,!id.rel.cols%in%c("Nsamp")))))
-                    from.to=seq(id.rel.cols[which.min(abs(id.rel.cols - Length.limit))],max(id.rel.cols),by=TL.bins.cm)
-                    id.rel.cols=grep(paste(from.to,collapse = '|'),names(Size.com))
-                    id.irrel.cols=grep(paste(names(Size.com)[-c(which(c("year","Seas","Fleet","Sex","Part","Nsamp")%in%
-                                                                        names(Size.com)),id.rel.cols)],collapse = '|'),
-                                       names(Size.com))
-                    Size.com.discards=Size.com%>%filter(Fleet%in%discard.flits)
-                    Size.com=Size.com%>%filter(!Fleet%in%discard.flits)
-                    Size.com.discards_retained=Size.com.discards
-                    Size.com.discards_discarded=Size.com.discards
-                    Size.com.discards_retained[,id.rel.cols]=0
-                    Size.com.discards_retained$Part=2
-                    Size.com.discards_discarded[,id.irrel.cols]=0
-                    Size.com.discards_discarded$Part=1
-                    Size.com.discards=Size.com.discards_retained
-                    drop.yrs=rowSums(Size.com.discards_discarded[,id.rel.cols])
-                    drop.yrs=which(drop.yrs<Min.annual.obs.ktch.zone)
-                    if(length(drop.yrs)>0)
+                    if(!is.null(Size.com))
                     {
-                      Size.com.discards_discarded=Size.com.discards_discarded[-drop.yrs,]
+                      id.rel.cols=names(Size.com)[grep(paste(c('f','m'),collapse = '|'),names(Size.com))]
+                      id.rel.cols=unique(as.numeric(gsub("[a-zA-Z]", "", subset(id.rel.cols,!id.rel.cols%in%c("Nsamp")))))
+                      from.to=seq(id.rel.cols[which.min(abs(id.rel.cols - Length.limit))],max(id.rel.cols),by=TL.bins.cm)
+                      id.rel.cols=grep(paste(from.to,collapse = '|'),names(Size.com))
+                      id.irrel.cols=grep(paste(names(Size.com)[-c(which(c("year","Seas","Fleet","Sex","Part","Nsamp")%in%
+                                                                          names(Size.com)),id.rel.cols)],collapse = '|'),
+                                         names(Size.com))
+                      Size.com.discards=Size.com%>%filter(Fleet%in%discard.flits)
+                      Size.com=Size.com%>%filter(!Fleet%in%discard.flits)
+                      Size.com.discards_retained=Size.com.discards
+                      Size.com.discards_discarded=Size.com.discards
+                      Size.com.discards_retained[,id.rel.cols]=0
+                      Size.com.discards_retained$Part=2
+                      Size.com.discards_discarded[,id.irrel.cols]=0
+                      Size.com.discards_discarded$Part=1
+                      Size.com.discards=Size.com.discards_retained
+                      drop.yrs=rowSums(Size.com.discards_discarded[,id.rel.cols])
+                      drop.yrs=which(drop.yrs<Min.annual.obs.ktch.zone)
+                      if(length(drop.yrs)>0)
+                      {
+                        Size.com.discards_discarded=Size.com.discards_discarded[-drop.yrs,]
+                      }
+                      if(nrow(Size.com.discards_discarded)>0)
+                      {
+                        Size.com.discards=rbind(Size.com.discards_retained,Size.com.discards_discarded)
+                      }
+                      Size.com=rbind(Size.com,Size.com.discards)%>%
+                        arrange(Fleet,year)
                     }
-                    if(nrow(Size.com.discards_discarded)>0)
-                    {
-                      Size.com.discards=rbind(Size.com.discards_retained,Size.com.discards_discarded)
-                    }
-                    Size.com=rbind(Size.com,Size.com.discards)%>%
-                      arrange(Fleet,year)
                     
-                    meanbody=meanbody%>%
-                      mutate(part=ifelse(fleet%in%discard.flits,2,part))
+                    if(!is.null(meanbody))
+                    {
+                      meanbody=meanbody%>%
+                        mutate(part=ifelse(fleet%in%discard.flits,2,part))
+                    }
+
                   }
 
                   

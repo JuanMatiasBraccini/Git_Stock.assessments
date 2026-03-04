@@ -1680,12 +1680,17 @@ TEPS=TEPS%>%
                zone=ifelse(Lat>-33,'West',ifelse(Lat<=(-33)& Long<116.5,'Zone1','Zone2')),
                Kg=ifelse(SPECIES==18003,bwt*(100*mean(Size.comp.Dusky.TEPS_TDGLDF))^awt,
                   ifelse(SPECIES==8001,bwt.grey*mean(Size.comp.Greynurse.TEPS_TDGLDF)^awt.grey,
-                  NA)),
-               LIVEWT.c=ifelse(Status%in%c("D","d"),Kg*Number,
-                        ifelse(Status%in%c("A","a"),Kg*Number*GN,
-                               NA)))%>%
+                  NA)))
+TEPS=TEPS%>%
+      mutate(LIVEWT.c=ifelse(Status%in%c("D","d"),Kg*Number,
+                      ifelse(Status%in%c("A","a"),Kg*Number*GN,
+                      NA)),
+             Discards.n=ifelse(Status%in%c("D","d"),Number,
+                        ifelse(Status%in%c("A","a"),Number*GN,
+                        NA)))%>%
         group_by(FINYEAR,SPECIES,zone)%>%
-        summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T))%>%
+        summarise(LIVEWT.c=sum(LIVEWT.c,na.rm=T),
+                  Discards.n=ceiling(sum(Discards.n,na.rm=T)))%>%
         data.frame
 Greynurse.ktch=TEPS%>%filter(SPECIES==8001)
 TEPS_dusky=TEPS%>%filter(SPECIES==18003)
@@ -2225,6 +2230,8 @@ for(p in 1:length(Prawn.trawl_sawfish))
 }
 fn.out(d=Greynurse.ktch%>%filter(FINYEAR%in%This.fin.yr),NM='recons_Greynurse.ktch.csv')
 fn.out(d=TEPS_dusky%>%filter(FINYEAR%in%This.fin.yr),NM='recons_TEPS_dusky.csv')
+
+
 
   #Wetline in the Western Rock lobster fishery
 WRL.total.ktch$zone=NA
