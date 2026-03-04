@@ -581,23 +581,30 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
   #21.7 Drop single year size comp
 Drop.single.year.size.comp=FALSE
 
-  #21.8 Finyears used for SS tag recaptures
-Use.these.tag.years=list("dusky shark"=1994:1995,
-                         "gummy shark"=1994:1995,
-                         "sandbar shark"=c(2000,2001:2003),   #added 2000
-                         "whiskery shark"=1994:1996)
-use.tag.data=names(Use.these.tag.years) #NULL; use tagging data to estimate F
-tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
-                                  "gummy shark"=c("Zone2"),
-                                  "sandbar shark"=c("West","Zone1"),
-                                  "whiskery shark"=c("West","Zone1","Zone2")),
-                    recaptures=list("dusky shark"=c("West","Zone1","Zone2"),
-                                    "gummy shark"=c("Zone2"),
-                                    "sandbar shark"=c("West","Zone1"),  
-                                    "whiskery shark"=c("West","Zone1","Zone2")))
+  #21.8 Finyears used for SS tag recaptures  
+Min.annual.zone.releases=50 #minimum number of observations per released zone-year tags
+Use.these.tag.year_zones=list("dusky shark"=NULL,
+                              "gummy shark"=NULL,
+                              "sandbar shark"=NULL,   
+                              "whiskery shark"=NULL)
+No.reporting.rate=list("sandbar shark"='Zone2')
+# Use.these.tag.years=list("dusky shark"=1994:1995,
+#                          "gummy shark"=1994:1995,
+#                          "sandbar shark"=c(2000,2001:2003),   
+#                          "whiskery shark"=1994:1996)
+use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
+# tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
+#                                   "gummy shark"=c("Zone2"),
+#                                   "sandbar shark"=c("West","Zone1"),
+#                                   "whiskery shark"=c("West","Zone1","Zone2")),
+#                     recaptures=list("dusky shark"=c("West","Zone1","Zone2"),
+#                                     "gummy shark"=c("Zone2"),
+#                                     "sandbar shark"=c("West","Zone1"),  
+#                                     "whiskery shark"=c("West","Zone1","Zone2")))
 taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
 set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
 
+  #21.9 Indo IUU
 Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
 Min.tons.Indo=50 # Indo IUU - F estimation and test of catch recons based on Apprehension for species with at least Min.tons.Indo
 estim.F.INDO=FALSE     #Indo IUU - F estimation. Didn't work (see reply to Andre's suggestion)
@@ -614,7 +621,7 @@ Indo_F_Method=4 # 3 standard hybrid; 4 used for estim F and vermillion snapper
 Indo.years.cpue=2000:max(indo.unknown.catch.years)
 add.minus.999.to.INDO=FALSE  #add -999 before start of Indo catch
 
-  #21.9 Fit diagnostics
+  #21.10 Fit diagnostics
 if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
 if(SS3.run=='test') do.SS3.diagnostics=FALSE   
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
@@ -1655,7 +1662,30 @@ for(s in 1:N.sp)
         ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                      capitalize(names(Species.data)[s]),"/",AssessYr,'/1_Inputs/Visualise data/Tags by zone_bubbleplot.tiff',sep=''),
                width = 10,height = 6, dpi = 300, compression = "lzw")
+        
+        Tabl=Species.data[[s]]$Con_tag_SS.format_releases%>%
+                              group_by(Rel.zone,Yr.rel,Age)%>%
+                              summarise(N.release=sum(N.release))%>%
+                              spread(Yr.rel, N.release,fill='')
+        my_table_plot=grid.arrange(tableGrob(Tabl))
+        ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                     capitalize(names(Species.data)[s]),"/",AssessYr,'/1_Inputs/Visualise data/Tags by release zone, year and age.tiff',sep=''),
+               plot = my_table_plot, width = 10, height = 11, dpi = 300)
+
       }
+      
+      #Extract relevant zones and years  
+      Tabl=Species.data[[s]]$Con_tag_SS.format_releases%>%
+                       group_by(Rel.zone,Yr.rel)%>%
+                       summarise(N.release=sum(N.release))%>%
+                      filter(N.release>=Min.annual.zone.releases)
+      id.x=match(names(Species.data)[s],names(No.reporting.rate))
+      if(!is.na(id.x))
+      {
+        no.rp.rate=No.reporting.rate[[id.x]]
+        Tabl=Tabl%>%filter(!Rel.zone%in%no.rp.rate)
+      }
+      Use.these.tag.year_zones[[names(Species.data)[s]]]=unique(paste(Tabl$Yr.rel,Tabl$Rel.zone))
     }
   }
 }

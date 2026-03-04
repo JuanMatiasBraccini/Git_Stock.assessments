@@ -1173,16 +1173,19 @@ for(w in 1:n.SS)
             recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
                           filter(Yr.rec<=Last.yr.ktch.numeric)
             
-            #Keep relevant finyears
-            dis.yrs.tag=Use.these.tag.years[[match(names(Species.data)[i],names(Use.these.tag.years))]]
-            releases=releases%>%filter(Yr.rel%in%dis.yrs.tag)
+            #Keep relevant finyear zones
+            dis.yrs.tag=Use.these.tag.year_zones[[match(names(Species.data)[i],names(Use.these.tag.year_zones))]]
+            releases=releases%>%
+                      mutate(dummy=paste(Yr.rel,Rel.zone))%>%
+                      filter(dummy%in%dis.yrs.tag)%>%
+                      dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
             
-            #Keep relevant zones
-            this.zone=tag.data.zones$releases[[match(names(Species.data)[1],names(tag.data.zones$releases))]]
-            releases=releases%>%filter(Rel.zone%in%this.zone)
-            recaptures=recaptures%>%filter(Rec.zone%in%this.zone)
-            
+            # #Keep relevant zones
+            # this.zone=tag.data.zones$releases[[match(names(Species.data)[1],names(tag.data.zones$releases))]]
+            # releases=releases%>%filter(Rel.zone%in%this.zone)
+            # recaptures=recaptures%>%filter(Rec.zone%in%this.zone)
+             
             #Allocate West, Zone1 and Zone 2 to Southern 1 or 2
             releases=releases%>%
               mutate(Rel.zone=case_when(Yr.rel<=2005 ~'Southern.shark_1',
@@ -1300,7 +1303,8 @@ for(w in 1:n.SS)
             get.fleet1=get.fleet1%>%dplyr::select(-dummy)%>%mutate(Yr.rec=as.numeric(Yr.rec))
             Initial.reporting.rate=Initial.reporting.rate%>%
               left_join(get.fleet1,
-                        by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))
+                        by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))%>%
+              filter(!is.na(Reporting))
             Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
             
             Tags.SS.format=list(
@@ -1330,15 +1334,19 @@ for(w in 1:n.SS)
             recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
               filter(Yr.rec<=Last.yr.ktch.numeric)
             
-            #Keep relevant finyears
-            dis.yrs.tag=Use.these.tag.years[[match(names(Species.data)[i],names(Use.these.tag.years))]]
-            releases=releases%>%filter(Yr.rel%in%dis.yrs.tag)
+            #Keep relevant finyear zones
+            dis.yrs.tag=Use.these.tag.year_zones[[match(names(Species.data)[i],names(Use.these.tag.year_zones))]]
+            releases=releases%>%
+                      mutate(dummy=paste(Yr.rel,Rel.zone))%>%
+                      filter(dummy%in%dis.yrs.tag)%>%
+                      dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
             
-            #Keep relevant zones
-            this.zone=tag.data.zones$releases[[match(names(Species.data)[1],names(tag.data.zones$releases))]]
-            releases=releases%>%filter(Rel.zone%in%this.zone)
-            recaptures=recaptures%>%filter(Rec.zone%in%this.zone)
+            
+            # #Keep relevant zones
+            # this.zone=tag.data.zones$releases[[match(names(Species.data)[1],names(tag.data.zones$releases))]]
+            # releases=releases%>%filter(Rel.zone%in%this.zone)
+            # recaptures=recaptures%>%filter(Rec.zone%in%this.zone)
             
             #Recalculate TagGroup
             releases=releases%>%
@@ -1447,7 +1455,8 @@ for(w in 1:n.SS)
             get.fleet1=get.fleet1%>%dplyr::select(-dummy)%>%mutate(Yr.rec=as.numeric(Yr.rec))
             Initial.reporting.rate=Initial.reporting.rate%>%
               left_join(get.fleet1,
-                        by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))
+                        by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))%>%
+              filter(!is.na(Reporting))
             Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
             
             Tags.SS.format.zone=list(
@@ -2284,7 +2293,7 @@ for(w in 1:n.SS)
                   id.survey=match('Survey',FLitinFO$fleetname)
                   if(!is.na(id.survey)) Size.com=Size.com%>%filter(!(Fleet==id.survey & year%in%c(2001,2002)))
                 }
-                if(Neim=="gummy shark") # dodgy sampling trips 
+                if(Neim=="gummy shark" & !is.null(Size.com)) # dodgy sampling trips 
                 {
                   id.flit=match('Southern.shark_1_Zone1',FLitinFO$fleetname)
                   if(!is.na(id.flit)) Size.com=Size.com%>%filter(!(Fleet==id.flit & year%in%c(1994)))
