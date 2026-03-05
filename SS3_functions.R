@@ -1244,7 +1244,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
         ddumy[id.FleeT,'Special']=ddumy$Fleet[id.FleeT.mimic]
         
         #remove the length comp from that fishery
-        dat$lencomp=dat$lencomp%>%filter(!Fleet%in%id.FleeT)
+        if(!is.null(dat$lencomp)) dat$lencomp=dat$lencomp%>%filter(!Fleet%in%id.FleeT)
       }
     }
     
@@ -1354,7 +1354,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
                      Special=ifelse(fleetname=='Other',0,Special))
     }
     
-    #turn on Southern2 if mean.weight of length comp data  
+    #turn on Southern2 if mean.weight or length comp data  
     if(any(grepl('Southern.shark_2',rownames(ddumy))))
     {
       id.Southern.shark2.fleet=grep('Southern.shark_2',fleetinfo$fleetname)
@@ -1648,25 +1648,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       }
 
     }
-    # if(isTRUE(life.history$fit.Southern.shark_2.to.meanbodywt) & !is.null(meanbodywt))
-    # {
-    #   id.South2=match(paste('SizeSel',colnames(life.history$SS_selectivity_phase)[-1],'Southern.shark_2',sep='_'),rownames(ctl$size_selex_parms))
-    #   ctl$size_selex_parms[id.South2,'PHASE']=unlist(life.history$SS_selectivity_phase%>%filter(Fleet=='Southern.shark_2')%>%dplyr::select(-Fleet))
-    #   
-    # }
-    # if(any(is.null(abundance) | life.history$Name=="spinner shark"))   #fixed most sel pars if no abundance (SS-CL)  
-    # {
-    #   if(life.history$Name=="spinner shark")
-    #   {
-    #     ctl$size_selex_parms$PHASE=-abs(ctl$size_selex_parms$PHASE)
-    #     ctl$size_selex_parms$PHASE[grep('P_3_Southern.shark_1',rownames(ctl$size_selex_parms))]=2
-    #   }
-    # }
-    # if(life.history$Name=="whiskery shark")
-    # {
-    #   ctl$size_selex_parms$PHASE[grep('P_2_Southern.shark',rownames(ctl$size_selex_parms))]=-4
-    # }
-    
+
       #turn on Southern.shark_1 if available meanbodywt (because Southern.shark_2 mirrors Southern.shark_1) 
     if(!is.null(meanbodywt) & !is.null(size.comp))
     {
@@ -2016,30 +1998,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       ctl$age_selex_types=add_row(ctl$age_selex_types,indo.fleet, .after = flit.numb%>%filter(fleetname=='Other')%>%pull(Fleet.n))
       row.names(ctl$age_selex_types)[flit.numb%>%filter(fleetname=='Indo.IUU')%>%pull(Fleet.n)]='Indo.IUU'
     }
-    # ddumy=ctl$age_selex_types%>%
-    #   rownames_to_column('fleetname')%>%
-    #   mutate(fleetname=ifelse(fleetname=='Southern.shark_monthly','Southern.shark_1',
-    #                           ifelse(fleetname=='Southern.shark_daily','Southern.shark_2',
-    #                                  fleetname)))%>%
-    #   filter(fleetname%in%dis.flits)%>%
-    #   mutate(Fleet=row_number())
-    # rownames(ddumy)=ddumy$fleetname
-    # ddumy$Pattern=life.history$age_selex_pattern
-    # idd=rownames(ctl$size_selex_types)[which(!rownames(ctl$size_selex_types)%in%rownames(ddumy))]
-    # if(length(idd>0))
-    # {
-    #   add=ddumy[1:length(idd),]%>%mutate(Fleet=match(idd,rownames(ctl$size_selex_types)))
-    #   rownames(add)=idd
-    #   ddumy=rbind(ddumy,add)%>%arrange(Fleet)
-    # }
-    # ctl$age_selex_types=ddumy%>%dplyr::select(-fleetname,-Fleet)
-    # if(!is.null(F.tagging))
-    # {
-    #   F.age.sel.pat=ctl$age_selex_types[match('Southern.shark_2',rownames(ctl$age_selex_types)),]
-    #   rownames(F.age.sel.pat)=F.fleet
-    #   ctl$age_selex_types=rbind(ctl$age_selex_types,F.age.sel.pat)
-    # }  
-    
+
     #Block pattern - time changing selectivity (must estimate the par)
     if((!life.history$Nblock_Patterns==0 & ctl$time_vary_auto_generation[5]==0)|
        ('timevary_selex_parameters'%in%names(life.history)))
@@ -2133,9 +2092,16 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
                                  'env_var&link'=0, dev_link=0, dev_minyr=0, dev_maxyr=0, dev_PH=0, Block=0, Block_Fxn=0)
     rownames(ctl$TG_Report_fleet)=paste0('TG_report_fleet_par',seq(1,N.flits.tag))
     ctl$TG_Report_fleet$INIT[Tags$Initial.reporting.rate$Fleet]=round(Tags$Initial.reporting.rate$Reporting,3)
-    
+    TG_decay=Tags$Reporting.rate.decay
+    if(is.numeric(TG_decay)) TG_decay=round(TG_decay,3)
+    if(class(TG_decay)=="data.frame")
+    {
+      dumi.tg.dky=rep(0,N.flits.tag)
+      dumi.tg.dky[TG_decay$Fleet]=TG_decay$decay   
+      TG_decay=dumi.tg.dky
+    }
     ctl$TG_Report_fleet_decay=dummy.tg.matrx[seq(1,N.flits.tag),]%>%
-                                  mutate(INIT=round(Tags$Reporting.rate.decay,3),  
+                                  mutate(INIT=TG_decay,  
                                          LO=-10,
                                          HI=10,
                                          PRIOR=INIT,
@@ -3856,6 +3822,10 @@ fn.SS3.discard.mort=function(p1,p2,p3,p4,len.vec)
   discard.mort=1-((1-p3)/(1+exp(-(len.vec-(p1+p4))/p2)))
   
   return(list(discard.mort=discard.mort,len.vec=len.vec))
+}
+fn.SS3.tag.reporting.rate=function(init.rep.rate,exp.decay.rate,time)
+{
+  return(init.rep.rate*exp(-exp.decay.rate*time))
 }
 
 

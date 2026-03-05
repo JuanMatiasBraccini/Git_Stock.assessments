@@ -1305,20 +1305,67 @@ for(w in 1:n.SS)
               left_join(get.fleet1,
                         by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))%>%
               filter(!is.na(Reporting))
-            Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
+            if(estimate.tag.report.decay)
+            {
+              rep.dec.flit=sort(unique(Initial.reporting.rate$Fleet))
+              Rep.decay=vector('list',length(rep.dec.flit))
+              Rep.decay_p=Rep.decay
+              for(re in 1:length(Rep.decay))
+              {
+                d.init.rep=Initial.reporting.rate%>%
+                  filter(Fleet==rep.dec.flit[re])%>%
+                  arrange(Finyear)%>%
+                  mutate(time=Finyear-Finyear[1])
+                diKay=0  
+                if(nrow(d.init.rep)>1)
+                {
+                  Init.rep=d.init.rep$Reporting[1]
+                  fit_nls <- nls(Reporting ~ Init.rep * exp(-k * time), 
+                                 data = d.init.rep, 
+                                 start = list(k = 0.01))
+                  diKay=max(0,round(coef(fit_nls),4))
+                }
+                Rep.decay[[re]]=data.frame(Fleet=rep.dec.flit[re],decay=diKay)
+                Rep.decay_p[[re]]=ggplot(data=d.init.rep,aes(Finyear,Reporting))+
+                  geom_point(size=3)+
+                  ylim(0,1)+
+                  geom_line(data=data.frame(Finyear=d.init.rep$Finyear,
+                                            Reporting=fn.SS3.tag.reporting.rate(init.rep.rate=d.init.rep$Reporting[1],exp.decay.rate=diKay,time=d.init.rep$time)),
+                            aes(Finyear,Reporting),color=2,linewidth = 2)+
+                  theme_PA()+
+                  ggtitle(paste0('Fleet ',rep.dec.flit[re],' (',unique(d.init.rep$Zone),' decay=',diKay,')'))
+                
+              }
+              Reporting.rate.decay=do.call(rbind,Rep.decay)
+              if(First.run=='YES')
+              {
+                ggarrange(plotlist=Rep.decay_p,ncol=1,nrow=length(Rep.decay_p))
+                ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                             capitalize(List.sp[[i]]$Name),"/",AssessYr,"/1_Inputs/Visualise data/Tagging_report rate decay_single.area.tiff",sep=''),
+                       width = 6,height = 8,compression = "lzw")
+              }
+            }
+            if(!estimate.tag.report.decay) Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
+            
+            if(logit.transform.tag.pars)   
+            {
+              Initial.tag.loss=fn.inv.logit(Initial.tag.loss)
+              Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss)
+              Initial.reporting.rate=Initial.reporting.rate%>%
+                                      dplyr::select(-Reporting)%>%
+                                      rename(Reporting=Reporting.logit)
+            }
             
             Tags.SS.format=list(
                               releases=releases%>%data.frame,
                               recaptures=recaptures%>%data.frame,
-                              Initial.tag.loss=fn.inv.logit(Initial.tag.loss),
-                              Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
+                              Initial.tag.loss=Initial.tag.loss,   #NEW
+                              Chronic.tag.loss=Chronic.tag.loss,   #NEW
                               Initial.reporting.rate=Initial.reporting.rate%>%
-                                filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))])%>%
-                                dplyr::select(-Reporting)%>%
-                                rename(Reporting=Reporting.logit),
+                                          filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),   #NEW
                               Reporting.rate.decay=Reporting.rate.decay,
                               overdispersion=1.001,       # Andre's Gummy model
-                              mixing_latency_period=1, # Andre's Gummy model set at 0 but this yields worse fit
+                              mixing_latency_period=SS_mixing_latency_period, 
                               max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
             
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
@@ -1457,20 +1504,68 @@ for(w in 1:n.SS)
               left_join(get.fleet1,
                         by=c('Zone'='Rec.zone','Finyear'='Yr.rec'))%>%
               filter(!is.na(Reporting))
-            Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
+            if(estimate.tag.report.decay)
+            {
+              rep.dec.flit=sort(unique(Initial.reporting.rate$Fleet))
+              Rep.decay=vector('list',length(rep.dec.flit))
+              Rep.decay_p=Rep.decay
+              for(re in 1:length(Rep.decay))
+              {
+                d.init.rep=Initial.reporting.rate%>%
+                  filter(Fleet==rep.dec.flit[re])%>%
+                  arrange(Finyear)%>%
+                  mutate(time=Finyear-Finyear[1])
+                diKay=0  
+                if(nrow(d.init.rep)>1)
+                {
+                  Init.rep=d.init.rep$Reporting[1]
+                  fit_nls <- nls(Reporting ~ Init.rep * exp(-k * time), 
+                                 data = d.init.rep, 
+                                 start = list(k = 0.01))
+                  diKay=max(0,round(coef(fit_nls),4))
+                }
+                
+                Rep.decay[[re]]=data.frame(Fleet=rep.dec.flit[re],decay=diKay)
+                Rep.decay_p[[re]]=ggplot(data=d.init.rep,aes(Finyear,Reporting))+
+                  geom_point(size=3)+
+                  ylim(0,1)+
+                  geom_line(data=data.frame(Finyear=d.init.rep$Finyear,
+                                            Reporting=fn.SS3.tag.reporting.rate(init.rep.rate=d.init.rep$Reporting[1],exp.decay.rate=diKay,time=d.init.rep$time)),
+                            aes(Finyear,Reporting),color=2,linewidth = 2)+
+                  theme_PA()+
+                  ggtitle(paste0('Fleet ',rep.dec.flit[re],' (',unique(d.init.rep$Zone),' decay=',diKay,')'))
+                
+              }
+              Reporting.rate.decay=do.call(rbind,Rep.decay)
+              if(First.run=='YES')
+              {
+                ggarrange(plotlist=Rep.decay_p,ncol=1,nrow=length(Rep.decay_p))
+                ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                             capitalize(List.sp[[i]]$Name),"/",AssessYr,"/1_Inputs/Visualise data/Tagging_report rate decay_area.as.fleets.tiff",sep=''),
+                       width = 6,height = 8,compression = "lzw")
+              }
+            }
+            if(!estimate.tag.report.decay) Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
+            
+            if(logit.transform.tag.pars)   
+            {
+              Initial.tag.loss=fn.inv.logit(Initial.tag.loss)
+              Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss)
+              Initial.reporting.rate=Initial.reporting.rate%>%
+                                      dplyr::select(-Reporting)%>%
+                                      rename(Reporting=Reporting.logit)
+            }
             
             Tags.SS.format.zone=list(
                                   releases=releases%>%data.frame,
                                   recaptures=recaptures%>%data.frame,
-                                  Initial.tag.loss=fn.inv.logit(Initial.tag.loss),
-                                  Chronic.tag.loss=fn.inv.logit(Chronic.tag.loss),
+                                  Initial.tag.loss=Initial.tag.loss,   
+                                  Chronic.tag.loss=Chronic.tag.loss,   
                                   Initial.reporting.rate=Initial.reporting.rate%>%
-                                    filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))])%>%
-                                    dplyr::select(-Reporting)%>%
-                                    rename(Reporting=Reporting.logit),
+                                          filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),
                                   Reporting.rate.decay=Reporting.rate.decay,
                                   overdispersion=1.001,       # Andre's Gummy model
-                                  mixing_latency_period=1, # Andre's Gummy model set at 0 but this yields worse fit 
+                                  mixing_latency_period=SS_mixing_latency_period, 
                                   max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
                                 
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)

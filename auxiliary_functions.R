@@ -19,6 +19,17 @@ objects.exist <- function(...)
   ls <- list(...)
   sapply(ls, exists)
 }
+fn.get.obs.max.FL=function(d)
+{
+  indxx=grep('Size_composition',names(d))
+  indxx=subset(indxx,!indxx%in%grep('Observations',names(d)))
+  d=d[indxx]
+  x=do.call(rbind,d)%>%
+    filter(!is.na(SEX))%>%
+    group_by(SEX)%>%
+    summarise(MAX.FL=max(FL,na.rm=T))
+  return(x)
+}
 fn.add.fleet.zone.sel=function(d,x,y)
 {
   d=d%>%filter(Fleet==x)

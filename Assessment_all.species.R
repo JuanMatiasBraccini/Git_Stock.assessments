@@ -582,17 +582,21 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
 Drop.single.year.size.comp=FALSE
 
   #21.8 Finyears used for SS tag recaptures  
-Min.annual.zone.releases=50 #minimum number of observations per released zone-year tags
+Min.annual.zone.releases=50 #minimum number of observations per released year-zone to be used in assessment
 Use.these.tag.year_zones=list("dusky shark"=NULL,
                               "gummy shark"=NULL,
                               "sandbar shark"=NULL,   
                               "whiskery shark"=NULL)
-No.reporting.rate=list("sandbar shark"='Zone2')
+use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
+No.reporting.rate=list("sandbar shark"='Zone2')     #zones for which reporting rate not available
+Drop.yrs.no.reporting.rate=TRUE  #FALSE to keep those years and set to average
+estimate.tag.report.decay=TRUE    #estimate tag reporting decay from data and use this in model
+logit.transform.tag.pars=FALSE  #TRUE if want to pass to SS transformed
 # Use.these.tag.years=list("dusky shark"=1994:1995,
 #                          "gummy shark"=1994:1995,
 #                          "sandbar shark"=c(2000,2001:2003),   
 #                          "whiskery shark"=1994:1996)
-use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
+#use.tag.data=names(Use.these.tag.years) 
 # tag.data.zones=list(releases=list("dusky shark"=c("West","Zone1","Zone2"),
 #                                   "gummy shark"=c("Zone2"),
 #                                   "sandbar shark"=c("West","Zone1"),
@@ -602,6 +606,8 @@ use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate
 #                                     "sandbar shark"=c("West","Zone1"),  
 #                                     "whiskery shark"=c("West","Zone1","Zone2")))
 taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
+SS_mixing_latency_period=1  #0, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
+
 set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
 
   #21.9 Indo IUU
@@ -1542,8 +1548,9 @@ for(s in 1:N.sp)
 }
 
   #6.12 Conventional tagging manipulations
-#note: Data are already aggregated by financial year; just remove tagging data not in SS format
-#      Assume whiskery and gummy same non-reporting rates as dusky shark
+#note:  Source for reporting rate and shedding: McAuley et al 2007 A method...
+#       Data are already aggregated by financial year; just remove tagging data not in SS format
+#      Assuming that whiskery and gummy sharks have same non-reporting rates and shedding as dusky shark
 for(s in 1:N.sp)
 {
   if("Con_tag_SS.format_releases"%in%names(Species.data[[s]]))
@@ -1685,6 +1692,11 @@ for(s in 1:N.sp)
         no.rp.rate=No.reporting.rate[[id.x]]
         Tabl=Tabl%>%filter(!Rel.zone%in%no.rp.rate)
       }
+      if(Drop.yrs.no.reporting.rate)  
+      {
+        yrs.with.report.rate=unique(unique(Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_$Finyear))
+        Tabl=Tabl%>%filter(Yr.rel%in%yrs.with.report.rate)  
+      }
       Use.these.tag.year_zones[[names(Species.data)[s]]]=unique(paste(Tabl$Yr.rel,Tabl$Rel.zone))
     }
   }
@@ -1725,6 +1737,16 @@ if(First.run=="YES")
   ggsave(handl_OneDrive('Analyses/Population dynamics/mesh prop effort.tiff'),
          width = 6,height = 6, dpi = 300, compression = "lzw")
   
+}
+
+  #6.15 Extract maximum observed fork length
+if(First.run=="YES")
+{
+  Observed.max.FL=vector('list',length=N.sp)
+  for(s in 1:N.sp) Observed.max.FL[[s]]=fn.get.obs.max.FL(d=Species.data[[s]])%>%mutate(Species=names(Species.data)[s]) 
+  Observed.max.FL=do.call(rbind,Observed.max.FL)%>%
+                    spread(SEX,MAX.FL)
+  print(Observed.max.FL)
 }
 
 #---7. Create list of life history parameter inputs -----
