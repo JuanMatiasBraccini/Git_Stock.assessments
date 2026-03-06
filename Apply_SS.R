@@ -1298,7 +1298,17 @@ for(w in 1:n.SS)
                        Fleet=NA)
               get.fleet1=rbind(get.fleet1,ad.get.flit)%>%
                 arrange(Rec.zone,Yr.rec)%>%
-                fill(Fleet, .direction = "up")
+                fill(Fleet, .direction = "down") 
+              
+              get.fleet1=get.fleet1%>%  
+                left_join(a1%>%
+                            mutate(finyear=as.character(finyear))%>%
+                            distinct(finyear,zone,Fleet.ID),
+                          by=c('Yr.rec'='finyear','Rec.zone'='zone'))%>%
+                mutate(Fleet=case_when(!is.na(Fleet.ID) & !Fleet==Fleet.ID~Fleet.ID,
+                                       !is.na(Fleet.ID) & is.na(Fleet)~Fleet.ID,
+                                       TRUE~Fleet))%>%
+                dplyr::select(-Fleet.ID)
             }
             get.fleet1=get.fleet1%>%dplyr::select(-dummy)%>%mutate(Yr.rec=as.numeric(Yr.rec))
             Initial.reporting.rate=Initial.reporting.rate%>%
@@ -1344,6 +1354,11 @@ for(w in 1:n.SS)
                              capitalize(List.sp[[i]]$Name),"/",AssessYr,"/1_Inputs/Visualise data/Tagging_report rate decay_single.area.tiff",sep=''),
                        width = 6,height = 8,compression = "lzw")
               }
+              if(pass.rep.rate.decay.negative)
+              {
+                Reporting.rate.decay=Reporting.rate.decay%>%
+                  mutate(decay=ifelse(decay>0,-decay,decay))
+              }
             }
             if(!estimate.tag.report.decay) Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
             
@@ -1359,14 +1374,14 @@ for(w in 1:n.SS)
             Tags.SS.format=list(
                               releases=releases%>%data.frame,
                               recaptures=recaptures%>%data.frame,
-                              Initial.tag.loss=Initial.tag.loss,   #NEW
-                              Chronic.tag.loss=Chronic.tag.loss,   #NEW
+                              Initial.tag.loss=Initial.tag.loss,   
+                              Chronic.tag.loss=Chronic.tag.loss,   
                               Initial.reporting.rate=Initial.reporting.rate%>%
                                           filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),   #NEW
                               Reporting.rate.decay=Reporting.rate.decay,
-                              overdispersion=1.001,       # Andre's Gummy model
+                              overdispersion=SS_overdispersion,       # Andre's Gummy model
                               mixing_latency_period=SS_mixing_latency_period, 
-                              max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
+                              max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*Extend.mx.period))    
             
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
           }
@@ -1497,7 +1512,17 @@ for(w in 1:n.SS)
                        Fleet=NA)
               get.fleet1=rbind(get.fleet1,ad.get.flit)%>%
                 arrange(Rec.zone,Yr.rec)%>%
-                fill(Fleet, .direction = "up")
+                fill(Fleet, .direction = "down") 
+              
+              get.fleet1=get.fleet1%>%  
+                left_join(a1%>%
+                            mutate(finyear=as.character(finyear))%>%
+                            distinct(finyear,zone,Fleet.ID),
+                          by=c('Yr.rec'='finyear','Rec.zone'='zone'))%>%
+                mutate(Fleet=case_when(!is.na(Fleet.ID) & !Fleet==Fleet.ID~Fleet.ID,
+                                       !is.na(Fleet.ID) & is.na(Fleet)~Fleet.ID,
+                                       TRUE~Fleet))%>%
+                dplyr::select(-Fleet.ID)
             }
             get.fleet1=get.fleet1%>%dplyr::select(-dummy)%>%mutate(Yr.rec=as.numeric(Yr.rec))
             Initial.reporting.rate=Initial.reporting.rate%>%
@@ -1544,6 +1569,11 @@ for(w in 1:n.SS)
                              capitalize(List.sp[[i]]$Name),"/",AssessYr,"/1_Inputs/Visualise data/Tagging_report rate decay_area.as.fleets.tiff",sep=''),
                        width = 6,height = 8,compression = "lzw")
               }
+              if(pass.rep.rate.decay.negative)
+              {
+                Reporting.rate.decay=Reporting.rate.decay%>%
+                  mutate(decay=ifelse(decay>0,-decay,decay))
+              }
             }
             if(!estimate.tag.report.decay) Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
             
@@ -1564,9 +1594,9 @@ for(w in 1:n.SS)
                                   Initial.reporting.rate=Initial.reporting.rate%>%
                                           filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),
                                   Reporting.rate.decay=Reporting.rate.decay,
-                                  overdispersion=1.001,       # Andre's Gummy model
+                                  overdispersion=SS_overdispersion,       # Andre's Gummy model
                                   mixing_latency_period=SS_mixing_latency_period, 
-                                  max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*1.5))  # 30 Andre's Gummy model  
+                                  max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*Extend.mx.period))  # 30 Andre's Gummy model  
                                 
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
           }
@@ -2369,13 +2399,13 @@ for(w in 1:n.SS)
                 {
                   #Ramp
                   Life.history$recdev_early_start=2
-                  Life.history$MainRdevYrFirst=1989
+                  Life.history$MainRdevYrFirst=min(KAtch$finyear)
                   Life.history$SR_sigmaR=0.2
                   Life.history$RecDev_Phase=3
-                  Life.history$last_early_yr_nobias_adj_in_MPD=1993
-                  Life.history$first_yr_fullbias_adj_in_MPD=1999
-                  Life.history$last_yr_fullbias_adj_in_MPD=2019
-                  Life.history$first_recent_yr_nobias_adj_in_MPD=2021
+                  Life.history$last_early_yr_nobias_adj_in_MPD=min(KAtch$finyear)+20
+                  Life.history$first_yr_fullbias_adj_in_MPD=min(KAtch$finyear)+30
+                  Life.history$last_yr_fullbias_adj_in_MPD=Last.yr.ktch.numeric-2    
+                  Life.history$first_recent_yr_nobias_adj_in_MPD=Last.yr.ktch.numeric
                   Life.history$max_bias_adj_in_MPD=0.8
                   
                   #Comps variance adjustment
@@ -2489,9 +2519,10 @@ for(w in 1:n.SS)
                 rm(Report)
               }
                 #run this to tune model and calculate RAMP years
+              #note: var adjust and ramp already rest in '#a.5 need to reset rec pars for tuning'
               if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
-                #tune ramp years (blue and red lines should match)
+                 #tune ramp years (blue and red lines should match)
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=Where.exe,
                           args='')
