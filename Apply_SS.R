@@ -2409,7 +2409,7 @@ for(w in 1:n.SS)
                   Life.history$max_bias_adj_in_MPD=0.8
                   
                   #Comps variance adjustment
-                  Var.ad.factr=Var.ad.factr.zone=NULL
+                  Var.ad=NULL
                 }
                 
                 #a.6 remove 2001 and 2002 from survey as too many juveniles, shots done all over the place
