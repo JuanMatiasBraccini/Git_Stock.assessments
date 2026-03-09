@@ -441,7 +441,7 @@ SS3.run='final' #'test'     # switch to 'final' when model fitting is finalised 
 create.SS.inputs=TRUE       #set to FALSE once happy with SS input files and only need to run the model
 run_SS_plots=FALSE          #set to TRUE once happy with model and want to plot outputs
 if(SS3.run=='final') run_SS_plots=TRUE
-Calculate.ramp.years=FALSE  #switch to TRUE if new year of size composition available
+if(First.run=="YES") Calculate.ramp.years=FALSE  #switch to YES first time new assessment
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
                                   # for all 4 species observations were collected over multiple years
@@ -589,14 +589,14 @@ Use.these.tag.year_zones=list("dusky shark"=NULL,
                               "whiskery shark"=NULL)
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
 No.reporting.rate=list("sandbar shark"='Zone2')     #zones for which reporting rate not available
-Drop.yrs.no.reporting.rate=FALSE  #FALSE to keep years with no reporting rate and set to first (needed to have enough tags)
+Drop.yrs.no.reporting.rate=TRUE  #set to FALSE to keep years with no reporting rate
 estimate.tag.report.decay=TRUE    #estimate tag reporting decay from data and use this in model
 pass.rep.rate.decay.negative=TRUE  #must be input as <0 into SS
 logit.transform.tag.pars=TRUE  #input into control file as inverse logit. SS transform back.
 taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
 SS_overdispersion=1.001    #1.001 approx NB to Poisson (mean=variance).  Andre's Gummy model
 SS_mixing_latency_period=0  #0, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
-Extend.mx.period=1   #number of years to extend #_max_periods. Andre gummy set at 30 years
+Extend.mx.period=1.5   #multiplier of max_periods. Andre gummy set at 30 years
 Manual.selection.tags=list(Use.these.tag.years=list("dusky shark"=1994:1995,"gummy shark"=1994:1995,
                                                     "sandbar shark"=c(2000,2001:2003),"whiskery shark"=1994:1996),
                            releases=list("dusky shark"=c("West","Zone1","Zone2"),

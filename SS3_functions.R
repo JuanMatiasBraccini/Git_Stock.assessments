@@ -932,22 +932,24 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
     ctl$max_bias_adj=0.8
     ctl$min_rec_dev=-1
     ctl$max_rec_dev=abs(ctl$min_rec_dev)
-    ctl$MainRdevYrFirst=life.history$MainRdevYrFirst  
+    ctl$MainRdevYrFirst=life.history$MainRdevYrFirst
+    ctl$MainRdevYrLast=life.history$MainRdevYrLast
+    
     if(is.null(size.comp) & !is.null(abundance))
     {
-      ctl$MainRdevYrLast=max(abundance$Year)
       ctl$last_early_yr_nobias_adj=min(abundance$Year)-1
       ctl$first_yr_fullbias_adj=min(abundance$Year)+5 #first year with full bias adj. should be a few years into the data-rich period
     }
     if(!is.null(size.comp))
     {
-      ctl$MainRdevYrLast=max(size.comp$year)
      if(!is.null(abundance) & life.history$Name=="smooth hammerhead") ctl$MainRdevYrLast=max(abundance$Year)#to allow fitting Southern2 cpue
       ctl$last_early_yr_nobias_adj=min(size.comp$year)-1
       ctl$first_yr_fullbias_adj=min(ctl$MainRdevYrLast-1,min(size.comp$year)+5) 
     }
     ctl$last_yr_fullbias_adj=endyr-2
     ctl$first_recent_yr_nobias_adj=endyr   #end_yr_for_ramp_in_MPD
+    
+    #use tuned values if available
     if(!is.na(life.history$last_early_yr_nobias_adj_in_MPD))
     {
       ctl$last_early_yr_nobias_adj=life.history$last_early_yr_nobias_adj_in_MPD
@@ -2082,9 +2084,9 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
     
     N.flits.tag=nrow(dat$fleetinfo%>%filter(type==1)) 
     ctl$TG_Report_fleet=dummy.tg.matrx[seq(1,N.flits.tag),]%>%
-                          mutate(LO=-20,
+                          mutate(LO=-30,
                                  HI=50,
-                                 INIT=-10,   #set to low all fleets other than relevant ones
+                                 INIT=-20,   #set to low all fleets other than relevant ones
                                  PRIOR=INIT,
                                  PR_SD=99,
                                  PR_type=0,
@@ -2131,7 +2133,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
   }
   
   # Likelihood components (lambdas)
-  # Like_comp codes:  1=surv; 2=disc; 3=mnwt; 4=length; 5=age; 6=SizeFreq; 7=sizeage; 8=catch; 9=init_equ_catch; 
+  # Like_comp codes:  1=surv; 2=disc; 3=mnwt; 4=length; 5=age; 6=SizeFreq; 7=size at age; 8=catch; 9=init_equ_catch; 
   # 10=recrdev; 11=parm_prior; 12=parm_dev; 13=CrashPen; 14=Morphcomp; 15=Tag-comp; 16=Tag-negbin; 17=F_ballpark; 18=initEQregime
   if(Scenario$Model=='SS')
   {
@@ -2168,12 +2170,20 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       dat.code=c(dat.code,rep(7,length(nn)))
       dis.dat=c(dis.dat,paste('meanSize.at.Age_',fleetinfo$fleetname[nn],sep=''))
     }
+    if(!is.null(Tags))
+    {
+      nn=unique(Tags$recaptures$Fleet)
+      fliit=c(fliit,nn)
+      Avail.dat=c(Avail.dat,rep("Tags",length(nn)))
+      dat.code=c(dat.code,rep(4,length(nn)))
+      dis.dat=c(dis.dat,paste('Tags_',fleetinfo$fleetname[nn],sep='')  )
+    }
     Like_comp=ctl$lambdas[1:length(Avail.dat),]%>%
-      mutate(like_comp=dat.code,
-             fleet=fliit,
-             phase=1,
-             value=1,
-             sizefreq_method=1)
+                mutate(like_comp=dat.code,
+                       fleet=fliit,
+                       phase=1,
+                       value=1,
+                       sizefreq_method=1)
     rownames(Like_comp)=dis.dat    
     if(!is.null(Lamdas))  
     {

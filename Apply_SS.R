@@ -894,6 +894,8 @@ for(w in 1:n.SS)
           
           
           #3. meanbodywt
+          meanbody.part=SS.part_meanbodywt
+          if(!Neim%in%retained.discarded.sp) meanbody.part=0  
             #zones together
           meanbodywt.SS.format=NULL
           if(any(grepl('annual.mean.size',names(Species.data[[i]]))))
@@ -902,7 +904,7 @@ for(w in 1:n.SS)
                                     mutate(year=as.numeric(substr(Finyear,1,4)),
                                            month=1,
                                            Fleet='Southern.shark_2',
-                                           part=SS.part_meanbodywt,   
+                                           part=meanbody.part,   
                                            type=2)%>%
                                     filter(year<=max(ktch$finyear))%>%
                                     dplyr::select(-Finyear)%>%
@@ -946,7 +948,7 @@ for(w in 1:n.SS)
                   mutate(year=as.numeric(substr(Finyear,1,4)),
                          month=1,
                          Fleet=paste('Southern.shark_2',ZnE,sep='_'),
-                         part=SS.part_meanbodywt,   
+                         part=meanbody.part,   
                          type=2)%>%
                   filter(year<=max(ktch.zone$finyear))%>%
                   dplyr::select(-Finyear)
@@ -1266,7 +1268,7 @@ for(w in 1:n.SS)
               dplyr::select(-Rec.zone)%>%
               relocate(Tag.group,Yr.rec,season,Fleet,N.recapture)
             
-            Initial.tag.loss=1e-4  #tag-induced mortality immediately after tagging 
+            Initial.tag.loss=1e-8  #tag-induced mortality immediately after tagging 
             Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x  #annual rate of tag loss; McAuley et al 2007 tag shedding
             
             Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_%>%
@@ -2382,8 +2384,13 @@ for(w in 1:n.SS)
                 }
                 
                 #a.4 set MainRdevYrFirst
+                #note: align with data-rich years (cpue, comps, meanbody, etc)
                 Abund1=Abund
                 if(!is.null(Abund1)) Abund1=Abund1%>%rename_with(tolower)
+                
+                Max.yr.obs=max(unlist(lapply(list(Abund1,Size.com,meanbody),function(x) if(!is.null(x))max(x$year))))
+                Life.history$MainRdevYrLast=Max.yr.obs
+                
                 Min.yr.obs=min(unlist(lapply(list(Abund1,Size.com,meanbody),function(x) if(!is.null(x))min(x$year))))
                 if(Life.history$First.yr.main.rec.dev=='min.obs')
                 {
@@ -2397,16 +2404,30 @@ for(w in 1:n.SS)
                 #a.5 need to reset rec pars for tuning
                 if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
                 {
-                  #Ramp
                   Life.history$recdev_early_start=2
-                  Life.history$MainRdevYrFirst=min(KAtch$finyear)
                   Life.history$SR_sigmaR=0.2
                   Life.history$RecDev_Phase=3
-                  Life.history$last_early_yr_nobias_adj_in_MPD=min(KAtch$finyear)+20
-                  Life.history$first_yr_fullbias_adj_in_MPD=min(KAtch$finyear)+30
-                  Life.history$last_yr_fullbias_adj_in_MPD=Last.yr.ktch.numeric-2    
-                  Life.history$first_recent_yr_nobias_adj_in_MPD=Last.yr.ktch.numeric
-                  Life.history$max_bias_adj_in_MPD=0.8
+                  
+                  #Ramp:
+                  # The model linearly interpolates the adjustment fraction between these four year-markers
+                  
+                  #The last year of the early recruitment period where no bias adjustment (0%) is applied. 
+                    # Typically used for very early years with no data
+                  Life.history$last_early_yr_nobias_adj_in_MPD=MainRdevYrFirst-1
+                  
+                  #The year when the model transitions to full bias adjustment (100%). 
+                    # This should align with the start of informative composition data
+                  Life.history$first_yr_fullbias_adj_in_MPD=MainRdevYrFirst 
+                  
+                  #The last year where full bias adjustment is applied
+                    # This usually marks the point where recent data (like small fish in length comps) still strongly informs recruitment
+                  Life.history$last_yr_fullbias_adj_in_MPD=Max.yr.obs-2
+                  
+                  Life.history$first_recent_yr_nobias_adj_in_MPD=Max.yr.obs-1
+
+                  #The maximum fraction of the bias adjustment to apply (typically set to 1.0 for full correction). 
+                    # If set lower, the model never applies the full theoretical correction
+                  Life.history$max_bias_adj_in_MPD=1
                   
                   #Comps variance adjustment
                   Var.ad=NULL
@@ -2519,34 +2540,57 @@ for(w in 1:n.SS)
                 rm(Report)
               }
                 #run this to tune model and calculate RAMP years
-              #note: var adjust and ramp already rest in '#a.5 need to reset rec pars for tuning'
+              #note: var adjust and ramp already reset in '#a.5 need to reset rec pars for tuning'
               if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
-                 #tune ramp years (blue and red lines should match)
+                 #1st. Tune ramp years (blue and red lines should match)
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=Where.exe,
                           args='')
                 Report=SS_output(this.wd1)
-                tiff(file=paste(this.wd,'Ramp_years.tiff',sep='/'),
+                tiff(file=paste(this.wd,'Ramp_years_first round.tiff',sep='/'),
                      width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
                 ramp_years=SS_fitbiasramp(Report) 
                 dev.off()
                 out=ramp_years$df
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
-                write.csv(out,paste(this.wd,'Ramp_years.csv',sep='/'),row.names = F)
-                
+                write.csv(out,paste(this.wd,'Ramp_years_first round.csv',sep='/'),row.names = F)
                 these.plots=c(1:7,10,11,16,26)  #biol, selectivity, timeseries,rec devs,S-R,catch,mean weight, indices, size comp
                 SS_plots(Report, plot=these.plots, png=T)
                 
-                #tune composition data
+                #2nd. Tune composition data
                 tune_info <- tune_comps(option = "Francis",
                                         niters_tuning = 1,
                                         dir = this.wd1,
                                         exe=Where.exe,
                                         allow_up_tuning = TRUE,
                                         verbose = FALSE)
-                write.csv(tune_info$weights[[1]]%>%mutate(Method='Francis'),paste(this.wd,'Tuned_size_comp.csv',sep='/'),row.names = F)
+                Tuned.var.adjust=tune_info$weights[[1]]%>%mutate(Method='Francis')
+                write.csv(Tuned.var.adjust,paste(this.wd,'Tuned_size_comp.csv',sep='/'),row.names = F)
                 
+                #3rd. Re tune ramp years (blue and red lines should match) with updtated tuned sample sizes
+                  #replace var adj factor with tuned values
+                start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
+                dat <- r4ss::SS_readdat(file = file.path(this.wd1, start$datfile), verbose = FALSE)
+                ctl <- r4ss::SS_readctl(file = file.path(this.wd1, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
+                ctl$Variance_adjustment_list=with(Tuned.var.adjust,data.frame(factor=factor,fleet=fleet,value=value)) 
+                r4ss::SS_writectl(ctl, outfile = file.path(this.wd1, start$ctlfile), overwrite = TRUE, verbose = FALSE)
+                
+                  #re run ramp
+                fn.run.SS(where.inputs=this.wd1,
+                          where.exe=Where.exe,
+                          args='')
+                Report=SS_output(this.wd1)
+                tiff(file=paste(this.wd,'Ramp_years_second round.tiff',sep='/'),
+                     width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
+                ramp_years=SS_fitbiasramp(Report) 
+                dev.off()
+                out=ramp_years$df
+                out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
+                write.csv(out,paste(this.wd,'Ramp_years_first round.csv',sep='/'),row.names = F)
+                SS_plots(Report, plot=these.plots, png=T)
+                
+                #flush
                 rm(ramp_years,out,tune_info)
               }
                 #run SS to estimate population parameters
