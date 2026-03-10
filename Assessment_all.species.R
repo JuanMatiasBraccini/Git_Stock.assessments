@@ -240,6 +240,7 @@ Min.Nsamp.Survey=10
 Min.Nsamp.zone=10  #lower Nsamp causes  sel pars estimation issues
 Min.Nsamp.NSF=10
 fill.in.zeros=TRUE  #add missing length classes with all 0s
+drop.dodgy.west.lencomps.gummy=TRUE  #dodgy length comps (only 1 year available) for gummy in West Coast
 
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
 prop.disc.ER=.4  
@@ -584,7 +585,7 @@ Drop.single.year.size.comp=FALSE
   #21.8 Inputs for SS tag recaptures  
 Min.annual.zone.releases=10 #minimum number of observations per released year-zone to be used in assessment
 Use.these.tag.year_zones=list("dusky shark"=NULL,
-                              "gummy shark"=NULL,
+                              #"gummy shark"=NULL,  #no reporting rate
                               "sandbar shark"=NULL,   
                               "whiskery shark"=NULL)
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
@@ -4262,6 +4263,29 @@ if(do.dis)
   }
 }
 
+# Check SS selectivities 
+if(do.dis)
+{
+  if(!exists('doubleNorm24.fn')) fn.source1("SS_selectivity functions.R")
+  x=seq(80,375,5)
+  Mod1=data.frame(p1=87.5,p2=-16.218,p3=0.00056,p4=4.93114)  #new
+  Mod2=data.frame(p1=88.65,p2=-16.938,p3=0.000734,p4=6.3828)  #plot
+  Mod3=data.frame(p1=88.65,p2=-16.976,p3=0.005605,p4=6.3085)  #S1 old
+  
+  #double normal
+  Sel.mod1=with(Mod1,doubleNorm24.fn(x,a=p1,b=p2, c=p3, d=p4, e=-999, f=-999,use_e_999=FALSE, use_f_999=FALSE))
+  Sel.mod2=with(Mod2,doubleNorm24.fn(x,a=p1,b=p2, c=p3, d=p4, e=-999, f=-999,use_e_999=FALSE, use_f_999=FALSE))
+  Sel.mod3=with(Mod3,doubleNorm24.fn(x,a=p1,b=p2, c=p3, d=p4, e=-999, f=-999,use_e_999=FALSE, use_f_999=FALSE))
+  plot(x,Sel.mod1,type='l',lwd=2)
+  lines(x,Sel.mod2,col=2,lwd=2,lty=2)
+  lines(x,Sel.mod3,col=3,lwd=2,lty=3)
+  legend('topright',c('New','plot','S1 old'),col=1:3,lty=c(1,2,3),bty='n')
+  
+  #logistic
+  Sel.log=logistic1.fn(len=x,a=265, b=30)
+  plot(x,Sel.log)
+  lines(x,logistic1.fn(len=x,a=265, b=100))
+}
 
 
 #---18. Catch-only assessments --------------------------------------

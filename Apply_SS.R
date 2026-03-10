@@ -500,8 +500,8 @@ for(w in 1:n.SS)
             d.list.n.shots=Species.data[[i]][grep(paste(c("Size_composition_Survey_Observations","Size_composition_Observations",
                                                           "Size_composition_Other_Observations"),collapse="|"),
                                                   names(Species.data[[i]]))]
-            d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
-                                          names(Species.data[[i]]))]
+            d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),names(Species.data[[i]]))]
+            if(drop.dodgy.west.lencomps.gummy) if(Neim=="gummy shark") d.list=d.list[-grep('West',names(d.list))] 
             if(length(d.list)>0)
             {
               if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
@@ -2383,13 +2383,13 @@ for(w in 1:n.SS)
                   KAtch[des.yrs,des.flt]=new.ktch
                 }
                 
-                #a.4 set MainRdevYrFirst
+                #a.4 set First and Last year of main recruitment devations
                 #note: align with data-rich years (cpue, comps, meanbody, etc)
                 Abund1=Abund
                 if(!is.null(Abund1)) Abund1=Abund1%>%rename_with(tolower)
                 
                 Max.yr.obs=max(unlist(lapply(list(Abund1,Size.com,meanbody),function(x) if(!is.null(x))max(x$year))))
-                Life.history$MainRdevYrLast=Max.yr.obs
+                Life.history$MainRdevYrLast=min(Max.yr.obs,max(KAtch$finyear,na.rm=T))  
                 
                 Min.yr.obs=min(unlist(lapply(list(Abund1,Size.com,meanbody),function(x) if(!is.null(x))min(x$year))))
                 if(Life.history$First.yr.main.rec.dev=='min.obs')
@@ -2401,7 +2401,7 @@ for(w in 1:n.SS)
                 if(Life.history$First.yr.main.rec.dev=='min.ktch') MainRdevYrFirst=min(ktch$finyear)
                 Life.history$MainRdevYrFirst=MainRdevYrFirst
                 
-                #a.5 need to reset rec pars for tuning
+                #a.5 Reset rec pars for tuning
                 if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
                 {
                   Life.history$recdev_early_start=2
@@ -2541,22 +2541,29 @@ for(w in 1:n.SS)
               }
                 #run this to tune model and calculate RAMP years
               #note: var adjust and ramp already reset in '#a.5 need to reset rec pars for tuning'
+              #      update ramp years 'SS3.Rrecruitment.inputs.csv' in and sample sizes
+              #      in 'SS3.tune_size_comp_effective_sample.csv' if single area model or
+              #       'SS3.tune_size_comp_effective_sample_spatial.csv' if areas as fleets or spatial model.
               if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
               {
+                tune.folder=paste(this.wd,'tuning',sep='/')
+                if(!file.exists(file.path(tune.folder))) dir.create(file.path(tune.folder))
+                  
                  #1st. Tune ramp years (blue and red lines should match)
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=Where.exe,
                           args='')
                 Report=SS_output(this.wd1)
-                tiff(file=paste(this.wd,'Ramp_years_first round.tiff',sep='/'),
+                tiff(file=paste(tune.folder,'Ramp_years_first round.tiff',sep='/'),
                      width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
                 ramp_years=SS_fitbiasramp(Report) 
                 dev.off()
                 out=ramp_years$df
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
-                write.csv(out,paste(this.wd,'Ramp_years_first round.csv',sep='/'),row.names = F)
+                write.csv(out,paste(tune.folder,'Ramp_years_first round.csv',sep='/'),row.names = F)
                 these.plots=c(1:7,10,11,16,26)  #biol, selectivity, timeseries,rec devs,S-R,catch,mean weight, indices, size comp
-                SS_plots(Report, plot=these.plots, png=T)
+                SS_plots(Report, plot=these.plots, png=T,printfolder = "1_plots_not tuned")
+                Likelihoods.not.tuned=Report$likelihoods_used%>%mutate(type='not tuned')
                 
                 #2nd. Tune composition data
                 tune_info <- tune_comps(option = "Francis",
@@ -2566,31 +2573,55 @@ for(w in 1:n.SS)
                                         allow_up_tuning = TRUE,
                                         verbose = FALSE)
                 Tuned.var.adjust=tune_info$weights[[1]]%>%mutate(Method='Francis')
-                write.csv(Tuned.var.adjust,paste(this.wd,'Tuned_size_comp.csv',sep='/'),row.names = F)
+                write.csv(Tuned.var.adjust,paste(tune.folder,'Tuned_size_comp.csv',sep='/'),row.names = F)
                 
-                #3rd. Re tune ramp years (blue and red lines should match) with updtated tuned sample sizes
-                  #replace var adj factor with tuned values
+                #3rd. Re tune ramp years (blue and red lines should match) with updated tuned pars
+                  #3.1 replace var adj factor with tuned values
                 start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
                 dat <- r4ss::SS_readdat(file = file.path(this.wd1, start$datfile), verbose = FALSE)
                 ctl <- r4ss::SS_readctl(file = file.path(this.wd1, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
                 ctl$Variance_adjustment_list=with(Tuned.var.adjust,data.frame(factor=factor,fleet=fleet,value=value)) 
+                
+                  #3.2 replace ramp years
+                ctl$last_early_yr_nobias_adj= out%>%filter(grepl('last_early_yr_nobias_adj',label))%>%pull(value)%>%as.numeric()
+                ctl$first_yr_fullbias_adj= out%>%filter(grepl('first_yr_fullbias_adj',label))%>%pull(value)%>%as.numeric() 
+                ctl$last_yr_fullbias_adj= out%>%filter(grepl('last_yr_fullbias_adj',label))%>%pull(value)%>%as.numeric() 
+                ctl$first_recent_yr_nobias_adj= out%>%filter(grepl('first_recent_yr_nobias_adj',label))%>%pull(value) %>%as.numeric()
+                ctl$max_bias_adj= out%>%filter(grepl('max_bias_adj',label))%>%pull(value)%>%as.numeric()
+                ctl$recdev_early_start=0
+                
+                  #3.3 export new control
                 r4ss::SS_writectl(ctl, outfile = file.path(this.wd1, start$ctlfile), overwrite = TRUE, verbose = FALSE)
                 
-                  #re run ramp
+                  #3.4 re run ramp
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=Where.exe,
                           args='')
                 Report=SS_output(this.wd1)
-                tiff(file=paste(this.wd,'Ramp_years_second round.tiff',sep='/'),
+                tiff(file=paste(tune.folder,'Ramp_years_second round.tiff',sep='/'),
                      width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
                 ramp_years=SS_fitbiasramp(Report) 
                 dev.off()
                 out=ramp_years$df
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
-                write.csv(out,paste(this.wd,'Ramp_years_first round.csv',sep='/'),row.names = F)
-                SS_plots(Report, plot=these.plots, png=T)
+                write.csv(out,paste(tune.folder,'Ramp_years_first round.csv',sep='/'),row.names = F)
+                SS_plots(Report, plot=these.plots, png=T,printfolder = "2_plots_with ramp years and var adjs factors")
+                Likelihoods.tuned=Report$likelihoods_used%>%mutate(type='tuned')
                 
-                #flush
+                #3rd compare tuned and not tuned likelihoods
+                #compare tuned and not tuned likelihoods  
+                rbind(Likelihoods.not.tuned%>%
+                        rownames_to_column(var = "Component"),
+                      Likelihoods.tuned%>%
+                        rownames_to_column(var = "Component"))%>%
+                  ggplot(aes(type,values))+
+                  geom_bar(stat = "identity")+
+                  facet_wrap(~Component,scales='free')+
+                  theme_PA()+xlab('')
+                ggsave(paste(tune.folder,'Likelihoods before and after tuning.tiff',sep='/'), width = 8,height = 6,compression = "lzw")
+                
+                
+                #4th flush
                 rm(ramp_years,out,tune_info)
               }
                 #run SS to estimate population parameters
