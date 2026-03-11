@@ -240,7 +240,7 @@ Min.Nsamp.Survey=10
 Min.Nsamp.zone=10  #lower Nsamp causes  sel pars estimation issues
 Min.Nsamp.NSF=10
 fill.in.zeros=TRUE  #add missing length classes with all 0s
-drop.dodgy.west.lencomps.gummy=TRUE  #dodgy length comps (only 1 year available) for gummy in West Coast
+drop.dodgy.len.comp=list("gummy shark"='West') #dodgy length comps (only 1 year available) for gummy in West Coast
 
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
 prop.disc.ER=.4  
@@ -266,6 +266,7 @@ reset.max.Age=FALSE  #set max Age to mean of max.age and max age.max
 fill.NA.Max.Age.Max=TRUE  #fill in NA max.Age.max with Max.Age.up.Scaler 
 externally.increase.M=FALSE   #increase M in pin_file to all SS to converge
 species.too.high.M1=NULL #c("gummy shark","whiskery shark")  
+refit.indicators.growth=FALSE  #do it once, only for gummy as I have the data for WA but published growth pars are for SA/Vic
 
   #15.1 published steepness and sigmaR
 sigmaR.steepness.shark=data.frame(Species=c('dusky shark','sandbar shark','gummy shark','blacktip shark',
@@ -457,12 +458,6 @@ estim.sel.pars_SS=c("sandbar shark")
 extra.SD.Q.species=c("sandbar shark")
 estim.sel.pars_SS.prior=NULL
 
-test.using.cpue=c("dusky shark","gummy shark","sandbar shark","whiskery shark")          #NULL; have one scenario not using cpue  
-test.using.length.comps=test.using.cpue   #NULL; have one scenario not using length comps 
-test.using.mean.body=test.using.cpue      #NULL; have one scenario not using mean body weight
-test.using.tags=test.using.cpue           #NULL; have one scenario not using tagging data
-
-test.using.male.sel.offset=c("gummy shark","whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
 estim.growth.pars_SS=c("sandbar shark") #for other species, no great contrast in other data types
 test.growth.estim=NULL #c("gummy shark","whiskery shark")
 Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
@@ -639,6 +634,14 @@ Number.of.likelihood.profiles.h=6
 diag.extras=""  #set to '"-nohess" to remove hessian estimation (much faster but no uncertainty)
 #like.prof.case='faster'  #faster run, no hessian estimation
 #like.prof.case='standard'  #as per r4ss (not estimating Hessian by setting extras)
+
+  #21.11 Sensitivity tests for using different data types
+test.using.cpue=c("dusky shark","gummy shark","sandbar shark","whiskery shark")          #NULL; have one scenario not using cpue  
+test.using.length.comps=test.using.cpue   #NULL; have one scenario not using length comps 
+test.using.mean.body=test.using.cpue      #NULL; have one scenario not using mean body weight
+test.using.tags=use.tag.data           #NULL; have one scenario not using tagging data
+test.using.male.sel.offset=c("gummy shark","whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
+
 
 #22. Bespoke Integrated size-based model 
 if(Do.bespoke)
@@ -1801,6 +1804,8 @@ for(l in 1:N.sp)
                            BwT.M=LH$male_b_w8t,
                            AwT.M=LH$male_a_w8t,
                            TLmax=LH$Max.TL,
+                           TLmax_obs=LH$Max.TL_obs,
+                           TLmax_obs_male=LH$Max.TL_obs_male,
                            Lzero=LH$LF_o,
                            NsimSS=5e3,                        #demography
                            r.prior="USER",                    #demography
@@ -1889,8 +1894,17 @@ if(First.run=="YES")
 }
 
 #refit indicator species growth curve  
-refit.indicators.growth=FALSE
-if(refit.indicators.growth) fn.source('Fit.growth.curves.R')
+if(refit.indicators.growth)
+{
+  selected.species=subset(Indicator.species,Indicator.species==17001)
+  fn.source('Fit.growth.curves.R')
+  for(i in 1:length(selected.species))
+  {
+    print(paste("refitting growth for ----",names(selected.species)[i]))
+    fit.growth.curve(SP=selected.species[i],dat=Species.data,LH=List.sp)
+  }
+}
+  
 
 #Get average weight
 do.this=FALSE

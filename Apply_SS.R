@@ -501,7 +501,7 @@ for(w in 1:n.SS)
                                                           "Size_composition_Other_Observations"),collapse="|"),
                                                   names(Species.data[[i]]))]
             d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),names(Species.data[[i]]))]
-            if(drop.dodgy.west.lencomps.gummy) if(Neim=="gummy shark") d.list=d.list[-grep('West',names(d.list))] 
+            if(Neim%in%names(drop.dodgy.len.comp)) d.list=d.list[-grep(paste(drop.dodgy.len.comp[[match(Neim,names(drop.dodgy.len.comp))]],collapse='|'),names(d.list))] 
             if(length(d.list)>0)
             {
               if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
@@ -2404,7 +2404,7 @@ for(w in 1:n.SS)
                 #a.5 Reset rec pars for tuning
                 if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
                 {
-                  Life.history$recdev_early_start=2
+                  Life.history$recdev_early_start=0
                   Life.history$SR_sigmaR=0.2
                   Life.history$RecDev_Phase=3
                   

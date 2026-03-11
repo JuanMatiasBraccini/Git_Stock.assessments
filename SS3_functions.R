@@ -580,7 +580,14 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       lbin_vector=sort(as.numeric(gsub('f', '', names(size.comp)[grep("f",names(size.comp))])))
       dat$lbin_vector=lbin_vector
       dat$N_lbins=length(dat$lbin_vector)
-      dat$lencomp=size.comp%>%arrange(Fleet,Sex,year)
+      if(!"3"%in%unique(size.comp$Sex))
+      {
+        d.size.comp=size.comp%>%arrange(Fleet,Sex,year)
+      }else
+      {
+        d.size.comp=size.comp%>%arrange(Fleet,year)
+      }
+      dat$lencomp=d.size.comp
       dat$maximum_size=max(dat$maximum_size,max(lbin_vector))
     }
     if(!is.null(F.tagging) & !is.null(size.comp))
@@ -1893,7 +1900,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       xx.phase=xx.phase%>%
             filter(grepl(paste(id.offset.flits,collapse='|'),Fleet))
       if(is.null(size.comp) & is.null(meanbodywt)) xx.phase[,-1]=-1
-      
+      if(!is.null(life.history$SS_activate_male_offset_fleet))
+      {
+        id.active.male=grep(paste(life.history$SS_activate_male_offset_fleet,collapse='|'),xx.phase$Fleet)
+        xx.phase[id.active.male,-1]=abs(xx.phase[id.active.male,-1]) 
+      }
       xx.min=xx%>%mutate(P_1=-50,P_3=-5,P_4=-5,P_5=-8,P_6=0)
       xx.max=xx%>%mutate(P_1=50,P_3=5,P_4=5,P_5=5,P_6=1.5)
 

@@ -969,6 +969,7 @@ for(l in 1:N.sp)
                                                              P_4=xx$Phase_Offset_p4,
                                                              P_5=xx$Phase_Offset_p5,
                                                              P_6=xx$Phase_Offset_p6)
+        if(!SS.sel.init.pars$Activate_male_offset_fleet=='')List.sp[[l]]$SS_activate_male_offset_fleet=SS.sel.init.pars$Activate_male_offset_fleet
       }
     }
     
