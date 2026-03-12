@@ -27,7 +27,7 @@ for(w in 1:n.SS)
           if(!dir.exists(this.wd))dir.create(this.wd)
           
           Life.history=List.sp[[i]]
-          
+          if(Neim%in%drop.min.pop.bin.size) Life.history$Lzero=Life.history$Lzero/1.046
           
           #1. Catch
             #1.1. zones together
@@ -299,6 +299,39 @@ for(w in 1:n.SS)
                   d.list$sex=combine.sex_type 
                 }
               }
+              #combine sexes if number of obs per year >Min.size but per sex <Min.size
+              if(Neim%in%names(Indicator.species))
+              {
+                Min.size=Min.annual.obs.ktch
+              }else
+              {
+                Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+              }
+              Min.size.NSF=Min.annual.obs.ktch_NSF
+              if(Neim%in%c("dusky shark")) Min.size.NSF=20
+              Table.n=d.list%>%
+                      group_by(year,fishry)%>%
+                      summarise(N=sum(n))%>%
+                      mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
+                                                      fishry=='NSF'~Min.size.NSF,
+                                                      TRUE~Min.size))%>%   
+                      filter(N>=Min.accepted.N)%>%
+                      mutate(dummy=paste(year,fishry))
+              Table.n.sex=d.list%>%  
+                group_by(year,fishry,sex)%>%
+                summarise(N=sum(n))%>%
+                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
+                                                fishry=='NSF'~Min.size.NSF,
+                                                TRUE~Min.size))%>%   
+                filter(N<Min.accepted.N)%>%
+                mutate(dummy=paste(year,fishry))%>%
+                distinct(dummy)
+              d.list=d.list%>%
+                mutate(dummy=paste(year,fishry),
+                       sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
+                dplyr::select(-dummy)
+              
+              
               d.list=d.list%>%
                 group_by(year,fishry,sex,size.class)%>%
                 summarise(n=sum(n))%>%
@@ -318,22 +351,8 @@ for(w in 1:n.SS)
                                mutate(size.class=missing.size.classes,
                                       n=0))
               }
-              if(Neim%in%names(Indicator.species))
-              {
-                Min.size=Min.annual.obs.ktch
-              }else
-              {
-                Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
-              }
-              Min.size.NSF=Min.annual.obs.ktch_NSF
-              if(Neim%in%c("dusky shark")) Min.size.NSF=20
-              Table.n=d.list%>%group_by(year,fishry,sex)%>%
-                summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
-                                                fishry=='NSF'~Min.size.NSF,
-                                                TRUE~Min.size))%>%   
-                filter(N>=Min.accepted.N)%>%
-                mutate(dummy=paste(year,fishry,sex))  
+
+ 
               
               if(nrow(Table.n)>0)
               {
@@ -391,14 +410,14 @@ for(w in 1:n.SS)
                                 Sex=sex,
                                 Seas=month)%>%
                   relocate(all_of(vars.head))
-                
+                #keep years with minimum number of observations
                 d.list=d.list%>%
-                  mutate(dummy2=paste(year,Fleet,Sex))%>%
+                  mutate(dummy2=paste(year,Fleet))%>%
                   filter(dummy2%in%unique(Table.n$dummy))%>%
                   dplyr::select(-dummy2)%>%
                   mutate(Sex=ifelse(Sex=='F',1,
-                                    ifelse(Sex=='M',2,
-                                           Sex)))
+                             ifelse(Sex=='M',2,
+                                    Sex)))
                 d.list=d.list%>%
                   mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
                          Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
@@ -511,7 +530,7 @@ for(w in 1:n.SS)
               {
                 NM=names(d.list)[s]
                 d.list[[s]]=d.list[[s]]%>%
-                  filter(FL>=Life.history$Lzero*1.05)%>%
+                  filter(FL>=Life.history$Lzero)%>%
                   mutate(fishry=ifelse(grepl("NSF.LONGLINE",NM),'NSF',
                                        ifelse(grepl("Survey",NM),'Survey',
                                               ifelse(grepl("Other",NM),'Other',
@@ -581,6 +600,38 @@ for(w in 1:n.SS)
                   d.list$sex=combine.sex_type 
                 }
               }
+              #combine sexes if number of obs per year >Min.size but per sex <Min.size
+              if(Neim%in%names(Indicator.species))
+              {
+                Min.size=Min.annual.obs.ktch.zone
+              }else
+              {
+                Min.size=Min.annual.obs.ktch.zone*prop.min.N.accepted_other
+              }
+              Min.size.NSF=Min.annual.obs.ktch_NSF
+              if(Neim%in%c("dusky shark")) Min.size.NSF=20
+              Table.n=d.list%>%
+                group_by(year,fishry)%>%
+                summarise(N=sum(n))%>%
+                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
+                                                fishry=='NSF'~Min.size.NSF,
+                                                TRUE~Min.size))%>%
+                filter(N>=Min.accepted.N)%>%
+                mutate(dummy=paste(year,fishry))
+              Table.n.sex=d.list%>%  
+                group_by(year,fishry,sex)%>%
+                summarise(N=sum(n))%>%
+                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
+                                                fishry=='NSF'~Min.size.NSF,
+                                                TRUE~Min.size))%>%   
+                filter(N<Min.accepted.N)%>%
+                mutate(dummy=paste(year,fishry))%>%
+                distinct(dummy)
+              d.list=d.list%>%
+                mutate(dummy=paste(year,fishry),
+                       sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
+                dplyr::select(-dummy)
+              
               d.list=d.list%>%
                 group_by(year,fishry,sex,size.class)%>%
                 summarise(n=sum(n))%>%
@@ -600,24 +651,6 @@ for(w in 1:n.SS)
                                mutate(size.class=missing.size.classes,
                                       n=0))
               }
-              if(Neim%in%names(Indicator.species))
-              {
-                Min.size=Min.annual.obs.ktch.zone
-              }else
-              {
-                Min.size=Min.annual.obs.ktch.zone*prop.min.N.accepted_other
-              }
-              Min.size.NSF=Min.annual.obs.ktch_NSF
-              if(Neim%in%c("dusky shark")) Min.size.NSF=20
-              Table.n=d.list%>%
-                        group_by(year,fishry,sex)%>%
-                        summarise(N=sum(n))%>%
-                        mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
-                                                        fishry=='NSF'~Min.size.NSF,
-                                                        TRUE~Min.size))%>%
-                        filter(N>=Min.accepted.N)%>%
-                        mutate(dummy=paste(year,fishry,sex))
-              
               if(nrow(Table.n)>0)
               {
                 vars.head=c('year','Seas','Fleet','Sex','Part','Nsamp')
@@ -674,14 +707,14 @@ for(w in 1:n.SS)
                                 Sex=sex,
                                 Seas=month)%>%
                   relocate(all_of(vars.head))
-                
+                #keep years with minimum number of observations
                 d.list=d.list%>%
-                  mutate(dummy2=paste(year,Fleet,Sex))%>%
+                  mutate(dummy2=paste(year,Fleet))%>%
                   filter(dummy2%in%unique(Table.n$dummy))%>%
                   dplyr::select(-dummy2)%>%
                   mutate(Sex=ifelse(Sex=='F',1,
-                                    ifelse(Sex=='M',2,
-                                           Sex)))
+                             ifelse(Sex=='M',2,
+                                    Sex)))
                 d.list=d.list%>%
                   mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
                          Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
@@ -781,6 +814,7 @@ for(w in 1:n.SS)
               }
             }
           }
+          
             #keep only observations for fleets with more than 1 year of data
           if(Drop.single.year.size.comp)
           {
@@ -807,6 +841,7 @@ for(w in 1:n.SS)
                 filter(Fleet%in%Fleet.more.one.year.obs)
             }
           }
+          
             #Reset sex type if required 
           if(SS.sex.length.type==3)
           {
