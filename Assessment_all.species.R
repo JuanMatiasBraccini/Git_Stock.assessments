@@ -1886,7 +1886,7 @@ if(First.run=="YES")
   write.csv(TabL,paste(Rar.path,"Table 1. Life history pars.csv",sep='/'),row.names = F)
 }
 
-  #Export table of species assessed for use in RAR
+  #Export table of species assessed for use in RAR 
 if(First.run=="YES")
 {
   write.csv(data.frame(Species=capitalize(RAR.species)),
