@@ -43,26 +43,53 @@ fn.ktch.sex.ratio.zone=function(size.data)
   if(sum(grepl('Table',names(size.data)))>0) size.data=size.data[-grep('Table',names(size.data))]
   size.data=do.call(rbind,size.data)%>%
     rownames_to_column(var = 'Zone')%>%
-    mutate(N=1,
-           Zone=gsub("\\..*","",str_remove(Zone,'Size_composition_')))%>%
+    mutate(Zone=gsub("\\..*","",str_remove(Zone,'Size_composition_')))%>%
     filter(!is.na(SEX))%>%
+    dplyr::select(-year)%>%
+    mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
     group_by(Zone,year,SEX)%>%
     tally()%>%
     ungroup()%>%
     spread(SEX,n,fill=0)%>%
     mutate(Total=F+M,
-           Prop.female=F/Total)%>%
-    filter(Total>5)
+           Prop.female=F/Total)
   if(nrow(size.data)>0)
   {
     base::print(size.data%>%
-            ggplot(aes(year,Prop.female,color=log(Total)))+
-            geom_point()+
-            facet_wrap(~Zone,ncol=1)+theme_PA()+ylim(0,1)+
-            geom_hline(yintercept=0.5, linetype="dashed", color = "red"))
+                  rename(N=Total)%>%
+                  ggplot(aes(year,Prop.female,size=N))+
+                  geom_point(color='steelblue')+
+                  facet_wrap(~Zone,ncol=1)+theme_PA()+ylim(0,1)+
+                  geom_hline(yintercept=0.5, linetype="dashed", color = "red")+
+      geom_text_repel(aes(label=N),size=3)+theme(legend.position = 'none')+
+        labs(caption='Point size is proportional to number of observations (shown in black)'))
       
     return(size.data%>%group_by(Zone)%>%summarise(Prop.female=mean(Prop.female)))
   }
+}
+fn.ktch.sex.ratio.zone_SS=function(size.data,Min.size,N_sampleS)
+{
+  for(f in 1:length(size.data)) size.data[[f]]$Zone=names(size.data)[f]
+  size.data=do.call(rbind,size.data)%>%
+    mutate(Zone=gsub("\\..*","",str_remove(Zone,'Size_composition_')))%>%
+    filter(!is.na(sex))%>%
+    group_by(Zone,year,sex)%>%
+    summarise(n=sum(n))%>%
+    ungroup()%>%
+    spread(sex,n,fill=0)%>%
+    mutate(Total=F+M,
+           Prop.female=F/Total)%>%
+    filter(Total>Min.size)%>%
+  left_join(N_sampleS,by=c('Zone','year'))
+  p=size.data%>%
+    rename(N=Total)%>%
+    ggplot(aes(year,Prop.female,size=N))+
+    geom_point(color='steelblue')+
+    facet_wrap(~Zone,ncol=1)+theme_PA()+ylim(0,1)+
+    geom_hline(yintercept=0.5, linetype="dashed", color = "red")+
+    geom_text_repel(aes(label=paste0(N,' (',N.shots,' shots)')),size=3)+theme(legend.position = 'none')+
+    labs(caption='Point size is proportional to number of observations (shown in black)')
+  return(p)
 }
 # Import Total Catch------------------------------------------------------
 fn.import.catch.data=function(KTCH.UNITS)

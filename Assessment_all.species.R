@@ -240,7 +240,8 @@ Min.Nsamp.Survey=10
 Min.Nsamp.zone=10  #lower Nsamp causes  sel pars estimation issues
 Min.Nsamp.NSF=10
 fill.in.zeros=TRUE  #add missing length classes with all 0s
-drop.dodgy.len.comp=list("gummy shark"='West') #dodgy length comps (only 1 year available) for gummy in West Coast
+drop.dodgy.len.comp=NULL
+#drop.dodgy.len.comp=list("gummy shark"='West') #dodgy length comps (only 1 year available) for gummy in West Coast
 
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
 prop.disc.ER=.4  
@@ -3553,7 +3554,7 @@ if(First.run=="YES")
   clear.log('fun.check.mean.weight')
 }
 
-# Get sex ratio by zone
+# Get sex ratio by zone  
 if(First.run=="YES")
 {
   Dis.size.data=SS3_fleet.size.comp.used
@@ -3569,7 +3570,7 @@ if(First.run=="YES")
       HandL=handl_OneDrive("Analyses/Population dynamics/1.")
       DiR=paste(HandL,capitalize(Name),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
       Sex.ratio.zone[[i]]=fn.ktch.sex.ratio.zone(size.data=Species.data[[i]][id])
-      ggsave(paste(DiR,'Sex ratio by zone from size composition.tiff',sep='/'), width = 6,height = 6, dpi = 300, compression = "lzw")
+      ggsave(paste(DiR,'Sex ratio by zone_all size comps data.tiff',sep='/'), width = 5,height = 6, dpi = 300, compression = "lzw")
     }
   }
 }

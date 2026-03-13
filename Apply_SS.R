@@ -270,6 +270,32 @@ for(w in 1:n.SS)
                 }
               }
               d.list <- d.list[!is.na(d.list)]
+              
+              if(Neim%in%names(Indicator.species))
+              {
+                Min.size=Min.annual.obs.ktch
+              }else
+              {
+                Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
+              }
+              Min.size.NSF=Min.annual.obs.ktch_NSF
+              if(Neim%in%c("dusky shark")) Min.size.NSF=20
+              
+              # Get sex ratio by zone used in SS  
+              if(First.run=="YES")
+              {
+                HandL=handl_OneDrive("Analyses/Population dynamics/1.")
+                DiR=paste(HandL,capitalize(Neim),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
+                add.n.samps=Species.data[[i]]$Size_composition_Observations%>%
+                              filter(Method=='GN')%>%
+                              mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+                              rename(Zone=zone)%>%
+                              group_by(Zone,year)%>%
+                              summarise(N.shots=sum(N.shots))%>%ungroup()
+                fn.ktch.sex.ratio.zone_SS(size.data=d.list,Min.size=Min.size,N_sampleS=add.n.samps)
+                ggsave(paste(DiR,'Sex ratio by zone_SS size comps data_single area.tiff',sep='/'), width = 5,height = 6, dpi = 300, compression = "lzw")
+              }
+              
               d.list=do.call(rbind,d.list)   
               if(Neim%in%combine_NSF_Survey) 
               {
@@ -300,15 +326,6 @@ for(w in 1:n.SS)
                 }
               }
               #combine sexes if number of obs per year >Min.size but per sex <Min.size
-              if(Neim%in%names(Indicator.species))
-              {
-                Min.size=Min.annual.obs.ktch
-              }else
-              {
-                Min.size=Min.annual.obs.ktch*prop.min.N.accepted_other
-              }
-              Min.size.NSF=Min.annual.obs.ktch_NSF
-              if(Neim%in%c("dusky shark")) Min.size.NSF=20
               Table.n=d.list%>%
                       group_by(year,fishry)%>%
                       summarise(N=sum(n))%>%
@@ -351,8 +368,6 @@ for(w in 1:n.SS)
                                mutate(size.class=missing.size.classes,
                                       n=0))
               }
-
- 
               
               if(nrow(Table.n)>0)
               {
@@ -571,6 +586,31 @@ for(w in 1:n.SS)
                 }
               }
               d.list <- d.list[!is.na(d.list)]
+              
+              if(Neim%in%names(Indicator.species))
+              {
+                Min.size=Min.annual.obs.ktch.zone
+              }else
+              {
+                Min.size=Min.annual.obs.ktch.zone*prop.min.N.accepted_other
+              }
+              Min.size.NSF=Min.annual.obs.ktch_NSF
+              if(Neim%in%c("dusky shark")) Min.size.NSF=20
+              
+              # Get sex ratio by zone used in SS  
+              if(First.run=="YES")
+              {
+                HandL=handl_OneDrive("Analyses/Population dynamics/1.")
+                DiR=paste(HandL,capitalize(Neim),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
+                add.n.samps=Species.data[[i]]$Size_composition_Observations%>%
+                              filter(Method=='GN')%>%
+                              mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+                              rename(Zone=zone)%>%
+                              group_by(Zone,year)%>%
+                              summarise(N.shots=sum(N.shots))%>%ungroup()
+                fn.ktch.sex.ratio.zone_SS(size.data=d.list,Min.size=Min.size,N_sampleS=add.n.samps)
+                ggsave(paste(DiR,'Sex ratio by zone_SS size comps data_areas as fleets.tiff',sep='/'), width = 5,height = 6, dpi = 300, compression = "lzw")
+              }
               d.list=do.call(rbind,d.list)   
               if(Neim%in%combine_NSF_Survey) 
               {
@@ -601,15 +641,6 @@ for(w in 1:n.SS)
                 }
               }
               #combine sexes if number of obs per year >Min.size but per sex <Min.size
-              if(Neim%in%names(Indicator.species))
-              {
-                Min.size=Min.annual.obs.ktch.zone
-              }else
-              {
-                Min.size=Min.annual.obs.ktch.zone*prop.min.N.accepted_other
-              }
-              Min.size.NSF=Min.annual.obs.ktch_NSF
-              if(Neim%in%c("dusky shark")) Min.size.NSF=20
               Table.n=d.list%>%
                 group_by(year,fishry)%>%
                 summarise(N=sum(n))%>%
@@ -2474,12 +2505,15 @@ for(w in 1:n.SS)
                   id.survey=match('Survey',FLitinFO$fleetname)
                   if(!is.na(id.survey)) Size.com=Size.com%>%filter(!(Fleet==id.survey & year%in%c(2001,2002)))
                 }
-                if(Neim=="gummy shark" & !is.null(Size.com)) # dodgy sampling trips 
+                if(Neim%in%names(drop.dodgy.len.comp))
                 {
-                  id.flit=match('Southern.shark_1_Zone1',FLitinFO$fleetname)
-                  if(!is.na(id.flit)) Size.com=Size.com%>%filter(!(Fleet==id.flit & year%in%c(1994)))
-                  id.flit=match('Southern.shark_2_Zone1',FLitinFO$fleetname)
-                  if(!is.na(id.flit)) Size.com=Size.com%>%filter(!(Fleet==id.flit & year%in%c(2012)))
+                  if(Neim=="gummy shark" & !is.null(Size.com)) # dodgy sampling trips 
+                  {
+                    id.flit=match('Southern.shark_1_Zone1',FLitinFO$fleetname)
+                    if(!is.na(id.flit)) Size.com=Size.com%>%filter(!(Fleet==id.flit & year%in%c(1994)))
+                    id.flit=match('Southern.shark_2_Zone1',FLitinFO$fleetname)
+                    if(!is.na(id.flit)) Size.com=Size.com%>%filter(!(Fleet==id.flit & year%in%c(2012)))
+                  }
                 }
                 
                 #a.7 plot Length comps used and all  
@@ -2575,7 +2609,7 @@ for(w in 1:n.SS)
                 rm(Report)
               }
                 #run this to tune model and calculate RAMP years
-              #note: var adjust and ramp already reset in '#a.5 need to reset rec pars for tuning'
+              #note: var adjust and ramp already reset in '#a.5 Reset rec pars for tuning'
               #      update ramp years 'SS3.Rrecruitment.inputs.csv' in and sample sizes
               #      in 'SS3.tune_size_comp_effective_sample.csv' if single area model or
               #       'SS3.tune_size_comp_effective_sample_spatial.csv' if areas as fleets or spatial model.
