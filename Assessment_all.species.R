@@ -3563,14 +3563,24 @@ if(First.run=="YES")
   for(i in 1:N.sp)
   {
     id=grep(paste(Dis.size.data,collapse="|"),names(Species.data[[i]]))
+    add.n.samps=Species.data[[i]]$Size_composition_Observations%>%
+                    filter(Method=='GN')%>%
+                    mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+                    rename(Zone=zone)%>%
+                    group_by(Zone,year)%>%
+                    summarise(N.shots=sum(N.shots))%>%ungroup()
     if(length(id)>0)
     {
       print(paste("Display sex ratio by zone from size comp for -----",Keep.species[i]))
       Name=Keep.species[i]
       HandL=handl_OneDrive("Analyses/Population dynamics/1.")
       DiR=paste(HandL,capitalize(Name),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
-      Sex.ratio.zone[[i]]=fn.ktch.sex.ratio.zone(size.data=Species.data[[i]][id])
+      Sex.ratio.zone[[i]]=fn.ktch.sex.ratio.zone(size.data=Species.data[[i]][id],
+                                                 N_sampleS=add.n.samps)
+      print(Sex.ratio.zone[[i]]$p1)
       ggsave(paste(DiR,'Sex ratio by zone_all size comps data.tiff',sep='/'), width = 5,height = 6, dpi = 300, compression = "lzw")
+      
+      write.csv(Sex.ratio.zone[[i]]$table.nobs.nsamp,paste(DiR,'Size comps_nobs and nshots.csv',sep='/'),row.names = F)
     }
   }
 }

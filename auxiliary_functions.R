@@ -37,7 +37,7 @@ fn.add.fleet.zone.sel=function(d,x,y)
     mutate(Fleet=y)
   return(d)
 }
-fn.ktch.sex.ratio.zone=function(size.data)
+fn.ktch.sex.ratio.zone=function(size.data,N_sampleS)
 {
   if(any(grepl('Observations',names(size.data)))) size.data=size.data[-grep('Observations',names(size.data))]
   if(sum(grepl('Table',names(size.data)))>0) size.data=size.data[-grep('Table',names(size.data))]
@@ -55,16 +55,28 @@ fn.ktch.sex.ratio.zone=function(size.data)
            Prop.female=F/Total)
   if(nrow(size.data)>0)
   {
-    base::print(size.data%>%
-                  rename(N=Total)%>%
-                  ggplot(aes(year,Prop.female,size=N))+
-                  geom_point(color='steelblue')+
-                  facet_wrap(~Zone,ncol=1)+theme_PA()+ylim(0,1)+
-                  geom_hline(yintercept=0.5, linetype="dashed", color = "red")+
+    p1=size.data%>%
+      rename(N=Total)%>%
+      ggplot(aes(year,Prop.female,size=N))+
+      geom_point(color='steelblue')+
+      facet_wrap(~Zone,ncol=1)+theme_PA()+ylim(0,1)+
+      geom_hline(yintercept=0.5, linetype="dashed", color = "red")+
       geom_text_repel(aes(label=N),size=3)+theme(legend.position = 'none')+
-        labs(caption='Point size is proportional to number of observations (shown in black)'))
-      
-    return(size.data%>%group_by(Zone)%>%summarise(Prop.female=mean(Prop.female)))
+      labs(caption='Point size is proportional to number of observations (shown in black)')
+    #base::print()
+    
+    Tabl.sex.ratios= size.data%>%group_by(Zone)%>%summarise(Prop.female=mean(Prop.female)) 
+    table.nobs.nsamp=size.data%>%
+                        dplyr::select(-Prop.female)%>%
+                        rename(F.obs=F,
+                               M.obs=M,
+                               Total.obs=Total)%>%
+                        left_join(N_sampleS,by=c('Zone','year'))%>%
+                        arrange(Zone,year)
+    
+    return(list(Tabl.sex.ratios=Tabl.sex.ratios,
+                p1=p1,
+                table.nobs.nsamp=table.nobs.nsamp))
   }
 }
 fn.ktch.sex.ratio.zone_SS=function(size.data,Min.size,N_sampleS)
