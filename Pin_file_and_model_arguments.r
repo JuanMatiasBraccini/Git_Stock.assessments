@@ -510,6 +510,7 @@ for(l in 1:N.sp)
   
     #4.1.1.6 Alternative dome-shaped selectivity for NSF and survey
   SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
+  SS.sel.prior.pars=SS_selectivity_priors%>%filter(Species==NeiM)
   if(NeiM%in%alternative.NSF.selectivity)
   {
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
@@ -1219,10 +1220,14 @@ for(l in 1:N.sp)
     }
     
     #4.1.4.1.5 Populate priors  
-    List.sp[[l]]$Sel.prior.sd_type=NULL
+    List.sp[[l]]$Sel.prior=List.sp[[l]]$Sel.prior.sd_type=List.sp[[l]]$Sel.prior.sd_type_logistic=NULL
     if(NeiM%in%estim.sel.pars_SS.prior)  
     {
-      List.sp[[l]]$Sel.prior.sd_type=data.frame(P1.sd=10,P1.type=6,P2.sd=5,P2.type=6)
+      List.sp[[l]]$Sel.prior=with(SS.sel.prior.pars,data.frame(P1=p1,P2=p2,P3=p3,P4=p4))
+      List.sp[[l]]$Sel.prior.sd_type=data.frame(P1.sd=5,P1.type=6,
+                                                P2.sd=1,P2.type=6,
+                                                P3.sd=1,P3.type=6,
+                                                P4.sd=1,P4.type=6)
     }
     
     #4.1.4.1.6 Turn on Southern2 if meanbodywt

@@ -1961,6 +1961,7 @@ if(do.paper.figures)
 
 if(get.sel.for.stock.ass)   
 {
+  #By species
   for(s in 1:length(n.sp))
   {
     NM=n.sp[s]
@@ -1984,6 +1985,8 @@ if(get.sel.for.stock.ass)
     write.csv(out.age,paste(handl_OneDrive('Analyses/Data_outs/'),NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
     rm(out,out.age)
   }
+  
+  #By family
   for(s in 1:length(n.sp.family))
   {
     NM=n.sp.family[s]
@@ -2009,6 +2012,42 @@ if(get.sel.for.stock.ass)
       write.csv(out.age,paste(handl_OneDrive('Analyses/Data_outs/'),NM,'/',NM,"_gillnet.selectivity_len.age",".csv",sep=''),row.names = F)
     }
     rm(out,out.age)
+  }
+  
+  #Kirkwood and Walker
+  for(m in 1:length(These.meshes))
+  {
+    dummy=vector('list',length(Published))
+    names(dummy)=Published
+    
+    for(i in 1:length(Published))
+    {
+      dummy[[i]]=fn.sel(Length=seq(25,5975,by=50),  #in mm 
+                        Mesh=These.meshes[m],   #in inches
+                        Theta1=Published.sel.pars_K.W$Theta1[i],
+                        Theta2=Published.sel.pars_K.W$Theta2[i])
+    }
+    Published.sel_K.W[[m]]=dummy
+  }
+  KW.out=vector('list',length(Published))
+  names(KW.out)=Published
+  for(i in 1:length(KW.out))
+  {
+    mesh_15.2=Published.sel_K.W$`6`[[match(Published[i],names(Published.sel_K.W$`6`))]]
+    mesh_16.5=Published.sel_K.W$`6.5`[[match(Published[i],names(Published.sel_K.W$`6.5`))]]
+    mesh_17.8=Published.sel_K.W$`7`[[match(Published[i],names(Published.sel_K.W$`7`))]]
+    aa=data.frame(TL=mesh_15.2$Size.class/10,
+                  mesh_6=mesh_15.2$Rel.sel,
+                  mesh_6.5=mesh_16.5$Rel.sel,
+                  mesh_7=mesh_17.8$Rel.sel)
+    colnames(aa)[2:4]=c(15.2,16.5,17.8)
+    KW.out[[i]]=aa
+  }
+  for(i in 1:length(KW.out))
+  {
+    NM=names(KW.out)[i]
+    write.csv(KW.out[[i]],
+              paste(handl_OneDrive('Analyses/Data_outs/'),NM,'/',NM,"_gillnet.selectivity_K&W",".csv",sep=''),row.names = F)
   }
 }
 

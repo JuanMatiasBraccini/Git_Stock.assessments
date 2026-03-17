@@ -1,4 +1,19 @@
-# ------ Script for running stock assessments for WA sharks---- ###################
+# ------ Script for running stock assessments for WA sharks and rays---- ###################
+
+#Steps: 
+#     1. For each new assessment, update 
+#                     'assess.these.species.only','New.assessment',Year.of.assessment' and
+#                         'Last.yr.ktch' in '1. DEFINE GLOBALS',
+#                     'Do.Ktch.only', etc in '2. Control what assessment types to implement', and
+#                     'Run.SS', 'SS3.run' in '21. Integrated age-based model'
+#     2. Define arguments (inputs) used in each of the shark species/species-complex assessed.
+#     3. Bring in updated available data and parameters (see 'Matias\Reports\Steps for creating RAR and SFRAR.docx')
+#     4. Determine which species to assess based on PSA
+#     5. Run relevant population models according to data availability
+#     6. Generate relevant outputs. Outputs are stored in each species folder ('.../Analyses/Population dynamics/...')
+#         and in '.../Reports/RARs...'
+#     7. Run '.../Analyses/Build documents/Weight of Evidence/WoE.Rmd' with updated '.../Report/RARs/.../Risk tables' folders to
+#         generate WoE report.
 
 #Notes:
 #     1. '4. Productivity Susceptibility Analyses' filters out species 
@@ -12,21 +27,6 @@
 #               . State-space SPM,
 #               . Catch curves,
 #               . Catch-only
-
-#Steps: 
-#     1. For each new assessment, update 'assess.these.species.only','New.assessment', 
-#           'Year.of.assessment' and 'Last.yr.ktch' in '1. DEFINE GLOBALS',
-#            'Do.Ktch.only', etc in '2. Control what to implement' to turn on assessment types,
-#           and 'Run.SS', 'SS3.run' in '21. Integrated age-based model'
-#     2. Define arguments (inputs) used in each of the shark species/species-complex assessed.
-#     3. Bring in updated available data and parameters (see 'Matias\Reports\Steps for creating RAR and SFRAR.docx')
-#     4. Determine which species to assess based on PSA
-#     5. Run relevant population models according to data availability
-#     6. Generate relevant outputs. Outputs are stored in each species folder ('.../Analyses/Population dynamics/...')
-#         and in '.../Reports/RARs...'
-#     7. Run '.../Analyses/Build documents/Weight of Evidence/WoE.Rmd' with updated '.../Report/RARs/.../Risk tables' folders to
-#         generate WoE report.
-
 
 # ------ Header---- 
 rm(list=ls(all=TRUE))
@@ -123,15 +123,20 @@ fn.extract.dat=function(STRING,Files) grep(paste(STRING,collapse="|"), Files, va
 Send.email.to="matias.braccini@dpird.wa.gov.au"   #send email when model run finalised
 #Send.email.to="braccinimatias@gmail.com.au"  #IT firewall doesn't allow sending to gmail :(
 
+
 #---1. DEFINE GLOBALS----- 
 
 #1.New assessment and assessed species
-#assess.these.species.only=NULL  #all species meeting criteria are assessed
+#assess.these.species.only=NULL  #select this if all species meeting criteria are assessed
 assess.these.species.only=c("dusky shark","gummy shark","sandbar shark","whiskery shark")      
-New.assessment="NO"   #'YES' if a new assessment is run for the first time
- 
 
-#2. Control what to implement
+New.assessment="NO"   #set to 'YES' if a new assessment is done for the first time
+
+Year.of.assessment=AssessYr=2026
+Last.yr.ktch="2023-24"
+Last.yr.ktch.numeric=as.numeric(substr(Last.yr.ktch,1,4)) 
+
+#2. Control what assessment types to implement
 # turn on/off assessment method as appropriate
 
   #2.1 Level 1
@@ -162,51 +167,52 @@ do.F.series=FALSE   #output Fishing mortality time series
 do.B.over.Bmsy.series=TRUE
 do.F.over.Fmsy.series=TRUE
 
+
 #3. Assessment dimensions
-Year.of.assessment=AssessYr=2026
-Last.yr.ktch="2023-24"
-Last.yr.ktch.numeric=as.numeric(substr(Last.yr.ktch,1,4))
 
   #3.1 Future projections
 future.models=c('State.Space.SPM','SS')   #c('Catch_only','State.Space.SPM','SS')
 years.futures=5  #number of years to project
 n.last.catch.yrs=5 #number of recent years used to calculate future catch
-catches.futures="constant.last.n.yrs"
-#catches.futures='upper.limit.catch.range'  #catch ranges are only available for indicator species
+catches.futures="constant.last.n.yrs"  #'upper.limit.catch.range' but catch ranges are only available for indicator species
 future.color="brown4"
 
-#4. Model run
-if(New.assessment=="YES") First.run="YES"  else   #create model inputs and data presentation for new assessment
-  First.run="NO"
+
+#4. Create modelling inputs and relevant outputs for new assessment
+if(New.assessment=="YES") First.run="YES"  else First.run="NO"
+
 
 #5. Add additional species of interest not selected by PSA given low catch trajectories but needed for specific assessment
 additional.sp=NULL  #no additional species assessment required
 #if(Year.of.assessment==2022) additional.sp=c('green sawfish','narrow sawfish')   # 2022 sawfish assessment; 
                                     # dwarf and freshwater sawfish not assessed; reconstructed
-                                    # catches do not consider TO catch or beach rec fishing
+                                    # catches do not consider customary catch or beach rec fishing
+
 
 #6. Define if calculating r & steepness
-if(New.assessment=="YES") do.r.prior=TRUE  else 
-                          do.r.prior=FALSE
+if(New.assessment=="YES") do.r.prior=TRUE  else do.r.prior=FALSE
 do.steepness=do.r.prior
+
 
 #7. Define if exporting figures as jpeg or tiff (RAR requires jpeg)
 Do.tiff="YES" 
 Do.jpeg="NO"
 
+
 #8. Catch units
-KTCH.UNITS="TONNES" 
-#KTCH.UNITS="KGS"    
+KTCH.UNITS="TONNES" #"KGS"    
 if(KTCH.UNITS=="KGS") unitS=1000
 if(KTCH.UNITS=="TONNES") unitS=1
+
 
 #9. Catch criteria for selecting what species to assess quantitatively
 Min.yrs=5
 if(KTCH.UNITS=="KGS") Min.ktch=5000 
 if(KTCH.UNITS=="TONNES") Min.ktch=5
 
+
 #10. CPUEs
-Min.cpue.yrs=5 #minimum number of years in abundance index
+Min.cpue.yrs=5 #minimum number of years for abundance index to be used
 drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not. Superseded by Francis CVs 
 
   #10.1 Define species for which cpue is not considered to be indexing abundance:
@@ -221,12 +227,12 @@ other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
 
   #10.2 Survey
-Calculate.weight_Survey=FALSE #change Naturaliste survey from numbers to weights. Not applicable, now it's done in Survey standardisation)
-survey.year='financial' #'calendar'  Survey standard already using financial year 
+Calculate.weight_Survey=FALSE #change Naturaliste survey from numbers to weights. Not applicable, now it's done directly in Survey standardisation)
+survey.year='financial' #'calendar'  Survey standardisation already using financial year 
 
-#11. Size composition
-MN.SZE=0    # initial bin size
-#MN.SZE="size.at.birth"
+
+#11. Length composition
+MN.SZE=0    # "size.at.birth"  initial bin size
 TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
@@ -240,11 +246,12 @@ Min.Nsamp.Survey=10
 Min.Nsamp.zone=10  #lower Nsamp causes  sel pars estimation issues
 Min.Nsamp.NSF=10
 fill.in.zeros=TRUE  #add missing length classes with all 0s
-drop.dodgy.len.comp=NULL
-#drop.dodgy.len.comp=list("gummy shark"='West') #dodgy length comps (only 1 year available) for gummy in West Coast
+drop.dodgy.len.comp=NULL #list("gummy shark"='West') #dodgy length comps (only 1 year available) for gummy in West Coast
+
 
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
 prop.disc.ER=.4  
+
 
 #13. PSA 
 output.PSA=FALSE   #use PSA in WoE or not
@@ -254,20 +261,23 @@ PSA.max.ton=50
 Low.risk=2.64  #risk thresholds from Hobday et al 2007 & Micheli et al 2014
 medium.risk=3.18
 
+
 #14. Assumed PCM for reconstructed discards in TDGLDF
-TDGLDF.disc.assumed.PCM="BaseCase" 
-#TDGLDF.disc.assumed.PCM="100%" 
+TDGLDF.disc.assumed.PCM="BaseCase" #"100%" 
+
 
 #15. Demography
-First.Age=1        #start at 1 rather than 0 as M estimators yield unrealistically high M for Age 0
+First.Age=1            #start at 1 rather than 0 as M estimators yield unrealistically high M for Age 0
 Max.Age.up.Scaler=1.3  #scaler of Max maximum age for species with only one record. 1.3 is mean across those species with a range
-Max.r.value=.55 # Max r = 0.44 for blue shark (Cortes 2016); 0.51 for Scyliorhinus canicula (Cortes 2002)
+Max.r.value=.55        # 0.44 for blue shark (Cortes 2016); 0.51 for Scyliorhinus canicula (Cortes 2002)
 Min.r.value=.025
-reset.max.Age=FALSE  #set max Age to mean of max.age and max age.max
-fill.NA.Max.Age.Max=TRUE  #fill in NA max.Age.max with Max.Age.up.Scaler 
-externally.increase.M=FALSE   #increase M in pin_file to all SS to converge
-species.too.high.M1=NULL #c("gummy shark","whiskery shark")  
+reset.max.Age=FALSE          #set max Age to mean of max.age and max age.max
+fill.NA.Max.Age.Max=TRUE     #fill in NA max.Age.max with Max.Age.up.Scaler 
+externally.increase.M=FALSE  #increase M in pin_file to all SS to converge
+species.too.high.M1=NULL    #c("gummy shark","whiskery shark")  
 refit.indicators.growth=FALSE  #do it once, only for gummy as I have the data for WA but published growth pars are for SA/Vic
+average.prop.L95_L50=mean(c(135.4/154.5,225/262,210/240,   #average L50:L95 for species with no L95 estimates
+                            113/138,175/198,281/328,113/139,125/136,113/138))
 
   #15.1 published steepness and sigmaR
 sigmaR.steepness.shark=data.frame(Species=c('dusky shark','sandbar shark','gummy shark','blacktip shark',
@@ -281,8 +291,7 @@ sigmaR.steepness.shark=data.frame(Species=c('dusky shark','sandbar shark','gummy
                                               mean(c(0.69,0.71,0.67)),0.71 ,0.78,0.345 ),
                                   Source=c('SEDAR 21','SEDARs 21 & 54','Andre model','SEDAR 65',
                                            'Ian T',rep('ICCAT 2023',2),'Ian T',
-                                           rep('SEDAR 77',3),'ICCAT 2019')) 
-
+                                           rep('SEDAR 77',3),'ICCAT 2019'))
 Dusky.Sedar=sigmaR.steepness.shark%>%filter(Species=='dusky shark')%>%pull(Steepness)
 Sandbar.Sedar=sigmaR.steepness.shark%>%filter(Species=='sandbar shark')%>%pull(Steepness)
 bump.h_sandbar=FALSE  #bump up Sandbar shark h to allow random rec_devs, otherwise model tries to compensate for lower productivity
@@ -290,7 +299,6 @@ ScallopedHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='scalloped hammerhead
 SmoothHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='smooth hammerhead')%>%pull(Steepness)
 GreatHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='great hammerhead')%>%pull(Steepness)
 Mako.ICCAT=sigmaR.steepness.shark%>%filter(Species=='shortfin mako')%>%pull(Steepness)
-
 
   #15.2 published demographic parameters
 Demo.published.values=data.frame(Species=c("angel sharks","copper shark","grey nurse shark","gummy shark","lemon shark",
@@ -305,17 +313,19 @@ test.Sedar=TRUE     #consider Dusky and Sandbar h estimates used in SEDAR in the
 test.lower.gummy.h=test.lower.whiskery.h=TRUE   #test lower h values in SS sensitivity tests
 Use.SEDAR.M=FALSE   #Set to TRUE if using SEDAR M @ age for dusky and sandbar
 
+
 #16. Stock recruitment
-Max.h.shark=.8   #mean of h for blue shark (ICCAT 2023 assessment; Cortes 2016, Kai & Fujinami 2018).
-Min.h.shark=.3  #He et al 2006, Jason Cope pers comm
+Max.h.shark=.8   #mean of blue shark h (ICCAT 2023 assessment; Cortes 2016, Kai & Fujinami 2018).
+Min.h.shark=.3  #He et al 2006, Jason Cope suggestion
 Max.SR_sigmaR.shark=max(sigmaR.steepness.shark$sigmaR,na.rm=T)   #maximum recruitment variability 
 do.random.h=TRUE  #take a random sample of h and M for SS or use empirical distributions
+
 
 #17. Reference points
 #note: Historically, there was a single unspecified reference point (40% unexploited biomass)
 #      Currently, 0.4 is used as threshold, not BMSY
 Biomass.threshold='Bmsy'  #MSC sets threshold to Bmsy and limit to 0.5 Bmsy (Clinton Syers). This is used for CoMs and JABBA (as BMSY ~ 0.5 B0)
-Biomass.threshold.min=0.4  #Andre advices against using BMSY estimates from integrated models and uses 0.4 as proxy
+Biomass.threshold.min=0.4  #2025 Andre: "don't use BMSY estimates from integrated models, use 0.4 as proxy"
 Tar.prop.bmsny=1.2    # Target and Limit proportions of 'Biomass.threshold' 
 Lim.prop.bmsy=0.5    #    source: Haddon et al 2014. 'Technical Reviews of Formal Harvest Strategies'.
 #Fmsy.emp=function(M) 0.41*M     #Zhou et al 2012 but see Cortes & Brooks 2018
@@ -331,38 +341,36 @@ COM.target=0.5
 
 
 #18. Catch-only Models
-COM_use.this.for.risk='catch' #  define if using 'catch' or 'biomass' trajectories to determine risk from catch-only methods
+COM_use.this.for.risk='catch'       #define if using 'catch' or 'biomass' trajectories to determine risk from catch-only methods
 do.ensemble.simulations=FALSE
-catch.only=c('DBSRA','CMSY','SSS')      # define model types used
+catch.only=c('DBSRA','CMSY','SSS')  #define model types used
 do.OCOM=FALSE
-do.Catch.JABBA=FALSE   #redundant, same results as CMSY
-if(do.OCOM) catch.only=c(catch.only,'OCOM')
-if(do.Catch.JABBA) catch.only=c(catch.only,'JABBA')
-CMSY.method="Haddon"    # Select which CMSY method to use. Haddon's datalowSA
-#CMSY.method="Froese"  # Froese et al 2017 does not converge for dwarf or freshwater
+do.Catch.JABBA=FALSE                #redundant, same results as CMSY
+if(do.OCOM)         catch.only=c(catch.only,'OCOM')
+if(do.Catch.JABBA)  catch.only=c(catch.only,'JABBA')
+CMSY.method="Haddon"   #"Froese" Select CMSY method to use. Froese does not converge for dwarf or freshwater
 do.parallel.SSS=TRUE   #do SSS in parallel or not (set to FALSE)
-SSS.sims=5e2   #Cope 2013 did 1e3, same results with 5e2 but faster. 
-ensims<-1e4   #DBSRA. 1e4 Dick & MacCall 2011
-ensims.CSMY=2e4   #CMSY simulations
-ensims.JABBA=3e4  # 3e4 Winkner et al 2019
-Proc.Error=1e-3   #Catch-only default process error. Catch only per se yields highly uncertain estimates
+SSS.sims=5e2           #Cope 2013 did 1e3, same results with 5e2 but faster. 
+ensims<-1e4            #DBSRA. 1e4 Dick & MacCall 2011
+ensims.CSMY=2e4        #CMSY simulations
+ensims.JABBA=3e4       #Winkner et al 2019
+Proc.Error=1e-3        #default process error. Catch only per se yields highly uncertain estimates
 Proc.Error.1=1e-2
 SSS_criteria.delta.fin.dep=0.01
-K_min=2000 #Min value of max K range in tonnes (based on overall catch ranges and K estimates)
-r.prob.max=0.9999   #quantile probs for defining r range for CMSY
+K_min=2000             #Min value of max K range in tonnes (based on overall catch ranges and K estimates)
+r.prob.max=0.9999      #quantile probs for defining r range for CMSY
 r.prob.min=1e-3
-#Ensemble.weight='weighted'  #define if doing weighted or unweighted model average
-Ensemble.weight='equal'
-Wei.SSS=2   #give more weight to SSS given biological realism
+Ensemble.weight='equal' #'weighted' define if doing weighted or unweighted model average
+Wei.SSS=2               #give more weight to SSS given biological realism
 tweak.BmsyK.Cortes=FALSE #update value to increase COM acceptance rate
 tweak.Final.Bio_low=FALSE #update value to increase COM acceptance rate
 n.last.catch.yrs_MSY.catch.only=5
 modify.r_k_bounds.for.convergence=TRUE   #modify the range or f and k used in CMSY for some species to allow enough combos
 
   #18.1 Define which species to assess using catch-only methods
-Assessed.ktch.only.species='All'                #assess all species with catch only methods (level 1 assessment)
-#Assessed.ktch.only.species='Only.ktch.data'   #assess species with only catch data
-display.only.catch.only.sp=FALSE               #just display catch and MSY for species with only catch
+Assessed.ktch.only.species='All'  #'Only.ktch.data' apply Catch only to all species or only those with just catch
+display.only.catch.only.sp=FALSE  #just display catch and MSY for species with only catch
+
 
 #19. Catch curve and YPR
   #19.1 Catch curve inputs
@@ -372,7 +380,7 @@ CVSizeAtAge = c(0.03,0.03)  #this CV is not the CV used in SS3, it's the CV of t
 Main.zone.mesh=data.frame(Species=c("dusky shark","gummy shark",#revise when new length comp available
                                     "sandbar shark","smooth hammerhead",
                                     "whiskery shark","spinner shark"))%>%       
-        mutate(Zone=case_when(Species%in%c("dusky shark","gummy shark",
+              mutate(Zone=case_when(Species%in%c("dusky shark","gummy shark",
                                            "sandbar shark","smooth hammerhead",
                                            "whiskery shark")~'Zone1',
                               Species%in%c("spinner shark")~'West',
@@ -382,36 +390,36 @@ Main.zone.mesh=data.frame(Species=c("dusky shark","gummy shark",#revise when new
                                            "whiskery shark")~6.5,
                               Species%in%c("spinner shark")~7,
                               TRUE~NA))
-TimeStep = 1 # model timestep (e.g. 1 = annual (typical long lived species), 1/12 = monthly)
-LenInc = TL.bins.cm  # TL in cm   
-MLL=NA # (minimum legal length) # retention set to 1 for all lengths if MLL set to NA and retention parameters not specified
+TimeStep = 1           # model timestep (e.g. 1 = annual (typical long lived species), 1/12 = monthly)
+LenInc = TL.bins.cm    # TL in cm   
+MLL=NA                 # (minimum legal length) retention set to 1 for all lengths if MLL set to NA and retention parameters not specified
 SelParams = c(300, 50) # L50, L95-L50 for gear selectivity            NOT USED
 RetenParams = c(NA, NA) # L50, L95-L50 for retention                  NOT USED
-DiscMort = 0 # proportion of fish that die due to natural mortality   NOT USED
-DistnType = 1 # 1 = Multinomial, 2 = Dirichlet multinomial
-GrowthCurveType = 1 # 1 = von Bertalanffy, 2 = Schnute 
+DiscMort = 0           # proportion of fish that die due to natural mortality   NOT USED
+DistnType = 1          # 1 = Multinomial, 2 = Dirichlet multinomial
+GrowthCurveType = 1    # 1 = von Bertalanffy, 2 = Schnute 
 InitDelta = 50
 RefnceAges = NA
 standardise.mesh.zone=TRUE  #only use records from same mesh and zone (the most representative)
-if(standardise.mesh.zone) used.selectivity='Empirical for selected mesh'  #use published sel for chosen mesh
+if(standardise.mesh.zone)  used.selectivity='Empirical for selected mesh'  #use published sel for chosen mesh
 if(!standardise.mesh.zone) used.selectivity='Estimated by SS'             #use combined mesh sel estimated in SS
 
-    #19.1.2 Species for which 'other' fleet is main fleet but no length comp available 
+    #19.1.2 Species for which 'other' fleet is main fleet but no length comp available for that fleet
 Other.to.NSF=c("milk shark","pigeye shark","tiger shark","scalloped hammerhead")  
 Other.to.TDGDLF=c('sawsharks')
 
   #19.2 YPR inputs
 Dummy.F.mort=1e-4   #if Catch curve estimates F.mort at 0, then reset at low value to run YPR
-WLrel_Type <- 1 # 1=power, 2=log-log relationship
-ReprodScale <- 1 # 1=default (standard calculations for spawning biomass), 2=hyperallometric reproductive scaling with female mass (i.e. BOFFF effects)
-ReprodPattern <- 1 # 1 = gonochoristic (separate sexes), 2 = protogynous (female to male sex change), 3 = protandrous (male to female sex change)
+WLrel_Type <- 1     # 1=power, 2=log-log relationship
+ReprodScale <- 1    # 1=default (standard calculations for spawning biomass), 2=hyperallometric reproductive scaling with female mass (i.e. BOFFF effects)
+ReprodPattern <- 1  # 1 = gonochoristic (separate sexes), 2 = protogynous (female to male sex change), 3 = protandrous (male to female sex change)
 InitRatioFem <- 0.5 # Ratio of females to males at recruitment age
 FinalSex_Pmax <- NA # Logistic sex change relationship parameters (max probability of final sex)
-FinalSex_L50 <- NA # Logistic sex change relationship parameters (inflection point)
-FinalSex_L95 <- NA # Logistic sex change relationship parameters (95% of max probability)
-SRrel_Type <- 1 # 1 = Beverton-Holt, 2=Ricker
+FinalSex_L50 <- NA  # Logistic sex change relationship parameters (inflection point)
+FinalSex_L95 <- NA  # Logistic sex change relationship parameters (95% of max probability)
+SRrel_Type <- 1     # 1 = Beverton-Holt, 2=Ricker
 RefPointPlotOpt <- 2 # 0=don't plot, 1=plot defaults, 2=plot BMSY ref points
-nReps = 100 # 200 or 500
+nReps = 100         # 200 or 500
 
 
 #20. State space Surplus Production Models
@@ -421,117 +429,122 @@ use.auxiliary.effort=FALSE  # using effort as auxiliary data yielded very high R
 Rdist = "lnorm"
 KDIST="lnorm"  
 PsiDist='beta'
-Whiskery.q.periods=2 # split monthly cpue into this number of periods (Simpfendorfer 2000, Braccini et al 2021)
-drop.intermediate.yrs=FALSE  #remove whiskery inermediate Q years or not
+Whiskery.q.periods=2        # split monthly cpue into this number of periods (Simpfendorfer 2000, Braccini et al 2021)
+drop.intermediate.yrs=FALSE #remove whiskery inermediate Q years or not
 Gummy.q.periods=1     
-Obs.Err.JABBA=0.01   #JABBA uses SE2" = CPUE.se^2 + fixed.obsE^2 
-increase.CV.JABBA=TRUE   #for consistency with SS3 and because not using fixed.obsE
-do.MCMC.diagnostics=do.hindcasting=FALSE
-if(First.run=="YES")  do.MCMC.diagnostics=do.hindcasting=TRUE
-Proc.Error.cpue=1e-01   # Default process error when fitting cpue to allow enough flexibilty (0.2 showed no differences) 
-Proc.Error.cpue2=5e-02   #alternative, 5e-02 process error for JABBA  (Winker et al 2018 School shark) ; Beth Babcock suggested 0.01
-k.cv=2                #Carrying capacity CV (Winker et al 2018 School shark)
-PEELS=5               #number of years to peel for hindcasting and retrospective   
-evaluate.07.08.cpue=FALSE  #run scenario with 2007 & 08 TDGDLF cpue
-#evaluate.07.08.cpue=c("gummy shark","sandbar shark","whiskery shark")
+Obs.Err.JABBA=0.01          #JABBA uses SE2" = CPUE.se^2 + fixed.obsE^2 
+increase.CV.JABBA=TRUE      #for consistency with SS3 and because not using fixed.obsE
+JABBA.run= 'final'          #'test' for model testing, 'final' for estimating uncertainty
+if(JABBA.run=='final') do.hindcasting=TRUE else do.hindcasting=FALSE
+do.MCMC.diagnostics=do.hindcasting
+Proc.Error.cpue=1e-01     # Default process error when fitting cpue to allow enough flexibilty (0.2 showed no differences) 
+Proc.Error.cpue2=5e-02    #alternative, 5e-02 process error for JABBA  (Winker et al 2018 School shark) ; Beth Babcock suggested 0.01
+k.cv=2                    #Carrying capacity CV (Winker et al 2018 School shark)
+PEELS=5                   #number of years to peel for hindcasting and retrospective   
+evaluate.07.08.cpue=FALSE #c("gummy shark","sandbar shark","whiskery shark") run scenario with 2007 & 08 TDGDLF cpue
+
 
 #21. Integrated age-based model 
-Integrated.age.based='SS'   # define model types used
-do.parallel.SS=TRUE         #do SS in parallel or not
-Run.SS=FALSE                 #switch to TRUE if want to run parameter estimation
-do.all.sensitivity.tests=TRUE #set to TRUE or FALSE as per required
-SS3.run='final' #'test'     # switch to 'final' when model fitting is finalised to estimate uncertainty (Hessian, MCMC, etc)
-create.SS.inputs=TRUE       #set to FALSE once happy with SS input files and only need to run the model
-run_SS_plots=FALSE          #set to TRUE once happy with model and want to plot outputs
-if(SS3.run=='final') run_SS_plots=TRUE
-if(First.run=="YES") Calculate.ramp.years=FALSE  #switch to YES first time new assessment
+
+  #21.1 General arguments
+Integrated.age.based='SS'     # define model types used
+do.parallel.SS=TRUE           #do SS in parallel or not
+Run.SS=FALSE                  #switch to TRUE to run parameter estimation
+SS3.run='final' #'test' for model testing, 'final' for estimating uncertainty
+create.SS.inputs=TRUE        #set to FALSE once happy with SS input files and only need to run the model
+if(SS3.run=='final') run_SS_plots=TRUE else run_SS_plots=FALSE 
+if(SS3.run=='final') Arg=''
+if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
+if(First.run=="YES") Calculate.ramp.years=TRUE  else  Calculate.ramp.years=FALSE #Tune model
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
                                   # for all 4 species observations were collected over multiple years
-Mean.Size.at.age.species=NULL   #  Mean.Size.at.age.species=c("gummy shark","whiskery shark" )
-                                # Not implemented. Wrong SS3 format. May be applicable to gummy and 
-                                # whiskery (only for these species length-@-age data collected from gillnet fishery)
-SS.first.mature_1=FALSE # set to TRUE to set to 1 and leave Mat ogive take control (Jason Cope and Andre comment) 
+Mean.Size.at.age.species=NULL    # c("gummy shark","whiskery shark"); Not implemented.Wrong SS3 format. May be 
+                                 #  applicable to gummy and whiskery (length-@-age data collected from gillnet only)
+SS.first.mature_1=FALSE         # set to TRUE to set to 1 and leave Mat ogive take control (Jason Cope and Andre comment) 
+
+use.Gab.trawl=TRUE   #note that this has only 1 year of data
+add.gummy.gab=FALSE
+alternative.forecasting=NULL  #"sandbar shark"; Forecasting F rather than catch
+# F.forecasting.values=list("sandbar shark"=c('Northern.shark'=1.83343e-04,  #get from Report (EXPLOITATION report:14)
+#                                             'Other'=2.11086e-02,
+#                                             'Southern.shark_1'=0,
+#                                             'Southern.shark_2'=1.04784e-02)) 
+WRL.species=c("copper shark","dusky shark","shortfin mako",   #Set WRL as a separate fleet for these species
+              "smooth hammerhead","spinner shark","tiger shark") 
+
+Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
+do.MC.multi=FALSE #doesn't work if estimating rec devs as rec devs are not updated with random sample
+nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
+if(do.MC.multi)
+{
+  Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation. Used for Monte Carlo simulations
+  MCMCsims=1e5; Thin=10; burning=1:(5*length(seq(1,MCMCsims,by=Thin))/100)   #5%  burning
+  Arg=paste(' -mcmc',MCMCsims,' -mcsave', 100)  #MCMC
+}
+estim.Southern2='length or mean.wt' #'length and mean.wt'; Decide to turn on Southern2 estimation based on this condition
+set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
+
+
+  #21.2 Indo IUU
+Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
+Min.tons.Indo=50 # Indo IUU - F estimation and test of catch recons based on Apprehension for species with at least Min.tons.Indo
+estim.F.INDO=FALSE     #Indo IUU - F estimation. Didn't work (see reply to Andre's suggestion)
+set.indo.catches.to.unknown=FALSE
+set.indo.catches.to.very.low=FALSE
+set.indo.catches.for.unknown.years=TRUE
+indo.unknown.catch.years=2020:2050  #update as appropriate
+keep.some.Indo.yrs=FALSE
+CV_Indo_catch=0.2
+CV_Indo_catch_dodgy.yrs=0.2
+CV_apprehensions=0.6
+scale.Indo.appre=FALSE
+Indo_F_Method=4 # 3 standard hybrid; 4 used for estim F and vermillion snapper
+Indo.years.cpue=2000:max(indo.unknown.catch.years)
+add.minus.999.to.INDO=FALSE  #add -999 before start of Indo catch
+
+
+  #21.3 SS biology arguments
+species.increase.terminal.age=c("gummy shark","whiskery shark") #add a few extra age classes
+species.constant.fec=c("whiskery shark")      #dodgy linear fec relationship
+Plus.gp.size=1.25                         #add 25% to max size make sure no accumulation of survivals in last size class
+bump.up.max.size.population=FALSE         #leave as FALSE so SS flags when Linf is too high
+resample.h.greynurse=FALSE  #no need to resample h
+drop.min.pop.bin.size=c("dusky shark")  #reduce min pop size bin a bit
+
+
+  #21.4 SS length comps arguments
 SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
-estim.sel.pars_SS=c("sandbar shark")
-extra.SD.Q.species=c("sandbar shark")
-estim.sel.pars_SS.prior=NULL
-
-estim.growth.pars_SS=c("sandbar shark") #for other species, no great contrast in other data types
-test.growth.estim=NULL #c("gummy shark","whiskery shark")
-Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
 combine_NSF_Survey=NULL   #combine length composition from NSF and Survey data to estimate logistic selectivity
 combine.sexes.tdgdlf=NULL 
 combine.sexes.tdgdlf.daily=NULL 
 combine.sexes.survey=c("dusky shark")
 combine.sexes.nsf=c("dusky shark")
 combine.sexes=unique(c(combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,combine.sexes.survey,combine.sexes.nsf,
-                "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark"))
-combine.sex_type=0  #0, 0 means combined male and female ; 3, 3 means data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
-SS.part_length.comps=0 #0, retain and discarded; 1, discards only; 2, retained only. Note, use 2 or 1 for fleets with discards
-SS.part_meanbodywt=2   #this is retained catch
-SS.sex.length.type=3  #1 if want to maintain males and females separated
+                       "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark"))
+
+combine.sex_type=0     #0, males and females combined; 3, data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
+SS.sex.length.type=3   #1 if want to maintain males and females separated
+SS.part_length.comps=0 #0, retained and discarded; 1, discards only; 2, retained only. Note, use 2 or 1 for fleets with discards
+
 SS.sex.3_use.missing.sex=TRUE # set to FALSE if only use years when both sexes sampled (e.g. whiskery sexual segregation). Adding all 0s affects sel par estim when Sex=3
 SS.sex.3_use.missing.sex.zone=TRUE
 SS.sex.1_2.dont.change.to_3=TRUE #keep sex 1 or 2 for years with one sex is missing in sample
-fit.to.mean.weight.Southern2=c("dusky shark","gummy shark","sandbar shark","whiskery shark","spinner shark")  #get model to fit mean weight regardless of available length comp
-estim.Southern2='length or mean.wt' #'length and mean.wt' decide to turn on Southern2 estimation if this condition
-drop.len.comp.like=NULL    
-survey.like.weight=NULL  #"dusky shark"  
-use.Gab.trawl=TRUE   #note that this has only 1 year of data
-add.gummy.gab=FALSE
-species.increase.terminal.age=c("gummy shark","whiskery shark") #add a few extra age classes
-species.constant.fec=c("whiskery shark")   #dodgy linear fec relationship
-Extract.SS.parameters=FALSE  #extract SS3 selectivity pars
+
+Drop.single.year.size.comp=FALSE
+
+
+  #21.5 SS selectivity arguments
+#estim.sel.pars_SS=c("sandbar shark")
+estim.sel.pars_SS.prior=c('gummy shark')    #NULL; Estimate sel pars with priors
+Extract.SS.sel.parameters=FALSE  #calculated SS3 selectivity pars from empirical selectivity
+Extract.SS.sel.pars_use.K.and.W=NULL #c('gummy shark'); extract SS based on K&W estimates
 rescaled.species.sel=sort(c('great hammerhead','scalloped hammerhead','grey nurse shark','milk shark',
-                       'shortfin mako','sawsharks','spinner shark',
-                       'tiger shark','wobbegongs'))   #this species have no species-specific empirical sel (family was used)
-Plus.gp.size=1.25  #add 25% to max size make sure no accumulation of survivals in last size class
-bump.up.max.size.population=FALSE  #leave as FALSE so SS flags when Linf is too high
-
-alternative.SR_type=NULL #Sensitivity for Spawner-Recruitment; "sandbar shark"
-
-alternative.sigmaR=NULL  #Sensitivity for sigmaR (effect on rec_devs)
-#alternative.sigmaR="sandbar shark"
-alternative.do_recdev=NULL  #Sensitivity for do_recdev method (effect on rec_devs)
-#alternative.do_recdev="sandbar shark"
-do_recdev_1="sandbar shark" 
-
-alternative.forecasting=NULL  #forecasting F rather than catch
-#alternative.forecasting="sandbar shark"
-# F.forecasting.values=list("sandbar shark"=c('Northern.shark'=1.83343e-04,  #get from Report (EXPLOITATION report:14)
-#                                             'Other'=2.11086e-02,
-#                                             'Southern.shark_1'=0,
-#                                             'Southern.shark_2'=1.04784e-02))  
-alternative.like.weigthing=NULL  #test alternative lambdas for survey and length comps
-
-#spatial.model=NULL # build areas-as-fleets model
-spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')
-test.single.area.model=TRUE  #set to TRUE if want to test single area model scenario for spatial.model species
-
-alternative.Linf=NULL # "sandbar shark" reduce Linf to match length comps. Superseded, now estimating Linf
-if(!is.null(alternative.Linf))names(alternative.Linf)=0.9
-
-retained.discarded.sp=c("dusky shark") #these are commercial species with size limits. Note that PCM already accounted for in catch recons so set to 1 in SS
-retained.discarded.units='numbers'  #input discarded catch in numbers in SS (1000s of individuals)
-CV.discards=1
-discard_fleet_info_units=1 # 1, same as catch units(bio/num); 2, fraction; 3, numbers (1000s of individuals)
-if(retained.discarded.units=='numbers')
-{
-  CV.discards=0.1
-  discard_fleet_info_units=3
-}
-  #21.1 Set WRL as a separate fleet for these species
-WRL.species=c("copper shark","dusky shark","shortfin mako",
-              "smooth hammerhead","spinner shark","tiger shark") 
-
-  #21.2 Sensitivity for NSF logistic selectivity for these species
-#alternative.NSF.selectivity=NULL
-alternative.NSF.selectivity=c("tiger shark")
-
-  #21.3 No empirical Selectivity for main fleet or length comp sample size is too small
+                            'shortfin mako','sawsharks','spinner shark',
+                            'tiger shark','wobbegongs'))   #species with no empirical sel (family used instead)
+# For thiese species, there is no empirical Selectivity for main fleet or length comp sample size is too small
 #  so cannot implement any length-based assessment (Catch curve, SS3, etc)
 no.empirical.sel.main.fleet=c(GAB.main="angel sharks",
                               SA_MSF.main="copper shark",
@@ -543,44 +556,63 @@ no.empirical.sel.main.fleet=c(GAB.main="angel sharks",
                               Taiwan.main_low.n.NSF="scalloped hammerhead",
                               WRL.main="tiger shark",
                               Multispecies.no.sel="wobbegongs")
-resample.h.greynurse=FALSE  #no need to resample h
 overwrite.sel.inits=FALSE
 
-Early_rec_dev_start=0 #0 gummy Andre 2009; set to MaxAge allow several years for population to stabilize (any non 0 will plot long series of early rec devs)
-Early_rec_dev_phase=3 # if >0, then estim early.rec.devs for years set in recdev_early_start & MainRdevYrFirst; if set to <0, then don't estimate early rec devs
-Main.rec.dev_first.year='min.obs'   #'min.ktch' to use first year of catch; 'min.obs' first year abundance or length comps
-Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years before, defined by age at maturity
 
-drop.min.pop.bin.size=c("dusky shark")  #reduce min pop size bin a bit
+  #21.6 Survey arguments
+Abundance.error.dist='Lognormal'  #'Lognormal' if stand. cpue in normal space and CVs; 'Normal'
+CV.use='loess'  #'fixed'; Francis 2011
+default.CV=0.15  #0.15 used by Punt 2009 gummy model; 0.1 Taylor Big skate; loess method 2015 ICATT blue shark 
+                  # Taylor dogfish used CV as is so set Q_extraSD to 0.1 
 
-  #21.4 Specific SS model run arguments
-if(SS3.run=='final') Arg=''
-if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
-Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
+
+  #21.7 SS Q arguments
 SS3.q.analit.solu=FALSE   #set to TRUE if calculating q analytically to save up pars, set to FALSE if using block Q (time changing Q)
 block.species_Q=c("whiskery shark") #"gummy shark"
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
-do.MC.multi=FALSE #doesn't work if estimating rec devs as rec devs are not updated with random sample
-nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
-Arg.no.estimation='-maxfn 0 -phase 50 -nohess'  #no estimation. Used for Monte Carlo simulations
-#MCMCsims=1e5; Thin=10; burning=1:(5*length(seq(1,MCMCsims,by=Thin))/100)   #5%  burning
-#Arg=paste(' -mcmc',MCMCsims,' -mcsave', 100)  #MCMC
+extra.SD.Q.species=c("sandbar shark")
 
 
-  #21.5 Assumed error distribution for abundance series
-Abundance.error.dist='Lognormal'  #'Lognormal' if stand. cpue in normal space and CVs; 'Normal'
+  #21.8 SS growth arguments
+estim.growth.pars_SS=c("sandbar shark") #for other species, no great contrast in other data types
+test.growth.estim=NULL #c("gummy shark","whiskery shark")
+Type.growth.prior=data.frame(k=6, Linf=6)  #6 normal, 5 gamma, 4 logN bias corr, 3 logN, 2 beta, 1 symmetric beta, 0 no prior
 
-  #21.6 Default CV for time series with very small CVs
-CV.use='loess'  #Francis 2011
-#CV.use='fixed'
-default.CV=0.15  #0.15 used by Punt 2009 gummy model; 0.1 Taylor Big skate; loess method 2015 ICATT blue shark 
-                  # Taylor dogfish used CV as is so set Q_extraSD to 0.1 
+
+  #21.9 SS mean bodyweight arguments
+SS.part_meanbodywt=2   #0, retained and discarded; 1, discards only; 2, retained only
+fit.to.mean.weight.Southern2=c("dusky shark","gummy shark","sandbar shark","whiskery shark","spinner shark")  #get model to fit mean weight regardless of available length comp
 default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for Southern2 selectivity
 
-  #21.7 Drop single year size comp
-Drop.single.year.size.comp=FALSE
 
-  #21.8 Inputs for SS tag recaptures  
+  #21.10 SS stock recruitment arguments
+alternative.SR_type=NULL    #"sandbar shark"; Sensitivity for Spawner-Recruitment
+alternative.sigmaR=NULL     #"sandbar shark"; Sensitivity for sigmaR (effect on rec_devs)
+alternative.do_recdev=NULL  #"sandbar shark"; Sensitivity for do_recdev method (effect on rec_devs)
+do_recdev_1="sandbar shark"
+Early_rec_dev_start=0     #0 gummy Andre 2009; set to MaxAge allow several years for population to stabilize (any non 0 will plot long series of early rec devs)
+Early_rec_dev_phase=3     # if >0, then estim early.rec.devs for years set in recdev_early_start & MainRdevYrFirst; if set to <0, then don't estimate early rec devs
+Main.rec.dev_first.year='min.obs'   #'min.ktch' to use first year of catch; 'min.obs' first year abundance or length comps
+Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years before, defined by age at maturity
+
+
+  #21.11 SS spatial modelling arguments
+spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')  #NULL Build areas-as-fleets model
+
+
+  #21.12 SS retention arguments
+retained.discarded.sp=c("dusky shark") #these are commercial species with size limits. Note that PCM already accounted for in catch recons so set to 1 in SS
+retained.discarded.units='numbers'  #input discarded catch in numbers in SS (1000s of individuals)
+CV.discards=1
+discard_fleet_info_units=1 # 1, same as catch units(bio/num); 2, fraction; 3, numbers (1000s of individuals)
+if(retained.discarded.units=='numbers')
+{
+  CV.discards=0.1
+  discard_fleet_info_units=3
+}
+
+
+  #21.13 SS Tagging arguments
 Min.annual.zone.releases=10 #minimum number of observations per released year-zone to be used in assessment
 Use.these.tag.year_zones=list("dusky shark"=NULL,
                               #"gummy shark"=NULL,  #no reporting rate
@@ -606,44 +638,38 @@ Manual.selection.tags=list(Use.these.tag.years=list("dusky shark"=1994:1995,"gum
                                            "gummy shark"=c("Zone2"),
                                            "sandbar shark"=c("West","Zone1"),  
                                            "whiskery shark"=c("West","Zone1","Zone2")))
-set.initial.F=FALSE  #have an equilibrium F level before start of catch time series
 
-  #21.9 Indo IUU
-Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
-Min.tons.Indo=50 # Indo IUU - F estimation and test of catch recons based on Apprehension for species with at least Min.tons.Indo
-estim.F.INDO=FALSE     #Indo IUU - F estimation. Didn't work (see reply to Andre's suggestion)
-set.indo.catches.to.unknown=FALSE
-set.indo.catches.to.very.low=FALSE
-set.indo.catches.for.unknown.years=TRUE
-indo.unknown.catch.years=2020:2050  #update as appropriate
-keep.some.Indo.yrs=FALSE
-CV_Indo_catch=0.2
-CV_Indo_catch_dodgy.yrs=0.2
-CV_apprehensions=0.6
-scale.Indo.appre=FALSE
-Indo_F_Method=4 # 3 standard hybrid; 4 used for estim F and vermillion snapper
-Indo.years.cpue=2000:max(indo.unknown.catch.years)
-add.minus.999.to.INDO=FALSE  #add -999 before start of Indo catch
 
-  #21.10 Fit diagnostics
-if(SS3.run=='final') do.SS3.diagnostics=TRUE  #very time consuming. Only run once model is defined.
-if(SS3.run=='test') do.SS3.diagnostics=FALSE   
+  #21.14 SS likelihood arguments
+drop.len.comp.like=NULL
+survey.like.weight=NULL  #"dusky shark"  
+alternative.like.weigthing=NULL  #test alternative lambdas for survey and length comps
+
+
+  #21.15 Fit diagnostics
+#note: very time consuming. Only run once model is defined.
+if(SS3.run=='final') do.SS3.diagnostics=TRUE else do.SS3.diagnostics=FALSE   
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
 Number.of.jitters=50              
 Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.
 Approach.like.prof='SE' #set to 'min.plus' for sequence between [MLE -Number.of.likelihood.profiles] and [MLE +Number.of.likelihood.profiles]
 Number.of.likelihood.profiles.h=6
-diag.extras=""  #set to '"-nohess" to remove hessian estimation (much faster but no uncertainty)
-#like.prof.case='faster'  #faster run, no hessian estimation
-#like.prof.case='standard'  #as per r4ss (not estimating Hessian by setting extras)
+diag.extras=""  #"-nohess" to remove hessian estimation (much faster but no uncertainty)
+like.prof.case='standard'  #as per r4ss (not estimating Hessian by setting extras); set to 'faster' for faster run
 
-  #21.11 Sensitivity tests for using different data types
+
+  #21.16 Sensitivity tests   
+do.all.sensitivity.tests=TRUE #FALSE to only run S1
 test.using.cpue=c("dusky shark","gummy shark","sandbar shark","whiskery shark")          #NULL; have one scenario not using cpue  
 test.using.length.comps=test.using.cpue   #NULL; have one scenario not using length comps 
 test.using.mean.body=test.using.cpue      #NULL; have one scenario not using mean body weight
 test.using.tags=use.tag.data           #NULL; have one scenario not using tagging data
 test.using.male.sel.offset=c("gummy shark","whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
+test.single.area.model=TRUE   #TRUE to test single area model scenario for spatial.model species
+alternative.NSF.selectivity=c("tiger shark") #NULL
+alternative.Linf=NULL # "sandbar shark"; Reduce Linf to match length comps. Superseded, now estimating Linf inside SS
+if(!is.null(alternative.Linf)) names(alternative.Linf)=0.9
 
 
 #22. Bespoke Integrated size-based model 
@@ -690,14 +716,15 @@ if(Do.bespoke)
   
 }
 
+
 #23. Weight of Evidence
 Ass.flow=FALSE   #create assessment workflow chart
-LoE.Weights=c(Spatial=0,COM=0,JABBA=0,integrated=1)  #if no integrated, use next highest
+LoE.Weights=c(Spatial=0,COM=0,JABBA=0,integrated=1)  #if no iL5 assessment then use next highest
 RiskColors=c('Negligible'="cornflowerblue",
-             'Low'="chartreuse3",  #olivedrab3
+             'Low'="chartreuse3",  
              'Medium'="yellow1",
              'High'="orange",
-             'Severe'="brown1")   #red2
+             'Severe'="brown1")   
 Choose.probability="Depletion" #"B.over.Bmsy"  #use B/Bmys or B/K probabilities
 Like.ranges=list(L1=c(0,0.0499999),
                  L2=c(0.05,0.2),
@@ -705,12 +732,10 @@ Like.ranges=list(L1=c(0,0.0499999),
                  L4=c(0.50001,1))
 label_colors=c(Indicator='chocolate4',Non.indicator='cadetblue4',PSA.only='black')
 
-#24. Average ratio L50:L95 for species with no L95 estimates
-average.prop.L95_L50=mean(c(135.4/154.5,225/262,210/240,113/138,175/198,281/328,113/139,125/136,113/138))
 
-#25. Define if using effort 
+#24. Define if using effort 
 add.effort="NO"    
-What.Effort="km.gn.hours"  #What effort to display?
+What.Effort="km.gn.hours"  #displayed effort
 #What.Effort="km.gn.days" 
 
 
@@ -1020,6 +1045,8 @@ Indo_apprehensions=read.csv(handl_OneDrive('Analyses/Data_outs/Indo_apprehension
 LH.data=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv'))
 
 SS_selectivity_init_pars=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.selectivity_pars.csv'))
+SS_selectivity_priors=read.csv(handl_OneDrive('Analyses/Population dynamics/Refit SS3 selectivity/fitted to empirical selectivity_TDGDLF.csv'))
+
 
 mesh.prop.effort=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.csv'))%>%mutate(Zone='Combined')
 mesh.prop.effort.West=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.proportional.effort.West.csv'))%>%mutate(Zone='West')
@@ -2490,9 +2517,9 @@ Sel.equivalence=data.frame(
                 'Squalidae'))
 Selectivity.at.age=vector('list',N.sp)
 names(Selectivity.at.age)=Keep.species
-Selectivity.at.totalength=Selectivity.at.age
+Selectivity.at.totalength=Selectivity.at.totalength_K.and.W=Selectivity.at.age
 HandL=Dat.repository 
-for(l in 1:N.sp)
+for(l in 1:N.sp)   
 {
   if('gillnet.selectivity_len.age'%in%names(Species.data[[l]]) | names(Species.data)[l]%in%Sel.equivalence$Name)
   {
@@ -2501,6 +2528,7 @@ for(l in 1:N.sp)
     {
       GN.sel.at.age=Species.data[[l]]$gillnet.selectivity_len.age%>%mutate(type='Species')
       GN.sel.at.totalength=Species.data[[l]]$gillnet.selectivity%>%mutate(type='Species')
+      GN.sel.at.totalength_K.and.W=Species.data[[l]]$"gillnet.selectivity_K&W"%>%mutate(type='Species')
     }else
     {
       #allocate  selectivity from family
@@ -2519,18 +2547,29 @@ for(l in 1:N.sp)
       GN.sel.at.totalength=GN.sel.at.totalength%>%
         rename(X16.5='16.5',
                X17.8='17.8')
+      GN.sel.at.totalength_K.and.W=GN.sel.at.totalength_K.and.W%>%
+        rename(X16.5='16.5',
+               X17.8='17.8')
     }
     GN.sel.at.age=GN.sel.at.age%>%
-      mutate(Sum.sel=X16.5+X17.8,
-             Sel.combined=Sum.sel/max(Sum.sel),
-             Sel.combined=Sel.combined/max(Sel.combined))
+                      mutate(Sum.sel=X16.5+X17.8,
+                             Sel.combined=Sum.sel/max(Sum.sel),
+                             Sel.combined=Sel.combined/max(Sel.combined))
     Selectivity.at.age[[l]]=GN.sel.at.age[,c('TL','Age','Sel.combined','X16.5','X17.8','type')]
     
     GN.sel.at.totalength=GN.sel.at.totalength%>%
-      mutate(Sum.sel=X16.5+X17.8,
-             Sel.combined=Sum.sel/max(Sum.sel),
-             Sel.combined=Sel.combined/max(Sel.combined)) 
+                        mutate(Sum.sel=X16.5+X17.8,
+                               Sel.combined=Sum.sel/max(Sum.sel),
+                               Sel.combined=Sel.combined/max(Sel.combined)) 
     Selectivity.at.totalength[[l]]=GN.sel.at.totalength[,c('TL','Sel.combined','X16.5','X17.8','type')]
+    
+    GN.sel.at.totalength_K.and.W=GN.sel.at.totalength_K.and.W%>%
+                          mutate(Sum.sel=X16.5+X17.8,
+                                 Sel.combined=Sum.sel/max(Sum.sel),
+                                 Sel.combined=Sel.combined/max(Sel.combined)) 
+    Selectivity.at.totalength_K.and.W[[l]]=GN.sel.at.totalength_K.and.W[,c('TL','Sel.combined','X16.5','X17.8','type')]
+    
+    
   }
 }
 
@@ -2572,6 +2611,34 @@ if(First.run=="YES" & is.null(assess.these.species.only))
   mtext("TL (cm)", side = 1, line = 1,outer=T)
   mtext("Selectivity", side = 2, line = -.5,las=3,col=2,outer=T)
   dev.off()
+  
+  
+  #My estimates VS K&W
+  for(i in 1:length(Selectivity.at.totalength_K.and.W))
+  {
+    a=rbind(Selectivity.at.totalength[[i]]%>%mutate(type='my estimate'),
+            Selectivity.at.totalength_K.and.W[[i]]%>%mutate(type='K&W'))%>%
+      gather(Mesh,Sel,-c(TL,type))
+    XX=match(names(Selectivity.at.totalength)[i],names(List.sp))
+    XLIM=c(List.sp[[XX]]$Lzero,List.sp[[XX]]$TLmax)   
+    XLIM[1]=ceiling(XLIM[1]/10)*10
+    p1=a%>%
+      ggplot(aes(TL,Sel,color=type))+
+      geom_line()+
+      facet_wrap(~Mesh,ncol=1)+theme_PA()+theme(legend.position = 'top')+
+      scale_x_continuous(breaks = seq(XLIM[1], XLIM[2], by = 20),limits=c(XLIM[1],XLIM[2]))
+    
+    p2=a%>%
+      ggplot(aes(TL,Sel,color=Mesh))+
+      geom_line()+
+      facet_wrap(~type,ncol=1)+theme_PA()+theme(legend.position = 'top')+
+      scale_x_continuous(breaks = seq(XLIM[1], XLIM[2], by = 20),limits=c(XLIM[1],XLIM[2]))
+    
+    ggarrange(plotlist = list(p1,p2),ncol=2)
+    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
+                 "/",AssessYr,"/1_Inputs/Visualise data","/Selectivity_my estimate VS K&W.tiff",sep=''),
+           width = 8,height = 8, dpi = 300, compression = "lzw")
+  }
 }
 
 
@@ -3342,7 +3409,7 @@ if(First.run=="YES")
 
 #Extract SS selectivity parameters 
 #note: do this only once and update 'SS3.selectivity_pars.csv'.
-if(Extract.SS.parameters) fn.source1('Re fit SS3 selectivity.R')
+if(Extract.SS.sel.parameters) fn.source1('Re fit SS3 selectivity.R')
 
 
 # Compare observed size comp and assumed SS selectivity 

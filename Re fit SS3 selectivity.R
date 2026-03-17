@@ -15,12 +15,15 @@ for(l in 1:N.sp)
 {
   if(!is.null(Selectivity.at.totalength[[l]]) & any(grepl(paste(c('West','Zone'),collapse='|'),names(Species.data[[l]]))))
   {
+    #get empirical selectivity
     SP=Keep.species[l]
     print(paste('Extractiong SS_double normal sel pars for -----',SP))
     TLmax=List.sp[[l]]$TLmax
     if(Keep.species[l]%in%c('milk shark','sawsharks','spurdogs',
                             'gummy shark','whiskery shark')) TLmax=TLmax*1.5
-    AA=Selectivity.at.totalength[[l]]%>%
+    AA=Selectivity.at.totalength[[l]]
+    if(SP%in%Extract.SS.sel.pars_use.K.and.W) AA=Selectivity.at.totalength_K.and.W[[l]]
+    AA=AA%>%
       filter(TL<TLmax)
     TL=AA$TL-(TL.bins.cm/2)
     Obs=AA$Sel.combined
@@ -33,8 +36,10 @@ for(l in 1:N.sp)
     if(SP=='sawsharks') par=c(100,-4.5,6,7)
     if(SP=='whiskery shark') par=c(130,-4.5,6,7)
     
+    #set initial values for estimation
     Init.val=doubleNorm24.fn(TL,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE)
     
+    #get observations
     d.list=Species.data[[l]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
                                   names(Species.data[[l]]))]
     if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
@@ -48,9 +53,9 @@ for(l in 1:N.sp)
       mutate(Region=Fleet,
              fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
              Fleet=ifelse(fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
-                          ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
-                                 ifelse(fleet=='NSF.LONGLINE','Northern.shark',
-                                        fleet))),
+                   ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
+                   ifelse(fleet=='NSF.LONGLINE','Northern.shark',
+                          fleet))),
              TL=FL*List.sp[[l]]$a_FL.to.TL+List.sp[[l]]$b_FL.to.TL)
     dd=d.list%>%
       filter(Fleet%in%c('Southern.shark_1','Southern.shark_2'))%>%
@@ -59,13 +64,7 @@ for(l in 1:N.sp)
 
     dd1=dd
     
-    #display size and selectivity
-    fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(List.sp[[l]]$Name),"/",AssessYr,
-                 "/1_Inputs/Visualise data/Estimated SS3 selectivity",sep=''),2000,2000)  
-    plot(TL,Obs,main=SP,pch=19,ylab='Relative selectivity',xlab='TL (cm)',xlim=c(with(List.sp[[l]],Lzero+a_FL.to.TL+b_FL.to.TL),
-                                                                                 List.sp[[l]]$TLmax))
-    lines(TL,Init.val,col='red',lwd=1)
+    #fit model
     if(SP=='copper shark')dd=dd%>%filter(Region=='Zone2.7')
     if(SP=='scalloped hammerhead') dd=dd%>%filter(Region%in%c('West.6.5','West.7'))
     if(nrow(dd)>2)
@@ -73,7 +72,7 @@ for(l in 1:N.sp)
       dd$bin=TL.bins.cm*floor(dd$TL/TL.bins.cm)
       y=table(dd$bin)
       y=y/max(y)
-      points(as.numeric(names(y)),y,type='h',col="green")
+      #points(as.numeric(names(y)),y,type='h',col="lightgreen")
       d <- density(dd$TL)
       #  lines(d$x,d$y/max(d$y),col="forestgreen",lwd=2)
     }
@@ -82,7 +81,6 @@ for(l in 1:N.sp)
     if(SP=='spurdogs')nlmb$par[1]=56
     TL1=TL
     Predicted=with(nlmb,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
-    lines(TL1,Predicted,col='black',lwd=3)
     Obs=d$y/max(d$y)
     TL=d$x
     if(SP=='great hammerhead') par=c(300,-1,10,10)
@@ -92,11 +90,26 @@ for(l in 1:N.sp)
     if(SP=='great hammerhead')nlmb_fitted_to_obs$par[3:4]=9 
     if(SP=='milk shark')nlmb_fitted_to_obs$par[2:4]=c(-9,4.5,4.5) 
     Predicted_fitted_to_obs=with(nlmb_fitted_to_obs,doubleNorm24.fn(TL1,par[1],par[2],par[3],par[4],e=1e-5, f=1e-5, use_e_999=TRUE, use_f_999=TRUE))
-    lines(TL1,Predicted_fitted_to_obs,col='forestgreen',lwd=3)
-    legend('topleft',c('empirical sel','init values','predicted SS3',
-                        'predicted SS3_rescaled',paste0('observed lengths (n=',nrow(dd),')')),
-           pch=c(19,NA,NA,NA,NA),lty=c(NA,1,1,1,1),lwd=3,
-           col=c('black','red','black','forestgreen',"green"),bty='n')
+    
+    #display size and selectivity
+    #Xlim.min=0
+    Xlim.min=with(List.sp[[l]],Lzero+a_FL.to.TL+b_FL.to.TL)
+    fn.fig(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                 capitalize(List.sp[[l]]$Name),"/",AssessYr,
+                 "/1_Inputs/Visualise data/Estimated SS3 selectivity",sep=''),2400,2000)  
+    plot(TL1,AA$Sel.combined,main=SP,pch=19,lwd=.8,lty=3,ylab='Relative selectivity',xlab='TL (cm)',type='b',xlim=c(Xlim.min,List.sp[[l]]$TLmax))
+    lines(TL1,AA$X16.5,col='blue',lwd=.8,type='o',pch=19,lty=3)
+    lines(TL1,AA$X17.8,col='lightblue',lwd=.8,type='o',pch=19,lty=3)
+    lines(TL1,Init.val,col='grey75',lwd=1,lty=2)
+    
+    lines(TL1,Predicted,col = adjustcolor("black", alpha.f = 0.5),lwd=2)
+    lines(TL1,Predicted_fitted_to_obs,col=adjustcolor("forestgreen", alpha.f = 0.35),lwd=2)
+    if(nrow(dd)>2) points(as.numeric(names(y)),y,type='h',col=adjustcolor("lightgreen", alpha.f = 0.5))
+    
+    legend('topleft',c('emp sel_comb','emp sel_16.5','emp sel_17.8','init values','SS3 pred',
+                        'SS3 pred (rescaled peak)',paste0('observed lengths (n=',nrow(dd),')')),
+           pch=c(19,19,19,NA,NA,NA,NA),lty=c(3,3,3,2,1,1,1,1),lwd=2,
+           col=c('black','blue','lightblue','grey75','black','forestgreen',"lightgreen"),bty='n')
     dev.off()
     
     #display size comp by region

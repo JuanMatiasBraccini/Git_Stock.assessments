@@ -1961,7 +1961,22 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
     }
     
     #add priors if required
-    if(!is.null(life.history$Sel.prior.sd_type))
+    if(!is.null(life.history$Sel.prior))
+    {
+      aidII=grep(paste(c('SizeSel_P_1_Southern.shark','SizeSel_P_2_Southern.shark',
+                         'SizeSel_P_3_Southern.shark','SizeSel_P_4_Southern.shark'),collapse='|'),rownames(ctl$size_selex_parms))  
+      dumcrap=grep('offset.male',rownames(ctl$size_selex_parms))
+      if(length(dumcrap)>0) aidII=subset(aidII, !aidII%in%dumcrap)
+      
+      n.rep=nrow(ctl$size_selex_parms[aidII,])/ncol(life.history$Sel.prior)
+      ctl$size_selex_parms[aidII,'PRIOR']=rep(unlist(life.history$Sel.prior),n.rep)
+      
+      #life.history$Sel.prior.sd_type
+      ctl$size_selex_parms[aidII,'PR_SD']=rep(unlist(life.history$Sel.prior.sd_type[,grep('.sd',colnames(life.history$Sel.prior.sd_type))]),n.rep)
+      ctl$size_selex_parms[aidII,'PR_type']=rep(unlist(life.history$Sel.prior.sd_type[,grep('.type',colnames(life.history$Sel.prior.sd_type))]),n.rep)
+    }
+    
+    if(!is.null(life.history$Sel.prior.sd_type_logistic))
     {
       #P1 Logistic
       if(ctl$size_selex_types[grep("Northern.shark",rownames(ctl$size_selex_types)),'Pattern']==1)
@@ -1974,7 +1989,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
         ctl$size_selex_parms[aidII,'PR_SD']=life.history$Sel.prior.sd_type$P2.sd
         ctl$size_selex_parms[aidII,'PR_type']=life.history$Sel.prior.sd_type$P2.type
       }
-      
       if(ctl$size_selex_types[grep("Survey",rownames(ctl$size_selex_types)),'Pattern']==1)
       {
         aidII=grep("SizeSel_P_1_Survey",rownames(ctl$size_selex_parms))
@@ -1985,7 +1999,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
         ctl$size_selex_parms[aidII,'PR_SD']=life.history$Sel.prior.sd_type$P2.sd
         ctl$size_selex_parms[aidII,'PR_type']=life.history$Sel.prior.sd_type$P2.type
       }
-      
     }
     
     if('Fleet'%in%colnames(ctl$size_selex_parms))ctl$size_selex_parms=ctl$size_selex_parms%>%dplyr::select(-Fleet)
@@ -2127,9 +2140,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
   
   #Set prior to init value 
   ctl$SR_parms[,"PRIOR"]=ctl$SR_parms[,"INIT"]
-  ctl$MG_parms=ctl$MG_parms%>%mutate(PRIOR=ifelse(PHASE<0,INIT,PRIOR))
+  ctl$MG_parms=ctl$MG_parms%>%
+                        mutate(PRIOR=ifelse(PHASE<0,INIT,PRIOR))
   ctl$Q_parms[,"PRIOR"]=ctl$Q_parms[,"INIT"]
-  ctl$size_selex_parms[,"PRIOR"]=ctl$size_selex_parms[,"INIT"]
+  ctl$size_selex_parms=ctl$size_selex_parms%>%
+                        mutate(PRIOR=ifelse(PHASE<0,INIT,PRIOR),
+                               PR_SD=ifelse(PHASE<0,99,PR_SD),
+                               PR_type=ifelse(PHASE<0,0,PR_type))
   
   #Input variance adjustments factors 
   #Factors: 1=add_to_survey_CV; 2=add_to_discard_stddev; 3=add_to_bodywt_CV; 4=mult_by_lencomp_N
@@ -2680,7 +2697,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       linen <- NULL
       linen <- grep(paste(c("# 0=use init values in control file; 1=use ss.par","#_init_values_src"),collapse='|'), starter.file)
       starter.file[linen] <- paste0("0 # 0=use init values in control file; 1=use ss.par")
-      #if(like.prof.case=='faster') starter.file[grep("#_converge_criterion", starter.file)] <- paste0("0.001 #_converge_criterion")
+      if(like.prof.case=='faster') starter.file[grep("#_converge_criterion", starter.file)] <- paste0("0.001 #_converge_criterion")
       write(starter.file, paste(dirname.Par_var.profile, "/starter.ss", sep=""))
       
       
