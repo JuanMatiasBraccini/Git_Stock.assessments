@@ -281,7 +281,7 @@ for(w in 1:n.SS)
               Min.size.NSF=Min.annual.obs.ktch_NSF
               if(Neim%in%c("dusky shark")) Min.size.NSF=20
               
-              # Get sex ratio by zone used in SS  
+              # Display sex ratio by zone used in SS  
               if(First.run=="YES")
               {
                 HandL=handl_OneDrive("Analyses/Population dynamics/1.")
@@ -535,7 +535,29 @@ for(w in 1:n.SS)
                                                           "Size_composition_Other_Observations"),collapse="|"),
                                                   names(Species.data[[i]]))]
             d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),names(Species.data[[i]]))]
-            if(Neim%in%names(drop.dodgy.len.comp)) d.list=d.list[-grep(paste(drop.dodgy.len.comp[[match(Neim,names(drop.dodgy.len.comp))]],collapse='|'),names(d.list))] 
+            
+            if(Neim%in%names(drop.dodgy.len.comp))
+            {
+              diszone=drop.dodgy.len.comp[[match(Neim,names(drop.dodgy.len.comp))]]
+              dis.yrs=unique(word(diszone, 1, sep = "-"))
+              diszone=unique(str_remove(diszone, ".*-"))
+              for(xx in 1:length(diszone))
+              {
+                for(yy in 1:length(dis.yrs))
+                {
+                  for(qq in 1:length(d.list))
+                  {
+                    if(grepl(diszone[xx],names(d.list)[qq]))
+                    {
+                      d.list[[qq]]=d.list[[qq]]%>%
+                        filter(!FINYEAR%in%paste(as.numeric(dis.yrs[yy]),
+                                                 substr(as.numeric(dis.yrs[yy])+1,3,4),sep='-'))
+                    }
+                  }
+                }
+              }
+            } 
+            
             if(length(d.list)>0)
             {
               if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
@@ -597,7 +619,7 @@ for(w in 1:n.SS)
               Min.size.NSF=Min.annual.obs.ktch_NSF
               if(Neim%in%c("dusky shark")) Min.size.NSF=20
               
-              # Get sex ratio by zone used in SS  
+              # Display sex ratio by zone used in SS  
               if(First.run=="YES")
               {
                 HandL=handl_OneDrive("Analyses/Population dynamics/1.")
@@ -2505,17 +2527,7 @@ for(w in 1:n.SS)
                   id.survey=match('Survey',FLitinFO$fleetname)
                   if(!is.na(id.survey)) Size.com=Size.com%>%filter(!(Fleet==id.survey & year%in%c(2001,2002)))
                 }
-                if(Neim%in%names(drop.dodgy.len.comp))
-                {
-                  if(Neim=="gummy shark" & !is.null(Size.com)) # dodgy sampling trips 
-                  {
-                    id.flit=match('Southern.shark_1_Zone1',FLitinFO$fleetname)
-                    if(!is.na(id.flit)) Size.com=Size.com%>%filter(!(Fleet==id.flit & year%in%c(1994)))
-                    id.flit=match('Southern.shark_2_Zone1',FLitinFO$fleetname)
-                    if(!is.na(id.flit)) Size.com=Size.com%>%filter(!(Fleet==id.flit & year%in%c(2012)))
-                  }
-                }
-                
+
                 #a.7 plot Length comps used and all  
                 if(First.run=='YES')  
                 {

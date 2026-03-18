@@ -246,7 +246,7 @@ Min.Nsamp.Survey=10
 Min.Nsamp.zone=10  #lower Nsamp causes  sel pars estimation issues
 Min.Nsamp.NSF=10
 fill.in.zeros=TRUE  #add missing length classes with all 0s
-drop.dodgy.len.comp=NULL #list("gummy shark"='West') #dodgy length comps (only 1 year available) for gummy in West Coast
+drop.dodgy.len.comp=list("gummy shark"='1995-Zone2') #NULL; gummy, 1995-Zone2 trips done close to SA border where males aggregate
 
 
 #12. Proportion of vessels discarding eagle rays in last 5 years (extracted from catch and effort returns)
@@ -3411,14 +3411,105 @@ if(First.run=="YES")
 #note: do this only once and update 'SS3.selectivity_pars.csv'.
 if(Extract.SS.sel.parameters) fn.source1('Re fit SS3 selectivity.R')
 
+# Explore length comps meta data to define representative samples
+if(First.run=="YES")
+{
+  for(i in 1:length(Species.data))
+  {
+    print(paste("Explore length comps metadata for --------",names(Species.data)[i]))
+    if(any(grepl('Lengthcomps_metadata',names(Species.data[[i]]))))
+    {
+      d=Species.data[[i]]$Lengthcomps_metadata%>%
+        mutate(year=as.numeric(substr(FINYEAR,1,4)),
+               Fleet=case_when(Method=='LL' & zone%in%c('North')~'NSF_',
+                               Method=='GN' & zone%in%c('West','Zone1','Zone2')~'Southern.shark_',
+                               TRUE ~ 'Other'))%>%
+        filter(!Fleet=='Other')%>%
+        mutate(Fleet=paste0(Fleet,zone))
+      
+      Nobs.year.fleet=d%>%
+                      group_by(year,Fleet)%>%
+                      summarise(Nobs=sum(n))
+      
+      Nshots.year.fleet=d%>%
+                        distinct(year,Fleet,BOAT,LAT,LONG)%>%
+                        group_by(year,Fleet)%>%
+                        tally()%>%
+                        rename(Nshots=n)
+      
+      Nshots.boat.year.fleet=d%>%
+                      distinct(year,Fleet,BOAT,LAT,LONG)%>%
+                      group_by(year,Fleet,BOAT)%>%
+                      tally()%>%
+                      rename(Nshots=n)
 
-# Compare observed size comp and assumed SS selectivity 
+      pdf(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
+                     "/",AssessYr,"/1_Inputs/Visualise data","/Length comps meta data.pdf",sep=''),
+          width=8,height=7)
+      p=d%>%
+          filter(grepl('Southern.shark',Fleet))%>%
+          distinct(BOAT,year,Fleet)%>%
+          group_by(year,Fleet)%>%
+          tally()%>%
+          left_join(Nshots.year.fleet,by=c('year','Fleet'))%>%
+          left_join(Nobs.year.fleet,by=c('year','Fleet'))%>%
+          mutate(LBL=paste0(Nshots,' (',Nobs,')'))%>%
+          ggplot(aes(year,n))+
+          facet_wrap(~Fleet,ncol=1)+geom_line(linetype='dotted')+
+          geom_text_repel(aes(label=LBL),box.padding = 1,color='brown4',size=3.5)+
+          geom_point(size=3)+
+          ylab('Number of boats')+theme_PA()+
+          labs(caption = 'Number of shots (observations)')+
+          theme(plot.caption = element_text(colour = "brown4"))+ylim(0,NA)
+      print(p)
+      
+      p=d%>%
+        filter(grepl('Southern.shark',Fleet))%>%
+        group_by(year,BOAT,zone)%>%
+        summarise(Nobs=sum(n))%>%
+        ggplot(aes(x = year, y = BOAT, fill = Nobs)) +
+        geom_tile(color = "white") +           
+        facet_wrap(~ zone,ncol=1,scales='free_y') +      
+        scale_fill_viridis_c() +               
+        theme_PA()+theme(legend.position='bottom')+
+        ggtitle('Southern.shark') 
+      print(p)
+      
+      p=Nshots.boat.year.fleet%>%
+        left_join(Nobs.year.fleet,by=c('year','Fleet'))%>%
+        filter(grepl('Southern.shark',Fleet))%>%
+        mutate(zone=str_remove(Fleet,"Southern.shark_"))%>%
+        ggplot(aes(x = year, y = BOAT,  size= Nshots,color=Nobs)) +
+        geom_point() +           
+        facet_wrap(~ zone,ncol=1,scales='free_y') +      
+        scale_color_viridis_c() +               
+        theme_PA()+theme(legend.position='bottom')+
+        ggtitle('Southern.shark')
+      print(p)
+      
+      p=d%>%
+        filter(grepl('Southern.shark',Fleet))%>%
+        ggplot(aes(LONG,LAT,color=BOAT))+
+        geom_point(aes(size=n))+
+        facet_wrap(~year)+
+        theme_PA()+
+        ggtitle('Southern.shark')+
+        theme(legend.position = 'bottom',legend.title=element_blank())+          
+        guides(color = guide_legend(override.aes = list(size = 4, alpha = 1),nrow = 3))
+      print(p)
+      
+       dev.off()
+
+    }
+  }
+}
+# Compare observed size comp and assumed SS selectivity and length comps sex ratios  
 if(First.run=="YES")
 {
   fn.source1("SS_selectivity functions.R")
   for(i in 1:length(Species.data))
   {
-    print(paste("Compare observed size comp and assumed SS selectivity --------",names(Species.data)[i]))
+    print(paste("Compare observed size comp, assumed SS selectivity and ratios --------",names(Species.data)[i]))
     if(any(grepl('Size_composition',names(Species.data[[i]]))))
     {
       d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
@@ -3432,21 +3523,126 @@ if(First.run=="YES")
           d.list[[x]]$Fleet=str_remove(str_remove(names(d.list)[x],'Size_composition_'),'.inch.raw')
           if(!'Size.type'%in%names(d.list[[x]])) d.list[[x]]$Size.type=NA
         }
-        d.list=do.call(rbind,d.list)
-        d.list=d.list%>%mutate(fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
-                               Fleet=ifelse(fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
-                                            ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
-                                                   ifelse(fleet=='NSF.LONGLINE','Northern.shark',
-                                                          fleet))),
-                               TL=FL*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL)
+        d.list=do.call(rbind,d.list)%>%
+          mutate(TL=FL*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL)
+        
+        #Sex ratios areas as fleets
+        d.list1=d.list%>%
+          mutate(Fleet=sub("\\..*", "", Fleet),
+                 dummy=ifelse(Fleet%in%c("West","Zone1","Zone2")  & year<=2005,'Southern.shark_1_',
+                       ifelse(Fleet%in%c("West","Zone1","Zone2")  & year>2005,'Southern.shark_2_',
+                       '')),
+                 Fleet=paste0(dummy,Fleet))
+        nflits=sort(unique(d.list1$Fleet))
+        pdf(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
+                       "/",AssessYr,"/1_Inputs/Visualise data","/Length comps and sex ratios as used in SS_areas as fleets.pdf",sep=''),
+            width=9,height=7)
+        
+        #Combined fleets
+        dd=d.list1%>%
+          filter(SEX %in%c('M','F'))%>%
+          mutate(dummy=gsub("Southern\\.shark_\\d+_", "",Fleet),
+                 SEX=paste(SEX,dummy),
+                 year=as.numeric(substr(FINYEAR,1,4)),
+                 size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+          group_by(year,size.class,SEX)%>%
+          tally()%>%
+          ungroup()%>%
+          group_by(year)%>%
+          mutate(Nobs=sum(n),
+                 Prop=n/Nobs)%>%
+          ungroup()
+        TLrange=range(dd$size.class)
+        
+        p=dd%>%
+          mutate(Prop=ifelse(grepl('M',SEX),-Prop,Prop))%>%
+          ggplot(aes(size.class,Prop,color=SEX))+
+          geom_point()+
+          geom_line()+
+          facet_wrap(~year,scales='free_y')+
+          geom_hline(yintercept = 0)+ xlab('TL (cm)')+
+          theme_PA()+
+          theme(legend.position = 'bottom',legend.title = element_blank())+
+          ggtitle('Combined')+guides(color = guide_legend(nrow = 1))
+        suppressMessages(print(p))
         
         
+        #By fleet
+        for(xx in 1:length(nflits))   #add no obs by year and nshots
+        {
+          dd=d.list1%>%
+            filter(Fleet==nflits[xx] &SEX %in%c('M','F'))%>%
+            mutate(year=as.numeric(substr(FINYEAR,1,4)),
+                   size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+            group_by(year,size.class,SEX)%>%
+            tally()%>%
+            ungroup()%>%
+            group_by(year)%>%
+            mutate(Nobs=sum(n),
+                   Prop=n/Nobs)%>%
+            ungroup()
+          p=dd%>%
+            mutate(Prop=ifelse(SEX=='M',-Prop,Prop),
+                   year=paste0(year,' (nobs= ',Nobs,')'))%>%
+            ggplot(aes(size.class,Prop,color=SEX))+
+            geom_area(aes(fill=SEX),alpha = 0.25)+
+            geom_point()+
+            facet_wrap(~year,scales='free_y')+
+            geom_hline(yintercept = 0)+ xlab('TL (cm)')+
+            theme_PA()+
+            theme(legend.position = 'bottom',legend.title = element_blank())+
+            ggtitle(nflits[xx])+xlim(TLrange)
+          print(p)
+        }
+        dev.off()
+        
+        
+        d.list=d.list%>%
+                  mutate(fleet=ifelse(grepl(paste(c('West','Zone'),collapse='|'),Fleet),'TDGDLF',Fleet),
+                         Fleet=ifelse(fleet=='TDGDLF' & year<=2005,'Southern.shark_1',
+                               ifelse(fleet=='TDGDLF' & year>2005,'Southern.shark_2',
+                               ifelse(fleet=='NSF.LONGLINE','Northern.shark',
+                               fleet))))
+        
+        #Sex ratios
+        nflits=sort(unique(d.list$Fleet))
+        pdf(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
+                        "/",AssessYr,"/1_Inputs/Visualise data","/Length comps and sex ratios as used in SS_single area.pdf",sep=''),
+            width=9,height=7)
+        for(xx in 1:length(nflits))   #add no obs by year and nshots
+        {
+          dd=d.list%>%
+                  filter(Fleet==nflits[xx] &SEX %in%c('M','F'))%>%
+                  mutate(year=as.numeric(substr(FINYEAR,1,4)),
+                         size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+                  group_by(year,size.class,SEX)%>%
+                  tally()%>%
+                  ungroup()%>%
+                  group_by(year)%>%
+                  mutate(Nobs=sum(n),
+                         Prop=n/Nobs)%>%
+                  ungroup()
+           p=dd%>%
+                mutate(Prop=ifelse(SEX=='M',-Prop,Prop),
+                       year=paste0(year,' (nobs= ',Nobs,')'))%>%
+                ggplot(aes(size.class,Prop,color=SEX))+
+                geom_area(aes(fill=SEX),alpha = 0.25)+
+                geom_point()+
+                facet_wrap(~year,scales='free_y')+
+                geom_hline(yintercept = 0)+ xlab('TL (cm)')+
+                theme_PA()+
+                theme(legend.position = 'bottom',legend.title = element_blank())+
+                ggtitle(nflits[xx])
+           print(p)
+        }
+        dev.off()
+        
+        
+        #Observed size comp vs selectivity
         if(MN.SZE=="size.at.birth") Min.size.bin=10*round((List.sp[[i]]$Lzero*List.sp[[i]]$a_FL.to.TL+List.sp[[i]]$b_FL.to.TL)/10)
         if(MN.SZE==0) Min.size.bin=0
         MaxLen= 10*round(List.sp[[i]]$TLmax*Plus.gp.size/10)
         lbnd = seq(Min.size.bin,MaxLen - TL.bins.cm, TL.bins.cm)
-        
-        
         tiff(file=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
                         "/",AssessYr,"/1_Inputs/Visualise data","/Observe size VS selectivity used in SS.tiff",sep=''),
              width = 2100, height = 2400,units = "px", res = 300, compression = "lzw")
