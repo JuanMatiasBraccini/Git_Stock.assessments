@@ -236,15 +236,15 @@ MN.SZE=0    # "size.at.birth"  initial bin size
 TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
-Min.annual.obs.ktch=50 #Minimum number of annual observations (i.e., records) per sex-yr-fleet for using length composition data
-Min.annual.obs.ktch.zone=50 #min number obs per zone for areas as fleet model
+Min.annual.obs.ktch=150 #Minimum number of annual observations (i.e., records) per sex-yr-fleet for using length composition data
+Min.annual.obs.ktch.zone=150 #min number obs per zone for areas as fleet model
 Min.annual.obs.ktch_NSF=50
 Min.annual.obs.ktch_survey=20
 prop.min.N.accepted_other=1 # set to 0.5 when Min.annual.obs.ktch of indicators was 150
-Min.Nsamp=10   #Minimum number of shots for catch mean weight or length composition
-Min.Nsamp.Survey=10
-Min.Nsamp.zone=10  #lower Nsamp causes  sel pars estimation issues
-Min.Nsamp.NSF=10
+Min.Nsamp=5   #Minimum number of shots for catch mean weight or length composition
+Min.Nsamp.Survey=5
+Min.Nsamp.zone=5  #lower Nsamp causes  sel pars estimation issues
+Min.Nsamp.NSF=5
 fill.in.zeros=TRUE  #add missing length classes with all 0s
 drop.dodgy.len.comp=list("gummy shark"='1995-Zone2') #NULL; gummy, 1995-Zone2 trips done close to SA border where males aggregate
 
@@ -615,7 +615,7 @@ if(retained.discarded.units=='numbers')
   #21.13 SS Tagging arguments
 Min.annual.zone.releases=10 #minimum number of observations per released year-zone to be used in assessment
 Use.these.tag.year_zones=list("dusky shark"=NULL,
-                              #"gummy shark"=NULL,  #no reporting rate
+                              "gummy shark"=NULL,  #no reporting rate for any year
                               "sandbar shark"=NULL,   
                               "whiskery shark"=NULL)
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
@@ -4029,6 +4029,54 @@ if(First.run=="YES")
   }
 }
 
+#Display gummy proportional catch by zone
+if(First.run=="YES")
+{
+  This.sP="gummy shark"
+  ktch=KtCh%>%
+    filter(Name==This.sP)%>%
+    #filter(Data.set=='Data.monthly' & FishCubeCode%in%c('JASDGDL','WCDGDL'))%>%
+    mutate(zone='Total')%>%
+    group_by(finyear,zone)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c))
+  
+  ktch.zone=KtCh.zone%>%
+    ungroup()%>%
+    filter(Name==This.sP)%>%
+    filter(Data.set=='Data.monthly' & FishCubeCode%in%c('JASDGDL','WCDGDL'))%>%
+    group_by(finyear,zone)%>%
+    summarise(LIVEWT.c=sum(LIVEWT.c))
+  
+  rbind(ktch,ktch.zone)%>%
+    ggplot(aes(finyear,LIVEWT.c,color=zone))+
+    geom_line()+theme_PA()+xlim(1975,NA)
+  
+  #proportion by zone 
+  b=ktch.zone%>%
+    left_join(ktch%>%
+                dplyr::select(-zone)%>%
+                rename(Total=LIVEWT.c),
+              by='finyear')%>%
+    mutate(Proportion=LIVEWT.c/Total)%>%
+    group_by(zone)%>%
+    mutate(Mean.prop=mean(Proportion))%>%
+    ungroup()
+  
+  b%>%
+    ggplot(aes(finyear,Proportion,color=zone))+
+    geom_line(linewidth = 1.25)+theme_PA()+xlim(1975,NA)+
+    theme(legend.position = 'top',legend.title = element_blank())+
+    xlab('Year')+ylab('Proportion of total catch')+
+    scale_y_continuous(breaks = seq(0, 1, by = 0.1),limits=c(0,1))+
+    geom_hline(aes(yintercept=Mean.prop),linetype='dotted',alpha=.4)+
+    geom_text(aes(x=min(finyear),y=Mean.prop,label=round(Mean.prop,2)),
+              size=6,fontface = "bold",show.legend = FALSE)
+  DiR=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(This.sP),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
+  ggsave(paste(DiR,'TDGDLF catch proportion by zone.tiff',sep='/'),
+         width = 6,height = 6, dpi = 300, compression = "lzw")
+  
+  
+}
 #---17. Display catches by fishery,life history & available time series ----
 Tot.ktch=KtCh %>%      
           mutate(
