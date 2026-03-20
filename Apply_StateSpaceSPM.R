@@ -104,7 +104,14 @@ for(w in 1:length(State.Space.SPM))
           if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
           if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE)))) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
           if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
-          if(!is.null(List.sp[[i]]$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%List.sp[[i]]$drop.monthly.cpue)
+          
+          #ACA
+          if(Neim%in%names(test.drop.monthly.cpue))
+          {
+            drop.dis.yrs=test.drop.monthly.cpue[[match(Neim,names(test.drop.monthly.cpue))]]
+            CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%drop.dis.yrs)
+          }
+           
           
           len.cpue=length(CPUE)
           MAX.CV=List.sp[[i]]$MAX.CV
@@ -744,7 +751,11 @@ for(w in 1:length(State.Space.SPM))
           if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
           if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE)))) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
           if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-match("TDGDLF.monthly",names(CPUE))]
-          if(!is.null(List.sp[[i]]$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%List.sp[[i]]$drop.monthly.cpue)
+          if(Neim%in%names(test.drop.monthly.cpue))
+          {
+            drop.dis.yrs=test.drop.monthly.cpue[[match(Neim,names(test.drop.monthly.cpue))]]
+            CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%drop.dis.yrs)
+          }
           
           
           len.cpue=length(CPUE)
