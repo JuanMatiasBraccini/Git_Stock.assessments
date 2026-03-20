@@ -740,17 +740,18 @@ for(l in 1:N.sp)
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
   
     #4.1.1.26 remove early cpue years  
-  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
-                  mutate(drop.monthly.cpue.min=NA,
-                         drop.monthly.cpue.max=NA)
   if(NeiM%in%names(test.drop.monthly.cpue))  
   {
     dropped.yrs=test.drop.monthly.cpue[[match(NeiM,names(test.drop.monthly.cpue))]]
+    
+    List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
+                                mutate(drop.monthly.cpue.min=min(dropped.yrs),
+                                       drop.monthly.cpue.max=max(dropped.yrs))
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
-                  mutate(drop.monthly.cpue.min=min(dropped.yrs),
-                         drop.monthly.cpue.max=max(dropped.yrs),
-                         Scenario=paste0('S',(nnN+1)))
+                            mutate(drop.monthly.cpue.min=NA,
+                                   drop.monthly.cpue.max=NA,
+                                   Scenario=paste0('S',(nnN+1)))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   

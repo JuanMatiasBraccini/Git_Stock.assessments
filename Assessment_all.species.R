@@ -564,7 +564,7 @@ Abundance.error.dist='Lognormal'  #'Lognormal' if stand. cpue in normal space an
 CV.use='loess'  #'fixed'; Francis 2011
 default.CV=0.15  #0.15 used by Punt 2009 gummy model; 0.1 Taylor Big skate; loess method 2015 ICATT blue shark 
                   # Taylor dogfish used CV as is so set Q_extraSD to 0.1 
-test.drop.monthly.cpue=list("gummy shark"=1975:1985) #NULL, gummy early years 80% decline in cpue but moderate increase in catch
+test.drop.monthly.cpue=list("gummy shark"=1975:1976) #NULL, gummy early years 80% decline in cpue but moderate increase in catch
 
 
   #21.7 SS Q arguments

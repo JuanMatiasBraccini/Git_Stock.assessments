@@ -1977,24 +1977,27 @@ for(w in 1:n.SS)
               Abund.single.area=Abundance.SS.format
               Abund.areas.as.fleets=Abundance.SS.format.zone
                 #remove monthly years  
-              if(!is.na(Scens$drop.monthly.cpue.min[s]))
+              if('drop.monthly.cpue.min'%in%names(Scens))
               {
-                drop.yrS=Scens$drop.monthly.cpue.min[s]:Scens$drop.monthly.cpue.max[s]
-                #zones combined
-                if(!is.null(Abund.single.area))
+                if(!is.na(Scens$drop.monthly.cpue.min[s]))
                 {
-                  Abund.single.area=Abund.single.area%>%
-                    mutate(dummy = rownames(Abund.single.area))%>%
-                    filter(!(grepl('TDGDLF.monthly',dummy) & Year%in%drop.yrS))%>%
-                    dplyr::select(-dummy)
-                }
-                #by zone
-                if(!is.null(Abund.areas.as.fleets))
-                {
-                  Abund.areas.as.fleets=Abund.areas.as.fleets%>%
-                    mutate(dummy = rownames(Abund.areas.as.fleets))%>%
-                    filter(!(grepl('TDGDLF.monthly',dummy) & Year%in%drop.yrS))%>%
-                    dplyr::select(-dummy)
+                  drop.yrS=Scens$drop.monthly.cpue.min[s]:Scens$drop.monthly.cpue.max[s]
+                  #zones combined
+                  if(!is.null(Abund.single.area))
+                  {
+                    Abund.single.area=Abund.single.area%>%
+                      mutate(dummy = rownames(Abund.single.area))%>%
+                      filter(!(grepl('TDGDLF.monthly',dummy) & Year%in%drop.yrS))%>%
+                      dplyr::select(-dummy)
+                  }
+                  #by zone
+                  if(!is.null(Abund.areas.as.fleets))
+                  {
+                    Abund.areas.as.fleets=Abund.areas.as.fleets%>%
+                      mutate(dummy = rownames(Abund.areas.as.fleets))%>%
+                      filter(!(grepl('TDGDLF.monthly',dummy) & Year%in%drop.yrS))%>%
+                      dplyr::select(-dummy)
+                  }
                 }
               }
                 #remove daily years  
