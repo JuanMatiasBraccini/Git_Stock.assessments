@@ -739,7 +739,24 @@ for(l in 1:N.sp)
     #4.1.1.25 Remove 07.08.cpue evaluation if not testing
   if(!evaluate.07.08.cpue) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%filter(!is.na(Daily.cpues))
   
-    #4.1.1.26 Remove SSS inputs
+    #4.1.1.26 remove early cpue years  
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
+                  mutate(drop.monthly.cpue.min=NA,
+                         drop.monthly.cpue.max=NA)
+  if(NeiM%in%names(test.drop.monthly.cpue))  
+  {
+    dropped.yrs=test.drop.monthly.cpue[[match(NeiM,names(test.drop.monthly.cpue))]]
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+                  mutate(drop.monthly.cpue.min=min(dropped.yrs),
+                         drop.monthly.cpue.max=max(dropped.yrs),
+                         Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+  
+  
+  
+    #4.1.1.27 Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%
     dplyr::select(-c(Final.dpl,Sims))
@@ -1322,8 +1339,7 @@ for(l in 1:N.sp)
   #4.1.9 Use cpue in likelihood?
   List.sp[[l]]$drop.cpue=FALSE
   #if(NeiM%in%c("spinner shark"))  List.sp[[l]]$drop.cpue=TRUE
-  List.sp[[l]]$drop.monthly.cpue=NULL
-  if(NeiM%in%c("gummy shark")) List.sp[[l]]$drop.monthly.cpue=1975:1985
+  
   
   
   #-- 4.2 Bespoke Size-based integrated model

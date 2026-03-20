@@ -1085,7 +1085,6 @@ for(w in 1:n.SS)
           {
             if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
             if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF.monthly",names(CPUE))]
-            if(!is.null(Life.history$drop.monthly.cpue)) CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%Life.history$drop.monthly.cpue)
             CPUE.zone=CPUE
             DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
             if(length(DROP)>0)CPUE=CPUE[-DROP]
@@ -1977,8 +1976,28 @@ for(w in 1:n.SS)
               #cpues
               Abund.single.area=Abundance.SS.format
               Abund.areas.as.fleets=Abundance.SS.format.zone
-              
-              #remove daily years  
+                #remove monthly years  
+              if(!is.na(Scens$drop.monthly.cpue.min[s]))
+              {
+                drop.yrS=Scens$drop.monthly.cpue.min[s]:Scens$drop.monthly.cpue.max[s]
+                #zones combined
+                if(!is.null(Abund.single.area))
+                {
+                  Abund.single.area=Abund.single.area%>%
+                    mutate(dummy = rownames(Abund.single.area))%>%
+                    filter(!(grepl('TDGDLF.monthly',dummy) & Year%in%drop.yrS))%>%
+                    dplyr::select(-dummy)
+                }
+                #by zone
+                if(!is.null(Abund.areas.as.fleets))
+                {
+                  Abund.areas.as.fleets=Abund.areas.as.fleets%>%
+                    mutate(dummy = rownames(Abund.areas.as.fleets))%>%
+                    filter(!(grepl('TDGDLF.monthly',dummy) & Year%in%drop.yrS))%>%
+                    dplyr::select(-dummy)
+                }
+              }
+                #remove daily years  
               if(!is.na(Scens$Daily.cpues[s]))
               {
                 if('TDGDLF.daily'%in%names(CPUE) | any(grep('TDGDLF.daily',names(CPUE.zone))))
@@ -2003,7 +2022,7 @@ for(w in 1:n.SS)
                 }
               }
               
-              #remove TDGDLF CPUE 
+              #completely remove TDGDLF CPUE  
               if(Scens$CPUE[s]=='No') 
               {
                 Abund.single.area=Abund.areas.as.fleets=NULL
@@ -2028,7 +2047,7 @@ for(w in 1:n.SS)
                 
               }
 
-              #remove Length.comps
+              #completely remove Length.comps
               Size.comp.single.area=Size.compo.SS.format
               Size.comp.areas.as.fleets=Size.compo.SS.format.zone
               if(Scens$Length.comps[s]=='No') 
@@ -2036,7 +2055,7 @@ for(w in 1:n.SS)
                 Size.comp.single.area=Size.comp.areas.as.fleets=NULL
               }
               
-              #remove Mean.body
+              #completely remove Mean.body
               Meanbodywt.single.area=meanbodywt.SS.format
               Meanbodywt.areas.as.fleets=meanbodywt.SS.format.zone
               if(Scens$Mean.body[s]=='No') 
@@ -2490,7 +2509,7 @@ for(w in 1:n.SS)
                 Life.history$MainRdevYrFirst=MainRdevYrFirst
                 
                 #a.5 Reset rec pars for tuning
-                if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
+                if(Scens$Scenario[s]=='S1' & Tune.SS.model)
                 {
                   Life.history$recdev_early_start=0
                   Life.history$SR_sigmaR=0.2
@@ -2625,7 +2644,7 @@ for(w in 1:n.SS)
               #      update ramp years 'SS3.Rrecruitment.inputs.csv' in and sample sizes
               #      in 'SS3.tune_size_comp_effective_sample.csv' if single area model or
               #       'SS3.tune_size_comp_effective_sample_spatial.csv' if areas as fleets or spatial model.
-              if(Scens$Scenario[s]=='S1' & Calculate.ramp.years)
+              if(Scens$Scenario[s]=='S1' & Tune.SS.model)
               {
                 tune.folder=paste(this.wd,'tuning',sep='/')
                 if(!file.exists(file.path(tune.folder))) dir.create(file.path(tune.folder))
@@ -2686,7 +2705,7 @@ for(w in 1:n.SS)
                 out=ramp_years$df
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
                 write.csv(out,paste(tune.folder,'Ramp_years_first round.csv',sep='/'),row.names = F)
-                SS_plots(Report, plot=these.plots, png=T,printfolder = "2_plots_with ramp years and var adjs factors")
+                SS_plots(Report, plot=these.plots, png=T,printfolder = "2_plots_tuned")
                 Likelihoods.tuned=Report$likelihoods_used%>%mutate(type='tuned')
                 
                 #3rd compare tuned and not tuned likelihoods

@@ -237,7 +237,7 @@ TL.bins.cm=5  # size bin
 Min.obs=10  #keep records with at least 10 observations
 Min.shts=5  #keep records from at least 5 shots
 Min.annual.obs.ktch=150 #Minimum number of annual observations (i.e., records) per sex-yr-fleet for using length composition data
-Min.annual.obs.ktch.zone=150 #min number obs per zone for areas as fleet model
+Min.annual.obs.ktch.zone=100 #min number obs per zone for areas as fleet model
 Min.annual.obs.ktch_NSF=50
 Min.annual.obs.ktch_survey=20
 prop.min.N.accepted_other=1 # set to 0.5 when Min.annual.obs.ktch of indicators was 150
@@ -455,7 +455,7 @@ create.SS.inputs=TRUE        #set to FALSE once happy with SS input files and on
 if(SS3.run=='final') run_SS_plots=TRUE else run_SS_plots=FALSE 
 if(SS3.run=='final') Arg=''
 if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
-if(First.run=="YES") Calculate.ramp.years=TRUE  else  Calculate.ramp.years=FALSE #Tune model
+if(First.run=="YES") Tune.SS.model=TRUE  else  Tune.SS.model=FALSE #Tune model
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
                                   # for all 4 species observations were collected over multiple years
@@ -564,6 +564,7 @@ Abundance.error.dist='Lognormal'  #'Lognormal' if stand. cpue in normal space an
 CV.use='loess'  #'fixed'; Francis 2011
 default.CV=0.15  #0.15 used by Punt 2009 gummy model; 0.1 Taylor Big skate; loess method 2015 ICATT blue shark 
                   # Taylor dogfish used CV as is so set Q_extraSD to 0.1 
+test.drop.monthly.cpue=list("gummy shark"=1975:1985) #NULL, gummy early years 80% decline in cpue but moderate increase in catch
 
 
   #21.7 SS Q arguments
@@ -615,9 +616,7 @@ if(retained.discarded.units=='numbers')
   #21.13 SS Tagging arguments
 Min.annual.zone.releases=10 #minimum number of observations per released year-zone to be used in assessment
 Use.these.tag.year_zones=list("dusky shark"=NULL,
-                              "gummy shark"=NULL,  #no reporting rate for any year
-                              "sandbar shark"=NULL,   
-                              "whiskery shark"=NULL)
+                              "sandbar shark"=NULL) #only species with shedding and reporting data
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
 No.reporting.rate=list("sandbar shark"='Zone2')     #zones for which reporting rate not available
 Drop.yrs.no.reporting.rate=TRUE  #set to FALSE to keep years with no reporting rate
