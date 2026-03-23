@@ -1027,6 +1027,11 @@ for(w in 1:n.SS)
           {
             xxx=Species.data[[i]][grep('annual.mean.size',names(Species.data[[i]]))]
             xxx=xxx[-match("annual.mean.size",names(xxx))]
+            if(Neim%in%names(tdgdlf_daily_not.representative))
+            {
+              id.drop=paste0('annual.mean.size_',tolower(tdgdlf_daily_not.representative[[Neim]]))
+              xxx=xxx[-grep(paste(id.drop,collapse='|'),names(xxx))] 
+            }
             if(length(xxx)>0)
             {
               for(y in 1:length(xxx))
@@ -1085,6 +1090,26 @@ for(w in 1:n.SS)
           {
             if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
             if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF.monthly",names(CPUE))]
+            if(Neim%in%names(drop.dodgy.cpue))
+            {
+              diszone.yr=drop.dodgy.cpue[[match(Neim,names(drop.dodgy.cpue))]]
+              dis.data.set=unique(word(diszone.yr, 1, sep = "-"))
+              dis.yrs=unique(word(diszone.yr, 2, sep = "-"))
+              for(xx in 1:length(dis.data.set))
+              {
+                for(yy in 1:length(dis.yrs))
+                {
+                  CPUE[[paste0('TDGDLF.',dis.data.set[xx])]]=CPUE[[paste0('TDGDLF.',dis.data.set[xx])]]%>%
+                    filter(!yr.f==as.numeric(dis.yrs))
+                  
+                }
+              }
+            }
+            if(Neim%in%names(tdgdlf_daily_not.representative))
+            {
+              id.drop=paste0('daily.',tdgdlf_daily_not.representative[[Neim]])
+              CPUE=CPUE[-grep(paste(id.drop,collapse='|'),names(CPUE))] 
+            }
             CPUE.zone=CPUE
             DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
             if(length(DROP)>0)CPUE=CPUE[-DROP]

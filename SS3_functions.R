@@ -1378,8 +1378,10 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       {
         turn.on=turn.on
       }
+      #ACA
       if(length(turn.on)>0)
       {
+        if(!is.null(life.history$SS_selectivity_mimic)) turn.on=subset(turn.on,!turn.on%in%id.FleeT)
         ddumy=ddumy%>%
               mutate(Pattern=ifelse(Fleet%in%turn.on & Pattern==15,24,Pattern),
                      Special=ifelse(Fleet%in%turn.on & Special>0,0,Special))

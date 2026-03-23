@@ -225,6 +225,10 @@ tdgdlf_not.representative=c("smooth hammerhead","spinner shark")   #catch rates 
 tdgdlf_monthly_not.representative=c("sandbar shark","dusky shark")   #Sandbar increasing cpue with increasing catch and very jumpy index; Dusky massive recruitment drop follow moderate catches 
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
+tdgdlf_daily_not.representative=list("whiskery shark"='West') #NULL; daily west cpue based on very few vessels
+drop.dodgy.cpue=list("whiskery shark"='monthly.West-1976') #NULL; whiskery first year of west very few vessels
+
+
 
   #10.2 Survey
 Calculate.weight_Survey=FALSE #change Naturaliste survey from numbers to weights. Not applicable, now it's done directly in Survey standardisation)
@@ -544,7 +548,7 @@ Extract.SS.sel.pars_use.K.and.W=NULL #c('gummy shark'); extract SS based on K&W 
 rescaled.species.sel=sort(c('great hammerhead','scalloped hammerhead','grey nurse shark','milk shark',
                             'shortfin mako','sawsharks','spinner shark',
                             'tiger shark','wobbegongs'))   #species with no empirical sel (family used instead)
-# For thiese species, there is no empirical Selectivity for main fleet or length comp sample size is too small
+# For these species, there is no empirical Selectivity for main fleet or length comp sample size is too small
 #  so cannot implement any length-based assessment (Catch curve, SS3, etc)
 no.empirical.sel.main.fleet=c(GAB.main="angel sharks",
                               SA_MSF.main="copper shark",
@@ -4028,54 +4032,57 @@ if(First.run=="YES")
   }
 }
 
-#Display gummy proportional catch by zone
+#Display TDGDLF proportional catch by zone
 if(First.run=="YES")
 {
-  This.sP="gummy shark"
-  ktch=KtCh%>%
-    filter(Name==This.sP)%>%
-    #filter(Data.set=='Data.monthly' & FishCubeCode%in%c('JASDGDL','WCDGDL'))%>%
-    mutate(zone='Total')%>%
-    group_by(finyear,zone)%>%
-    summarise(LIVEWT.c=sum(LIVEWT.c))
-  
-  ktch.zone=KtCh.zone%>%
-    ungroup()%>%
-    filter(Name==This.sP)%>%
-    filter(Data.set=='Data.monthly' & FishCubeCode%in%c('JASDGDL','WCDGDL'))%>%
-    group_by(finyear,zone)%>%
-    summarise(LIVEWT.c=sum(LIVEWT.c))
-  
-  rbind(ktch,ktch.zone)%>%
-    ggplot(aes(finyear,LIVEWT.c,color=zone))+
-    geom_line()+theme_PA()+xlim(1975,NA)
-  
-  #proportion by zone 
-  b=ktch.zone%>%
-    left_join(ktch%>%
-                dplyr::select(-zone)%>%
-                rename(Total=LIVEWT.c),
-              by='finyear')%>%
-    mutate(Proportion=LIVEWT.c/Total)%>%
-    group_by(zone)%>%
-    mutate(Mean.prop=mean(Proportion))%>%
-    ungroup()
-  
-  b%>%
-    ggplot(aes(finyear,Proportion,color=zone))+
-    geom_line(linewidth = 1.25)+theme_PA()+xlim(1975,NA)+
-    theme(legend.position = 'top',legend.title = element_blank())+
-    xlab('Year')+ylab('Proportion of total catch')+
-    scale_y_continuous(breaks = seq(0, 1, by = 0.1),limits=c(0,1))+
-    geom_hline(aes(yintercept=Mean.prop),linetype='dotted',alpha=.4)+
-    geom_text(aes(x=min(finyear),y=Mean.prop,label=round(Mean.prop,2)),
-              size=6,fontface = "bold",show.legend = FALSE)
-  DiR=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(This.sP),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
-  ggsave(paste(DiR,'TDGDLF catch proportion by zone.tiff',sep='/'),
-         width = 6,height = 6, dpi = 300, compression = "lzw")
-  
-  
+  for(x in 1:N.sp)
+  {
+    This.sP=Keep.species[x]
+    ktch=KtCh%>%
+      filter(Name==This.sP)%>%
+      filter(Data.set=='Data.monthly' & FishCubeCode%in%c('JASDGDL','WCDGDL'))%>%
+      mutate(zone='Total')%>%
+      group_by(finyear,zone)%>%
+      summarise(LIVEWT.c=sum(LIVEWT.c))
+    
+    ktch.zone=KtCh.zone%>%
+      ungroup()%>%
+      filter(Name==This.sP)%>%
+      filter(Data.set=='Data.monthly' & FishCubeCode%in%c('JASDGDL','WCDGDL'))%>%
+      group_by(finyear,zone)%>%
+      summarise(LIVEWT.c=sum(LIVEWT.c))
+    
+    # rbind(ktch,ktch.zone)%>%
+    #   ggplot(aes(finyear,LIVEWT.c,color=zone))+
+    #   geom_line()+theme_PA()+xlim(1975,NA)
+    
+    #proportion by zone 
+    b=ktch.zone%>%
+      left_join(ktch%>%
+                  dplyr::select(-zone)%>%
+                  rename(Total=LIVEWT.c),
+                by='finyear')%>%
+      mutate(Proportion=LIVEWT.c/Total)%>%
+      group_by(zone)%>%
+      mutate(Mean.prop=mean(Proportion))%>%
+      ungroup()
+    
+    b%>%
+      ggplot(aes(finyear,Proportion,color=zone))+
+      geom_line(linewidth = 1.25)+theme_PA()+xlim(1975,NA)+
+      theme(legend.position = 'top',legend.title = element_blank())+
+      xlab('Year')+ylab('Proportion of total catch')+
+      scale_y_continuous(breaks = seq(0, 1, by = 0.1),limits=c(0,1))+
+      geom_hline(aes(yintercept=Mean.prop),linetype='dotted',alpha=.4)+
+      geom_text(aes(x=min(finyear),y=Mean.prop,label=round(Mean.prop,2)),
+                size=6,fontface = "bold",show.legend = FALSE)
+    DiR=paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(This.sP),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
+    ggsave(paste(DiR,'TDGDLF catch proportion by zone.tiff',sep='/'),
+           width = 6,height = 6, dpi = 300, compression = "lzw")
+    
+  }
 }
+
 #---17. Display catches by fishery,life history & available time series ----
 Tot.ktch=KtCh %>%      
           mutate(

@@ -939,8 +939,8 @@ for(l in 1:N.sp)
     # }
     if(NeiM=="whiskery shark")
     {
-      List.sp[[l]]$SS_selectivity_mimic=data.frame(Fleet=c('Southern.shark_2_Zone1'),
-                                                   Fleet.mimic=c('Southern.shark_1_Zone1'))
+      List.sp[[l]]$SS_selectivity_mimic=data.frame(Fleet=c('Southern.shark_2_West','Southern.shark_2_Zone2'),
+                                                   Fleet.mimic=c('Southern.shark_1_West','Southern.shark_1_Zone2'))
     }
     
     #Retention & discard mortality
