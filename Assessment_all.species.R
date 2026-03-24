@@ -619,10 +619,16 @@ if(retained.discarded.units=='numbers')
 
   #21.13 SS Tagging arguments
 Min.annual.zone.releases=10 #minimum number of observations per released year-zone to be used in assessment
-Use.these.tag.year_zones=list("dusky shark"=NULL,
-                              "sandbar shark"=NULL) #only species with shedding and reporting data
+Use.these.tag.year_zones=list("dusky shark"=NULL,   #the only species with shedding and reporting data
+                              "sandbar shark"=NULL,
+                              "whiskery shark"=NULL) 
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
+use.tag.rec.yrs.90percent.rec=TRUE  #use recapture years accounting for 90% of recaptures to avoid calculating F for very distant years
 No.reporting.rate=list("sandbar shark"='Zone2')     #zones for which reporting rate not available
+Reporting.rate.type=list("dusky shark"='published', #use published or calculated reporting rate based on McAuley et al 2007
+                         "sandbar shark"='published',
+                         "gummy shark"='calculated',
+                         "whiskery shark"='calculated')   
 Drop.yrs.no.reporting.rate=TRUE  #set to FALSE to keep years with no reporting rate
 estimate.tag.report.decay=TRUE    #estimate tag reporting decay from data and use this in model
 pass.rep.rate.decay.negative=TRUE  #must be input as <0 into SS
@@ -1586,7 +1592,8 @@ for(s in 1:N.sp)
   #6.12 Conventional tagging manipulations
 #note:  Source for reporting rate and shedding: McAuley et al 2007 A method...
 #       Data are already aggregated by financial year; just remove tagging data not in SS format
-#      Assuming that whiskery and gummy sharks have same non-reporting rates and shedding as dusky shark
+#      Assuming that whiskery and gummy sharks have same non-reporting rates as dusky shark and tag shedding
+#       reported for gummy shark in SESSF (Xiao et al 1999) 0.06
 for(s in 1:N.sp)
 {
   if("Con_tag_SS.format_releases"%in%names(Species.data[[s]]))
@@ -1597,7 +1604,7 @@ for(s in 1:N.sp)
       id.dusky=match("dusky shark",names(Species.data))
       if(!'Con_tag_shedding_from_F.estimation.R_'%in%names(Species.data)[s])
       {
-        Species.data[[s]]$Con_tag_shedding_from_F.estimation.R_=Species.data[[id.dusky]]$Con_tag_shedding_from_F.estimation.R_
+        Species.data[[s]]$Con_tag_shedding_from_F.estimation.R_=data.frame(x=0.06)
       }
       if(!'Con_tag_non_reporting_from_F.estimation.R_'%in%names(Species.data)[s])
       {
@@ -1735,6 +1742,17 @@ for(s in 1:N.sp)
       }
       Use.these.tag.year_zones[[names(Species.data)[s]]]=unique(paste(Tabl$Yr.rel,Tabl$Rel.zone))
     }
+  }
+  
+  if("Calculated_non_reporting_rate"%in%names(Species.data[[s]]))
+  {
+    Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_calculated=Species.data[[s]]$Calculated_non_reporting_rate%>%
+                      mutate(Species=NA,
+                             North=NA,
+                             Finyear=as.numeric(substr(FINYEAR,1,4)))%>%
+                      rename(South=Zone2,
+                             South.west=Zone1)%>%
+                      dplyr::select(Finyear,Species,South,South.west,West,North)
   }
 }
   
