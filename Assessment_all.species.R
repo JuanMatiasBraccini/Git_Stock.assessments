@@ -631,7 +631,8 @@ Reporting.rate.type=list("dusky shark"='published', #use published or calculated
                          "whiskery shark"='calculated')   
 Drop.yrs.no.reporting.rate=TRUE  #set to FALSE to keep years with no reporting rate
 estimate.tag.report.decay=TRUE    #estimate tag reporting decay from data and use this in model
-pass.rep.rate.decay.negative=TRUE  #must be input as <0 into SS
+allow.increase.tag.rep.rate=TRUE   #for some species, reporting improves thru time so allow positive 
+pass.rep.rate.decay.negative=TRUE  #must be input as <0 into SS if it is a decay
 logit.transform.tag.pars=TRUE  #input into control file as inverse logit. SS transform back.
 taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
 SS_overdispersion=1.001    #1.001 approx NB to Poisson (mean=variance).  Andre's Gummy model
@@ -1753,6 +1754,29 @@ for(s in 1:N.sp)
                       rename(South=Zone2,
                              South.west=Zone1)%>%
                       dplyr::select(Finyear,Species,South,South.west,West,North)
+    
+    #ACA
+  }
+  #Display tag reporting rates
+  if(First.run=="YES")
+  {
+    d=Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_%>%mutate(type='Reported')
+    if("Calculated_non_reporting_rate"%in%names(Species.data[[s]]))
+    {
+      d=rbind(d,Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_calculated%>%mutate(type='Calculated'))
+    }
+    p=d|>
+      dplyr::select(-Species)|>
+      gather(Zone,non.rep.rate,-c(Finyear,type))|>
+      mutate(rate=1-non.rep.rate)|>
+      ggplot(aes(Finyear,rate,color=type))+
+      geom_point()+geom_line()+
+      facet_wrap(~Zone)+theme_PA()+ylim(0,1)+
+      theme(legend.position = 'top',legend.title = element_blank())+ylab('Tag non-reporting rate')
+    print(p)  
+    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                 capitalize(names(Species.data)[s]),"/",AssessYr,'/1_Inputs/Visualise data/Tags_reporting rate.tiff',sep=''),
+           width = 6, height = 6, dpi = 300)
   }
 }
   
@@ -1802,6 +1826,7 @@ if(First.run=="YES")
                     spread(SEX,MAX.FL)
   print(Observed.max.FL)
 }
+
 
 #---7. Create list of life history parameter inputs -----
   #set up list

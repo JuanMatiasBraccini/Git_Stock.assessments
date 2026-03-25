@@ -1294,11 +1294,17 @@ for(w in 1:n.SS)
                       filter(dummy%in%dis.yrs.tag)%>%
                       dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
-            
-            # #Keep relevant zones
-            # this.zone=tag.data.zones$releases[[match(names(Species.data)[1],names(tag.data.zones$releases))]]
-            # releases=releases%>%filter(Rel.zone%in%this.zone)
-            # recaptures=recaptures%>%filter(Rec.zone%in%this.zone)
+            if(use.tag.rec.yrs.90percent.rec)
+            {
+              Table.yr.releases=table(releases$Yr.rel)
+              vec=cumsum(Table.yr.releases)/sum(Table.yr.releases)
+              Last.yr.rel=names(vec[which.min(abs(vec - 0.9))])
+              
+              Table.yr.recaptures=table(recaptures$Yr.rec)
+              vec=cumsum(Table.yr.recaptures)/sum(Table.yr.recaptures)
+              Last.yr.rec=names(vec[which.min(abs(vec - 0.9))])
+              recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
+            }
              
             #Allocate West, Zone1 and Zone 2 to Southern 1 or 2
             releases=releases%>%
@@ -1383,7 +1389,9 @@ for(w in 1:n.SS)
             Initial.tag.loss=1e-8  #tag-induced mortality immediately after tagging 
             Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x  #annual rate of tag loss; McAuley et al 2007 tag shedding
             
-            Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_%>%
+            if(Reporting.rate.type[[Neim]]=='published') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_   #NEW
+            if(Reporting.rate.type[[Neim]]=='calculated') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_calculated
+            Initial.reporting.rate=Initial.reporting.rate%>%
               dplyr::select(-Species)%>%
               gather(Zone,Non.reporting,-Finyear)%>%
               mutate(Reporting=1-Non.reporting,
@@ -1447,7 +1455,8 @@ for(w in 1:n.SS)
                   fit_nls <- nls(Reporting ~ Init.rep * exp(-k * time), 
                                  data = d.init.rep, 
                                  start = list(k = 0.01))
-                  diKay=max(0,round(coef(fit_nls),4))
+                  diKay=round(coef(fit_nls),4)              
+                  if(!allow.increase.tag.rep.rate) diKay=max(0,diKay)
                 }
                 Rep.decay[[re]]=data.frame(Fleet=rep.dec.flit[re],decay=diKay)
                 Rep.decay_p[[re]]=ggplot(data=d.init.rep,aes(Finyear,Reporting))+
@@ -1471,7 +1480,7 @@ for(w in 1:n.SS)
               if(pass.rep.rate.decay.negative)
               {
                 Reporting.rate.decay=Reporting.rate.decay%>%
-                  mutate(decay=ifelse(decay>0,-decay,decay))
+                  mutate(decay=ifelse(decay>0,-decay,abs(decay)))
               }
             }
             if(!estimate.tag.report.decay) Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
@@ -1517,12 +1526,17 @@ for(w in 1:n.SS)
                       filter(dummy%in%dis.yrs.tag)%>%
                       dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
-            
-            
-            # #Keep relevant zones
-            # this.zone=tag.data.zones$releases[[match(names(Species.data)[1],names(tag.data.zones$releases))]]
-            # releases=releases%>%filter(Rel.zone%in%this.zone)
-            # recaptures=recaptures%>%filter(Rec.zone%in%this.zone)
+            if(use.tag.rec.yrs.90percent.rec)
+            {
+              Table.yr.releases=table(releases$Yr.rel)
+              vec=cumsum(Table.yr.releases)/sum(Table.yr.releases)
+              Last.yr.rel=names(vec[which.min(abs(vec - 0.9))])
+              
+              Table.yr.recaptures=table(recaptures$Yr.rec)
+              vec=cumsum(Table.yr.recaptures)/sum(Table.yr.recaptures)
+              Last.yr.rec=names(vec[which.min(abs(vec - 0.9))])
+              recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
+            }
             
             #Recalculate TagGroup
             releases=releases%>%
@@ -1600,7 +1614,9 @@ for(w in 1:n.SS)
             Initial.tag.loss=1e-4  #tag-induced mortality immediately after tagging 
             Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x  #annual rate of tag loss; McAuley et al 2007 tag shedding
             
-            Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_%>%
+            if(Reporting.rate.type[[Neim]]=='published') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_   #NEW
+            if(Reporting.rate.type[[Neim]]=='calculated') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_calculated
+            Initial.reporting.rate=Initial.reporting.rate%>%
               dplyr::select(-Species)%>%
               gather(Zone,Non.reporting,-Finyear)%>%
               mutate(Reporting=1-Non.reporting,
@@ -1661,7 +1677,8 @@ for(w in 1:n.SS)
                   fit_nls <- nls(Reporting ~ Init.rep * exp(-k * time), 
                                  data = d.init.rep, 
                                  start = list(k = 0.01))
-                  diKay=max(0,round(coef(fit_nls),4))
+                  diKay=round(coef(fit_nls),4)              
+                  if(!allow.increase.tag.rep.rate) diKay=max(0,diKay)
                 }
                 
                 Rep.decay[[re]]=data.frame(Fleet=rep.dec.flit[re],decay=diKay)
@@ -1686,7 +1703,7 @@ for(w in 1:n.SS)
               if(pass.rep.rate.decay.negative)
               {
                 Reporting.rate.decay=Reporting.rate.decay%>%
-                  mutate(decay=ifelse(decay>0,-decay,decay))
+                  mutate(decay=ifelse(decay>0,-decay,abs(decay)))
               }
             }
             if(!estimate.tag.report.decay) Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
