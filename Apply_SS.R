@@ -11,7 +11,7 @@ for(w in 1:n.SS)
     if(do.parallel.SS) 
     {
       set.seed(1234)
-      progress <- function(n) cat(sprintf(": SS3 fit complete for -----------", n),Keep.species[n],"\n")
+      progress <- function(n) cat(sprintf(": SS3 fit complete for %d-------------", n),Keep.species[n],"\n")
       opts <- list(progress = progress)
       cl <- makeCluster(detectCores()-1)
       registerDoSNOW(cl)
@@ -978,7 +978,6 @@ for(w in 1:n.SS)
             Kombo.list=Kombo.list[!is.na(Kombo.list)]
             Size.compo.SS.format.zone=do.call(rbind,Kombo.list)
           }
-
           
           
           #3. meanbodywt
@@ -1508,7 +1507,6 @@ for(w in 1:n.SS)
             
             rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
           }
-          
             # by zones
           Tags.SS.format.zone=NULL
           if(names(Species.data)[i]%in%use.tag.data)
@@ -2669,9 +2667,9 @@ for(w in 1:n.SS)
               
               #b. Run SS3
               Where.exe=handl_OneDrive('SS3/ss_win_exe_v3.30.24.1/ss3.exe')
-              #Where.exe=handl_OneDrive('SS3/ss_win.exe')   #old version
+              #Where.exe=handl_OneDrive('SS3/ss_win.exe')   #old SS version
               
-                #run this first time fitting model to define LnRo init value
+                #find LnRo init value
               if(Find_Init_LnRo)  
               {
                 start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
@@ -2684,11 +2682,12 @@ for(w in 1:n.SS)
                 Report$timeseries%>%filter(Era=='VIRG')%>%pull(Bio_all) #JABBA K= 6800 tonnes
                 rm(Report)
               }
-                #run this to tune model and calculate RAMP years
+              
+                #tune model and calculate RAMP years
               #note: var adjust and ramp already reset in '#a.5 Reset rec pars for tuning'
-              #      update ramp years 'SS3.Rrecruitment.inputs.csv' in and sample sizes
+              #      update ramp years in 'SS3.Rrecruitment.inputs.csv'  and sample sizes
               #      in 'SS3.tune_size_comp_effective_sample.csv' if single area model or
-              #       'SS3.tune_size_comp_effective_sample_spatial.csv' if areas as fleets or spatial model.
+              #         'SS3.tune_size_comp_effective_sample_spatial.csv' if areas as fleets or spatial model.
               if(Scens$Scenario[s]=='S1' & Tune.SS.model)
               {
                 tune.folder=paste(this.wd,'tuning',sep='/')
@@ -2769,7 +2768,8 @@ for(w in 1:n.SS)
                 #4th flush
                 rm(ramp_years,out,tune_info)
               }
-                #run SS to estimate population parameters
+              
+                #estimate population parameters on tuned model
               if(Run.SS)
               {
                 fn.run.SS(where.inputs=this.wd1,
@@ -3084,7 +3084,7 @@ for(w in 1:n.SS)
           
           clear.log("Var.ad.factr")
           clear.log("Var.ad.factr.zone")
-        }
+        } # end '!is.null(Catch.rate.series[[i]]) | etc'
       } #end i loop
       stopCluster(cl)
       names(out.species)=Keep.species

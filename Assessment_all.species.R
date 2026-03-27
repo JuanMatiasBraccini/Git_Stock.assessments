@@ -2,10 +2,11 @@
 
 #Steps: 
 #     1. For each new assessment, update 
-#                     'assess.these.species.only','New.assessment',Year.of.assessment' and
-#                         'Last.yr.ktch' in '1. DEFINE GLOBALS',
-#                     'Do.Ktch.only', etc in '2. Control what assessment types to implement', and
-#                     'Run.SS', 'SS3.run' in '21. Integrated age-based model'
+#                     in '1. DEFINE GLOBALS': 'assess.these.species.only','New.assessment',
+#                                             Year.of.assessment' and 'Last.yr.ktch' ,
+#                     in '2. Control what assessment types to implement': 'Do.Ktch.only', etc. 
+#                     in '21. Integrated age-based model': 'create.SS.inputs', 'Tune.SS.model',
+#                                                           'Run.SS', 'SS3.run' 
 #     2. Define arguments (inputs) used in each of the shark species/species-complex assessed.
 #     3. Bring in updated available data and parameters (see 'Matias\Reports\Steps for creating RAR and SFRAR.docx')
 #     4. Determine which species to assess based on PSA
@@ -84,6 +85,7 @@ library(truncnorm)
 library(TruncatedDistributions)
 library(strex)
 library(doSNOW)
+library(foreach)
 library(tictoc)
 library(ks)
 library(ggwordcloud)
@@ -451,15 +453,17 @@ evaluate.07.08.cpue=FALSE #c("gummy shark","sandbar shark","whiskery shark") run
 #21. Integrated age-based model 
 
   #21.1 General arguments
-Integrated.age.based='SS'     # define model types used
-do.parallel.SS=TRUE           #do SS in parallel or not
-Run.SS=FALSE                  #switch to TRUE to run parameter estimation
-SS3.run='final' #'test' for model testing, 'final' for estimating uncertainty
-create.SS.inputs=TRUE        #set to FALSE once happy with SS input files and only need to run the model
-if(SS3.run=='final') run_SS_plots=TRUE else run_SS_plots=FALSE 
-if(SS3.run=='final') Arg=''
-if(SS3.run=='test') Arg= '-nohess'   #no Hessian 
-if(First.run=="YES") Tune.SS.model=TRUE  else  Tune.SS.model=FALSE #Tune model
+Integrated.age.based='SS'      # define model types used
+do.all.sensitivity.tests=FALSE # FALSE only runs S1
+do.parallel.SS=TRUE            # run SS sequentially or in parallel
+create.SS.inputs=TRUE          # FALSE once happy with SS input files and only need to run the model
+Tune.SS.model=FALSE             # Tune model if new year of data
+Run.SS=TRUE                    #  run parameter estimation with arguments Arg define below
+run_SS_plots=TRUE             
+SS3.run='test'                # 'test' for model testing, 'final' for estimating uncertainty
+do.SS3.diagnostics=FALSE       # very time consuming, do only once model is defined 
+Find_Init_LnRo=FALSE           # TRUE if first time fitting a model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
+if(SS3.run=='test') Arg= '-nohess'  else Arg='' #no Hessian
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
                                   # for all 4 species observations were collected over multiple years
@@ -477,7 +481,6 @@ alternative.forecasting=NULL  #"sandbar shark"; Forecasting F rather than catch
 WRL.species=c("copper shark","dusky shark","shortfin mako",   #Set WRL as a separate fleet for these species
               "smooth hammerhead","spinner shark","tiger shark") 
 
-Find_Init_LnRo=FALSE   #set to TRUE first time fitting model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
 do.MC.multi=FALSE #doesn't work if estimating rec devs as rec devs are not updated with random sample
 nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
 if(do.MC.multi)
@@ -658,7 +661,6 @@ alternative.like.weigthing=NULL  #test alternative lambdas for survey and length
 
   #21.15 Fit diagnostics
 #note: very time consuming. Only run once model is defined.
-if(SS3.run=='final') do.SS3.diagnostics=TRUE else do.SS3.diagnostics=FALSE   
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
 Number.of.jitters=50              
 Number.of.likelihood.profiles=10
@@ -670,7 +672,6 @@ like.prof.case='standard'  #as per r4ss (not estimating Hessian by setting extra
 
 
   #21.16 Sensitivity tests   
-do.all.sensitivity.tests=TRUE #FALSE to only run S1
 test.using.cpue=c("dusky shark","gummy shark","sandbar shark","whiskery shark")          #NULL; have one scenario not using cpue  
 test.using.length.comps=test.using.cpue   #NULL; have one scenario not using length comps 
 test.using.mean.body=test.using.cpue      #NULL; have one scenario not using mean body weight
