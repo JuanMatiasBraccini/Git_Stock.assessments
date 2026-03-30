@@ -1939,6 +1939,8 @@ for(w in 1:n.SS)
             }
             
             #Scenarios
+            Arg.sens=Arg
+            if(do.all.sensitivity.tests) Arg.sens='-nohess'
             Scens=Life.history$Sens.test$SS
             if(!do.all.sensitivity.tests) Scens=Scens%>%filter(Scenario=='S1')
             Scens=Scens%>%
@@ -2706,7 +2708,7 @@ for(w in 1:n.SS)
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
                 write.csv(out,paste(tune.folder,'Ramp_years_first round.csv',sep='/'),row.names = F)
                 these.plots=c(1:7,10,11,16,26)  #biol, selectivity, timeseries,rec devs,S-R,catch,mean weight, indices, size comp
-                SS_plots(Report, plot=these.plots, png=T,printfolder = "1_plots_not tuned")
+                SS_plots(Report, plot=these.plots, png=T,dir=tune.folder,printfolder = "1_plots_not tuned")
                 Likelihoods.not.tuned=Report$likelihoods_used%>%mutate(type='not tuned')
                 
                 #2nd. Tune composition data
@@ -2749,7 +2751,7 @@ for(w in 1:n.SS)
                 out=ramp_years$df
                 out=rbind(out,data.frame(value=unique(Report$sigma_R_info$alternative_sigma_R),label='Alternative_sigma_R'))
                 write.csv(out,paste(tune.folder,'Ramp_years_first round.csv',sep='/'),row.names = F)
-                SS_plots(Report, plot=these.plots, png=T,printfolder = "2_plots_tuned")
+                SS_plots(Report, plot=these.plots, png=T,dir=tune.folder,printfolder = "2_plots_tuned")
                 Likelihoods.tuned=Report$likelihoods_used%>%mutate(type='tuned')
                 
                 #3rd compare tuned and not tuned likelihoods
@@ -2774,14 +2776,14 @@ for(w in 1:n.SS)
               {
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=Where.exe,
-                          args=Arg) 
+                          args=Arg.sens) 
               }
  
               if(file.exists(paste0(this.wd1,'/Report.sso')))
               {
                 #c. Bring in outputs and plot Report
                 COVAR=FORECAST=FALSE
-                if(Arg=="") COVAR=TRUE
+                if(Arg.sens=="") COVAR=TRUE
                 if("SS"%in%future.models) FORECAST=TRUE
                 Report=SS_output(this.wd1,covar=COVAR,forecast=FORECAST,readwt=F)
                 
@@ -3199,7 +3201,7 @@ for(w in 1:n.SS)
 toc(log = TRUE, quiet = TRUE)
 computation.time <- tic.log(format = TRUE)
 tic.clearlog()
-run.with.hess=ifelse(Arg=='','with Hessian estimation',ifelse(Arg=="-nohess","without Hessian estimation",NA))
+run.with.hess=ifelse(Arg.sens=='','with Hessian estimation',ifelse(Arg.sens=="-nohess","without Hessian estimation",NA))
 send.email(TO=Send.email.to,
            CC='',
            Subject=paste("SS3 models",run.with.hess,"finished running at",Sys.time()),

@@ -2839,6 +2839,26 @@ for( yy in 1:length(CHECK.these.mods))
 {
   CHECK.these.mods[[yy]]=SS_output(CHECK.these.mods[[yy]],covar=COVAR,forecast=FORECAST,readwt=F)
 }
+
+
+#-----------  Check Estimated biomass (report)-----------------------------------------------------
+Kmpr.bio=vector('list',length(CHECK.these.mods))
+names(Kmpr.bio)=names(CHECK.these.mods)
+for( yy in 1:length(Kmpr.bio))
+{
+  Rep=CHECK.these.mods[[yy]]
+  Kmpr.bio[[yy]]=Rep$timeseries%>%
+    dplyr::select(Yr,SpawnBio)%>%
+    mutate(Rel.SpawnBio=SpawnBio/SpawnBio[1],
+           Mod=names(CHECK.these.mods)[yy])
+  rm(Rep)
+  
+}
+do.call(rbind,Kmpr.bio)%>%
+  ggplot(aes(Yr,Rel.SpawnBio,color=Mod))+geom_point()+
+  geom_line()+theme_PA()+
+  theme(legend.position = 'top')+ylim(0,1)
+
 #-----------  Check Estimated selectivities (report)-----------------------------------------------------
 Kmpr.sels=vector('list',length(CHECK.these.mods))
 names(Kmpr.sels)=names(CHECK.these.mods)
