@@ -454,11 +454,11 @@ evaluate.07.08.cpue=FALSE #c("gummy shark","sandbar shark","whiskery shark") run
 
   #21.1 General arguments
 Integrated.age.based='SS'      # define model types used
-do.all.sensitivity.tests=FALSE # FALSE only runs S1
+do.all.sensitivity.tests=TRUE # FALSE only runs S1
 do.parallel.SS=TRUE            # run SS sequentially or in parallel
 create.SS.inputs=TRUE          # FALSE once happy with SS input files and only need to run the model
 Tune.SS.model=FALSE             # Tune model if new year of data
-Run.SS=TRUE                    #  run parameter estimation with arguments Arg define below
+Run.SS=TRUE                    #  run parameter estimation with arguments 'Arg' as per defined below
 run_SS_plots=TRUE             
 SS3.run='test'                # 'test' for model testing, 'final' for estimating uncertainty
 do.SS3.diagnostics=FALSE       # very time consuming, do only once model is defined 
@@ -517,7 +517,7 @@ species.constant.fec=c("whiskery shark")      #dodgy linear fec relationship
 Plus.gp.size=1.25                         #add 25% to max size make sure no accumulation of survivals in last size class
 bump.up.max.size.population=FALSE         #leave as FALSE so SS flags when Linf is too high
 resample.h.greynurse=FALSE  #no need to resample h
-drop.min.pop.bin.size=c("dusky shark")  #reduce min pop size bin a bit
+drop.min.pop.bin.size=NULL  #reduce min pop size bin a bit
 
 
   #21.4 SS length comps arguments
@@ -4996,7 +4996,7 @@ clear.log('State.Space.SPM')
   #Run Stock Synthesis   
 HandL.out=handl_OneDrive("Analyses/Population dynamics/1.")
 HandL.out.RAR=Rar.path
-if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours for 24 species ACA
+if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours for 24 species 
 
   #Get Consequence and likelihoods 
 if(any(grepl("Table 12. Age.based_SS_current.depletion",list.files(Rar.path))))

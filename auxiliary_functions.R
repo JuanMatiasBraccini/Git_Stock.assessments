@@ -5778,6 +5778,7 @@ fn.get.f.ref.points=function(Report,propTar=Tar.prop.bmsny,propLim=Lim.prop.bmsy
   
   Equil.yield=Report$equil_yield%>%
     distinct(SSB,.keep_all=T)%>%
+    rename(F_report=F_std)%>%
     dplyr::select(SPRloop,Iter,SSB,Tot_Catch,Fmult,F_report)%>%
     arrange(SSB)
   id.threshold=which.min(abs(Equil.yield$SSB - B.threshold))

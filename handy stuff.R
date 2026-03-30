@@ -2827,49 +2827,42 @@ tic.clearlog()
 computation.time
 
 
+#-----------  Get Reports from different models-----------------------------------------------------
+CHECK.these.mods=list(S1="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1",
+                      S1_original="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1_original",
+                      S1_no.NDS.length="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1_no NDS length",
+                      Tuned_desktop="C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Dusky",
+                      '2022'='C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2022/SS3 integrated/S1')
+
+
+for( yy in 1:length(CHECK.these.mods))
+{
+  CHECK.these.mods[[yy]]=SS_output(CHECK.these.mods[[yy]],covar=COVAR,forecast=FORECAST,readwt=F)
+}
 #-----------  Check Estimated selectivities (report)-----------------------------------------------------
-xx="C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Whiskery/S1"
-Report_S1=SS_output(xx,covar=COVAR,forecast=FORECAST,readwt=F)
-a=Report_S1$sizeselex%>%
-        filter(Factor=='Lsel' & Yr=='2023')%>%
-  dplyr::select(-c(Factor,Label))%>%
-  gather(TL,Sel,-c( Fleet,Yr,Sex))%>%
-  mutate(Sel=as.numeric(Sel),TL=as.numeric(TL),Fleet=as.character(Fleet),Sex=as.character(Sex))
-pS1=a%>%
-  ggplot(aes(TL,Sel,color=Fleet,linetype=Sex))+geom_point(aes(shape=Sex))+
-  geom_line()+theme_PA()
-#a%>%ggplot(aes(TL,Sel,color=Sex))+geom_line()+facet_wrap(~Fleet)
-
-xx="C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Whiskery/S4"
-Report_S4=SS_output(xx,covar=COVAR,forecast=FORECAST,readwt=F)
-a_S4=Report_S4$sizeselex%>%
-  filter(Factor=='Lsel' & Yr=='2023')%>%
-  dplyr::select(-c(Factor,Label))%>%
-  gather(TL,Sel,-c( Fleet,Yr,Sex))%>%
-  mutate(Sel=as.numeric(Sel),TL=as.numeric(TL),Fleet=as.character(Fleet),Sex=as.character(Sex))
-pS4=a_S4%>%
-  ggplot(aes(TL,Sel,color=Fleet,linetype=Sex))+geom_point(aes(shape=Sex))+
-  geom_line()+theme_PA()
+Kmpr.sels=vector('list',length(CHECK.these.mods))
+names(Kmpr.sels)=names(CHECK.these.mods)
+for( yy in 1:length(Kmpr.sels))
+{
+  Rep=CHECK.these.mods[[yy]]
+  FLITID=data.frame(Fleet=as.character(Rep$fleet_ID),Name=Rep$FleetNames)
+  Kmpr.sels[[yy]]=Rep$sizeselex%>%
+                            filter(Factor=='Lsel' & Yr==max(Rep$sizeselex$Yr))%>%
+                            dplyr::select(-c(Factor,Label))%>%
+                            gather(TL,Sel,-c( Fleet,Yr,Sex))%>%
+                            mutate(Sel=as.numeric(Sel),TL=as.numeric(TL),Fleet=as.character(Fleet),Sex=as.character(Sex))%>%
+                            mutate(Mod=names(CHECK.these.mods)[yy])%>%
+                            left_join(FLITID,by='Fleet')
+  rm(Rep)
+  
+}
+do.call(rbind,Kmpr.sels)%>%
+  ggplot(aes(TL,Sel,color=Mod,linetype=Sex))+geom_point(aes(shape=Sex))+
+  geom_line()+theme_PA()+
+  facet_wrap(~Name,ncol=3)+theme(legend.position = 'top')
 
 
-
-Report2022=SS_output('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Whiskery shark/2022/SS3 integrated/S1',
-                     covar=COVAR,forecast=FORECAST,readwt=F)
-a2022=Report2022$sizeselex%>%
-  filter(Factor=='Lsel' & Yr=='2026')%>%
-  dplyr::select(-c(Factor,Label))%>%
-  gather(TL,Sel,-c( Fleet,Yr,Sex))%>%
-  mutate(Sel=as.numeric(Sel),TL=as.numeric(TL),Fleet=as.character(Fleet),Sex=as.character(Sex))
-
-p2022=a2022%>%
-  ggplot(aes(TL,Sel,color=Fleet,linetype=Sex))+geom_point(aes(shape=Sex))+
-  geom_line()+theme_PA()
-
-ggarrange(plotlist=list(pS1+ggtitle('S1'),
-                        p2022+ggtitle('2022'),
-                        pS4+ggtitle('S4')),ncol=1)
-
-#-----------  Check SS selectivities -----------------------------------------------------
+#-----------  See SS selectivities inputs-----------------------------------------------------
 if(!exists('doubleNorm24.fn')) fn.source1("SS_selectivity functions.R")
 x=seq(30,200,5)
 Mod1=data.frame(p1=113.6,p2=-1.0896,p3=4.907,p4=5.6988,Name='Southern 1 West')  
