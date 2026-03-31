@@ -161,7 +161,7 @@ for(l in 1:N.sp)
   if(nrow(tuned_size_comp)>0) List.sp[[l]]$tuned_size_comp.zone=tuned_size_comp.zone
   
     #Recruitment pars
-  ramp.yrs=SS3.Rrecruitment.inputs%>%filter(Species==NeiM)
+  ramp.yrs=SS3.Recruitment.inputs%>%filter(Species==NeiM)
   Min.logR0=ramp.yrs$Ln_R0_min
   Upper.bound.LnR0=ramp.yrs$Ln_R0_max
   if(is.na(Upper.bound.LnR0))

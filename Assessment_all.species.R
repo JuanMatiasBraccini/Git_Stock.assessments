@@ -224,7 +224,9 @@ NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue 
                           "lemon shark","pigeye shark","tiger shark",
                          "dusky shark","sandbar shark")
 tdgdlf_not.representative=c("smooth hammerhead","spinner shark")   #catch rates are for 'hammerheads' and for both species cpue tracks catch so no depletion signal
-tdgdlf_monthly_not.representative=c("sandbar shark","dusky shark")   #Sandbar increasing cpue with increasing catch and very jumpy index; Dusky massive recruitment drop follow moderate catches 
+tdgdlf_monthly_not.representative=c("sandbar shark","dusky shark")  #Sandbar increasing cpue with increasing catch and very jumpy index  
+                                                                    #Dusky massive 'recruitment drop' follow moderate catches and fitting cpue needs a 
+                                                                    # massive peak in recruitment in 1975 not consistent with shark biology)
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
 tdgdlf_daily_not.representative=list("whiskery shark"='West') #NULL; daily west cpue based on very few vessels
@@ -453,6 +455,7 @@ evaluate.07.08.cpue=FALSE #c("gummy shark","sandbar shark","whiskery shark") run
 #21. Integrated age-based model 
 
   #21.1 General arguments
+Where.exe=handl_OneDrive('SS3/ss_win_exe_v3.30.24.1/ss3.exe')  #handl_OneDrive('SS3/ss_win.exe')   #old SS version
 Integrated.age.based='SS'      # define model types used
 do.all.sensitivity.tests=TRUE # FALSE only runs S1
 do.parallel.SS=TRUE            # run SS sequentially or in parallel
@@ -1066,7 +1069,7 @@ mesh.prop.effort.Zone2=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.p
 mesh.prop.effort=rbind(mesh.prop.effort,mesh.prop.effort.West,mesh.prop.effort.Zone1,mesh.prop.effort.Zone2)
 rm(mesh.prop.effort.West,mesh.prop.effort.Zone1,mesh.prop.effort.Zone2)
 
-SS3.Rrecruitment.inputs=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Rrecruitment.inputs.csv'))
+SS3.Recruitment.inputs=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Recruitment.inputs.csv'))
 SS3.tune_size_comp_effective_sample=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample.csv'))
 SS3.tune_size_comp_effective_sample_spatial=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample_spatial.csv'))
 

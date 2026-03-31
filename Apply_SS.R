@@ -1388,7 +1388,7 @@ for(w in 1:n.SS)
             Initial.tag.loss=1e-8  #tag-induced mortality immediately after tagging 
             Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x  #annual rate of tag loss; McAuley et al 2007 tag shedding
             
-            if(Reporting.rate.type[[Neim]]=='published') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_   #NEW
+            if(Reporting.rate.type[[Neim]]=='published') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_   
             if(Reporting.rate.type[[Neim]]=='calculated') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_calculated
             Initial.reporting.rate=Initial.reporting.rate%>%
               dplyr::select(-Species)%>%
@@ -2098,6 +2098,7 @@ for(w in 1:n.SS)
               if(Scens$Length.comps[s]=='No') 
               {
                 Size.comp.single.area=Size.comp.areas.as.fleets=NULL
+                Scens$Use.male.sel.offset[s]="No"
               }
               
               #completely remove Mean.body
@@ -2668,9 +2669,6 @@ for(w in 1:n.SS)
               }
               
               #b. Run SS3
-              Where.exe=handl_OneDrive('SS3/ss_win_exe_v3.30.24.1/ss3.exe')
-              #Where.exe=handl_OneDrive('SS3/ss_win.exe')   #old SS version
-              
                 #find LnRo init value
               if(Find_Init_LnRo)  
               {
@@ -2687,7 +2685,7 @@ for(w in 1:n.SS)
               
                 #tune model and calculate RAMP years
               #note: var adjust and ramp already reset in '#a.5 Reset rec pars for tuning'
-              #      update ramp years in 'SS3.Rrecruitment.inputs.csv'  and sample sizes
+              #      update ramp years in 'SS3.Recruitment.inputs.csv'  and sample sizes
               #      in 'SS3.tune_size_comp_effective_sample.csv' if single area model or
               #         'SS3.tune_size_comp_effective_sample_spatial.csv' if areas as fleets or spatial model.
               if(Scens$Scenario[s]=='S1' & Tune.SS.model)
@@ -2787,7 +2785,15 @@ for(w in 1:n.SS)
                 if("SS"%in%future.models) FORECAST=TRUE
                 Report=SS_output(this.wd1,covar=COVAR,forecast=FORECAST,readwt=F)
                 
-                if(run_SS_plots) SS_plots(Report,  png=T)
+                if(run_SS_plots)
+                {
+                  this.plot=1:26 
+                  dumii=data.frame(Exp=Report$tagdbase1$Exp,
+                                   Expected=rep(Report$tagdbase2$Exp,each = max(Report$tagdbase1$Fleet)))%>%
+                    mutate(Numbers_Exp = round(Exp * Expected))
+                  if(isTRUE(unique(dumii$Numbers_Exp)==0)) this.plot=this.plot[-21]  #remove Tag plot if this condition
+                  SS_plots(Report,plot=this.plot,  png=T)
+                }
                 
                 #d. Store estimates and likelihoods
                 Estims=Report[["estimated_non_dev_parameters"]]

@@ -2021,8 +2021,8 @@ for(i in 1:N.sp)
       }
     }
     
-    #Execute SS 
-    for(s in 1:length(Store.sens))
+    #create SS inputs 
+    for(s in 1:1) #for(s in 1:length(Store.sens))   
     {
       this.wd1=paste(this.wd,names(Store.sens)[s],sep='/')
       if(!dir.exists(this.wd1))dir.create(this.wd1)
@@ -2113,6 +2113,7 @@ for(i in 1:N.sp)
       if(Scens$Length.comps[s]=='No') 
       {
         Size.comp.single.area=Size.comp.areas.as.fleets=NULL
+        Scens$Use.male.sel.offset[s]="No"
       }
       
       #remove Mean.body
@@ -2688,7 +2689,6 @@ for(i in 1:N.sp)
 
 #-----------  Run all scenarios and species-------------------------------------------------------------------------
 Arg='-nohess'
-Where.exe=handl_OneDrive('SS3/ss_win_exe_v3.30.24.1/ss3.exe')
 tic("timer")
 for(i in 1:N.sp)
 {
@@ -2719,10 +2719,10 @@ i=4
 Neim=Keep.species[i]
 
 #this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Whiskery'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New folder'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New folder/Dusky'
 
-Scens=list.files(this.wd)
-for(s in 1:length(Scens))
+Scens=list.files(this.wd) #ACA
+for(s in 1:length(Scens)) 
 {
   this.wd1=paste(this.wd,Scens[s],sep='/')
   fn.run.SS(where.inputs=this.wd1,  where.exe=Where.exe, args=Arg)
@@ -2833,8 +2833,15 @@ CHECK.these.mods=list(S1="C:/Users/myb/OneDrive - Department of Primary Industri
                       S1_no.NDS.length="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1_no NDS length",
                       Tuned_desktop="C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Dusky",
                       '2022'='C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2022/SS3 integrated/S1')
-
-
+DIS=paste(HandL.out,"Dusky shark","/",2026,"/SS3 integrated",sep='')
+CHECK.dis.mods=list.files(DIS)
+CHECK.dis.mods=subset(CHECK.dis.mods,!CHECK.dis.mods%in%c("Catch Other fleet_Indo catch recons_Apprehensions or Forfeitures.tiff","tuning"))
+CHECK.these.mods=vector('list',length(CHECK.dis.mods))
+names(CHECK.these.mods)=CHECK.dis.mods
+for( yy in 1:length(CHECK.these.mods))
+{
+  CHECK.these.mods[[yy]]=paste(DIS,CHECK.dis.mods[yy],sep='/')
+}
 for( yy in 1:length(CHECK.these.mods))
 {
   CHECK.these.mods[[yy]]=SS_output(CHECK.these.mods[[yy]],covar=COVAR,forecast=FORECAST,readwt=F)
@@ -2852,11 +2859,10 @@ for( yy in 1:length(Kmpr.bio))
     mutate(Rel.SpawnBio=SpawnBio/SpawnBio[1],
            Mod=names(CHECK.these.mods)[yy])
   rm(Rep)
-  
 }
 do.call(rbind,Kmpr.bio)%>%
   ggplot(aes(Yr,Rel.SpawnBio,color=Mod))+geom_point()+
-  geom_line()+theme_PA()+
+  geom_line()+theme_PA()+geom_hline(yintercept = 0.4,color=2)+
   theme(legend.position = 'top')+ylim(0,1)
 
 #-----------  Check Estimated selectivities (report)-----------------------------------------------------
@@ -2971,7 +2977,7 @@ plot(time.vec,sapply(time.vec,function(x)fn.SS3.tag.reporting.rate(init.rep.rate
      ylim=c(0,1))
 
 fn.logit(-0.031)
-fn.logit(0.571);fn.logit(-0.248);fn.logit(-0.603);fn.logit(-20)
+fn.logit(0.571);fn.logit(-0.248);fn.logit(-0.603);fn.logit(-20);fn.logit(-2)
 fn.inv.logit(0.5)
 
 
@@ -5048,6 +5054,7 @@ if(Neim=='gummy shark')
       if(Scens$Length.comps[s]=='No') 
       {
         Size.comp.single.area=Size.comp.areas.as.fleets=NULL
+        Scens$Use.male.sel.offset[s]="No"
       }
       
       #remove Mean.body
