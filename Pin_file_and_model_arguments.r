@@ -520,15 +520,12 @@ for(l in 1:N.sp)
   }
   
     #4.1.1.7 Alternative SR_sigmaR
-  if(NeiM%in%alternative.sigmaR)
+  if(NeiM%in%names(alternative.sigmaR))
   {
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
-                mutate(SR_sigmaR=0.2,
+                mutate(SR_sigmaR=alternative.sigmaR[[match(NeiM,names(alternative.sigmaR))]],
                 Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
-    add.dumi2=add.dumi%>%
-                mutate(SR_sigmaR=0.4,
-                       Scenario=paste0('S',as.numeric(str_remove(add.dumi$Scenario,"S"))+1))
-    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi,add.dumi2)
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
     #4.1.1.8 Alternativev SR_type 7 (Taylor)

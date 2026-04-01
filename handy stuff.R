@@ -2569,7 +2569,7 @@ for(i in 1:N.sp)
         #if(Scens$Scenario[s]=='S1' & Tune.SS.model)  #set to NULL in exploratory phase to fully see effect of data
         {
           Life.history$recdev_early_start=0
-          Life.history$SR_sigmaR=0.2
+          Life.history$SR_sigmaR=tuning_sigmaR
           Life.history$RecDev_Phase=3
           
           #Ramp:
@@ -2788,9 +2788,12 @@ for(s in 1:length(Scens))
   ctl$max_bias_adj= out%>%filter(grepl('max_bias_adj',label))%>%pull(value)%>%as.numeric()
   ctl$recdev_early_start=0
   
+  #replace sigmaR 
+  ctl$SR_parms$INIT[match('SR_sigmaR',rownames(ctl$SR_parms))]=out%>%filter(grepl('Alternative_sigma_R',label))%>%pull(value)%>%as.numeric()
+  
   r4ss::SS_writectl(ctl, outfile = file.path(this.wd1, start$ctlfile), overwrite = TRUE, verbose = FALSE)
   
-  #re run ramp
+  #re run model
   fn.run.SS(where.inputs=this.wd1,
             where.exe=Where.exe,
             args='')
@@ -5510,7 +5513,7 @@ if(Neim=='gummy shark')
         #if(Scens$Scenario[s]=='S1' & Tune.SS.model)  #set to NULL in exploratory phase to fully see effect of data
         {
           Life.history$recdev_early_start=0
-          Life.history$SR_sigmaR=0.2
+          Life.history$SR_sigmaR=tuning_sigmaR
           Life.history$RecDev_Phase=3
           
           #Ramp:

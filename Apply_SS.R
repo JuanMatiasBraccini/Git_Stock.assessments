@@ -2558,7 +2558,7 @@ for(w in 1:n.SS)
                 if(Scens$Scenario[s]=='S1' & Tune.SS.model)
                 {
                   Life.history$recdev_early_start=0
-                  Life.history$SR_sigmaR=0.2
+                  Life.history$SR_sigmaR=tuning_sigmaR
                   Life.history$RecDev_Phase=3
                   
                   #Ramp:
@@ -2719,14 +2719,16 @@ for(w in 1:n.SS)
                 Tuned.var.adjust=tune_info$weights[[1]]%>%mutate(Method='Francis')
                 write.csv(Tuned.var.adjust,paste(tune.folder,'Tuned_size_comp.csv',sep='/'),row.names = F)
                 
-                #3rd. Re tune ramp years (blue and red lines should match) with updated tuned pars
-                  #3.1 replace var adj factor with tuned values
+                #3rd. Re run model with updated tuned pars
+                  #3.1 bring in SS input files
                 start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
                 dat <- r4ss::SS_readdat(file = file.path(this.wd1, start$datfile), verbose = FALSE)
                 ctl <- r4ss::SS_readctl(file = file.path(this.wd1, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
+                
+                  #3.2 replace var adj factor with tuned values
                 ctl$Variance_adjustment_list=with(Tuned.var.adjust,data.frame(factor=factor,fleet=fleet,value=value)) 
                 
-                  #3.2 replace ramp years
+                  #3.3 replace ramp years
                 ctl$last_early_yr_nobias_adj= out%>%filter(grepl('last_early_yr_nobias_adj',label))%>%pull(value)%>%as.numeric()
                 ctl$first_yr_fullbias_adj= out%>%filter(grepl('first_yr_fullbias_adj',label))%>%pull(value)%>%as.numeric() 
                 ctl$last_yr_fullbias_adj= out%>%filter(grepl('last_yr_fullbias_adj',label))%>%pull(value)%>%as.numeric() 
@@ -2734,10 +2736,13 @@ for(w in 1:n.SS)
                 ctl$max_bias_adj= out%>%filter(grepl('max_bias_adj',label))%>%pull(value)%>%as.numeric()
                 ctl$recdev_early_start=0
                 
-                  #3.3 export new control
+                  #3.4 replace sigmaR 
+                ctl$SR_parms$INIT[match('SR_sigmaR',rownames(ctl$SR_parms))]=out%>%filter(grepl('Alternative_sigma_R',label))%>%pull(value)%>%as.numeric()
+                
+                  #3.5 export new control
                 r4ss::SS_writectl(ctl, outfile = file.path(this.wd1, start$ctlfile), overwrite = TRUE, verbose = FALSE)
                 
-                  #3.4 re run ramp
+                  #3.6 re run model with updated parametes
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=Where.exe,
                           args='')

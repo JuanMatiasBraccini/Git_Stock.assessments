@@ -289,19 +289,24 @@ average.prop.L95_L50=mean(c(135.4/154.5,225/262,210/240,   #average L50:L95 for 
 
   #15.1 published steepness and sigmaR
 sigmaR.steepness.shark=data.frame(Species=c('dusky shark','sandbar shark','gummy shark','blacktip shark',
-                                            'dogfish',rep('blue shark',2),'big skate',
-                                            'scalloped hammerhead','great hammerhead','smooth hammerhead','shortfin mako'),
-                                  sigmaR=c(0,0.18,0.4,0.28,
-                                           0.2,c(0.3,0.5),0.3,
-                                           rep(0.28,3), NA),
+                                            'dogfish',rep('blue shark',3),'big skate',
+                                            'scalloped hammerhead','great hammerhead','smooth hammerhead','shortfin mako',
+                                            'silky shark',rep('oceanic whitetip shark',2)),
+                                  sigmaR=c(0.1,0.18,0.4,0.28,
+                                           0.2,c(0.3,0.5,0.4),0.3,
+                                           rep(0.28,3), 0.1,
+                                           0.4,c(0.1,0.25)),
                                   Steepness=c(mean(c(0.25,0.35)),mean(c(0.25,0.4)),0.9, 0.4,
-                                              0.283, c(0.73, 0.8),0.4, 
-                                              mean(c(0.69,0.71,0.67)),0.71 ,0.78,0.345 ),
-                                  Source=c('SEDAR 21','SEDARs 21 & 54','Andre model','SEDAR 65',
-                                           'Ian T',rep('ICCAT 2023',2),'Ian T',
-                                           rep('SEDAR 77',3),'ICCAT 2019'))
+                                              0.283, c(0.73, 0.8,0.79),0.4, 
+                                              mean(c(0.69,0.71,0.67)),0.71 ,0.78,0.345,
+                                              0.41,c(0.34,0.49)),
+                                  Source=c('SEDAR 21','SEDARs 21 & 54 & Peterson et al 2022','Andre model','SEDAR 65',
+                                           'Ian T',c(rep('ICCAT 2023',2),'IOTC 2017'),'Ian T',
+                                           rep('SEDAR 77',3),'ICCAT 2019',
+                                           'WCPFC 2024',rep('WCPFC 2019',2)))%>%
+                                    arrange(Species)
 Dusky.Sedar=sigmaR.steepness.shark%>%filter(Species=='dusky shark')%>%pull(Steepness)
-Sandbar.Sedar=sigmaR.steepness.shark%>%filter(Species=='sandbar shark')%>%pull(Steepness)
+Sandbar.Sedar=sigmaR.steepness.shark%>%filter(Species=='sandbar shark' & grepl('SEDAR',Source))%>%pull(Steepness)
 bump.h_sandbar=FALSE  #bump up Sandbar shark h to allow random rec_devs, otherwise model tries to compensate for lower productivity
 ScallopedHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='scalloped hammerhead')%>%pull(Steepness)
 SmoothHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='smooth hammerhead')%>%pull(Steepness)
@@ -598,14 +603,14 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
 
   #21.10 SS stock recruitment arguments
 alternative.SR_type=NULL    #"sandbar shark"; Sensitivity for Spawner-Recruitment
-alternative.sigmaR=NULL     #"sandbar shark"; Sensitivity for sigmaR (effect on rec_devs)
+alternative.sigmaR=list('dusky shark'=0.31,'sandbar shark'=0.41)     #Sensitivity for sigmaR (effect on rec_devs)
 alternative.do_recdev=NULL  #"sandbar shark"; Sensitivity for do_recdev method (effect on rec_devs)
 do_recdev_1="sandbar shark"
 Early_rec_dev_start=0     #0 gummy Andre 2009; set to MaxAge allow several years for population to stabilize (any non 0 will plot long series of early rec devs)
 Early_rec_dev_phase=3     # if >0, then estim early.rec.devs for years set in recdev_early_start & MainRdevYrFirst; if set to <0, then don't estimate early rec devs
 Main.rec.dev_first.year='min.obs'   #'min.ktch' to use first year of catch; 'min.obs' first year abundance or length comps
 Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years before, defined by age at maturity
-
+tuning_sigmaR=quantile(sigmaR.steepness.shark$sigmaR,na.rm=T,probs=.2)  #0.2; initial value for 1st step tuning
 
   #21.11 SS spatial modelling arguments
 spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')  #NULL Build areas-as-fleets model
