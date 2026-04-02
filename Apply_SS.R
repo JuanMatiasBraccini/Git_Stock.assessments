@@ -1313,6 +1313,11 @@ for(w in 1:n.SS)
                 mutate(Rec.zone=case_when(Yr.rec<=2005 ~'Southern.shark_1',
                                           Yr.rec>2005 ~'Southern.shark_2'))
               
+            #use minimum number of observations per release tag group  
+            releases=releases%>%filter(N.release>=Min.annual.Tag.group)
+            recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+            
+            
             #Recalculate TagGroup
             releases=releases%>%
                       arrange(Rel.zone,Yr.rel,Sex,Age)%>%
@@ -1349,12 +1354,13 @@ for(w in 1:n.SS)
                 arrange(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
                 mutate(Tag.group = row_number())%>%
                 relocate(Tag.group)
+               
               recaptures=recaptures%>%
                 left_join(releases%>%distinct(Tag.group,Tag.groups),
                           by='Tag.groups')%>%
                 dplyr::select(-Tag.groups)%>%
                 relocate(Tag.group)
-              releases=releases%>%dplyr::select(-Tag.groups)
+              releases=releases%>%dplyr::select(-Tag.groups)             
             }
             
             releases=releases%>%
@@ -1524,6 +1530,8 @@ for(w in 1:n.SS)
                       filter(dummy%in%dis.yrs.tag)%>%
                       dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+            
+            #use tag groups for years accounting for 90% of recaptures or not
             if(use.tag.rec.yrs.90percent.rec)
             {
               Table.yr.releases=table(releases$Yr.rel)
@@ -1536,6 +1544,10 @@ for(w in 1:n.SS)
               recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
             }
             
+            #use minimum number of observations per release tag group  
+            releases=releases%>%filter(N.release>=Min.annual.Tag.group)
+            recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+
             #Recalculate TagGroup
             releases=releases%>%
               arrange(Rel.zone,Yr.rel,Sex,Age)%>%
@@ -1567,6 +1579,7 @@ for(w in 1:n.SS)
                 group_by(Yr.rec,season,Rec.zone,Tag.groups)%>%
                 summarise(N.recapture=sum(N.recapture))%>%
                 ungroup()
+
               releases=releases%>%
                 distinct(Tag.groups,Rel.zone,Yr.rel,season,t.fill,Sex,Age,N.release)%>%
                 arrange(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
@@ -1578,6 +1591,50 @@ for(w in 1:n.SS)
                 dplyr::select(-Tag.groups)%>%
                 relocate(Tag.group)
               releases=releases%>%dplyr::select(-Tag.groups)
+            }
+            
+            #explore tag groups consistency with gear selectivity
+            if(First.run=='YES')
+            {
+              #add mean length
+              TLzero=with(Life.history,Lzero*a_FL.to.TL+b_FL.to.TL)
+              K=Life.history$Growth.F$k
+              K.m=Life.history$Growth.M$k
+              TLINF=with(Life.history,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL)
+              TLINF.m=with(Life.history,Growth.M$FL_inf*a_FL.to.TL+b_FL.to.TL)
+              dd=releases%>%
+                mutate(Mean.length=ifelse(Sex==1,TLINF-(TLINF-TLzero)*exp(-K*Age),
+                                          TLINF.m-(TLINF.m-TLzero)*exp(-K.m*Age)))
+              
+              TL.vec=seq(TLzero,Life.history$TLmax)
+              p=dd%>%
+                mutate(LBL=paste0('TG ',Tag.group,' (n=',N.release,')'),
+                       Yr.rel=as.character(Yr.rel))%>%
+                ggplot(aes(Mean.length,N.release/max(N.release),color=Yr.rel))+
+                geom_point()+
+                geom_text_repel(aes(label = LBL))+
+                facet_wrap(~Rel.zone,ncol=1)+xlim(0,max(TL.vec))+
+                theme_PA()+ylab('Relative number of releases (points) or selectivity (line)')
+              
+              #add mean SS selectivity  
+              if(!exists('doubleNorm24.fn')) fn.source1("SS_selectivity functions.R")
+              West.sel=Life.history$SS_selectivity%>%filter(Fleet=='Southern.shark_1_West')
+              Zn1.sel=Life.history$SS_selectivity%>%filter(Fleet=='Southern.shark_1_Zone1')
+              Zn2.sel=Life.history$SS_selectivity%>%filter(Fleet=='Southern.shark_1_Zone2')
+              
+              d.sel=data.frame(Mean.length=rep(TL.vec,each=3),
+                               Rel.zone=rep(c("West","Zone1","Zone2"),length(TL.vec)))%>%
+                mutate(Selectivity=case_when(Rel.zone=="West"~doubleNorm24.fn(Mean.length,a=West.sel$P_1,b=West.sel$P_2, c=West.sel$P_3, d=West.sel$P_4, e=-999, f=-999,use_e_999=FALSE, use_f_999=FALSE),
+                                             Rel.zone=="Zone1"~doubleNorm24.fn(Mean.length,a=Zn1.sel$P_1,b=Zn1.sel$P_2, c=Zn1.sel$P_3, d=Zn1.sel$P_4, e=-999, f=-999,use_e_999=FALSE, use_f_999=FALSE),
+                                             Rel.zone=="Zone2"~doubleNorm24.fn(Mean.length,a=Zn2.sel$P_1,b=Zn2.sel$P_2, c=Zn2.sel$P_3, d=Zn2.sel$P_4, e=-999, f=-999,use_e_999=FALSE, use_f_999=FALSE),
+                                             TRUE~0),
+                       Yr.rel=as.character(max(dd$Yr.rel)))
+              p=p+
+                geom_line(data=d.sel,aes(Mean.length,Selectivity,group = 1))
+              base::print(p)
+              ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                           capitalize(Life.history$Name),"/",AssessYr,"/1_Inputs/Visualise data/Tagging_Tag groups and selectivity_area.as.fleets.tiff",sep=''),
+                     width = 6,height = 8,compression = "lzw")
             }
             
             releases=releases%>%
@@ -1695,7 +1752,7 @@ for(w in 1:n.SS)
               {
                 ggarrange(plotlist=Rep.decay_p,ncol=1,nrow=length(Rep.decay_p))
                 ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                             capitalize(List.sp[[i]]$Name),"/",AssessYr,"/1_Inputs/Visualise data/Tagging_report rate decay_area.as.fleets.tiff",sep=''),
+                             capitalize(Life.history$Name),"/",AssessYr,"/1_Inputs/Visualise data/Tagging_report rate decay_area.as.fleets.tiff",sep=''),
                        width = 6,height = 8,compression = "lzw")
               }
               if(pass.rep.rate.decay.negative)
@@ -2765,7 +2822,7 @@ for(w in 1:n.SS)
                         rownames_to_column(var = "Component"))%>%
                   ggplot(aes(type,values))+
                   geom_bar(stat = "identity")+
-                  facet_wrap(~Component,scales='free')+
+                  facet_wrap(~Component)+
                   theme_PA()+xlab('')
                 ggsave(paste(tune.folder,'Likelihoods before and after tuning.tiff',sep='/'), width = 8,height = 6,compression = "lzw")
                 

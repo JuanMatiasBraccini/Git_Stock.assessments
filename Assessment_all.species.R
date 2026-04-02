@@ -630,16 +630,18 @@ if(retained.discarded.units=='numbers')
 
   #21.13 SS Tagging arguments
 Min.annual.zone.releases=10 #minimum number of observations per released year-zone to be used in assessment
+Min.annual.Tag.group=10    #minimum number of releases per tag group to be used in assessment
 Use.these.tag.year_zones=list("dusky shark"=NULL,   #the only species with shedding and reporting data
                               "sandbar shark"=NULL,
                               "whiskery shark"=NULL) 
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
-use.tag.rec.yrs.90percent.rec=TRUE  #use recapture years accounting for 90% of recaptures to avoid calculating F for very distant years
+use.tag.rec.yrs.90percent.rec=FALSE  #use recapture years accounting for 90% of recaptures to avoid calculating F for very distant years
 No.reporting.rate=list("sandbar shark"='Zone2')     #zones for which reporting rate not available
 Reporting.rate.type=list("dusky shark"='published', #use published or calculated reporting rate based on McAuley et al 2007
                          "sandbar shark"='published',
                          "gummy shark"='calculated',
-                         "whiskery shark"='calculated')   
+                         "whiskery shark"='calculated') 
+Reporting.rate.calculated.type='no.realloc_NA.CAPTVESS'  #'realloc_NA.CAPTVESS' to use calculated reporting rate reapportioning 'NA' in CAPTVESS
 Drop.yrs.no.reporting.rate=TRUE  #set to FALSE to keep years with no reporting rate
 estimate.tag.report.decay=TRUE    #estimate tag reporting decay from data and use this in model
 allow.increase.tag.rep.rate=TRUE   #for some species, reporting improves thru time so allow positive 
@@ -647,7 +649,8 @@ pass.rep.rate.decay.negative=TRUE  #must be input as <0 into SS if it is a decay
 logit.transform.tag.pars=TRUE  #input into control file as inverse logit. SS transform back.
 taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
 SS_overdispersion=1.001    #1.001 approx NB to Poisson (mean=variance).  Andre's Gummy model
-SS_mixing_latency_period=0  #0, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
+SS_min.days.liberty=30     # drop recaptures less than this if SS_mixing_latency_period set to 0
+SS_mixing_latency_period=1  #0, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
 Extend.mx.period=1.5   #multiplier of max_periods. Andre gummy set at 30 years
 Manual.selection.tags=list(Use.these.tag.years=list("dusky shark"=1994:1995,"gummy shark"=1994:1995,
                                                     "sandbar shark"=c(2000,2001:2003),"whiskery shark"=1994:1996),
@@ -1599,7 +1602,7 @@ for(s in 1:N.sp)
   if(length(iid)>0) Species.data[[s]]=Species.data[[s]][-iid]
 }
 
-  #6.12 Conventional tagging manipulations
+  #6.12 Conventional tagging manipulations #ACA
 #note:  Source for reporting rate and shedding: McAuley et al 2007 A method...
 #       Data are already aggregated by financial year; just remove tagging data not in SS format
 #      Assuming that whiskery and gummy sharks have same non-reporting rates as dusky shark and tag shedding
@@ -1622,6 +1625,34 @@ for(s in 1:N.sp)
       }
     }
     
+    #Remove obs less than 'SS_min.days.liberty' if 'SS_mixing_latency_period' is set at 0
+    if(SS_mixing_latency_period==0 & SS_min.days.liberty>0) 
+    {
+      Drop=Species.data[[s]]$`Con_tag_Days at large`%>%
+                filter(DaysAtLarge<=SS_min.days.liberty)%>%
+                group_by(Tag.group,Yr.rec,season)%>%
+                summarise(N.drop=sum(N.recapture))%>%
+                ungroup()
+      Species.data[[s]]$Con_tag_SS.format_releases=Species.data[[s]]$Con_tag_SS.format_releases%>%
+                                                      left_join(Drop%>%dplyr::select(Tag.group,N.drop),
+                                                                by='Tag.group')%>%
+                                                      mutate(N.drop=ifelse(is.na(N.drop),0,N.drop),
+                                                             N.release=N.release-N.drop)%>%
+                                                      dplyr::select(-N.drop)
+      
+      Drop=Species.data[[s]]$`Con_tag_Days at large`%>%
+                      filter(DaysAtLarge<=SS_min.days.liberty)%>%
+                      group_by(Tag.group,Yr.rec,season,Rec.zone)%>%
+                      summarise(N.drop=sum(N.recapture))%>%
+                      ungroup()
+      Species.data[[s]]$Con_tag_SS.format_recaptures=Species.data[[s]]$Con_tag_SS.format_recaptures%>%
+                                                      left_join(Drop%>%dplyr::select(Tag.group,N.drop,
+                                                                                     Yr.rec,Rec.zone),
+                                                                by=c('Tag.group','Yr.rec','Rec.zone'))%>%
+                                                      mutate(N.drop=ifelse(is.na(N.drop),0,N.drop),
+                                                             N.recapture=N.recapture-N.drop)%>%
+                                                      dplyr::select(-N.drop)
+    }
     #Remove acoustic tags
     Acous.tag=grep('Acous.Tag',names(Species.data[[s]]))
     if(length(Acous.tag)>0) Species.data[[s]]=Species.data[[s]][-Acous.tag]
@@ -1753,39 +1784,52 @@ for(s in 1:N.sp)
       Use.these.tag.year_zones[[names(Species.data)[s]]]=unique(paste(Tabl$Yr.rel,Tabl$Rel.zone))
     }
   }
-  
   if("Calculated_non_reporting_rate"%in%names(Species.data[[s]]))
   {
-    Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_calculated=Species.data[[s]]$Calculated_non_reporting_rate%>%
+    if(Reporting.rate.calculated.type=='realloc_NA.CAPTVESS')
+    {
+      Dis.calc.rate=Species.data[[s]]$Calculated_non_reporting_rate_with.reallocated.NA.captves
+    }
+    if(Reporting.rate.calculated.type=='no.realloc_NA.CAPTVESS') 
+    {
+      Dis.calc.rate=Species.data[[s]]$Calculated_non_reporting_rate
+    }
+    Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_calculated=Dis.calc.rate%>%
                       mutate(Species=NA,
                              North=NA,
                              Finyear=as.numeric(substr(FINYEAR,1,4)))%>%
                       rename(South=Zone2,
                              South.west=Zone1)%>%
                       dplyr::select(Finyear,Species,South,South.west,West,North)
-    
-    #ACA
   }
   #Display tag reporting rates
   if(First.run=="YES")
   {
-    d=Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_%>%mutate(type='Reported')
+    d=Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_%>%
+      dplyr::select(Finyear,South,South.west,West)%>%
+      rename(Zone2=South, Zone1=South.west)%>%
+      mutate(type='Reported')
     if("Calculated_non_reporting_rate"%in%names(Species.data[[s]]))
     {
-      d=rbind(d,Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_calculated%>%mutate(type='Calculated'))
+      d=rbind(d,
+              Species.data[[s]]$Calculated_non_reporting_rate%>%
+                      mutate(Finyear=as.numeric(substr(FINYEAR,1,4)),type='Calculated')%>%
+                      dplyr::select(names(d)),
+              Species.data[[s]]$Calculated_non_reporting_rate_with.reallocated.NA.captves%>%
+                      mutate(Finyear=as.numeric(substr(FINYEAR,1,4)),type='Calculated (NA CAPTVESS reapp)')%>%
+                      dplyr::select(names(d)))
     }
     p=d|>
-      dplyr::select(-Species)|>
       gather(Zone,non.rep.rate,-c(Finyear,type))|>
       mutate(rate=1-non.rep.rate)|>
       ggplot(aes(Finyear,rate,color=type))+
       geom_point()+geom_line()+
-      facet_wrap(~Zone)+theme_PA()+ylim(0,1)+
-      theme(legend.position = 'top',legend.title = element_blank())+ylab('Tag non-reporting rate')
+      facet_wrap(~Zone,ncol=1)+theme_PA(leg.siz=9)+ylim(0,1)+
+      theme(legend.position = 'top',legend.title = element_blank())+ylab('Tag reporting rate')
     print(p)  
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
                  capitalize(names(Species.data)[s]),"/",AssessYr,'/1_Inputs/Visualise data/Tags_reporting rate.tiff',sep=''),
-           width = 6, height = 6, dpi = 300)
+           width = 5, height = 6, dpi = 300)
   }
 }
   
