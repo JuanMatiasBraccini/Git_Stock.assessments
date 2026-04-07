@@ -635,7 +635,7 @@ Use.these.tag.year_zones=list("dusky shark"=NULL,   #the only species with shedd
                               "sandbar shark"=NULL,
                               "whiskery shark"=NULL) 
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
-use.tag.rec.yrs.90percent.rec=FALSE  #use recapture years accounting for 90% of recaptures to avoid calculating F for very distant years
+use.tag.rec.yrs.percent.rec=0.9  #NULL, use recapture years accounting for X% of recaptures to avoid calculating F for very distant years
 No.reporting.rate=list("sandbar shark"='Zone2')     #zones for which reporting rate not available
 Reporting.rate.type=list("dusky shark"='published', #use published or calculated reporting rate based on McAuley et al 2007
                          "sandbar shark"='published',
@@ -650,8 +650,8 @@ logit.transform.tag.pars=TRUE  #input into control file as inverse logit. SS tra
 taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
 SS_overdispersion=1.001    #1.001 approx NB to Poisson (mean=variance).  Andre's Gummy model
 SS_min.days.liberty=30     # drop recaptures less than this if SS_mixing_latency_period set to 0
-SS_mixing_latency_period=1  #0, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
-Extend.mx.period=1.5   #multiplier of max_periods. Andre gummy set at 30 years
+SS_mixing_latency_period=0  #0, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
+Extend.mx.period=1   #multiplier of max_periods. Andre gummy set at 30 years
 Manual.selection.tags=list(Use.these.tag.years=list("dusky shark"=1994:1995,"gummy shark"=1994:1995,
                                                     "sandbar shark"=c(2000,2001:2003),"whiskery shark"=1994:1996),
                            releases=list("dusky shark"=c("West","Zone1","Zone2"),

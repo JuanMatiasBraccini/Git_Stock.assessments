@@ -1303,15 +1303,15 @@ for(i in 1:N.sp)
               filter(dummy%in%dis.yrs.tag)%>%
               dplyr::select(-dummy)
     recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
-    if(use.tag.rec.yrs.90percent.rec)
+    if(!is.null(use.tag.rec.yrs.percent.rec))
     {
       Table.yr.releases=table(releases$Yr.rel)
       vec=cumsum(Table.yr.releases)/sum(Table.yr.releases)
-      Last.yr.rel=names(vec[which.min(abs(vec - 0.9))])
+      Last.yr.rel=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
       
       Table.yr.recaptures=table(recaptures$Yr.rec)
       vec=cumsum(Table.yr.recaptures)/sum(Table.yr.recaptures)
-      Last.yr.rec=names(vec[which.min(abs(vec - 0.9))])
+      Last.yr.rec=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
       recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
     }
 
@@ -1538,15 +1538,15 @@ for(i in 1:N.sp)
               filter(dummy%in%dis.yrs.tag)%>%
               dplyr::select(-dummy)
     recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
-    if(use.tag.rec.yrs.90percent.rec)
+    if(!is.null(use.tag.rec.yrs.percent.rec))
     {
       Table.yr.releases=table(releases$Yr.rel)
       vec=cumsum(Table.yr.releases)/sum(Table.yr.releases)
-      Last.yr.rel=names(vec[which.min(abs(vec - 0.9))])
+      Last.yr.rel=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
       
       Table.yr.recaptures=table(recaptures$Yr.rec)
       vec=cumsum(Table.yr.recaptures)/sum(Table.yr.recaptures)
-      Last.yr.rec=names(vec[which.min(abs(vec - 0.9))])
+      Last.yr.rec=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
       recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
     }
 
@@ -2768,9 +2768,14 @@ i=4
 Neim=Keep.species[i]
 
 #this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Whiskery'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging lambda 0.1'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging lambda 0.01'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1 lambda 0.01'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1 lambda 0'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging overdis 7'
 
-Scens=list.files(this.wd) #ACA
+Scens=list.files(this.wd) 
 for(s in 1:length(Scens)) 
 {
   this.wd1=paste(this.wd,Scens[s],sep='/')
@@ -2780,7 +2785,10 @@ for(s in 1:length(Scens))
   if("SS"%in%future.models) FORECAST=TRUE
   Report=SS_output(this.wd1,covar=COVAR,forecast=FORECAST,readwt=F)
   this.plot=1:26 
-  #this.plot=this.plot[-21]
+  dumii=data.frame(Exp=Report$tagdbase1$Exp,
+                   Expected=rep(Report$tagdbase2$Exp,each = max(Report$tagdbase1$Fleet)))%>%
+    mutate(Numbers_Exp = round(Exp * Expected))
+  if(isTRUE(unique(dumii$Numbers_Exp)==0)) this.plot=this.plot[-21]  #remove Tag plot if this condition
   SS_plots(Report,plot=this.plot,  png=T)
 }
 
@@ -2880,11 +2888,12 @@ computation.time
 
 
 #-----------  Get Reports from different models-----------------------------------------------------
-CHECK.these.mods=list(S1="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1",
-                      S1_original="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1_original",
-                      S1_no.NDS.length="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1_no NDS length",
-                      Tuned_desktop="C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Dusky",
-                      '2022'='C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2022/SS3 integrated/S1')
+# CHECK.these.mods=list(S1="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1",
+#                       S1_original="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1_original",
+#                       S1_no.NDS.length="C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1_no NDS length",
+#                       Tuned_desktop="C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Dusky",
+#                       '2022'='C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/Population dynamics/1.Dusky shark/2022/SS3 integrated/S1')
+
 DIS=paste(HandL.out,"Dusky shark","/",2026,"/SS3 integrated",sep='')
 CHECK.dis.mods=list.files(DIS)
 CHECK.dis.mods=subset(CHECK.dis.mods,!CHECK.dis.mods%in%c("Catch Other fleet_Indo catch recons_Apprehensions or Forfeitures.tiff","tuning"))
@@ -2894,10 +2903,45 @@ for( yy in 1:length(CHECK.these.mods))
 {
   CHECK.these.mods[[yy]]=paste(DIS,CHECK.dis.mods[yy],sep='/')
 }
+
+CHECK.these.mods=list(
+  New.tagging='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging/Dusky',
+  New.tagging_overdis_7='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging overdis 7/Dusky',
+  New.tagging_0.01='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging lambda 0.01/Dusky',
+  New.tagging_latency_1='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1/Dusky',
+  New.tagging_latency_1_001='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1 lambda 0.01/Dusky',
+  New.tagging_latency_1_1_0='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1 lambda 0/Dusky'
+)
+
 for( yy in 1:length(CHECK.these.mods))
 {
   CHECK.these.mods[[yy]]=SS_output(CHECK.these.mods[[yy]],covar=COVAR,forecast=FORECAST,readwt=F)
 }
+
+
+#-----------  Compare likelihoods (report)-----------------------------------------------------
+for( yy in 1:length(CHECK.these.mods)) 
+{
+  NAM=names(CHECK.these.mods)[yy]
+  CHECK.these.mods[[yy]]$likelihoods_used=CHECK.these.mods[[yy]]$likelihoods_used%>%
+                                              mutate(type=NAM)
+}
+a=do.call(rbind,fn.get.stuff.from.list(lista=CHECK.these.mods,stuff='likelihoods_used'))%>%
+  rownames_to_column(var = "Component")%>%
+  mutate(Component=str_remove(Component, "New\\.tagging_latency_1_1_0\\.|New\\.tagging\\.|New\\.tagging_latency_1_001\\."),
+         Component=str_remove(Component,'New.tagging'),
+         Component=str_remove(Component,'_0.01.'),
+         Component=str_remove(Component,'_overdis_7.'),
+         Component=str_remove(Component,'_latency_1.'))
+a%>%
+  filter(!values==0)%>%
+  ggplot(aes(type,values))+
+  geom_bar(stat = "identity")+
+  facet_wrap(~Component)+
+  theme_PA()+xlab('')+
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
+  #ACA
+
 
 
 #-----------  Check Estimated biomass (report)-----------------------------------------------------
@@ -3020,8 +3064,7 @@ Report_tweek$likelihoods_used%>%arrange(-values)
 Report_1_S1$tagreportrates
 Report_tweek$tagreportrates
 
-fn.logit(-30)
-fn.inv.logit(0.5)
+CHECK.these.mods$New.tagging$likelihoods_used%>%arrange(-values)
 
 #-----------  Check reporting rate -------------------------------------------------
 time.vec=0:5
@@ -4299,15 +4342,15 @@ if(Neim=='gummy shark')
       filter(dummy%in%dis.yrs.tag)%>%
       dplyr::select(-dummy)
     recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
-    if(use.tag.rec.yrs.90percent.rec)
+    if(!is.null(use.tag.rec.yrs.percent.rec))
     {
       Table.yr.releases=table(releases$Yr.rel)
       vec=cumsum(Table.yr.releases)/sum(Table.yr.releases)
-      Last.yr.rel=names(vec[which.min(abs(vec - 0.9))])
+      Last.yr.rel=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
       
       Table.yr.recaptures=table(recaptures$Yr.rec)
       vec=cumsum(Table.yr.recaptures)/sum(Table.yr.recaptures)
-      Last.yr.rec=names(vec[which.min(abs(vec - 0.9))])
+      Last.yr.rec=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
       recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
     }
 
@@ -4533,15 +4576,15 @@ if(Neim=='gummy shark')
       filter(dummy%in%dis.yrs.tag)%>%
       dplyr::select(-dummy)
     recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
-    if(use.tag.rec.yrs.90percent.rec)
+    if(!is.null(use.tag.rec.yrs.percent.rec))
     {
       Table.yr.releases=table(releases$Yr.rel)
       vec=cumsum(Table.yr.releases)/sum(Table.yr.releases)
-      Last.yr.rel=names(vec[which.min(abs(vec - 0.9))])
+      Last.yr.rel=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
       
       Table.yr.recaptures=table(recaptures$Yr.rec)
       vec=cumsum(Table.yr.recaptures)/sum(Table.yr.recaptures)
-      Last.yr.rec=names(vec[which.min(abs(vec - 0.9))])
+      Last.yr.rec=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
       recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
     }
 

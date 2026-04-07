@@ -1378,7 +1378,6 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       {
         turn.on=turn.on
       }
-      #ACA
       if(length(turn.on)>0)
       {
         if(!is.null(life.history$SS_selectivity_mimic)) turn.on=subset(turn.on,!turn.on%in%id.FleeT)
@@ -2234,11 +2233,14 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
     }
     if(!is.null(Tags))
     {
-      nn=unique(Tags$recaptures$Fleet)
+      nn1=sort(unique(dat$tag_recaps$Fleet))
+      nn=rep(nn1,2)
       fliit=c(fliit,nn)
       Avail.dat=c(Avail.dat,rep("Tags",length(nn)))
-      dat.code=c(dat.code,rep(4,length(nn)))
-      dis.dat=c(dis.dat,paste('Tags_',fleetinfo$fleetname[nn],sep='')  )
+      dat.code=c(dat.code,rep(c(15,16),each=length(nn1)))
+      dis.dat=c(dis.dat,
+                paste('Tags.comp_',fleetinfo$fleetname[nn1],sep=''),
+                paste('Tags.neg.bin_',fleetinfo$fleetname[nn1],sep=''))
     }
     Like_comp=ctl$lambdas[1:length(Avail.dat),]%>%
                 mutate(like_comp=dat.code,

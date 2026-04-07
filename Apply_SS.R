@@ -1293,15 +1293,15 @@ for(w in 1:n.SS)
                       filter(dummy%in%dis.yrs.tag)%>%
                       dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
-            if(use.tag.rec.yrs.90percent.rec)
+            if(!is.null(use.tag.rec.yrs.percent.rec))
             {
               Table.yr.releases=table(releases$Yr.rel)
               vec=cumsum(Table.yr.releases)/sum(Table.yr.releases)
-              Last.yr.rel=names(vec[which.min(abs(vec - 0.9))])
+              Last.yr.rel=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
               
               Table.yr.recaptures=table(recaptures$Yr.rec)
               vec=cumsum(Table.yr.recaptures)/sum(Table.yr.recaptures)
-              Last.yr.rec=names(vec[which.min(abs(vec - 0.9))])
+              Last.yr.rec=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
               recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
             }
              
@@ -1532,15 +1532,15 @@ for(w in 1:n.SS)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
             
             #use tag groups for years accounting for 90% of recaptures or not
-            if(use.tag.rec.yrs.90percent.rec)
+            if(!is.null(use.tag.rec.yrs.percent.rec))
             {
               Table.yr.releases=table(releases$Yr.rel)
               vec=cumsum(Table.yr.releases)/sum(Table.yr.releases)
-              Last.yr.rel=names(vec[which.min(abs(vec - 0.9))])
+              Last.yr.rel=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
               
               Table.yr.recaptures=table(recaptures$Yr.rec)
               vec=cumsum(Table.yr.recaptures)/sum(Table.yr.recaptures)
-              Last.yr.rec=names(vec[which.min(abs(vec - 0.9))])
+              Last.yr.rec=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
               recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
             }
             
