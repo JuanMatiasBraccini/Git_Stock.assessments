@@ -3901,5 +3901,13 @@ fn.SS3.tag.reporting.rate=function(init.rep.rate,exp.decay.rate,time)
 {
   return(init.rep.rate*exp(-exp.decay.rate*time))
 }
-
+fn.SS3_calc.tag.overdispersion=function(Report)
+{
+  Calc.overdisp=Report$tagdbase2[,c('Obs','Exp','Pearson')]%>%
+    mutate(Pearson1=((Obs-Exp)^2)/Exp)%>%
+    filter(!is.infinite(Pearson1))
+  Chi.Sqre=sum(Calc.overdisp$Pearson1,na.rm=T)
+  deg.free=nrow(Calc.overdisp)-1
+  return(Chi.Sqre/deg.free)
+}
 

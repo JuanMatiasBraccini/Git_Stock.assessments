@@ -468,9 +468,10 @@ create.SS.inputs=TRUE          # FALSE once happy with SS input files and only n
 Tune.SS.model=FALSE             # Tune model if new year of data
 Run.SS=TRUE                    #  run parameter estimation with arguments 'Arg' as per defined below
 run_SS_plots=TRUE             
-SS3.run='test'                # 'test' for model testing, 'final' for estimating uncertainty
+SS3.run='test'                 # 'test' for model testing, 'final' for estimating uncertainty
 do.SS3.diagnostics=FALSE       # very time consuming, do only once model is defined 
 Find_Init_LnRo=FALSE           # TRUE if first time fitting a model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
+Find_overdispersion=FALSE      # TRUE if first time fitting tagging data
 if(SS3.run=='test') Arg= '-nohess'  else Arg='' #no Hessian
 do.Cond.age.len.SS.format=FALSE   #use age-length data to estimate growth
                                   # this is not used as age-length sandbar and dusky is for GN and LL and 
@@ -635,22 +636,22 @@ Use.these.tag.year_zones=list("dusky shark"=NULL,   #the only species with shedd
                               "sandbar shark"=NULL,
                               "whiskery shark"=NULL) 
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
-use.tag.rec.yrs.percent.rec=0.9  #NULL, use recapture years accounting for X% of recaptures to avoid calculating F for very distant years
+use.tag.rec.yrs.percent.rec=0.90  #NULL, use recapture years accounting for X% of recaptures to avoid calculating F for very distant years
 No.reporting.rate=list("sandbar shark"='Zone2')     #zones for which reporting rate not available
 Reporting.rate.type=list("dusky shark"='published', #use published or calculated reporting rate based on McAuley et al 2007
                          "sandbar shark"='published',
                          "gummy shark"='calculated',
                          "whiskery shark"='calculated') 
 Reporting.rate.calculated.type='no.realloc_NA.CAPTVESS'  #'realloc_NA.CAPTVESS' to use calculated reporting rate reapportioning 'NA' in CAPTVESS
-Drop.yrs.no.reporting.rate=TRUE  #set to FALSE to keep years with no reporting rate
+Drop.yrs.no.reporting.rate=FALSE  #set to FALSE to keep years with no reporting rate
 estimate.tag.report.decay=TRUE    #estimate tag reporting decay from data and use this in model
 allow.increase.tag.rep.rate=TRUE   #for some species, reporting improves thru time so allow positive 
 pass.rep.rate.decay.negative=TRUE  #must be input as <0 into SS if it is a decay
 logit.transform.tag.pars=TRUE  #input into control file as inverse logit. SS transform back.
-taggroup.sex.combined=TRUE  #group females and male tags due to small sample size
-SS_overdispersion=1.001    #1.001 approx NB to Poisson (mean=variance).  Andre's Gummy model
+taggroup.sex.combined=FALSE  #group females and male tags due to small sample size
+taggroup.recalculate=TRUE   #recalculate tag group after dropping years with low number of obs
 SS_min.days.liberty=30     # drop recaptures less than this if SS_mixing_latency_period set to 0
-SS_mixing_latency_period=0  #0, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
+SS_mixing_latency_period=0  #1, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
 Extend.mx.period=1   #multiplier of max_periods. Andre gummy set at 30 years
 Manual.selection.tags=list(Use.these.tag.years=list("dusky shark"=1994:1995,"gummy shark"=1994:1995,
                                                     "sandbar shark"=c(2000,2001:2003),"whiskery shark"=1994:1996),
@@ -661,8 +662,8 @@ Manual.selection.tags=list(Use.these.tag.years=list("dusky shark"=1994:1995,"gum
                            recaptures=list("dusky shark"=c("West","Zone1","Zone2"),
                                            "gummy shark"=c("Zone2"),
                                            "sandbar shark"=c("West","Zone1"),  
-                                           "whiskery shark"=c("West","Zone1","Zone2")))
-
+                                           "whiskery shark"=c("West","Zone1","Zone2")))  #superseded
+remove.dodgy.tag.group_age=list("sandbar shark"=25)   #NULL, age/length comp way outside gillnet selectivity
 
   #21.14 SS likelihood arguments
 drop.len.comp.like=NULL
@@ -1077,6 +1078,7 @@ mesh.prop.effort.Zone2=read.csv(handl_OneDrive('Analyses/Catch and effort/mesh.p
 mesh.prop.effort=rbind(mesh.prop.effort,mesh.prop.effort.West,mesh.prop.effort.Zone1,mesh.prop.effort.Zone2)
 rm(mesh.prop.effort.West,mesh.prop.effort.Zone1,mesh.prop.effort.Zone2)
 
+SS3.Tagging_pars=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Tagging_pars.csv'))
 SS3.Recruitment.inputs=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.Recruitment.inputs.csv'))
 SS3.tune_size_comp_effective_sample=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample.csv'))
 SS3.tune_size_comp_effective_sample_spatial=read.csv(handl_OneDrive('Analyses/Population dynamics/SS3.tune_size_comp_effective_sample_spatial.csv'))
@@ -1602,7 +1604,7 @@ for(s in 1:N.sp)
   if(length(iid)>0) Species.data[[s]]=Species.data[[s]][-iid]
 }
 
-  #6.12 Conventional tagging manipulations #ACA
+  #6.12 Conventional tagging manipulations 
 #note:  Source for reporting rate and shedding: McAuley et al 2007 A method...
 #       Data are already aggregated by financial year; just remove tagging data not in SS format
 #      Assuming that whiskery and gummy sharks have same non-reporting rates as dusky shark and tag shedding
@@ -1625,7 +1627,7 @@ for(s in 1:N.sp)
       }
     }
     
-    #Remove obs less than 'SS_min.days.liberty' if 'SS_mixing_latency_period' is set at 0
+    #Remove obs less than 'SS_min.days.liberty' if 'SS_mixing_latency_period' is set at 0  
     if(SS_mixing_latency_period==0 & SS_min.days.liberty>0) 
     {
       Drop=Species.data[[s]]$`Con_tag_Days at large`%>%
@@ -1651,7 +1653,8 @@ for(s in 1:N.sp)
                                                                 by=c('Tag.group','Yr.rec','Rec.zone'))%>%
                                                       mutate(N.drop=ifelse(is.na(N.drop),0,N.drop),
                                                              N.recapture=N.recapture-N.drop)%>%
-                                                      dplyr::select(-N.drop)
+                                                      dplyr::select(-N.drop)%>%
+                                                      filter(N.recapture>0)
     }
     #Remove acoustic tags
     Acous.tag=grep('Acous.Tag',names(Species.data[[s]]))
@@ -1802,7 +1805,7 @@ for(s in 1:N.sp)
                              South.west=Zone1)%>%
                       dplyr::select(Finyear,Species,South,South.west,West,North)
   }
-  #Display tag reporting rates
+    #Display tag reporting rates
   if(First.run=="YES")
   {
     d=Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_%>%
@@ -1832,6 +1835,20 @@ for(s in 1:N.sp)
            width = 5, height = 6, dpi = 300)
   }
 }
+
+#Set gummy shark calculated non reporting rates to whiskery as no recapture vessel info
+  if("gummy shark" %in% use.tag.data &
+     !'Con_tag_non_reporting_from_F.estimation.R_calculated'%in%names(Species.data$`gummy shark`))
+  {
+    Species.data$`gummy shark`$Con_tag_non_reporting_from_F.estimation.R_calculated=
+      Species.data$`whiskery shark`$Con_tag_non_reporting_from_F.estimation.R_calculated
+
+  }
+
+#Set sandbar Zone 2 non-reporting rate to Zone 1 if NA
+Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_=
+  Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_%>%
+  mutate(South=ifelse(is.na(South),South.west,South))
   
   #6.13 Look at growth Cvs
 Growth.CVs=vector('list',N.sp)

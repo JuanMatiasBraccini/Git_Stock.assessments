@@ -160,6 +160,10 @@ for(l in 1:N.sp)
                             rename(Factor=Data_type)
   if(nrow(tuned_size_comp)>0) List.sp[[l]]$tuned_size_comp.zone=tuned_size_comp.zone
   
+    #Tagging pars
+  tag.pars=SS3.Tagging_pars%>%filter(Species==NeiM)
+  List.sp[[l]]$SS_overdispersion=tag.pars$Overdispersion  
+  
     #Recruitment pars
   ramp.yrs=SS3.Recruitment.inputs%>%filter(Species==NeiM)
   Min.logR0=ramp.yrs$Ln_R0_min

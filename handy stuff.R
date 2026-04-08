@@ -1323,18 +1323,30 @@ for(i in 1:N.sp)
       mutate(Rec.zone=case_when(Yr.rec<=2005 ~'Southern.shark_1',
                                 Yr.rec>2005 ~'Southern.shark_2'))
     
+    #remove dodgy releases and recaptures beyond gillnet selectivity
+    if(Neim%in%names(remove.dodgy.tag.group_age))
+    {
+      drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
+      recaptures=recaptures%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+      releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+    }
+    
     #Recalculate TagGroup
-    releases=releases%>%
-      arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-      mutate(rowid = row_number())
-    TagGroup=releases%>%distinct(Tag.group,rowid)
-    recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
-    releases=releases%>%
-      mutate(Tag.group=rowid)%>%
-      dplyr::select(-rowid)
-    recaptures=recaptures%>%
-      mutate(Tag.group=rowid)%>%
-      dplyr::select(-rowid)
+    if(taggroup.recalculate)
+    {
+      releases=releases%>%
+        arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+        mutate(rowid = row_number())
+      TagGroup=releases%>%distinct(Tag.group,rowid)
+      recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+      releases=releases%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)
+      recaptures=recaptures%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)
+    }
+
     
     #group sex  
     if(taggroup.sex.combined)   
@@ -1399,7 +1411,7 @@ for(i in 1:N.sp)
     Chronic.tag.loss=Species.data[[i]]$Con_tag_shedding_from_F.estimation.R_$x  #annual rate of tag loss; McAuley et al 2007 tag shedding
     
     
-    if(Reporting.rate.type[[Neim]]=='published') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_   #NEW
+    if(Reporting.rate.type[[Neim]]=='published') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_   
     if(Reporting.rate.type[[Neim]]=='calculated') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_calculated
     Initial.reporting.rate=Initial.reporting.rate%>%
       dplyr::select(-Species)%>%
@@ -1496,7 +1508,6 @@ for(i in 1:N.sp)
       }
     }
     if(!estimate.tag.report.decay) Reporting.rate.decay=0 #Andre's Gummy and (Spatial SS3 workshop) Lecture D '4 areas' models
-    
     if(logit.transform.tag.pars)   
     {
       Initial.tag.loss=fn.inv.logit(Initial.tag.loss)
@@ -1514,7 +1525,7 @@ for(i in 1:N.sp)
       Initial.reporting.rate=Initial.reporting.rate%>%
                               filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),   
       Reporting.rate.decay=Reporting.rate.decay,
-      overdispersion=SS_overdispersion,       # Andre's Gummy model
+      overdispersion=Life.history$SS_overdispersion,       # Andre's Gummy model
       mixing_latency_period=SS_mixing_latency_period, 
       max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*Extend.mx.period))  # 30 Andre's Gummy model  
     
@@ -1550,23 +1561,35 @@ for(i in 1:N.sp)
       recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
     }
 
-    #use minimum number of observations per release tag group  #ACA
+    #use minimum number of observations per release tag group  
    releases=releases%>%filter(N.release>=Min.annual.Tag.group)
      recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
     
+     #NEW
+     #remove dodgy releases and recaptures beyond gillnet selectivity
+     if(Neim%in%names(remove.dodgy.tag.group_age))
+     {
+       drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
+       recaptures=recaptures%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+       releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+     }
     
     #Recalculate TagGroup
-    releases=releases%>%
-      arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-      mutate(rowid = row_number())
-    TagGroup=releases%>%distinct(Tag.group,rowid)
-    recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
-    releases=releases%>%
-      mutate(Tag.group=rowid)%>%
-      dplyr::select(-rowid)
-    recaptures=recaptures%>%
-      mutate(Tag.group=rowid)%>%
-      dplyr::select(-rowid)
+     if(taggroup.recalculate)
+     {
+       releases=releases%>%
+         arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+         mutate(rowid = row_number())
+       TagGroup=releases%>%distinct(Tag.group,rowid)
+       recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+       releases=releases%>%
+         mutate(Tag.group=rowid)%>%
+         dplyr::select(-rowid)
+       recaptures=recaptures%>%
+         mutate(Tag.group=rowid)%>%
+         dplyr::select(-rowid)
+     }
+
     
     #group sex  
     if(taggroup.sex.combined)   
@@ -1785,7 +1808,7 @@ for(i in 1:N.sp)
                         Initial.reporting.rate=Initial.reporting.rate%>%
                           filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),
                         Reporting.rate.decay=Reporting.rate.decay,
-                        overdispersion=SS_overdispersion,       # Andre's Gummy model
+                        overdispersion=Life.history$SS_overdispersion,       # Andre's Gummy model
                         mixing_latency_period=SS_mixing_latency_period,  
                         max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*Extend.mx.period))  # 30 Andre's Gummy model  
     
@@ -2739,11 +2762,13 @@ for(i in 1:N.sp)
 #-----------  Run all scenarios and species-------------------------------------------------------------------------
 Arg='-nohess'
 tic("timer")
+only.dis.scen='S1'
 for(i in 1:N.sp)
 {
   Neim=Keep.species[i]
   this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
   Scens=List.sp[[i]]$Sens.test$SS
+  if(!is.null(only.dis.scen)) Scens=Scens%>%filter(Scenario%in%only.dis.scen)
   
   for(s in 1:nrow(Scens))
   {
@@ -2774,6 +2799,7 @@ this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional D
 this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1 lambda 0.01'
 this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1 lambda 0'
 this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging overdis 7'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging overdis 16'
 
 Scens=list.files(this.wd) 
 for(s in 1:length(Scens)) 
@@ -2791,6 +2817,39 @@ for(s in 1:length(Scens))
   if(isTRUE(unique(dumii$Numbers_Exp)==0)) this.plot=this.plot[-21]  #remove Tag plot if this condition
   SS_plots(Report,plot=this.plot,  png=T)
 }
+
+#-----------  Calculate tag overdispersion-------------------------------------------------------------------------
+for(i in 1:N.sp)
+{
+  Neim=Keep.species[i]
+  this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
+  Scens=List.sp[[i]]$Sens.test$SS
+  for(s in 1:1)
+  {
+    this.wd1=paste(this.wd,Scens$Scenario[s],sep='/')
+    start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
+    dat <- r4ss::SS_readdat(file = file.path(this.wd1, start$datfile), verbose = FALSE)
+    ctl <- r4ss::SS_readctl(file = file.path(this.wd1, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
+    ctl$TG_overdispersion=ctl$TG_overdispersion%>%
+      mutate(LO=1,
+             INIT=1.001,
+             PRIOR=1)
+    r4ss::SS_writectl(ctl, outfile = file.path(this.wd1, start$ctlfile), overwrite = TRUE, verbose = FALSE)
+    fn.run.SS(where.inputs=this.wd1,
+              where.exe=Where.exe,
+              args="-nohess") 
+    Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
+    Phi=fn.SS3_calc.tag.overdispersion(Report=Report)
+    write.csv(Phi,paste(this.wd1,'Tag_overdispersion.csv',sep='/'),row.names = F)
+    rm(Report) 
+    
+  }
+}
+  
+
+
+
+
 
 #-----------  tune model and calculate RAMP years-------------------------------------------------------------------------
 
@@ -2907,6 +2966,7 @@ for( yy in 1:length(CHECK.these.mods))
 CHECK.these.mods=list(
   New.tagging='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging/Dusky',
   New.tagging_overdis_7='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging overdis 7/Dusky',
+  New.tagging_overdis_16='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging overdis 16/Dusky',
   New.tagging_0.01='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging lambda 0.01/Dusky',
   New.tagging_latency_1='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1/Dusky',
   New.tagging_latency_1_001='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1 lambda 0.01/Dusky',
@@ -2917,7 +2977,6 @@ for( yy in 1:length(CHECK.these.mods))
 {
   CHECK.these.mods[[yy]]=SS_output(CHECK.these.mods[[yy]],covar=COVAR,forecast=FORECAST,readwt=F)
 }
-
 
 #-----------  Compare likelihoods (report)-----------------------------------------------------
 for( yy in 1:length(CHECK.these.mods)) 
@@ -2932,6 +2991,7 @@ a=do.call(rbind,fn.get.stuff.from.list(lista=CHECK.these.mods,stuff='likelihoods
          Component=str_remove(Component,'New.tagging'),
          Component=str_remove(Component,'_0.01.'),
          Component=str_remove(Component,'_overdis_7.'),
+         Component=str_remove(Component,'_overdis_16.'),
          Component=str_remove(Component,'_latency_1.'))
 a%>%
   filter(!values==0)%>%
@@ -4363,18 +4423,30 @@ if(Neim=='gummy shark')
       mutate(Rec.zone=case_when(Yr.rec<=2005 ~'Southern.shark_1',
                                 Yr.rec>2005 ~'Southern.shark_2'))
     
+    #remove dodgy releases and recaptures beyond gillnet selectivity
+    if(Neim%in%names(remove.dodgy.tag.group_age))
+    {
+      drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
+      recaptures=recaptures%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+      releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+    }
+    
     #Recalculate TagGroup
-    releases=releases%>%
-      arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-      mutate(rowid = row_number())
-    TagGroup=releases%>%distinct(Tag.group,rowid)
-    recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
-    releases=releases%>%
-      mutate(Tag.group=rowid)%>%
-      dplyr::select(-rowid)
-    recaptures=recaptures%>%
-      mutate(Tag.group=rowid)%>%
-      dplyr::select(-rowid)
+    if(taggroup.recalculate)
+    {
+      releases=releases%>%
+        arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+        mutate(rowid = row_number())
+      TagGroup=releases%>%distinct(Tag.group,rowid)
+      recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+      releases=releases%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)
+      recaptures=recaptures%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)
+    }
+
     
     #group sex  
     if(taggroup.sex.combined)   
@@ -4552,7 +4624,7 @@ if(Neim=='gummy shark')
       Initial.reporting.rate=Initial.reporting.rate%>%
         filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),   
       Reporting.rate.decay=Reporting.rate.decay,
-      overdispersion=SS_overdispersion,       # Andre's Gummy model
+      overdispersion=Life.history$SS_overdispersion,       # Andre's Gummy model
       mixing_latency_period=SS_mixing_latency_period, 
       max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*Extend.mx.period))  # 30 Andre's Gummy model  
     
@@ -4591,19 +4663,31 @@ if(Neim=='gummy shark')
     #use minimum number of observations per release tag group  #ACA
     releases=releases%>%filter(N.release>=Min.annual.Tag.group)
     recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+    
+    #remove dodgy releases and recaptures beyond gillnet selectivity
+    if(Neim%in%names(remove.dodgy.tag.group_age))
+    {
+      drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
+      recaptures=recaptures%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+      releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+    }
 
     #Recalculate TagGroup
-    releases=releases%>%
-      arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-      mutate(rowid = row_number())
-    TagGroup=releases%>%distinct(Tag.group,rowid)
-    recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
-    releases=releases%>%
-      mutate(Tag.group=rowid)%>%
-      dplyr::select(-rowid)
-    recaptures=recaptures%>%
-      mutate(Tag.group=rowid)%>%
-      dplyr::select(-rowid)
+    if(taggroup.recalculate)
+    {
+      releases=releases%>%
+        arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+        mutate(rowid = row_number())
+      TagGroup=releases%>%distinct(Tag.group,rowid)
+      recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+      releases=releases%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)
+      recaptures=recaptures%>%
+        mutate(Tag.group=rowid)%>%
+        dplyr::select(-rowid)
+    }
+
     
     #group sex  
     if(taggroup.sex.combined)   
@@ -4782,7 +4866,7 @@ if(Neim=='gummy shark')
       Initial.reporting.rate=Initial.reporting.rate%>%
         filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),
       Reporting.rate.decay=Reporting.rate.decay,
-      overdispersion=SS_overdispersion,       # Andre's Gummy model
+      overdispersion=Life.history$SS_overdispersion,       # Andre's Gummy model
       mixing_latency_period=SS_mixing_latency_period,  
       max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*Extend.mx.period))  # 30 Andre's Gummy model  
     

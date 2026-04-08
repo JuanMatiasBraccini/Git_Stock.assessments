@@ -1317,19 +1317,29 @@ for(w in 1:n.SS)
             releases=releases%>%filter(N.release>=Min.annual.Tag.group)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
             
+            #remove dodgy releases and recaptures beyond gillnet selectivity
+            if(Neim%in%names(remove.dodgy.tag.group_age))
+            {
+              drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
+              recaptures=recaptures%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+              releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+            }
             
             #Recalculate TagGroup
-            releases=releases%>%
-                      arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-                      mutate(rowid = row_number())
-            TagGroup=releases%>%distinct(Tag.group,rowid)
-            recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
-            releases=releases%>%
-                      mutate(Tag.group=rowid)%>%
-                      dplyr::select(-rowid)
-            recaptures=recaptures%>%
-                      mutate(Tag.group=rowid)%>%
-                      dplyr::select(-rowid)
+            if(taggroup.recalculate)
+            {
+              releases=releases%>%
+                arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+                mutate(rowid = row_number())
+              TagGroup=releases%>%distinct(Tag.group,rowid)
+              recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+              releases=releases%>%
+                mutate(Tag.group=rowid)%>%
+                dplyr::select(-rowid)
+              recaptures=recaptures%>%
+                mutate(Tag.group=rowid)%>%
+                dplyr::select(-rowid)
+            }
                     
             #group sex  
             if(taggroup.sex.combined)   
@@ -1507,7 +1517,7 @@ for(w in 1:n.SS)
                               Initial.reporting.rate=Initial.reporting.rate%>%
                                           filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),   #NEW
                               Reporting.rate.decay=Reporting.rate.decay,
-                              overdispersion=SS_overdispersion,       # Andre's Gummy model
+                              overdispersion=Life.history$SS_overdispersion,       
                               mixing_latency_period=SS_mixing_latency_period, 
                               max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*Extend.mx.period))    
             
@@ -1547,19 +1557,30 @@ for(w in 1:n.SS)
             #use minimum number of observations per release tag group  
             releases=releases%>%filter(N.release>=Min.annual.Tag.group)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+            
+            #remove dodgy releases and recaptures beyond gillnet selectivity
+            if(Neim%in%names(remove.dodgy.tag.group_age))
+            {
+              drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
+              recaptures=recaptures%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+              releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+            }
 
             #Recalculate TagGroup
-            releases=releases%>%
-              arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-              mutate(rowid = row_number())
-            TagGroup=releases%>%distinct(Tag.group,rowid)
-            recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
-            releases=releases%>%
-              mutate(Tag.group=rowid)%>%
-              dplyr::select(-rowid)
-            recaptures=recaptures%>%
-              mutate(Tag.group=rowid)%>%
-              dplyr::select(-rowid)
+            if(taggroup.recalculate)
+            {
+              releases=releases%>%
+                arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+                mutate(rowid = row_number())
+              TagGroup=releases%>%distinct(Tag.group,rowid)
+              recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+              releases=releases%>%
+                mutate(Tag.group=rowid)%>%
+                dplyr::select(-rowid)
+              recaptures=recaptures%>%
+                mutate(Tag.group=rowid)%>%
+                dplyr::select(-rowid)
+            }
             
             #group sex  
             if(taggroup.sex.combined)   
@@ -1780,7 +1801,7 @@ for(w in 1:n.SS)
                                   Initial.reporting.rate=Initial.reporting.rate%>%
                                           filter(Finyear==Initial.reporting.rate$Finyear[which.min(abs(Initial.reporting.rate$Finyear - min(releases$Yr.rel)))]),
                                   Reporting.rate.decay=Reporting.rate.decay,
-                                  overdispersion=SS_overdispersion,       # Andre's Gummy model
+                                  overdispersion=Life.history$SS_overdispersion,       
                                   mixing_latency_period=SS_mixing_latency_period, 
                                   max_periods=ceiling((max(recaptures$Yr.rec)-min(releases$Yr.rel))*Extend.mx.period))  # 30 Andre's Gummy model  
                                 
@@ -2739,6 +2760,28 @@ for(w in 1:n.SS)
                 Report$timeseries%>%filter(Era=='VIRG')%>%pull(Bio_all) #JABBA K= 6800 tonnes
                 rm(Report)
               }
+              
+                #find tag overdispersion
+              #note: update 'SS3.Tagging_pars.csv' with the Phi value
+              if(Scens$Scenario[s]=='S1' & Find_overdispersion & !is.null(Tags.SS.format))
+              {
+                start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
+                dat <- r4ss::SS_readdat(file = file.path(this.wd1, start$datfile), verbose = FALSE)
+                ctl <- r4ss::SS_readctl(file = file.path(this.wd1, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
+                ctl$TG_overdispersion=ctl$TG_overdispersion%>%
+                                        mutate(LO=1,
+                                               INIT=1.001,
+                                               PRIOR=1)
+                r4ss::SS_writectl(ctl, outfile = file.path(this.wd1, start$ctlfile), overwrite = TRUE, verbose = FALSE)
+                fn.run.SS(where.inputs=this.wd1,
+                          where.exe=Where.exe,
+                          args="-nohess") 
+                Report=SS_output(this.wd1,covar=F,forecast=F,readwt=F)
+                Phi=fn.SS3_calc.tag.overdispersion(Report=Report)
+                write.csv(Phi,paste(this.wd1,'Tag_overdispersion.csv',sep='/'),row.names = F)
+                rm(Report) 
+              }
+              
               
                 #tune model and calculate RAMP years
               #note: var adjust and ramp already reset in '#a.5 Reset rec pars for tuning'
