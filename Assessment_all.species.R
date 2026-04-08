@@ -463,6 +463,7 @@ evaluate.07.08.cpue=FALSE #c("gummy shark","sandbar shark","whiskery shark") run
 Where.exe=handl_OneDrive('SS3/ss_win_exe_v3.30.24.1/ss3.exe')  #handl_OneDrive('SS3/ss_win.exe')   #old SS version
 Integrated.age.based='SS'      # define model types used
 do.all.sensitivity.tests=TRUE # FALSE only runs S1
+Compare.sensitivity.test.likelihoods=FALSE
 do.parallel.SS=TRUE            # run SS sequentially or in parallel
 create.SS.inputs=TRUE          # FALSE once happy with SS input files and only need to run the model
 Tune.SS.model=FALSE             # Tune model if new year of data

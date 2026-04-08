@@ -3910,4 +3910,28 @@ fn.SS3_calc.tag.overdispersion=function(Report)
   deg.free=nrow(Calc.overdisp)-1
   return(Chi.Sqre/deg.free)
 }
-
+fn.SS3.compare.likelihoods=function(Report.list)
+{
+  Likes=vector('list',length(Report.list))
+  names(Likes)=names(Report.list)
+  #Get likelihoods
+  for( yy in 1:length(Likes)) 
+  {
+    NAM=names(Likes)[yy]
+    Likes[[yy]]$likelihoods_used=Report.list[[yy]]$likelihoods_used%>%
+      mutate(type=NAM)
+  }
+  a=do.call(rbind,fn.get.stuff.from.list(lista=Likes,stuff='likelihoods_used'))%>%
+    rownames_to_column(var = "Component")%>%
+    mutate(Component=str_remove(Component, "^S\\d+\\."),
+           type=factor(type,levels=names(Likes)))
+  
+  p=a%>%
+    filter(!values==0)%>%
+    ggplot(aes(type,values))+
+    geom_bar(stat = "identity")+
+    facet_wrap(~Component)+
+    theme_PA()+xlab('')+
+    theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
+  return(p)
+}

@@ -3299,7 +3299,23 @@ for(w in 1:n.SS)
           }
         }
       }
-
+      #compare likelihoods from different scenaris
+      if(do.all.sensitivity.tests & Compare.sensitivity.test.likelihoods)
+      {
+        for(i in 1:N.sp)
+        {
+          this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated",sep='')
+          Scens=List.sp[[i]]$Sens.test$SS
+          dis.files=paste(this.wd,Scens$Scenario,sep='/')
+          Report.list=vector('list',length(dis.files))
+          names(Report.list)=Scens$Scenario
+          for(k in 1:length(Report.list)) Report.list[[k]]=SS_output(dis.files[[k]],covar=FALSE,forecast=TRUE,readwt=F)
+          p=fn.SS3.compare.likelihoods(Report.list=Report.list)
+          print(p)
+          ggsave(paste(this.wd,"/Compare likelihoods.tiff",sep=''),width=10,height=7,compression = "lzw")
+        }
+      }
+      
       rm(out.species)
     }
     
