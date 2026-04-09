@@ -1085,6 +1085,7 @@ for(w in 1:n.SS)
           Abundance.SS.format=Abundance.SS.format.zone=NULL
           Var.ad.factr=Var.ad.factr.zone=NULL
           CPUE=compact(Catch.rate.series[[i]])
+          CPUE.zone=NULL
           if(!is.null(CPUE))
           {
             if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
@@ -2636,7 +2637,7 @@ for(w in 1:n.SS)
                 if(Scens$Scenario[s]=='S1' & Tune.SS.model)
                 {
                   Life.history$recdev_early_start=0
-                  Life.history$SR_sigmaR=tuning_sigmaR
+                  Life.history$SR_sigmaR=Scens[s,]$SR_sigmaR=tuning_sigmaR
                   Life.history$RecDev_Phase=3
                   
                   #Ramp:
@@ -2785,9 +2786,10 @@ for(w in 1:n.SS)
               
                 #tune model and calculate RAMP years
               #note: var adjust and ramp already reset in '#a.5 Reset rec pars for tuning'
-              #      update ramp years in 'SS3.Recruitment.inputs.csv'  and sample sizes
-              #      in 'SS3.tune_size_comp_effective_sample.csv' if single area model or
-              #         'SS3.tune_size_comp_effective_sample_spatial.csv' if areas as fleets or spatial model.
+              #      update ramp years in 'SS3.Recruitment.inputs.csv' using 'Ramp_years_first round'  
+              #      and sample sizes in 'SS3.tune_size_comp_effective_sample.csv' if single area model or
+              #         'SS3.tune_size_comp_effective_sample_spatial.csv' if areas as fleets or spatial model
+              #          using 'Tuned_size_comp.csv'.
               if(Scens$Scenario[s]=='S1' & Tune.SS.model)
               {
                 tune.folder=paste(this.wd,'tuning',sep='/')
@@ -3200,7 +3202,8 @@ for(w in 1:n.SS)
                Out.B.Bmsy,Out.F.Fmsy,Out.estimates,Out.Kobe.probs,Out.likelihoods,Out.quantities) 
             
           }
-          
+          clear.log('CPUE')
+          clear.log('CPUE.zone')
           clear.log("Var.ad.factr")
           clear.log("Var.ad.factr.zone")
         } # end '!is.null(Catch.rate.series[[i]]) | etc'

@@ -224,9 +224,9 @@ NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue 
                           "lemon shark","pigeye shark","tiger shark",
                          "dusky shark","sandbar shark")
 tdgdlf_not.representative=c("smooth hammerhead","spinner shark")   #catch rates are for 'hammerheads' and for both species cpue tracks catch so no depletion signal
-tdgdlf_monthly_not.representative=c("sandbar shark","dusky shark")  #Sandbar increasing cpue with increasing catch and very jumpy index  
-                                                                    #Dusky massive 'recruitment drop' follow moderate catches and fitting cpue needs a 
-                                                                    # massive peak in recruitment in 1975 not consistent with shark biology)
+tdgdlf_not.representative=c(tdgdlf_not.representative,"dusky shark") #Dusky.monthly: massive 'recruitment drop' follow moderate catches and fitting cpue needs a 
+                                                                    # massive peak in recruitment in 1975 not consistent with shark biology
+tdgdlf_monthly_not.representative=c("sandbar shark")                #Sandbar increasing cpue with increasing catch and very jumpy index  
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
 tdgdlf_daily_not.representative=list("whiskery shark"='West') #NULL; daily west cpue based on very few vessels
@@ -588,7 +588,7 @@ test.drop.monthly.cpue=list("gummy shark"=1975:1977) #NULL, gummy early years ve
 SS3.q.analit.solu=FALSE   #set to TRUE if calculating q analytically to save up pars, set to FALSE if using block Q (time changing Q)
 block.species_Q=c("whiskery shark") #"gummy shark"
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
-extra.SD.Q.species=c("sandbar shark")
+extra.SD.Q.species=NULL #"sandbar shark"
 
 
   #21.8 SS growth arguments
@@ -605,14 +605,14 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
 
   #21.10 SS stock recruitment arguments
 alternative.SR_type=NULL    #"sandbar shark"; Sensitivity for Spawner-Recruitment
-alternative.sigmaR=list('dusky shark'=0.31,'sandbar shark'=0.41)     #Sensitivity for sigmaR (effect on rec_devs)
+alternative.sigmaR=list('dusky shark'=0.15,'sandbar shark'=0.18)     #Sensitivity for sigmaR (effect on rec_devs)
 alternative.do_recdev=NULL  #"sandbar shark"; Sensitivity for do_recdev method (effect on rec_devs)
 do_recdev_1="sandbar shark"
 Early_rec_dev_start=0     #0 gummy Andre 2009; set to MaxAge allow several years for population to stabilize (any non 0 will plot long series of early rec devs)
 Early_rec_dev_phase=3     # if >0, then estim early.rec.devs for years set in recdev_early_start & MainRdevYrFirst; if set to <0, then don't estimate early rec devs
 Main.rec.dev_first.year='min.obs'   #'min.ktch' to use first year of catch; 'min.obs' first year abundance or length comps
 Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years before, defined by age at maturity
-tuning_sigmaR=quantile(sigmaR.steepness.shark$sigmaR,na.rm=T,probs=.2)  #0.2; initial value for 1st step tuning
+tuning_sigmaR=round(quantile(sigmaR.steepness.shark$sigmaR,na.rm=T,probs=.5),1)  #0.2; initial value for 1st step tuning
 
   #21.11 SS spatial modelling arguments
 spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')  #NULL Build areas-as-fleets model
@@ -3039,8 +3039,8 @@ for(l in 1:N.sp)
   if(Neim%in%NSF_not.representative)    drop.this=c(drop.this,match('NSF',names(dummy)))  
   if(Neim%in%tdgdlf_not.representative)
   {
-    drop.this=c(drop.this,match('TDGDLF.monthly',names(dummy)))
-    drop.this=c(drop.this,match('TDGDLF.daily',names(dummy)))
+    drop.this=c(drop.this,grep('TDGDLF.monthly',names(dummy)))
+    drop.this=c(drop.this,grep('TDGDLF.daily',names(dummy)))
   }
   if(!is.null(drop.this))
   {
