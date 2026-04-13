@@ -496,7 +496,7 @@ for(l in 1:N.sp)
                                   List.sp[[l]]$Sens.test$SS[1,]%>%
                                     mutate(M.at.age="constant",Scenario=paste0('S',N.rowSS+1)))
 
-    #4.1.1.4 Cpues
+    #4.1.1.4 Cpues - test using 07 and 08 daily
   N.rowSS=nrow(List.sp[[l]]$Sens.test$SS)
   List.sp[[l]]$Sens.test$SS$Daily.cpues=rep(drop.daily.cpue,N.rowSS)
   if(evaluate.07.08.cpue)
@@ -629,7 +629,7 @@ for(l in 1:N.sp)
                                                          TRUE~Tagging))
   }
   
-    #4.1.1.16 Test effect of using CPUE  
+    #4.1.1.16 Test effect of not using CPUE at all 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(CPUE='Yes')
   if(NeiM%in%test.using.cpue) #test.using.length.comps test.using.mean.body
   {
@@ -640,7 +640,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.17 Test effect of using length.comps  
+    #4.1.1.17 Test effect of not using length.comps at all 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Length.comps='Yes')
   if(NeiM%in%test.using.length.comps) 
   {
@@ -651,7 +651,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.18 Test effect of using mean body weight  
+    #4.1.1.18 Test effect of not using mean body weight at all 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Mean.body='Yes')
   if(NeiM%in%test.using.mean.body)  
   {
@@ -662,7 +662,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.19 Test effect of using Tags  
+    #4.1.1.19 Test effect of not using Tags at all 
   if(NeiM%in%test.using.tags)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
@@ -756,9 +756,19 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
+    #4.1.1.27 #ACA
+  List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Use.dropped.cpue='No')
+  if(NeiM%in%test.using.dropped.cpues)  
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Use.dropped.cpue='Yes',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+
   
-  
-    #4.1.1.27 Remove SSS inputs
+    #4.1.1.28 Remove SSS inputs
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
     mutate(Model='SS')%>%
     dplyr::select(-c(Final.dpl,Sims))

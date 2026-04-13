@@ -1088,40 +1088,21 @@ for(w in 1:n.SS)
           CPUE.zone=NULL
           if(!is.null(CPUE))
           {
-            if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE)))) CPUE=CPUE[-grep("NSF",names(CPUE))]
-            if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF.monthly",names(CPUE))]
-            if(Neim%in%names(drop.dodgy.cpue))
-            {
-              diszone.yr=drop.dodgy.cpue[[match(Neim,names(drop.dodgy.cpue))]]
-              dis.data.set=unique(word(diszone.yr, 1, sep = "-"))
-              dis.yrs=unique(word(diszone.yr, 2, sep = "-"))
-              for(xx in 1:length(dis.data.set))
-              {
-                for(yy in 1:length(dis.yrs))
-                {
-                  CPUE[[paste0('TDGDLF.',dis.data.set[xx])]]=CPUE[[paste0('TDGDLF.',dis.data.set[xx])]]%>%
-                    filter(!yr.f==as.numeric(dis.yrs))
-                  
-                }
-              }
-            }
-            if(Neim%in%names(tdgdlf_daily_not.representative))
-            {
-              id.drop=paste0('daily.',tdgdlf_daily_not.representative[[Neim]])
-              CPUE=CPUE[-grep(paste(id.drop,collapse='|'),names(CPUE))] 
-            }
+            #Create cpue by zone list
             CPUE.zone=CPUE
+            
+            #Keep relevant abundance objects
             DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
-            if(length(DROP)>0)CPUE=CPUE[-DROP]
+            if(length(DROP)>0) CPUE=CPUE[-DROP]
             DROP.zone=match(c('observer',"TDGDLF.daily","TDGDLF.monthly"),names(CPUE.zone))
             DROP.zone=subset(DROP.zone,!is.na(DROP.zone))
-            if(length(DROP.zone)>0)CPUE.zone=CPUE.zone[-DROP.zone]
+            if(length(DROP.zone)>0) CPUE.zone=CPUE.zone[-DROP.zone]
             
-            #reset very low CVs
+            #Reset very low CVs 
             #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
             #      If only 1 index available, then do not estimate, just increase CV before fitting model
             #      ICCAT and SEDAR leave CVs as is and don't estimate extraSD but add variance adjustments factors to the control file
-              #zones together
+            #zones together
             if(length(CPUE)>0)
             {
               dumi.cpue=CPUE
@@ -1171,7 +1152,7 @@ for(w in 1:n.SS)
                   filter(!yr.f%in%Life.history$Yr_q_change_transition)
               }
             }
-              # by zones 
+            # by zones 
             if(length(CPUE.zone)>0)
             {
               dumi.cpue=CPUE.zone
@@ -1227,7 +1208,44 @@ for(w in 1:n.SS)
                   filter(!yr.f%in%Life.history$Yr_q_change_transition)
               }
             }
-           }
+            
+            #Keep relevant indices and sensitivity tests
+            if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE))))  
+            {
+              CPUE.test.tdgdlf=CPUE   
+              CPUE.zone.test.tdgdlf=CPUE.zone
+              CPUE=CPUE[-grep("TDGDLF.monthly",names(CPUE))]
+              CPUE=CPUE[-grep("TDGDLF.daily",names(CPUE))]
+              CPUE.zone=CPUE.zone[-grep("TDGDLF.monthly",names(CPUE.zone))]
+              CPUE.zone=CPUE.zone[-grep("TDGDLF.daily",names(CPUE.zone))]
+            }
+            if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE))
+            {
+              CPUE.test.tdgdlf=CPUE   
+              CPUE.zone.test.tdgdlf=CPUE.zone
+              CPUE=CPUE[-grep("TDGDLF.monthly",names(CPUE))]
+              CPUE.zone=CPUE.zone[-grep("TDGDLF.monthly",names(CPUE.zone))]
+            }
+            if(Neim%in%names(drop.dodgy.cpue))
+            {
+              diszone.yr=drop.dodgy.cpue[[match(Neim,names(drop.dodgy.cpue))]]
+              dis.data.set=unique(word(diszone.yr, 1, sep = "-"))
+              dis.yrs=unique(word(diszone.yr, 2, sep = "-"))
+              for(xx in 1:length(dis.data.set))
+              {
+                for(yy in 1:length(dis.yrs))
+                {
+                  CPUE.zone[[paste0('TDGDLF.',dis.data.set[xx])]]=CPUE.zone[[paste0('TDGDLF.',dis.data.set[xx])]]%>%
+                                                                    filter(!yr.f==as.numeric(dis.yrs))
+                }
+              }
+            }
+            if(Neim%in%names(tdgdlf_daily_not.representative))
+            {
+              id.drop=paste0('daily.',tdgdlf_daily_not.representative[[Neim]])
+              CPUE.zone=CPUE.zone[-grep(paste(id.drop,collapse='|'),names(CPUE.zone))] 
+            }
+          }
           
           
           #5. Add size comp effective sample size bias adjustment    
@@ -1287,6 +1305,8 @@ for(w in 1:n.SS)
             recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
                           filter(Yr.rec<=Last.yr.ktch.numeric)
             
+            get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
+            
             #Keep relevant finyear zones
             dis.yrs.tag=Use.these.tag.year_zones[[match(names(Species.data)[i],names(Use.these.tag.year_zones))]]
             releases=releases%>%
@@ -1294,6 +1314,8 @@ for(w in 1:n.SS)
                       filter(dummy%in%dis.yrs.tag)%>%
                       dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+            
+            #Keep tag groups from years accounting for X% of recaptures or not
             if(!is.null(use.tag.rec.yrs.percent.rec))
             {
               Table.yr.releases=table(releases$Yr.rel)
@@ -1343,7 +1365,7 @@ for(w in 1:n.SS)
             }
                     
             #group sex  
-            if(taggroup.sex.combined)   
+            if(Neim%in%taggroup.sex.combined)   
             {
               releases=releases%>%
                 mutate(Sex=0)%>%
@@ -1377,8 +1399,7 @@ for(w in 1:n.SS)
             releases=releases%>%
                     rename(Area=Rel.zone)%>%
                     mutate(Area=1)
-            get.fleet=recaptures%>%
-                   distinct(Yr.rec,Rec.zone)
+            #get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
             Rec.ZonEs=unique(recaptures$Rec.zone)
             a1=ktch%>%
                     ungroup()%>%
@@ -1542,7 +1563,7 @@ for(w in 1:n.SS)
                       dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
             
-            #use tag groups for years accounting for 90% of recaptures or not
+            #Keep tag groups from years accounting for X% of recaptures or not
             if(!is.null(use.tag.rec.yrs.percent.rec))
             {
               Table.yr.releases=table(releases$Yr.rel)
@@ -1584,7 +1605,7 @@ for(w in 1:n.SS)
             }
             
             #group sex  
-            if(taggroup.sex.combined)   
+            if(Neim%in%taggroup.sex.combined)   
             {
               releases=releases%>%
                 mutate(Sex=0)%>%
@@ -2016,6 +2037,83 @@ for(w in 1:n.SS)
               }
  
             }
+            if(exists('CPUE.test.tdgdlf'))
+            {
+              len.cpue.test=length(CPUE.test.tdgdlf)
+              len.cpue.zone.test=length(CPUE.zone.test.tdgdlf)
+              Abundance.SS.format.test.tdgdlf=Abundance.SS.format
+              Abundance.SS.format.zone.test.tdgdlf=Abundance.SS.format.zone
+              if(len.cpue.test>0 | len.cpue.zone.test>0)
+              {
+                MAX.CV=Life.history$MAX.CV
+                #zones together
+                if(len.cpue.test>0)
+                {
+                  for(x in 1:len.cpue.test)    
+                  {
+                    nm=names(CPUE.test.tdgdlf)[x]
+                    if(nm=="NSF") nm="Northern.shark"
+                    if(nm=="TDGDLF.monthly") nm="Southern.shark_1"
+                    if(nm=="TDGDLF.daily") nm="Southern.shark_2"
+                    
+                    dd=CPUE.test.tdgdlf[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE.test.tdgdlf[[x]]))]%>%
+                      relocate(yr.f)
+                    if(drop.large.CVs)
+                    {
+                      iid=which(dd$CV>MAX.CV)
+                      dd$Mean[iid]=NA
+                      dd$CV[iid]=NA 
+                    }
+                    dd=dd%>%
+                      dplyr::rename(Year=yr.f)%>%
+                      mutate(seas=1,
+                             index.dummy=nm)%>%
+                      left_join(Flits.and.survey,by=c('index.dummy'='Fleet.name'))%>%
+                      mutate(index=Fleet.number)%>%
+                      dplyr::select(-c(index.dummy,Fleet.number))
+                    CPUE.test.tdgdlf[[x]]=dd%>%filter(!is.na(Mean))
+                  }
+                  Abundance.SS.format.test.tdgdlf=do.call(rbind,CPUE.test.tdgdlf)%>%
+                    relocate(Year,seas,index,Mean,CV)%>%
+                    arrange(index,Year)
+                  
+                }
+                #by zone
+                if(len.cpue.zone.test>0)
+                {
+                  for(x in 1:len.cpue.zone.test)    
+                  {
+                    nm=names(CPUE.zone.test.tdgdlf)[x]
+                    if(nm=="NSF") nm="Northern.shark"
+                    if(nm=="TDGDLF.monthly.West") nm="Southern.shark_1_West"
+                    if(nm=="TDGDLF.monthly.Zone1") nm="Southern.shark_1_Zone1"
+                    if(nm=="TDGDLF.monthly.Zone2") nm="Southern.shark_1_Zone2"
+                    if(nm=="TDGDLF.daily.West") nm="Southern.shark_2_West"
+                    if(nm=="TDGDLF.daily.Zone1") nm="Southern.shark_2_Zone1"
+                    if(nm=="TDGDLF.daily.Zone2") nm="Southern.shark_2_Zone2"
+                    dd=CPUE.zone.test.tdgdlf[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE.zone.test.tdgdlf[[x]]))]%>%
+                      relocate(yr.f)
+                    if(drop.large.CVs)
+                    {
+                      iid=which(dd$CV>MAX.CV)
+                      dd$Mean[iid]=NA
+                      dd$CV[iid]=NA 
+                    }
+                    dd=dd%>%
+                      dplyr::rename(Year=yr.f)%>%
+                      mutate(seas=1,
+                             index.dummy=nm)%>%
+                      left_join(Flits.and.survey.zone,by=c('index.dummy'='Fleet.name'))%>%
+                      mutate(index=Fleet.number)%>%
+                      dplyr::select(-c(index.dummy,Fleet.number))
+                    CPUE.zone.test.tdgdlf[[x]]=dd%>%filter(!is.na(Mean))
+                  }
+                  Abundance.SS.format.zone.test.tdgdlf=do.call(rbind,CPUE.zone.test.tdgdlf)%>%
+                    relocate(Year,seas,index,Mean,CV)%>%
+                    arrange(index,Year)
+                }
+              }
+            }
             
             #Scenarios
             Arg.sens=Arg
@@ -2097,6 +2195,11 @@ for(w in 1:n.SS)
               #cpues
               Abund.single.area=Abundance.SS.format
               Abund.areas.as.fleets=Abundance.SS.format.zone
+              if(Scens$Use.dropped.cpue[s]=='Yes') 
+              {
+                Abund.single.area=Abundance.SS.format.test.tdgdlf
+                Abund.areas.as.fleets=Abundance.SS.format.zone.test.tdgdlf
+              }
                 #remove monthly years  
               if('drop.monthly.cpue.min'%in%names(Scens))
               {
@@ -2124,7 +2227,11 @@ for(w in 1:n.SS)
                 #remove daily years  
               if(!is.na(Scens$Daily.cpues[s]))
               {
-                if('TDGDLF.daily'%in%names(CPUE) | any(grep('TDGDLF.daily',names(CPUE.zone))))
+                sens.test.cpue=sens.test.cpue.zone=NULL
+                if(exists('CPUE.test.tdgdlf')) sens.test.cpue=CPUE.test.tdgdlf
+                if(exists('CPUE.zone.test.tdgdlf')) sens.test.cpue.zone=CPUE.zone.test.tdgdlf
+                if('TDGDLF.daily'%in%names(CPUE) | any(grep('TDGDLF.daily',names(CPUE.zone))) |
+                   'TDGDLF.daily'%in%names(sens.test.cpue) | any(grep('TDGDLF.daily',names(sens.test.cpue.zone))))
                 {
                   rid.of=as.numeric(unlist(str_split(Scens$Daily.cpues[s], "&")))
                   
@@ -2146,7 +2253,8 @@ for(w in 1:n.SS)
                 }
               }
               
-              #completely remove TDGDLF CPUE  
+              #Completely remove a data type
+                #CPUE  
               if(Scens$CPUE[s]=='No') 
               {
                 Abund.single.area=Abund.areas.as.fleets=NULL
@@ -2170,8 +2278,7 @@ for(w in 1:n.SS)
                 if(!is.null(Abund.areas.as.fleets)) if(nrow(Abund.areas.as.fleets)==0) Abund.areas.as.fleets=NULL
                 
               }
-
-              #completely remove Length.comps
+                #Length.comps
               Size.comp.single.area=Size.compo.SS.format
               Size.comp.areas.as.fleets=Size.compo.SS.format.zone
               if(Scens$Length.comps[s]=='No') 
@@ -2179,8 +2286,7 @@ for(w in 1:n.SS)
                 Size.comp.single.area=Size.comp.areas.as.fleets=NULL
                 Scens$Use.male.sel.offset[s]="No"
               }
-              
-              #completely remove Mean.body
+                #Mean.body
               Meanbodywt.single.area=meanbodywt.SS.format
               Meanbodywt.areas.as.fleets=meanbodywt.SS.format.zone
               if(Scens$Mean.body[s]=='No') 
@@ -2706,7 +2812,7 @@ for(w in 1:n.SS)
                   
                 }
                 
-                #a.8 remove Tag data if use of tagging data is tested in scenario
+                #a.8 Completely remove Tag data
                 if(Scens$Tagging[s]=='No')
                 {
                   tags=NULL
@@ -3204,6 +3310,8 @@ for(w in 1:n.SS)
           }
           clear.log('CPUE')
           clear.log('CPUE.zone')
+          clear.log('CPUE.test.tdgdlf')
+          clear.log('CPUE.zone.test.tdgdlf')
           clear.log("Var.ad.factr")
           clear.log("Var.ad.factr.zone")
         } # end '!is.null(Catch.rate.series[[i]]) | etc'

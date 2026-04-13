@@ -229,8 +229,8 @@ tdgdlf_not.representative=c(tdgdlf_not.representative,"dusky shark") #Dusky.mont
 tdgdlf_monthly_not.representative=c("sandbar shark")                #Sandbar increasing cpue with increasing catch and very jumpy index  
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
-tdgdlf_daily_not.representative=list("whiskery shark"='West') #NULL; daily west cpue based on very few vessels
-drop.dodgy.cpue=list("whiskery shark"='monthly.West-1976') #NULL; whiskery first year of west very few vessels
+tdgdlf_daily_not.representative=list("whiskery shark"='West') #NULL; daily whiskery west cpue based on very few vessels
+drop.dodgy.cpue=list("whiskery shark"='monthly.West-1976') #NULL; monthly whiskery west first year very few vessels
 
 
 
@@ -466,7 +466,7 @@ do.all.sensitivity.tests=TRUE # FALSE only runs S1
 Compare.sensitivity.test.likelihoods=FALSE
 do.parallel.SS=TRUE            # run SS sequentially or in parallel
 create.SS.inputs=TRUE          # FALSE once happy with SS input files and only need to run the model
-Tune.SS.model=FALSE             # Tune model if new year of data
+Tune.SS.model=TRUE             # Tune model if new year of data
 Run.SS=TRUE                    #  run parameter estimation with arguments 'Arg' as per defined below
 run_SS_plots=TRUE             
 SS3.run='test'                 # 'test' for model testing, 'final' for estimating uncertainty
@@ -644,16 +644,17 @@ Reporting.rate.type=list("dusky shark"='published', #use published or calculated
                          "gummy shark"='calculated',
                          "whiskery shark"='calculated') 
 Reporting.rate.calculated.type='no.realloc_NA.CAPTVESS'  #'realloc_NA.CAPTVESS' to use calculated reporting rate reapportioning 'NA' in CAPTVESS
-Drop.yrs.no.reporting.rate=FALSE  #set to FALSE to keep years with no reporting rate
+Drop.yrs.no.reporting.rate=TRUE   #set to FALSE to keep years with no reporting rate
+use.sandbar.tags.2000=FALSE        #add 2000 to 01 and 02 releases for sandbar (assumes same reporting rate)
 estimate.tag.report.decay=TRUE    #estimate tag reporting decay from data and use this in model
-allow.increase.tag.rep.rate=TRUE   #for some species, reporting improves thru time so allow positive 
-pass.rep.rate.decay.negative=TRUE  #must be input as <0 into SS if it is a decay
-logit.transform.tag.pars=TRUE  #input into control file as inverse logit. SS transform back.
-taggroup.sex.combined=FALSE  #group females and male tags due to small sample size
-taggroup.recalculate=TRUE   #recalculate tag group after dropping years with low number of obs
-SS_min.days.liberty=30     # drop recaptures less than this if SS_mixing_latency_period set to 0
-SS_mixing_latency_period=0  #1, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
-Extend.mx.period=1   #multiplier of max_periods. Andre gummy set at 30 years
+allow.increase.tag.rep.rate=TRUE  #for some species, reporting improves thru time so allow positive 
+pass.rep.rate.decay.negative=TRUE #must be input as <0 into SS if it is a decay
+logit.transform.tag.pars=TRUE     #input into control file as inverse logit. SS transform back.
+taggroup.sex.combined=c('sandbar shark')       #group females and male tags due to small sample size
+taggroup.recalculate=TRUE         #recalculate tag group after dropping years with low number of obs
+SS_min.days.liberty=30            # drop recaptures less than this if SS_mixing_latency_period set to 0
+SS_mixing_latency_period=0        #1, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
+Extend.mx.period=1                # multiplier of max_periods. Andre gummy set at 30 years
 Manual.selection.tags=list(Use.these.tag.years=list("dusky shark"=1994:1995,"gummy shark"=1994:1995,
                                                     "sandbar shark"=c(2000,2001:2003),"whiskery shark"=1994:1996),
                            releases=list("dusky shark"=c("West","Zone1","Zone2"),
@@ -685,10 +686,12 @@ like.prof.case='standard'  #as per r4ss (not estimating Hessian by setting extra
 
 
   #21.16 Sensitivity tests   
-test.using.cpue=c("dusky shark","gummy shark","sandbar shark","whiskery shark")          #NULL; have one scenario not using cpue  
-test.using.length.comps=test.using.cpue   #NULL; have one scenario not using length comps 
-test.using.mean.body=test.using.cpue      #NULL; have one scenario not using mean body weight
-test.using.tags=use.tag.data           #NULL; have one scenario not using tagging data
+test.using.dropped.cpues=c("dusky shark","sandbar shark")
+test.using.cpue=NULL #c("dusky shark","gummy shark","sandbar shark","whiskery shark"); have one scenario not using cpue at all  
+test.using.length.comps=test.using.cpue   #NULL; have one scenario not using length comps at all 
+test.using.mean.body=test.using.cpue      #NULL; have one scenario not using mean body weight at all 
+test.using.tags=use.tag.data           #NULL; have one scenario not using tagging data at all 
+if(is.null(test.using.cpue)) test.using.tags=NULL
 test.using.male.sel.offset=c("gummy shark","whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
 test.single.area.model=TRUE   #TRUE to test single area model scenario for spatial.model species
 alternative.NSF.selectivity=c("tiger shark") #NULL
@@ -1598,7 +1601,7 @@ for(s in 1:N.sp)
 }
 
   #6.11 Remove F series from TDGDLF due to structural uncertainty (different growth and M estimation) and sample size
-#note: this is superseded by calculating F from tags in the SS model
+#note: this is superseded by directly calculating F from tags inside the SS model
 for(s in 1:N.sp)
 {
   iid=grep('Fishing.mortality.TDGDLF',names(Species.data[[s]]))
@@ -1612,6 +1615,7 @@ for(s in 1:N.sp)
 #       reported for gummy shark in SESSF (Xiao et al 1999) 0.06
 for(s in 1:N.sp)
 {
+    #Manipulations (assign rates to whiskery/gummy, remove obs<'SS_min.days.liberty' & acoustic tags
   if("Con_tag_SS.format_releases"%in%names(Species.data[[s]]))
   {
     #Fill in whiskery and gummy missing shedding and reporting
@@ -1788,6 +1792,7 @@ for(s in 1:N.sp)
       Use.these.tag.year_zones[[names(Species.data)[s]]]=unique(paste(Tabl$Yr.rel,Tabl$Rel.zone))
     }
   }
+    #Get calculated reporting rate
   if("Calculated_non_reporting_rate"%in%names(Species.data[[s]]))
   {
     if(Reporting.rate.calculated.type=='realloc_NA.CAPTVESS')
@@ -1836,10 +1841,13 @@ for(s in 1:N.sp)
            width = 5, height = 6, dpi = 300)
   }
 }
+if(use.sandbar.tags.2000)
+{
+  Use.these.tag.year_zones$`sandbar shark`=c("2000 West","2000 Zone1",Use.these.tag.year_zones$`sandbar shark`)
+}
 
 #Set gummy shark calculated non reporting rates to whiskery as no recapture vessel info
-  if("gummy shark" %in% use.tag.data &
-     !'Con_tag_non_reporting_from_F.estimation.R_calculated'%in%names(Species.data$`gummy shark`))
+  if("gummy shark" %in% use.tag.data & !'Con_tag_non_reporting_from_F.estimation.R_calculated'%in%names(Species.data$`gummy shark`))
   {
     Species.data$`gummy shark`$Con_tag_non_reporting_from_F.estimation.R_calculated=
       Species.data$`whiskery shark`$Con_tag_non_reporting_from_F.estimation.R_calculated
@@ -1847,9 +1855,8 @@ for(s in 1:N.sp)
   }
 
 #Set sandbar Zone 2 non-reporting rate to Zone 1 if NA
-Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_=
-  Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_%>%
-  mutate(South=ifelse(is.na(South),South.west,South))
+Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_=Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_%>%
+                                              mutate(South=ifelse(is.na(South),South.west,South))
   
   #6.13 Look at growth Cvs
 Growth.CVs=vector('list',N.sp)
@@ -3037,11 +3044,6 @@ for(l in 1:N.sp)
   if(Neim%in%other_not.representative)  drop.this=c(drop.this,match('Other',names(dummy)))  
   if(Neim%in%survey_not.representative) drop.this=c(drop.this,match('Survey',names(dummy)))  
   if(Neim%in%NSF_not.representative)    drop.this=c(drop.this,match('NSF',names(dummy)))  
-  if(Neim%in%tdgdlf_not.representative)
-  {
-    drop.this=c(drop.this,grep('TDGDLF.monthly',names(dummy)))
-    drop.this=c(drop.this,grep('TDGDLF.daily',names(dummy)))
-  }
   if(!is.null(drop.this))
   {
     drop.this=subset(drop.this,!is.na(drop.this))
@@ -3792,7 +3794,6 @@ if(First.run=="YES")
       if(length(DROP)>0)CPUE=CPUE[-DROP]
       if(Neim%in%survey_not.representative & "Survey"%in%names(CPUE)) CPUE=CPUE[-grep("Survey",names(CPUE))]
       if(Neim%in%NSF_not.representative & "NSF"%in%names(CPUE)) CPUE=CPUE[-grep("NSF",names(CPUE))]
-      if(Neim%in%tdgdlf_not.representative & "TDGDLF"%in%names(CPUE)) CPUE=CPUE[-grep("TDGDLF",names(CPUE))]
       if(length(CPUE)>1)for(x in 1:length(CPUE))
       {
         dd=CPUE[[x]]%>%

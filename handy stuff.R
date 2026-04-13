@@ -29,7 +29,7 @@ age.comp=NULL
 for(i in 1:N.sp)
 {
   Neim=Keep.species[i]
-  
+  print(paste("-------------------------",Neim,"---------------------------"))
   this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
   if(!dir.exists(this.wd))dir.create(this.wd)
   
@@ -1098,44 +1098,17 @@ for(i in 1:N.sp)
   CPUE.zone=NULL
   if(!is.null(CPUE))
   {
-    if(Neim%in%NSF_not.representative & any(grepl("NSF",names(CPUE))))
-    {
-      CPUE=CPUE[-grep("NSF",names(CPUE))]
-    }
-      
-    if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE))
-    {
-      CPUE=CPUE[-grep("TDGDLF.monthly",names(CPUE))]
-    }
-      
-    if(Neim%in%names(drop.dodgy.cpue))
-    {
-      diszone.yr=drop.dodgy.cpue[[match(Neim,names(drop.dodgy.cpue))]]
-      dis.data.set=unique(word(diszone.yr, 1, sep = "-"))
-      dis.yrs=unique(word(diszone.yr, 2, sep = "-"))
-      for(xx in 1:length(dis.data.set))
-      {
-        for(yy in 1:length(dis.yrs))
-        {
-          CPUE[[paste0('TDGDLF.',dis.data.set[xx])]]=CPUE[[paste0('TDGDLF.',dis.data.set[xx])]]%>%
-                                                      filter(!yr.f==as.numeric(dis.yrs))
-
-        }
-      }
-    }
-    if(Neim%in%names(tdgdlf_daily_not.representative))
-    {
-      id.drop=paste0('daily.',tdgdlf_daily_not.representative[[Neim]])
-      CPUE=CPUE[-grep(paste(id.drop,collapse='|'),names(CPUE))] 
-    }
-    CPUE.zone=CPUE  #NEW
+    #Create cpue by zone list
+    CPUE.zone=CPUE
+    
+    #Keep relevant abundance objects
     DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
-    if(length(DROP)>0)CPUE=CPUE[-DROP]
+    if(length(DROP)>0) CPUE=CPUE[-DROP]
     DROP.zone=match(c('observer',"TDGDLF.daily","TDGDLF.monthly"),names(CPUE.zone))
     DROP.zone=subset(DROP.zone,!is.na(DROP.zone))
-    if(length(DROP.zone)>0)CPUE.zone=CPUE.zone[-DROP.zone]
+    if(length(DROP.zone)>0) CPUE.zone=CPUE.zone[-DROP.zone]
     
-    #reset very low CVs
+    #Reset very low CVs 
     #note: Andre suggested leaving original CVs and estimating extraSD if more than one index available
     #      If only 1 index available, then do not estimate, just increase CV before fitting model
     #      ICCAT and SEDAR leave CVs as is and don't estimate extraSD but add variance adjustments factors to the control file
@@ -1245,6 +1218,43 @@ for(i in 1:N.sp)
           filter(!yr.f%in%Life.history$Yr_q_change_transition)
       }
     }
+    
+    #Keep relevant indices and sensitivity tests
+    if(Neim%in%tdgdlf_not.representative & any(grepl("TDGDLF",names(CPUE))))  
+    {
+      CPUE.test.tdgdlf=CPUE   
+      CPUE.zone.test.tdgdlf=CPUE.zone
+      CPUE=CPUE[-grep("TDGDLF.monthly",names(CPUE))]
+      CPUE=CPUE[-grep("TDGDLF.daily",names(CPUE))]
+      CPUE.zone=CPUE.zone[-grep("TDGDLF.monthly",names(CPUE.zone))]
+      CPUE.zone=CPUE.zone[-grep("TDGDLF.daily",names(CPUE.zone))]
+    }
+    if(Neim%in%tdgdlf_monthly_not.representative & "TDGDLF.monthly"%in%names(CPUE))
+    {
+      CPUE.test.tdgdlf=CPUE   
+      CPUE.zone.test.tdgdlf=CPUE.zone
+      CPUE=CPUE[-grep("TDGDLF.monthly",names(CPUE))]
+      CPUE.zone=CPUE.zone[-grep("TDGDLF.monthly",names(CPUE.zone))]
+    }
+    if(Neim%in%names(drop.dodgy.cpue))
+    {
+      diszone.yr=drop.dodgy.cpue[[match(Neim,names(drop.dodgy.cpue))]]
+      dis.data.set=unique(word(diszone.yr, 1, sep = "-"))
+      dis.yrs=unique(word(diszone.yr, 2, sep = "-"))
+      for(xx in 1:length(dis.data.set))
+      {
+        for(yy in 1:length(dis.yrs))
+        {
+          CPUE.zone[[paste0('TDGDLF.',dis.data.set[xx])]]=CPUE.zone[[paste0('TDGDLF.',dis.data.set[xx])]]%>%
+                                                            filter(!yr.f==as.numeric(dis.yrs))
+        }
+      }
+    }
+    if(Neim%in%names(tdgdlf_daily_not.representative))
+    {
+      id.drop=paste0('daily.',tdgdlf_daily_not.representative[[Neim]])
+      CPUE.zone=CPUE.zone[-grep(paste(id.drop,collapse='|'),names(CPUE.zone))] 
+    }
   }
   
   
@@ -1312,6 +1322,8 @@ for(i in 1:N.sp)
               filter(dummy%in%dis.yrs.tag)%>%
               dplyr::select(-dummy)
     recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+    
+    #Keep tag groups from years accounting for X% of recaptures or not
     if(!is.null(use.tag.rec.yrs.percent.rec))
     {
       Table.yr.releases=table(releases$Yr.rel)
@@ -1358,7 +1370,7 @@ for(i in 1:N.sp)
 
     
     #group sex  
-    if(taggroup.sex.combined)   
+    if(Neim%in%taggroup.sex.combined)   
     {
       releases=releases%>%
         mutate(Sex=0)%>%
@@ -1551,6 +1563,8 @@ for(i in 1:N.sp)
     recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
       filter(Yr.rec<=Last.yr.ktch.numeric)
     
+    get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
+    
     #Keep relevant finyear zones   
     dis.yrs.tag=Use.these.tag.year_zones[[match(names(Species.data)[i],names(Use.these.tag.year_zones))]]
     releases=releases%>%
@@ -1601,7 +1615,7 @@ for(i in 1:N.sp)
 
     
     #group sex  
-    if(taggroup.sex.combined)   
+    if(Neim%in%taggroup.sex.combined)   
     {
       releases=releases%>%
         mutate(Sex=0)%>%
@@ -1678,24 +1692,23 @@ for(i in 1:N.sp)
     releases=releases%>%
       rename(Area=Rel.zone)%>%
       mutate(Area=1)
-    get.fleet=recaptures%>%
-      distinct(Yr.rec,Rec.zone)
+    #get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
     Rec.ZonEs=unique(recaptures$Rec.zone)
     a1=ktch.zone%>%
-      ungroup()%>%
-      dplyr::select(-c(SPECIES,Name))%>%
-      gather(Fleet,Ktch,-finyear)%>%
-      mutate(zone=case_when(Fleet=="Northern.shark"~'North',
-                            grepl("Zone1",Fleet)~"Zone1",
-                            grepl("West",Fleet)~"West",
-                            grepl("Zone2",Fleet)~"Zone2",
-                            TRUE~''))%>%
-      filter(Ktch>0)%>%
-      filter(zone%in%unique(get.fleet$Rec.zone))%>%
-      filter(finyear%in%unique(get.fleet$Yr.rec))%>%
-      distinct(finyear,Fleet,zone)%>%
-      left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
-                by='Fleet')
+              ungroup()%>%
+              dplyr::select(-c(SPECIES,Name))%>%
+              gather(Fleet,Ktch,-finyear)%>%
+              mutate(zone=case_when(Fleet=="Northern.shark"~'North',
+                                    grepl("Zone1",Fleet)~"Zone1",
+                                    grepl("West",Fleet)~"West",
+                                    grepl("Zone2",Fleet)~"Zone2",
+                                    TRUE~''))%>%
+              filter(Ktch>0)%>%
+              filter(zone%in%unique(get.fleet$Rec.zone))%>%
+              filter(finyear%in%unique(get.fleet$Yr.rec))%>%
+              distinct(finyear,Fleet,zone)%>%
+              left_join(data.frame(Fleet.ID=Flits.zone,Fleet=names(Flits.zone)),
+                        by='Fleet')
     get.fleet=get.fleet%>%
       left_join(a1,by=c('Rec.zone'='zone','Yr.rec'='finyear'))
     recaptures=recaptures%>%
@@ -1710,20 +1723,20 @@ for(i in 1:N.sp)
     if(Reporting.rate.type[[Neim]]=='published') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_   #NEW
     if(Reporting.rate.type[[Neim]]=='calculated') Initial.reporting.rate=Species.data[[i]]$Con_tag_non_reporting_from_F.estimation.R_calculated
     Initial.reporting.rate=Initial.reporting.rate%>%
-      dplyr::select(-Species)%>%
-      gather(Zone,Non.reporting,-Finyear)%>%
-      mutate(Reporting=1-Non.reporting,
-             Zone=case_when(Zone=='South'~'Zone2',
-                            Zone=='South.west'~'Zone1',
-                            Zone=='West'~'West',
-                            Zone=='North'~'North'))%>%
-      filter(Zone%in%Rec.ZonEs)%>%
-      mutate(Reporting.logit=fn.inv.logit(Reporting))%>%
-      dplyr::select(-Non.reporting)
+                                    dplyr::select(-Species)%>%
+                                    gather(Zone,Non.reporting,-Finyear)%>%
+                                    mutate(Reporting=1-Non.reporting,
+                                           Zone=case_when(Zone=='South'~'Zone2',
+                                                          Zone=='South.west'~'Zone1',
+                                                          Zone=='West'~'West',
+                                                          Zone=='North'~'North'))%>%
+                                    filter(Zone%in%Rec.ZonEs)%>%
+                                    mutate(Reporting.logit=fn.inv.logit(Reporting))%>%
+                                    dplyr::select(-Non.reporting)
     get.fleet1=get.fleet%>%
-      dplyr::select(-Fleet)%>%
-      rename(Fleet=Fleet.ID)%>%
-      mutate(dummy=paste(Yr.rec,Rec.zone))
+                      dplyr::select(-Fleet)%>%
+                      rename(Fleet=Fleet.ID)%>%
+                      mutate(dummy=paste(Yr.rec,Rec.zone))
     not.in.init.rep=paste(Initial.reporting.rate$Finyear,Initial.reporting.rate$Zone)
     not.in.init.rep=not.in.init.rep[which(!not.in.init.rep%in%get.fleet1$dummy)]
     if(length(not.in.init.rep)>0)
@@ -1962,7 +1975,6 @@ for(i in 1:N.sp)
     if(len.cpue>0 | len.cpue.zone>0)
     {
       MAX.CV=Life.history$MAX.CV
-      
       #zones together
       if(len.cpue>0)
       {
@@ -1995,7 +2007,6 @@ for(i in 1:N.sp)
           arrange(index,Year)
         
       }
-       
       #by zone
       if(len.cpue.zone>0)
       {
@@ -2030,10 +2041,86 @@ for(i in 1:N.sp)
           relocate(Year,seas,index,Mean,CV)%>%
           arrange(index,Year)
       }
-
+    }
+    if(exists('CPUE.test.tdgdlf'))
+    {
+      len.cpue.test=length(CPUE.test.tdgdlf)
+      len.cpue.zone.test=length(CPUE.zone.test.tdgdlf)
+      Abundance.SS.format.test.tdgdlf=Abundance.SS.format
+      Abundance.SS.format.zone.test.tdgdlf=Abundance.SS.format.zone
+      if(len.cpue.test>0 | len.cpue.zone.test>0)
+      {
+        MAX.CV=Life.history$MAX.CV
+        #zones together
+        if(len.cpue.test>0)
+        {
+          for(x in 1:len.cpue.test)    
+          {
+            nm=names(CPUE.test.tdgdlf)[x]
+            if(nm=="NSF") nm="Northern.shark"
+            if(nm=="TDGDLF.monthly") nm="Southern.shark_1"
+            if(nm=="TDGDLF.daily") nm="Southern.shark_2"
+            
+            dd=CPUE.test.tdgdlf[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE.test.tdgdlf[[x]]))]%>%
+              relocate(yr.f)
+            if(drop.large.CVs)
+            {
+              iid=which(dd$CV>MAX.CV)
+              dd$Mean[iid]=NA
+              dd$CV[iid]=NA 
+            }
+            dd=dd%>%
+              dplyr::rename(Year=yr.f)%>%
+              mutate(seas=1,
+                     index.dummy=nm)%>%
+              left_join(Flits.and.survey,by=c('index.dummy'='Fleet.name'))%>%
+              mutate(index=Fleet.number)%>%
+              dplyr::select(-c(index.dummy,Fleet.number))
+            CPUE.test.tdgdlf[[x]]=dd%>%filter(!is.na(Mean))
+          }
+          Abundance.SS.format.test.tdgdlf=do.call(rbind,CPUE.test.tdgdlf)%>%
+            relocate(Year,seas,index,Mean,CV)%>%
+            arrange(index,Year)
+          
+        }
+        #by zone
+        if(len.cpue.zone.test>0)
+        {
+          for(x in 1:len.cpue.zone.test)    
+          {
+            nm=names(CPUE.zone.test.tdgdlf)[x]
+            if(nm=="NSF") nm="Northern.shark"
+            if(nm=="TDGDLF.monthly.West") nm="Southern.shark_1_West"
+            if(nm=="TDGDLF.monthly.Zone1") nm="Southern.shark_1_Zone1"
+            if(nm=="TDGDLF.monthly.Zone2") nm="Southern.shark_1_Zone2"
+            if(nm=="TDGDLF.daily.West") nm="Southern.shark_2_West"
+            if(nm=="TDGDLF.daily.Zone1") nm="Southern.shark_2_Zone1"
+            if(nm=="TDGDLF.daily.Zone2") nm="Southern.shark_2_Zone2"
+            dd=CPUE.zone.test.tdgdlf[[x]][,grep(paste(c('yr.f','Mean','MeAn','CV'),collapse="|"),names(CPUE.zone.test.tdgdlf[[x]]))]%>%
+              relocate(yr.f)
+            if(drop.large.CVs)
+            {
+              iid=which(dd$CV>MAX.CV)
+              dd$Mean[iid]=NA
+              dd$CV[iid]=NA 
+            }
+            dd=dd%>%
+              dplyr::rename(Year=yr.f)%>%
+              mutate(seas=1,
+                     index.dummy=nm)%>%
+              left_join(Flits.and.survey.zone,by=c('index.dummy'='Fleet.name'))%>%
+              mutate(index=Fleet.number)%>%
+              dplyr::select(-c(index.dummy,Fleet.number))
+            CPUE.zone.test.tdgdlf[[x]]=dd%>%filter(!is.na(Mean))
+          }
+          Abundance.SS.format.zone.test.tdgdlf=do.call(rbind,CPUE.zone.test.tdgdlf)%>%
+            relocate(Year,seas,index,Mean,CV)%>%
+            arrange(index,Year)
+        }
+      }
     }
     
-    #Scenarios
+    #Scenarios 
     Scens=Life.history$Sens.test$SS
     if(!do.all.sensitivity.tests) Scens=Scens%>%filter(Scenario=='S1')
     Scens=Scens%>%
@@ -2111,7 +2198,11 @@ for(i in 1:N.sp)
       #cpues
       Abund.single.area=Abundance.SS.format
       Abund.areas.as.fleets=Abundance.SS.format.zone
-      
+      if(Scens$Use.dropped.cpue[s]=='Yes') 
+      {
+        Abund.single.area=Abundance.SS.format.test.tdgdlf
+        Abund.areas.as.fleets=Abundance.SS.format.zone.test.tdgdlf
+      }
       #remove monthly years  
       if('drop.monthly.cpue.min'%in%names(Scens))
       {
@@ -2136,12 +2227,14 @@ for(i in 1:N.sp)
           }
         }
       }
-      
-      
-      #remove daily years  
+      #remove daily years 
       if(!is.na(Scens$Daily.cpues[s]))
       {
-        if('TDGDLF.daily'%in%names(CPUE) | any(grep('TDGDLF.daily',names(CPUE.zone))))
+        sens.test.cpue=sens.test.cpue.zone=NULL
+        if(exists('CPUE.test.tdgdlf')) sens.test.cpue=CPUE.test.tdgdlf
+        if(exists('CPUE.zone.test.tdgdlf')) sens.test.cpue.zone=CPUE.zone.test.tdgdlf
+        if('TDGDLF.daily'%in%names(CPUE) | any(grep('TDGDLF.daily',names(CPUE.zone))) |
+           'TDGDLF.daily'%in%names(sens.test.cpue) | any(grep('TDGDLF.daily',names(sens.test.cpue.zone))))
         {
           rid.of=as.numeric(unlist(str_split(Scens$Daily.cpues[s], "&")))
           
@@ -2650,7 +2743,7 @@ for(i in 1:N.sp)
         if(Scens$Scenario[s]=='S1' & Tune.SS.model)  #set to NULL in exploratory phase to fully see effect of data
         {
           Life.history$recdev_early_start=0
-          Life.history$SR_sigmaR=Scens[s,]$SR_sigmaR=tuning_sigmaR   #ACA
+          Life.history$SR_sigmaR=Scens[s,]$SR_sigmaR=tuning_sigmaR   
           Life.history$RecDev_Phase=3
           
           #Ramp:
@@ -2760,12 +2853,14 @@ for(i in 1:N.sp)
                      Var.adjust.factor=Var.ad,    
                      Future.project=add.future)    
       }      
-      print(paste("Creating input pars for---------",Neim,"----------scenario",s))
+      print(paste("------------------creating input pars for----------scenario",s))
     } # end s scenario
   
   }
   clear.log('CPUE')
   clear.log('CPUE.zone')
+  clear.log('CPUE.test.tdgdlf')
+  clear.log('CPUE.zone.test.tdgdlf')
 }# end i species loop
 
 
@@ -2802,17 +2897,8 @@ computation.time
 i=4
 Neim=Keep.species[i]
 
-#this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Whiskery'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging lambda 0.01'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1 lambda 0.01'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging mix latency 1 lambda 0'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging overdis 7'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New tagging overdis 16'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/Sandbar test'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/Dusky test'
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/Gummy test'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New folder'
+
 
 Scens=list.files(this.wd) 
 for(s in 1:length(Scens)) 
@@ -2881,7 +2967,7 @@ for(s in 1:length(Scens))
             where.exe=Where.exe,
             args='')
   Report=SS_output(this.wd1)
-  these.plots=1:26 #ACA
+  these.plots=1:26 
   dumii=data.frame(Exp=Report$tagdbase1$Exp,
                    Expected=rep(Report$tagdbase2$Exp,each = max(Report$tagdbase1$Fleet)))%>%
     mutate(Numbers_Exp = round(Exp * Expected))
@@ -3019,7 +3105,7 @@ a%>%
   facet_wrap(~Component)+
   theme_PA()+xlab('')+
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
-  #ACA
+  
 
 
 
