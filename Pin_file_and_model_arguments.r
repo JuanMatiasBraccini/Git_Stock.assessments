@@ -509,7 +509,7 @@ for(l in 1:N.sp)
 
     #4.1.1.5 Calculate extra SD for Q or only when CV is small?
   extra.es.d='NO'
-  if(NeiM%in%extra.SD.Q.species) extra.es.d='YES'
+  if(NeiM%in%names(extra.SD.Q.species)) extra.es.d=extra.SD.Q.species[[NeiM]]
   List.sp[[l]]$Sens.test$SS$extra.SD.Q=extra.es.d 
   
     #4.1.1.6 Alternative dome-shaped selectivity for NSF and survey
@@ -532,7 +532,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.8 Alternativev SR_type 7 (Taylor)
+    #4.1.1.8 Alternative SR_type 7 (Taylor)
   # Zfrac is fraction of density dependence (0 to 1; 0.4 for S. acanthias)
   # Beta is point where density dependence is fastest (1, linear; <1 surv increase faster at low spawning biomass;
   #                                                   >1, surv increase faster at high spawning biomass; 1 for S. acanthias)

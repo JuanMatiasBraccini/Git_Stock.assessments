@@ -28,6 +28,9 @@
 #               . State-space SPM,
 #               . Catch curves,
 #               . Catch-only
+#     5. Base case integrated model is an areas-as-fleet model. Fully spatially structured model requires
+#        a movement transition matrix but this is unwarranted as sharks, particularly duskys and sandbars, 
+#        move among zones multiple times over year. This would required a monthly time step which will not be supported by the available data.
 
 # ------ Header---- 
 rm(list=ls(all=TRUE))
@@ -466,7 +469,7 @@ do.all.sensitivity.tests=TRUE # FALSE only runs S1
 Compare.sensitivity.test.likelihoods=FALSE
 do.parallel.SS=TRUE            # run SS sequentially or in parallel
 create.SS.inputs=TRUE          # FALSE once happy with SS input files and only need to run the model
-Tune.SS.model=TRUE             # Tune model if new year of data
+Tune.SS.model=FALSE             # Tune model if new year of data
 Run.SS=TRUE                    #  run parameter estimation with arguments 'Arg' as per defined below
 run_SS_plots=TRUE             
 SS3.run='test'                 # 'test' for model testing, 'final' for estimating uncertainty
@@ -588,7 +591,8 @@ test.drop.monthly.cpue=list("gummy shark"=1975:1977) #NULL, gummy early years ve
 SS3.q.analit.solu=FALSE   #set to TRUE if calculating q analytically to save up pars, set to FALSE if using block Q (time changing Q)
 block.species_Q=c("whiskery shark") #"gummy shark"
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
-extra.SD.Q.species=NULL #"sandbar shark"
+extra.SD.Q.species=list("sandbar shark"='Survey',
+                        "whiskery shark"='Southern.shark_2') #NULL "sandbar shark"
 
 
   #21.8 SS growth arguments
@@ -608,7 +612,7 @@ alternative.SR_type=NULL    #"sandbar shark"; Sensitivity for Spawner-Recruitmen
 alternative.sigmaR=list('dusky shark'=0.15,'sandbar shark'=0.18)     #Sensitivity for sigmaR (effect on rec_devs)
 alternative.do_recdev=NULL  #"sandbar shark"; Sensitivity for do_recdev method (effect on rec_devs)
 do_recdev_1="sandbar shark"
-Early_rec_dev_start=0     #0 gummy Andre 2009; set to MaxAge allow several years for population to stabilize (any non 0 will plot long series of early rec devs)
+Early_rec_dev_start=5     #0 gummy Andre 2009; set to MaxAge allow several years for population to stabilize (any non 0 will plot long series of early rec devs)
 Early_rec_dev_phase=3     # if >0, then estim early.rec.devs for years set in recdev_early_start & MainRdevYrFirst; if set to <0, then don't estimate early rec devs
 Main.rec.dev_first.year='min.obs'   #'min.ktch' to use first year of catch; 'min.obs' first year abundance or length comps
 Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years before, defined by age at maturity
@@ -644,13 +648,13 @@ Reporting.rate.type=list("dusky shark"='published', #use published or calculated
                          "gummy shark"='calculated',
                          "whiskery shark"='calculated') 
 Reporting.rate.calculated.type='no.realloc_NA.CAPTVESS'  #'realloc_NA.CAPTVESS' to use calculated reporting rate reapportioning 'NA' in CAPTVESS
-Drop.yrs.no.reporting.rate=TRUE   #set to FALSE to keep years with no reporting rate
-use.sandbar.tags.2000=FALSE        #add 2000 to 01 and 02 releases for sandbar (assumes same reporting rate)
 estimate.tag.report.decay=TRUE    #estimate tag reporting decay from data and use this in model
 allow.increase.tag.rep.rate=TRUE  #for some species, reporting improves thru time so allow positive 
 pass.rep.rate.decay.negative=TRUE #must be input as <0 into SS if it is a decay
 logit.transform.tag.pars=TRUE     #input into control file as inverse logit. SS transform back.
+Keep.yrs.no.reporting.rate= NULL #'sandbar shark'  for sandbar due to small number of recapturs, keep years with no reporting rate and set to first year with
 taggroup.sex.combined=c('sandbar shark')       #group females and male tags due to small sample size
+use.sandbar.tags.2000=TRUE        #add 2000 to 01 and 02 releases for sandbar (assumes same reporting rate)
 taggroup.recalculate=TRUE         #recalculate tag group after dropping years with low number of obs
 SS_min.days.liberty=30            # drop recaptures less than this if SS_mixing_latency_period set to 0
 SS_mixing_latency_period=0        #1, start from release period to calculate logL for a tag-group. Andre's Gummy model set at 0  
@@ -1784,7 +1788,7 @@ for(s in 1:N.sp)
         no.rp.rate=No.reporting.rate[[id.x]]
         Tabl=Tabl%>%filter(!Rel.zone%in%no.rp.rate)
       }
-      if(Drop.yrs.no.reporting.rate)  
+      if(!names(Species.data)[s]%in%Keep.yrs.no.reporting.rate)  
       {
         yrs.with.report.rate=unique(unique(Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_$Finyear))
         Tabl=Tabl%>%filter(Yr.rel%in%yrs.with.report.rate)  
@@ -1841,10 +1845,6 @@ for(s in 1:N.sp)
            width = 5, height = 6, dpi = 300)
   }
 }
-if(use.sandbar.tags.2000)
-{
-  Use.these.tag.year_zones$`sandbar shark`=c("2000 West","2000 Zone1",Use.these.tag.year_zones$`sandbar shark`)
-}
 
 #Set gummy shark calculated non reporting rates to whiskery as no recapture vessel info
   if("gummy shark" %in% use.tag.data & !'Con_tag_non_reporting_from_F.estimation.R_calculated'%in%names(Species.data$`gummy shark`))
@@ -1853,6 +1853,12 @@ if(use.sandbar.tags.2000)
       Species.data$`whiskery shark`$Con_tag_non_reporting_from_F.estimation.R_calculated
 
   }
+
+#Add 2000 for sandbar to calculate
+if(use.sandbar.tags.2000)
+{
+  Use.these.tag.year_zones$`sandbar shark`=c("2000 West","2000 Zone1",Use.these.tag.year_zones$`sandbar shark`)
+}
 
 #Set sandbar Zone 2 non-reporting rate to Zone 1 if NA
 Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_=Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_%>%

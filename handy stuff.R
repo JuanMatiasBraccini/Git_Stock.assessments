@@ -1305,17 +1305,17 @@ for(i in 1:N.sp)
   
   
   #7. Tagging data
-  # zones together
+    # zones together
   Tags.SS.format=NULL
   if(names(Species.data)[i]%in%use.tag.data)
   {
-    #Extract data
+    #1. Extract data
     releases=Species.data[[i]]$Con_tag_SS.format_releases%>%
       filter(Yr.rel<=Last.yr.ktch.numeric)
     recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
       filter(Yr.rec<=Last.yr.ktch.numeric)
     
-    #Keep relevant finyears and zones  
+    #2. Keep relevant finyears and zones  
     dis.yrs.tag=Use.these.tag.year_zones[[match(names(Species.data)[i],names(Use.these.tag.year_zones))]]
     releases=releases%>%
               mutate(dummy=paste(Yr.rel,Rel.zone))%>%
@@ -1323,7 +1323,7 @@ for(i in 1:N.sp)
               dplyr::select(-dummy)
     recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
     
-    #Keep tag groups from years accounting for X% of recaptures or not
+    #3. Keep tag groups from years accounting for X% of recaptures or not
     if(!is.null(use.tag.rec.yrs.percent.rec))
     {
       Table.yr.releases=table(releases$Yr.rel)
@@ -1335,8 +1335,20 @@ for(i in 1:N.sp)
       Last.yr.rec=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
       recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
     }
+    
+    #4. Use minimum number of observations per release tag group  
+    releases=releases%>%filter(N.release>=Min.annual.Tag.group)
+    recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+    
+    #5. remove dodgy releases and recaptures beyond gillnet selectivity
+    if(Neim%in%names(remove.dodgy.tag.group_age))
+    {
+      drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
+      recaptures=recaptures%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+      releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
+    }
 
-    #Allocate West, Zone1 and Zone 2 to Southern 1 or 2
+    #6. Allocate West, Zone1 and Zone 2 to Southern 1 or 2  #ACA, re calculate tag group
     releases=releases%>%
       mutate(Rel.zone=case_when(Yr.rel<=2005 ~'Southern.shark_1',
                                 Yr.rel>2005 ~'Southern.shark_2'))
@@ -1344,15 +1356,7 @@ for(i in 1:N.sp)
       mutate(Rec.zone=case_when(Yr.rec<=2005 ~'Southern.shark_1',
                                 Yr.rec>2005 ~'Southern.shark_2'))
     
-    #remove dodgy releases and recaptures beyond gillnet selectivity
-    if(Neim%in%names(remove.dodgy.tag.group_age))
-    {
-      drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
-      recaptures=recaptures%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
-      releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
-    }
-    
-    #Recalculate TagGroup
+    #7. Recalculate TagGroup
     if(taggroup.recalculate)
     {
       releases=releases%>%
@@ -1367,9 +1371,8 @@ for(i in 1:N.sp)
         mutate(Tag.group=rowid)%>%
         dplyr::select(-rowid)
     }
-
     
-    #group sex  
+    #8. group sex  
     if(Neim%in%taggroup.sex.combined)   
     {
       releases=releases%>%
@@ -1403,8 +1406,7 @@ for(i in 1:N.sp)
     releases=releases%>%
       rename(Area=Rel.zone)%>%
       mutate(Area=1)
-    get.fleet=recaptures%>%
-      distinct(Yr.rec,Rec.zone)
+    get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
     Rec.ZonEs=unique(recaptures$Rec.zone)
     a1=ktch%>%
       ungroup()%>%
@@ -1553,11 +1555,11 @@ for(i in 1:N.sp)
     rm(releases,recaptures,Chronic.tag.loss,Initial.reporting.rate,Reporting.rate.decay)
   }
   
-  # by zones
+    # by zones
   Tags.SS.format.zone=NULL
   if(names(Species.data)[i]%in%use.tag.data)
   {
-    #Extract data
+    #1. Extract data
     releases=Species.data[[i]]$Con_tag_SS.format_releases%>%
       filter(Yr.rel<=Last.yr.ktch.numeric)
     recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
@@ -1565,13 +1567,15 @@ for(i in 1:N.sp)
     
     get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
     
-    #Keep relevant finyear zones   
+    #2. Keep relevant finyear zones   
     dis.yrs.tag=Use.these.tag.year_zones[[match(names(Species.data)[i],names(Use.these.tag.year_zones))]]
     releases=releases%>%
               mutate(dummy=paste(Yr.rel,Rel.zone))%>%
               filter(dummy%in%dis.yrs.tag)%>%
               dplyr::select(-dummy)
     recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+    
+    #3. Keep tag groups from years accounting for X% of recaptures or not
     if(!is.null(use.tag.rec.yrs.percent.rec))
     {
       Table.yr.releases=table(releases$Yr.rel)
@@ -1584,12 +1588,11 @@ for(i in 1:N.sp)
       recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
     }
 
-    #use minimum number of observations per release tag group  
-   releases=releases%>%filter(N.release>=Min.annual.Tag.group)
-     recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
-    
-     #NEW
-     #remove dodgy releases and recaptures beyond gillnet selectivity
+    #4. Use minimum number of observations per release tag group  
+    releases=releases%>%filter(N.release>=Min.annual.Tag.group)
+    recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
+     
+     #5. Remove dodgy releases and recaptures beyond gillnet selectivity
      if(Neim%in%names(remove.dodgy.tag.group_age))
      {
        drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
@@ -1597,24 +1600,7 @@ for(i in 1:N.sp)
        releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
      }
     
-    #Recalculate TagGroup
-     if(taggroup.recalculate)
-     {
-       releases=releases%>%
-         arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-         mutate(rowid = row_number())
-       TagGroup=releases%>%distinct(Tag.group,rowid)
-       recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
-       releases=releases%>%
-         mutate(Tag.group=rowid)%>%
-         dplyr::select(-rowid)
-       recaptures=recaptures%>%
-         mutate(Tag.group=rowid)%>%
-         dplyr::select(-rowid)
-     }
-
-    
-    #group sex  
+    #6. Group sex    
     if(Neim%in%taggroup.sex.combined)   
     {
       releases=releases%>%
@@ -1647,6 +1633,7 @@ for(i in 1:N.sp)
     }
     
     #explore tag groups consistency with gear selectivity
+    if(First.run=="YES")
     {
       #add mean length
       TLzero=with(Life.history,Lzero*a_FL.to.TL+b_FL.to.TL)
@@ -1688,6 +1675,51 @@ for(i in 1:N.sp)
                    capitalize(Life.history$Name),"/",AssessYr,"/1_Inputs/Visualise data/Tagging_Tag groups and selectivity_area.as.fleets.tiff",sep=''),
              width = 6,height = 8,compression = "lzw")
     }
+    
+    #7. Allocate West, Zone1 and Zone 2 to Southern 1 or 2
+    releases=releases%>%
+              mutate(Rel.zone=case_when(Yr.rel<=2005 ~'Southern.shark_1',
+                                        Yr.rel>2005 ~'Southern.shark_2'))%>%
+              group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+              mutate(N.release=sum(N.release))%>%
+              ungroup()%>%
+              group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age) %>%
+              mutate(Tag.groups = paste(Tag.group, collapse = ", "))%>%
+              ungroup()
+    recaptures=recaptures%>%   
+              left_join(releases%>%
+                          dplyr::select(Tag.group,Tag.groups),
+                        by='Tag.group')%>%
+              group_by(Yr.rec,season,Rec.zone,Tag.groups)%>%
+              summarise(N.recapture=sum(N.recapture))%>%
+              ungroup()
+    releases=releases%>%
+              distinct(Tag.groups,Rel.zone,Yr.rel,season,t.fill,Sex,Age,N.release)%>%
+              arrange(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+              mutate(Tag.group = row_number())%>%
+              relocate(Tag.group)
+    recaptures=recaptures%>%
+              left_join(releases%>%distinct(Tag.group,Tag.groups),
+                        by='Tag.groups')%>%
+              dplyr::select(-Tag.groups)%>%
+              relocate(Tag.group)
+    releases=releases%>%dplyr::select(-Tag.groups)
+    
+      #8. Recalculate TagGroup
+     if(taggroup.recalculate)
+     {
+       releases=releases%>%
+         arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+         mutate(rowid = row_number())
+       TagGroup=releases%>%distinct(Tag.group,rowid)
+       recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+       releases=releases%>%
+         mutate(Tag.group=rowid)%>%
+         dplyr::select(-rowid)
+       recaptures=recaptures%>%
+         mutate(Tag.group=rowid)%>%
+         dplyr::select(-rowid)
+     }
     
     releases=releases%>%
       rename(Area=Rel.zone)%>%
@@ -2897,7 +2929,7 @@ computation.time
 i=4
 Neim=Keep.species[i]
 
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New folder'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/handy stuff'
 
 
 Scens=list.files(this.wd) 
@@ -2910,15 +2942,15 @@ for(s in 1:length(Scens))
   if("SS"%in%future.models) FORECAST=TRUE
   Report=SS_output(this.wd1,covar=COVAR,forecast=FORECAST,readwt=F)
   this.plot=1:26 
-  dumii=data.frame(Exp=Report$tagdbase1$Exp,
-                   Expected=rep(Report$tagdbase2$Exp,each = max(Report$tagdbase1$Fleet)))%>%
-    mutate(Numbers_Exp = round(Exp * Expected))
-  if(isTRUE(unique(dumii$Numbers_Exp)==0)) this.plot=this.plot[-21]  #remove Tag plot if this condition
+  # dumii=data.frame(Exp=Report$tagdbase1$Exp,
+  #                  Expected=rep(Report$tagdbase2$Exp,each = max(Report$tagdbase1$Fleet)))%>%
+  #   mutate(Numbers_Exp = round(Exp * Expected))
+  # if(isTRUE(unique(dumii$Numbers_Exp)==0)) this.plot=this.plot[-21]  #remove Tag plot if this condition
   SS_plots(Report,plot=this.plot,  png=T)
 }
 
 #-----------  Calculate tag overdispersion-------------------------------------------------------------------------
-for(i in 1:N.sp)
+for(i in c(1,3,4))
 {
   Neim=Keep.species[i]
   this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
@@ -2951,7 +2983,7 @@ for(i in 1:N.sp)
 
 
 #-----------  tune model and calculate RAMP years-------------------------------------------------------------------------
-
+#takes 1800 sec for indicator species
 #this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Whiskery'
 this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/tunning'
 #this.wd1=this.wd2

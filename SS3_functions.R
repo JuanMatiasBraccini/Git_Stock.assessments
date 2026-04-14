@@ -1134,7 +1134,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       #Add extra SD to Q if CV too small  
       Difalcivi=default.CV
       SS3.q.an.sol=life.history$SS3.q.an.sol
-      if(Scenario$extra.SD.Q=='YES') Difalcivi=1
+      if(!Scenario$extra.SD.Q=='NO') Difalcivi=1
       n.indices=nrow(ctl$Q_options)
       Indx.small.CV=dat$CPUE%>%group_by(index)%>%summarise(Mean.CV=mean(CV))  
       if(life.history$Name%in%Extra_Q_species & !SS3.q.an.sol) Indx.small.CV$Mean.CV=Difalcivi*.9 #need extra_Q for to fit cpue

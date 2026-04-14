@@ -1299,15 +1299,13 @@ for(w in 1:n.SS)
           Tags.SS.format=NULL
           if(names(Species.data)[i]%in%use.tag.data)
           {
-            #Extract data
+            #1. Extract data
             releases=Species.data[[i]]$Con_tag_SS.format_releases%>%
                           filter(Yr.rel<=Last.yr.ktch.numeric)
             recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
                           filter(Yr.rec<=Last.yr.ktch.numeric)
             
-            get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
-            
-            #Keep relevant finyear zones
+            #2. Keep relevant finyear zones
             dis.yrs.tag=Use.these.tag.year_zones[[match(names(Species.data)[i],names(Use.these.tag.year_zones))]]
             releases=releases%>%
                       mutate(dummy=paste(Yr.rel,Rel.zone))%>%
@@ -1315,7 +1313,7 @@ for(w in 1:n.SS)
                       dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
             
-            #Keep tag groups from years accounting for X% of recaptures or not
+            #3. Keep tag groups from years accounting for X% of recaptures or not
             if(!is.null(use.tag.rec.yrs.percent.rec))
             {
               Table.yr.releases=table(releases$Yr.rel)
@@ -1327,20 +1325,12 @@ for(w in 1:n.SS)
               Last.yr.rec=names(vec[which.min(abs(vec - use.tag.rec.yrs.percent.rec))])
               recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
             }
-             
-            #Allocate West, Zone1 and Zone 2 to Southern 1 or 2
-            releases=releases%>%
-              mutate(Rel.zone=case_when(Yr.rel<=2005 ~'Southern.shark_1',
-                                        Yr.rel>2005 ~'Southern.shark_2'))
-            recaptures=recaptures%>%
-                mutate(Rec.zone=case_when(Yr.rec<=2005 ~'Southern.shark_1',
-                                          Yr.rec>2005 ~'Southern.shark_2'))
               
-            #use minimum number of observations per release tag group  
+            #4. Use minimum number of observations per release tag group  
             releases=releases%>%filter(N.release>=Min.annual.Tag.group)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
             
-            #remove dodgy releases and recaptures beyond gillnet selectivity
+            #5. Remove dodgy releases and recaptures beyond gillnet selectivity
             if(Neim%in%names(remove.dodgy.tag.group_age))
             {
               drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
@@ -1348,58 +1338,66 @@ for(w in 1:n.SS)
               releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
             }
             
-            #Recalculate TagGroup
+            #5. Allocate West, Zone1 and Zone 2 to Southern 1 or 2
+            releases=releases%>%
+              mutate(Rel.zone=case_when(Yr.rel<=2005 ~'Southern.shark_1',
+                                        Yr.rel>2005 ~'Southern.shark_2'))
+            recaptures=recaptures%>%
+              mutate(Rec.zone=case_when(Yr.rec<=2005 ~'Southern.shark_1',
+                                        Yr.rec>2005 ~'Southern.shark_2'))
+            
+            #7. Recalculate TagGroup
             if(taggroup.recalculate)
             {
               releases=releases%>%
-                arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-                mutate(rowid = row_number())
+                        arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+                        mutate(rowid = row_number())
               TagGroup=releases%>%distinct(Tag.group,rowid)
               recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
               releases=releases%>%
-                mutate(Tag.group=rowid)%>%
-                dplyr::select(-rowid)
+                        mutate(Tag.group=rowid)%>%
+                        dplyr::select(-rowid)
               recaptures=recaptures%>%
-                mutate(Tag.group=rowid)%>%
-                dplyr::select(-rowid)
+                        mutate(Tag.group=rowid)%>%
+                        dplyr::select(-rowid)
             }
                     
-            #group sex  
+            #8. Group sex  
             if(Neim%in%taggroup.sex.combined)   
             {
               releases=releases%>%
-                mutate(Sex=0)%>%
-                group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
-                mutate(N.release=sum(N.release))%>%
-                ungroup()%>%
-                group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age) %>%
-                mutate(Tag.groups = paste(Tag.group, collapse = ", "))%>%
-                ungroup()
+                          mutate(Sex=0)%>%
+                          group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+                          mutate(N.release=sum(N.release))%>%
+                          ungroup()%>%
+                          group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age) %>%
+                          mutate(Tag.groups = paste(Tag.group, collapse = ", "))%>%
+                          ungroup()
               recaptures=recaptures%>%   
-                left_join(releases%>%
-                            dplyr::select(Tag.group,Tag.groups),
-                          by='Tag.group')%>%
-                group_by(Yr.rec,season,Rec.zone,Tag.groups)%>%
-                summarise(N.recapture=sum(N.recapture))%>%
-                ungroup()
+                          left_join(releases%>%
+                                      dplyr::select(Tag.group,Tag.groups),
+                                    by='Tag.group')%>%
+                          group_by(Yr.rec,season,Rec.zone,Tag.groups)%>%
+                          summarise(N.recapture=sum(N.recapture))%>%
+                          ungroup()
               releases=releases%>%
-                distinct(Tag.groups,Rel.zone,Yr.rel,season,t.fill,Sex,Age,N.release)%>%
-                arrange(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
-                mutate(Tag.group = row_number())%>%
-                relocate(Tag.group)
-               
+                          distinct(Tag.groups,Rel.zone,Yr.rel,season,t.fill,Sex,Age,N.release)%>%
+                          arrange(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+                          mutate(Tag.group = row_number())%>%
+                          relocate(Tag.group)
+                         
               recaptures=recaptures%>%
-                left_join(releases%>%distinct(Tag.group,Tag.groups),
-                          by='Tag.groups')%>%
-                dplyr::select(-Tag.groups)%>%
-                relocate(Tag.group)
+                          left_join(releases%>%distinct(Tag.group,Tag.groups),
+                                    by='Tag.groups')%>%
+                          dplyr::select(-Tag.groups)%>%
+                          relocate(Tag.group)
               releases=releases%>%dplyr::select(-Tag.groups)             
             }
             
             releases=releases%>%
                     rename(Area=Rel.zone)%>%
                     mutate(Area=1)
-            #get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
+            get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
             Rec.ZonEs=unique(recaptures$Rec.zone)
             a1=ktch%>%
                     ungroup()%>%
@@ -1549,13 +1547,15 @@ for(w in 1:n.SS)
           Tags.SS.format.zone=NULL
           if(names(Species.data)[i]%in%use.tag.data)
           {
-            #Extract data
+            #1. Extract data
             releases=Species.data[[i]]$Con_tag_SS.format_releases%>%
-              filter(Yr.rel<=Last.yr.ktch.numeric)
+                          filter(Yr.rel<=Last.yr.ktch.numeric)
             recaptures=Species.data[[i]]$Con_tag_SS.format_recaptures%>%
-              filter(Yr.rec<=Last.yr.ktch.numeric)
+                          filter(Yr.rec<=Last.yr.ktch.numeric)
             
-            #Keep relevant finyear zones
+            get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
+            
+            #2. Keep relevant finyear zones
             dis.yrs.tag=Use.these.tag.year_zones[[match(names(Species.data)[i],names(Use.these.tag.year_zones))]]
             releases=releases%>%
                       mutate(dummy=paste(Yr.rel,Rel.zone))%>%
@@ -1563,7 +1563,7 @@ for(w in 1:n.SS)
                       dplyr::select(-dummy)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
             
-            #Keep tag groups from years accounting for X% of recaptures or not
+            #3. Keep tag groups from years accounting for X% of recaptures or not
             if(!is.null(use.tag.rec.yrs.percent.rec))
             {
               Table.yr.releases=table(releases$Yr.rel)
@@ -1576,35 +1576,19 @@ for(w in 1:n.SS)
               recaptures=recaptures%>%filter(Yr.rec<=as.numeric(Last.yr.rec))
             }
             
-            #use minimum number of observations per release tag group  
+            #4. Use minimum number of observations per release tag group  
             releases=releases%>%filter(N.release>=Min.annual.Tag.group)
             recaptures=recaptures%>%filter(Tag.group%in%unique(releases$Tag.group))
             
-            #remove dodgy releases and recaptures beyond gillnet selectivity
+            #5. Remove dodgy releases and recaptures beyond gillnet selectivity
             if(Neim%in%names(remove.dodgy.tag.group_age))
             {
               drop.tag.group=releases%>%filter(Age>=remove.dodgy.tag.group_age[[Neim]])
               recaptures=recaptures%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
               releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
             }
-
-            #Recalculate TagGroup
-            if(taggroup.recalculate)
-            {
-              releases=releases%>%
-                arrange(Rel.zone,Yr.rel,Sex,Age)%>%
-                mutate(rowid = row_number())
-              TagGroup=releases%>%distinct(Tag.group,rowid)
-              recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
-              releases=releases%>%
-                mutate(Tag.group=rowid)%>%
-                dplyr::select(-rowid)
-              recaptures=recaptures%>%
-                mutate(Tag.group=rowid)%>%
-                dplyr::select(-rowid)
-            }
             
-            #group sex  
+            #6. Group sex  
             if(Neim%in%taggroup.sex.combined)   
             {
               releases=releases%>%
@@ -1622,7 +1606,7 @@ for(w in 1:n.SS)
                 group_by(Yr.rec,season,Rec.zone,Tag.groups)%>%
                 summarise(N.recapture=sum(N.recapture))%>%
                 ungroup()
-
+              
               releases=releases%>%
                 distinct(Tag.groups,Rel.zone,Yr.rel,season,t.fill,Sex,Age,N.release)%>%
                 arrange(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
@@ -1680,11 +1664,56 @@ for(w in 1:n.SS)
                      width = 6,height = 8,compression = "lzw")
             }
             
+            #7. Allocate West, Zone1 and Zone 2 to Southern 1 or 2
+            releases=releases%>%
+                        mutate(Rel.zone=case_when(Yr.rel<=2005 ~'Southern.shark_1',
+                                                  Yr.rel>2005 ~'Southern.shark_2'))%>%
+                        group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+                        mutate(N.release=sum(N.release))%>%
+                        ungroup()%>%
+                        group_by(Rel.zone,Yr.rel,season,t.fill,Sex,Age) %>%
+                        mutate(Tag.groups = paste(Tag.group, collapse = ", "))%>%
+                        ungroup()
+            recaptures=recaptures%>%   
+                        left_join(releases%>%
+                                    dplyr::select(Tag.group,Tag.groups),
+                                  by='Tag.group')%>%
+                        group_by(Yr.rec,season,Rec.zone,Tag.groups)%>%
+                        summarise(N.recapture=sum(N.recapture))%>%
+                        ungroup()
+            releases=releases%>%
+                        distinct(Tag.groups,Rel.zone,Yr.rel,season,t.fill,Sex,Age,N.release)%>%
+                        arrange(Rel.zone,Yr.rel,season,t.fill,Sex,Age)%>%
+                        mutate(Tag.group = row_number())%>%
+                        relocate(Tag.group)
+            recaptures=recaptures%>%
+                        left_join(releases%>%distinct(Tag.group,Tag.groups),
+                                  by='Tag.groups')%>%
+                        dplyr::select(-Tag.groups)%>%
+                        relocate(Tag.group)
+            releases=releases%>%dplyr::select(-Tag.groups)
+
+            #8. Recalculate TagGroup
+            if(taggroup.recalculate)
+            {
+              releases=releases%>%
+                          arrange(Rel.zone,Yr.rel,Sex,Age)%>%
+                          mutate(rowid = row_number())
+              TagGroup=releases%>%distinct(Tag.group,rowid)
+              recaptures=recaptures%>%left_join(TagGroup,by='Tag.group')
+              releases=releases%>%
+                          mutate(Tag.group=rowid)%>%
+                          dplyr::select(-rowid)
+              recaptures=recaptures%>%
+                          mutate(Tag.group=rowid)%>%
+                          dplyr::select(-rowid)
+            }
+            
+            #9. Final calcs
             releases=releases%>%
               rename(Area=Rel.zone)%>%
               mutate(Area=1)
-            get.fleet=recaptures%>%
-              distinct(Yr.rec,Rec.zone)
+            #get.fleet=recaptures%>%distinct(Yr.rec,Rec.zone)
             Rec.ZonEs=unique(recaptures$Rec.zone)
             a1=ktch.zone%>%
               ungroup()%>%
