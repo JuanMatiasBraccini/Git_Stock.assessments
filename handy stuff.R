@@ -1348,7 +1348,7 @@ for(i in 1:N.sp)
       releases=releases%>%filter(!Tag.group%in%drop.tag.group$Tag.group)
     }
 
-    #6. Allocate West, Zone1 and Zone 2 to Southern 1 or 2  #ACA, re calculate tag group
+    #6. Allocate West, Zone1 and Zone 2 to Southern 1 or 2  
     releases=releases%>%
       mutate(Rel.zone=case_when(Yr.rel<=2005 ~'Southern.shark_1',
                                 Yr.rel>2005 ~'Southern.shark_2'))
@@ -2222,7 +2222,7 @@ for(i in 1:N.sp)
     }
     
     #create SS inputs 
-    for(s in 1:1) #for(s in 1:length(Store.sens))   
+    for(s in 1:1) #for(s in 1:length(Store.sens))  #ACA 
     {
       this.wd1=paste(this.wd,names(Store.sens)[s],sep='/')
       if(!dir.exists(this.wd1))dir.create(this.wd1)
@@ -2754,27 +2754,54 @@ for(i in 1:N.sp)
           KAtch[des.yrs,des.flt]=new.ktch
         }
         
-        #a.4 set MainRdevYrFirst   
-        #note: align with data-rich years (cpue, comps, meanbody, etc)
+        #a.4 set MainRdevYrFirst, etc   
+        #note: Align with data-rich years (cpue, comps, meanbody, etc)
+        #      These pars determine how the model applies Bias Adjustment to ensure the mean recruitment
+        #         isn't skewed when shifting between "data-poor" and "data-rich" periods.
+        #      As data becomes weaker (at the very beginning or very end of the time series), the model can't estimate the 
+        #         full variance, so you "ramp" the adjustment down
+        #      recdev_early_start: first year the model starts estimating deviations before the "Main" period begins.
+        #                           This allows the initial age structure (at the model start year) to deviate from equilibrium,
+        #                           making the starting population more realistic
+        #       First.yr.main.rec.dev: first year of (informative) data-rich years
+        #       last.year.of.main.recr_devs: last year of (informative) data-rich years to reliably estimate rec devs
+        #       last_yr_nobias_adj_in_MPD: the point in the early period where the model begins to transition 
+        #                             from zero adjustment to full adjustment
+        #       first_yr_fullbias_adj_in_MPD: the year where the model starts applying the maximum bias adjustment (set to a few years 
+        #                             into data-rich period), usually when your composition data becomes consistent
+        #       last_yr_fullbias_adj_in_MPD: the last year of "strong" data. After this, the model starts ramping the adjustment down  
+        #                             because the latest recruits haven't been seen by the survey/fishery enough times to be well-estimated
+        #       end_yr_for_ramp_in_MPD: The year the ramp hits zero again (often the end of the forecast or the last year of the model)
         Abund1=Abund
         if(!is.null(Abund1)) Abund1=Abund1%>%rename_with(tolower)
-        Max.yr.obs=max(unlist(lapply(list(Abund1,Size.com,meanbody),function(x) if(!is.null(x))max(x$year))))
-        Life.history$MainRdevYrLast=min(Max.yr.obs,max(KAtch$finyear,na.rm=T))
+
+        Obs.list.rec.dev=list(Abund1=Abund1,Size.com=Size.com,meanbody=meanbody)
+        rec_dev_data.types1=rec_dev_data.types
+        if(is.null(Size.com) & is.null(meanbody) & !is.null(Abund1)) rec_dev_data.types1='Abund1'
+        Obs.list.rec.dev=Obs.list.rec.dev[rec_dev_data.types1]
+        Min.yr.obs=min(unlist(lapply(Obs.list.rec.dev,function(x) if(!is.null(x))min(x$year)))) 
+        Max.yr.obs=max(unlist(lapply(Obs.list.rec.dev,function(x) if(!is.null(x))max(x$year))))
         
-        Min.yr.obs=min(unlist(lapply(list(Abund1,Size.com,meanbody),function(x) if(!is.null(x))min(x$year))))
-        if(Life.history$First.yr.main.rec.dev=='min.obs')
+        Life.history$MainRdevYrLast=min(Max.yr.obs,max(KAtch$finyear,na.rm=T))
+        if(Life.history$First.yr.main.rec.dev_buffer)
         {
-          Min.yR=Min.yr.obs
-          if(Life.history$First.yr.main.rec.dev_buffer)  Min.yR=Min.yr.obs-round(min(Life.history$Age.50.mat))
-          MainRdevYrFirst=Min.yR
+          if(is.numeric(Life.history$recdev_early_start))
+          {
+            if(Life.history$recdev_early_start>0) Life.history$recdev_early_start=Min.yr.obs-Life.history$recdev_early_start
+          }
+          if(Life.history$recdev_early_start=='mat')
+          {
+            Min.mat=max(Early_rec_dev_start.min.yrs,round(min(Life.history$Age.50.mat)))
+            Life.history$recdev_early_start=Min.yr.obs-Min.mat
+          }
         }
-         if(Life.history$First.yr.main.rec.dev=='min.ktch') MainRdevYrFirst=min(ktch$finyear)
+        if(Life.history$First.yr.main.rec.dev=='min.obs') MainRdevYrFirst=Min.yr.obs
+        if(Life.history$First.yr.main.rec.dev=='min.ktch') MainRdevYrFirst=min(ktch$finyear)
         Life.history$MainRdevYrFirst=MainRdevYrFirst
         
         #a.5 need to reset rec pars for tuning
         if(Scens$Scenario[s]=='S1' & Tune.SS.model)  #set to NULL in exploratory phase to fully see effect of data
         {
-          Life.history$recdev_early_start=0
           Life.history$SR_sigmaR=Scens[s,]$SR_sigmaR=tuning_sigmaR   
           Life.history$RecDev_Phase=3
           
@@ -2787,7 +2814,7 @@ for(i in 1:N.sp)
           
           #The year when the model transitions to full bias adjustment (100%). 
           # This should align with the start of informative composition data
-          Life.history$first_yr_fullbias_adj_in_MPD=MainRdevYrFirst 
+          Life.history$first_yr_fullbias_adj_in_MPD=MainRdevYrFirst+1 
           
           #The last year where full bias adjustment is applied
           # This usually marks the point where recent data (like small fish in length comps) still strongly informs recruitment
@@ -3039,7 +3066,7 @@ for(s in 1:length(Scens))
   ctl$last_yr_fullbias_adj= out%>%filter(grepl('last_yr_fullbias_adj',label))%>%pull(value)%>%as.numeric() 
   ctl$first_recent_yr_nobias_adj= out%>%filter(grepl('first_recent_yr_nobias_adj',label))%>%pull(value) %>%as.numeric()
   ctl$max_bias_adj= out%>%filter(grepl('max_bias_adj',label))%>%pull(value)%>%as.numeric()
-  ctl$recdev_early_start=0
+  #ctl$recdev_early_start=0  #ACA...
   
   #replace sigmaR 
   ctl$SR_parms$INIT[match('SR_sigmaR',rownames(ctl$SR_parms))]=out%>%filter(grepl('Alternative_sigma_R',label))%>%pull(value)%>%as.numeric()
@@ -3531,15 +3558,18 @@ rbind(Report_S1$cpue%>%dplyr::select(Fleet,Yr,Obs)%>%mutate(Ass='S1'),
   theme_PA()+facet_wrap(~Fleet,scales='free')
 
 #-----------  Get probabilities and Risk-----------------------------------------------------
-handl_desktop=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios',x,sep='/')
+handl_desktop=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/tunning',x,sep='/')
 Model.list.location=list(
-  S1=handl_desktop('tunning_Whiskery/S1'),
-  S1_zone1.only=handl_desktop('tunning_Whiskery/S1_daily cpue only Zn1'),
-  S1_zone1.weight2=handl_desktop('tunning_Whiskery/S1_Zone1_w2'),
-  S1_old.tagging=handl_desktop('tunning_Whiskery/S1_tagging'),
-  S1_tagging_new_old=handl_desktop('tunning_Whiskery/S1_tagging new'),
-  S4=handl_desktop('tunning_Whiskery/S4'),
-  '2022'=handl_OneDrive('Analyses/Population dynamics/1.Whiskery shark/2022/SS3 integrated/S1')
+  '2026.dusky'=handl_desktop('Dusky'),
+  '2026.gummy'=handl_desktop('Gummy'),
+  '2026.gummy.singleArea'='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/Gummy',
+  '2026.sandbar'=handl_desktop('Sandbar'),
+  '2026.sandbar.noextraSD'='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/Sandbar no extra SD',
+  '2026.whiskery'=handl_desktop('Whiskery'),
+  '2022.dusky'=handl_OneDrive('Analyses/Population dynamics/1.Dusky shark/2022/SS3 integrated/S1'),
+  '2022.gummy'=handl_OneDrive('Analyses/Population dynamics/1.Gummy shark/2022/SS3 integrated/S1'),
+  '2022.sandbar'=handl_OneDrive('Analyses/Population dynamics/1.Sandbar shark/2022/SS3 integrated/S1'),
+  '2022.whiskery'=handl_OneDrive('Analyses/Population dynamics/1.Whiskery shark/2022/SS3 integrated/S1')
 )
 store.prob.like.risk=Model.list.location
 fn.get.prob.risk=function(report.location, SP, ASS)

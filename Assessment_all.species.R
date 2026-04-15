@@ -591,8 +591,7 @@ test.drop.monthly.cpue=list("gummy shark"=1975:1977) #NULL, gummy early years ve
 SS3.q.analit.solu=FALSE   #set to TRUE if calculating q analytically to save up pars, set to FALSE if using block Q (time changing Q)
 block.species_Q=c("whiskery shark") #"gummy shark"
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
-extra.SD.Q.species=list("sandbar shark"='Survey',
-                        "whiskery shark"='Southern.shark_2') #NULL "sandbar shark"
+extra.SD.Q.species=NULL #list("sandbar shark"='Survey', "whiskery shark"='Southern.shark_2')  
 
 
   #21.8 SS growth arguments
@@ -612,8 +611,10 @@ alternative.SR_type=NULL    #"sandbar shark"; Sensitivity for Spawner-Recruitmen
 alternative.sigmaR=list('dusky shark'=0.15,'sandbar shark'=0.18)     #Sensitivity for sigmaR (effect on rec_devs)
 alternative.do_recdev=NULL  #"sandbar shark"; Sensitivity for do_recdev method (effect on rec_devs)
 do_recdev_1="sandbar shark"
-Early_rec_dev_start=5     #0 gummy Andre 2009; set to MaxAge allow several years for population to stabilize (any non 0 will plot long series of early rec devs)
+Early_rec_dev_start='mat'     #fixed years (e.g. -5) or age-at-maturity; allow several years for population to stabilize (any non 0 will plot long series of early rec devs); 0 gummy Andre 2009
+Early_rec_dev_start.min.yrs=20
 Early_rec_dev_phase=3     # if >0, then estim early.rec.devs for years set in recdev_early_start & MainRdevYrFirst; if set to <0, then don't estimate early rec devs
+rec_dev_data.types=c('Size.com','meanbody','Abund1')    #what data types to consider for rec devs parameter calculations
 Main.rec.dev_first.year='min.obs'   #'min.ktch' to use first year of catch; 'min.obs' first year abundance or length comps
 Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years before, defined by age at maturity
 tuning_sigmaR=round(quantile(sigmaR.steepness.shark$sigmaR,na.rm=T,probs=.5),1)  #0.2; initial value for 1st step tuning
@@ -638,6 +639,7 @@ if(retained.discarded.units=='numbers')
 Min.annual.zone.releases=10 #minimum number of observations per released year-zone to be used in assessment
 Min.annual.Tag.group=10    #minimum number of releases per tag group to be used in assessment
 Use.these.tag.year_zones=list("dusky shark"=NULL,   #the only species with shedding and reporting data
+                              "gummy shark"=NULL,
                               "sandbar shark"=NULL,
                               "whiskery shark"=NULL) 
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F

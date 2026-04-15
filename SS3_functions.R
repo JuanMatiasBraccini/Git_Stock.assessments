@@ -1134,11 +1134,16 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       #Add extra SD to Q if CV too small  
       Difalcivi=default.CV
       SS3.q.an.sol=life.history$SS3.q.an.sol
-      if(!Scenario$extra.SD.Q=='NO') Difalcivi=1
+      if(!Scenario$extra.SD.Q=='NO') Difalcivi=1  
       n.indices=nrow(ctl$Q_options)
       Indx.small.CV=dat$CPUE%>%group_by(index)%>%summarise(Mean.CV=mean(CV))  
       if(life.history$Name%in%Extra_Q_species & !SS3.q.an.sol) Indx.small.CV$Mean.CV=Difalcivi*.9 #need extra_Q for to fit cpue
       Indx.small.CV=Indx.small.CV%>%filter(Mean.CV<Difalcivi)%>%pull(index)
+      if(!Scenario$extra.SD.Q=='NO')
+      {
+        Indx.small.CV=subset(Indx.small.CV,Indx.small.CV%in%grep(Scenario$extra.SD.Q,fleetinfo$fleetname))
+      }
+        
       if(length(Indx.small.CV)>0)
       {
         if(is.data.frame(Indx.small.CV)) Indx.small.CV=Indx.small.CV$index
