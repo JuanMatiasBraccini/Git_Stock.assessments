@@ -359,7 +359,7 @@ for(i in 1:N.sp)
                 mutate(dummy=paste(year,fishry),
                        sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
                 dplyr::select(-dummy)
-      if(Neim%in%combine.sexes.tdgdlf) d.list$sex=combine.sex_type   #NEW
+      if(Neim%in%combine.sexes.tdgdlf.single.area) d.list$sex=combine.sex_type   #NEW
       d.list=d.list%>%
               group_by(year,fishry,sex,size.class)%>%
               summarise(n=sum(n))%>%
@@ -2959,7 +2959,7 @@ this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional D
 
 
 Scens=list.files(this.wd) 
-for(s in c(2,7)) #for(s in 1:length(Scens)) 
+for(s in 1:length(Scens)) 
 {
   this.wd1=paste(this.wd,Scens[s],sep='/')
   fn.run.SS(where.inputs=this.wd1,  where.exe=Where.exe, args=Arg)
@@ -3604,13 +3604,6 @@ for(q in 1:length(Model.list.location))
                                              SP='Whiskery shark',
                                              ASS=names(Model.list.location)[q])
 }
-
-do.call(rbind,lapply(store.prob.like.risk, function(x) x$Risk))%>%
-  mutate(when=factor(when,levels=c('now','future')))%>%
-  ggplot(aes(Consequence,Probability,color=Ass))+
-  geom_point(size=4)+facet_wrap(~when,ncol=1)+
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-
 do.call(rbind,lapply(store.prob.like.risk, function(x) x$Overall.risk))%>%
   mutate(when=factor(when,levels=c('now','future')))%>%
   ggplot(aes( Ass,Score,color=Risk))+
@@ -3620,5 +3613,10 @@ do.call(rbind,lapply(store.prob.like.risk, function(x) x$Overall.risk))%>%
   ylim(0,NA)+
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
+# do.call(rbind,lapply(store.prob.like.risk, function(x) x$Risk))%>%
+#   mutate(when=factor(when,levels=c('now','future')))%>%
+#   ggplot(aes(Consequence,Probability,color=Ass))+
+#   geom_point(size=4)+facet_wrap(~when,ncol=1)+
+#   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
 

@@ -347,7 +347,7 @@ for(w in 1:n.SS)
                     mutate(dummy=paste(year,fishry),
                            sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
                     dplyr::select(-dummy)
-              if(Neim%in%combine.sexes.tdgdlf) d.list$sex=combine.sex_type    
+              if(Neim%in%combine.sexes.tdgdlf.single.area) d.list$sex=combine.sex_type    
               d.list=d.list%>%
                     group_by(year,fishry,sex,size.class)%>%
                     summarise(n=sum(n))%>%

@@ -507,10 +507,18 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
 
-    #4.1.1.5 Calculate extra SD for Q or only when CV is small?
+    #4.1.1.5 Calculate extra SD for Q 
   extra.es.d='NO'
   if(NeiM%in%names(extra.SD.Q.species)) extra.es.d=extra.SD.Q.species[[NeiM]]
-  List.sp[[l]]$Sens.test$SS$extra.SD.Q=extra.es.d 
+  List.sp[[l]]$Sens.test$SS$extra.SD.Q=extra.es.d
+  if(NeiM%in%names(extra.SD.Q.species) & test.effect.extra.SD.Q)
+  {
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(extra.SD.Q='NO',
+             Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+    
+  }
   
     #4.1.1.6 Alternative dome-shaped selectivity for NSF and survey
   SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)

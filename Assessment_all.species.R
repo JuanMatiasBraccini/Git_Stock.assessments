@@ -539,7 +539,8 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
 combine_NSF_Survey=NULL   #combine length composition from NSF and Survey data to estimate logistic selectivity
-combine.sexes.tdgdlf=c("gummy shark")  #gummy single area model sex spatial dist biased towards females 
+combine.sexes.tdgdlf=NULL   
+combine.sexes.tdgdlf.single.area=c("gummy shark")  #gummy single area model sex spatial dist biased towards females 
 combine.sexes.tdgdlf.daily=NULL 
 combine.sexes.survey=c("dusky shark")
 combine.sexes.nsf=c("dusky shark")
@@ -593,8 +594,8 @@ test.drop.monthly.cpue=list("gummy shark"=1975:1985) #NULL, gummy early years ve
 SS3.q.analit.solu=FALSE   #set to TRUE if calculating q analytically to save up pars, set to FALSE if using block Q (time changing Q)
 block.species_Q=c("whiskery shark") #"gummy shark"
 Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
-extra.SD.Q.species=NULL #list("sandbar shark"='Survey', "whiskery shark"='Southern.shark_2')  
-
+extra.SD.Q.species=list("sandbar shark"='Survey') #"whiskery shark"='Southern.shark_2'  
+test.effect.extra.SD.Q=TRUE
 
   #21.8 SS growth arguments
 estim.growth.pars_SS=c("sandbar shark") #for other species, no great contrast in other data types
@@ -622,7 +623,7 @@ Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years
 tuning_sigmaR=round(quantile(sigmaR.steepness.shark$sigmaR,na.rm=T,probs=.5),1)  #0.2; initial value for 1st step tuning
 
   #21.11 SS areas-as-fleet models
-spatial.model=c('whiskery shark','dusky shark','sandbar shark')  #'gummy shark'
+spatial.model=c('dusky shark','gummy shark','sandbar shark','whiskery shark')  
 
 
   #21.12 SS retention arguments
