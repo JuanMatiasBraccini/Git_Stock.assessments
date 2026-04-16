@@ -621,14 +621,28 @@ for(l in 1:N.sp)
   
     #4.1.1.15 Remove tagging data from single area model 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='No')
-  if(NeiM%in%use.tag.data) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='Yes') 
-  if(NeiM%in%spatial.model & test.single.area.model) # test effect of using original single-area model
+  if(NeiM%in%use.tag.data)
+  {
+    if(NeiM%in%spatial.model) List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Tagging='Yes')
+  }
+     
+    # test effect of using original single-area model which had no tag data
+  if(NeiM%in%spatial.model & test.single.area.model) 
   {
     List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%
                                 mutate(Tagging=case_when(Spatial=='single area'~'No',
                                                          TRUE~Tagging))
   }
-  
+    # test effect of using tagging data in single area model
+  if(NeiM%in%use.tag.data & !NeiM%in%spatial.model)
+  {
+    nnN=nrow(List.sp[[l]]$Sens.test$SS)
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(Tagging='Yes',
+             Scenario=paste0('S',(nnN+1)))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+    
     #4.1.1.16 Test effect of not using CPUE at all 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(CPUE='Yes')
   if(NeiM%in%test.using.cpue) #test.using.length.comps test.using.mean.body
@@ -686,7 +700,7 @@ for(l in 1:N.sp)
   
     #4.1.1.21 Indo IUU- Test effect of using only Apprehensions for catch reconstruction
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Test.Indo.IUU.catch='No')
-  if(sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo)
+  if(Test.indo.estim & sum(Indo.IUU.sp$LIVEWT.c)>Min.tons.Indo)
   {
     nnN=nrow(List.sp[[l]]$Sens.test$SS)
     add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
@@ -756,7 +770,7 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
   
-    #4.1.1.27 #ACA
+    #4.1.1.27 
   List.sp[[l]]$Sens.test$SS=List.sp[[l]]$Sens.test$SS%>%mutate(Use.dropped.cpue='No')
   if(NeiM%in%test.using.dropped.cpues)  
   {

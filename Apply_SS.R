@@ -335,26 +335,25 @@ for(w in 1:n.SS)
                       filter(N>=Min.accepted.N)%>%
                       mutate(dummy=paste(year,fishry))
               Table.n.sex=d.list%>%  
-                group_by(year,fishry,sex)%>%
-                summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
-                                                fishry=='NSF'~Min.size.NSF,
-                                                TRUE~Min.size))%>%   
-                filter(N<Min.accepted.N)%>%
-                mutate(dummy=paste(year,fishry))%>%
-                distinct(dummy)
+                    group_by(year,fishry,sex)%>%
+                    summarise(N=sum(n))%>%
+                    mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
+                                                    fishry=='NSF'~Min.size.NSF,
+                                                    TRUE~Min.size))%>%   
+                    filter(N<Min.accepted.N)%>%
+                    mutate(dummy=paste(year,fishry))%>%
+                    distinct(dummy)
               d.list=d.list%>%
-                mutate(dummy=paste(year,fishry),
-                       sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
-                dplyr::select(-dummy)
-              
-              
+                    mutate(dummy=paste(year,fishry),
+                           sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
+                    dplyr::select(-dummy)
+              if(Neim%in%combine.sexes.tdgdlf) d.list$sex=combine.sex_type    
               d.list=d.list%>%
-                group_by(year,fishry,sex,size.class)%>%
-                summarise(n=sum(n))%>%
-                ungroup()%>%
-                filter(!is.na(year))%>%
-                filter(!is.na(fishry))
+                    group_by(year,fishry,sex,size.class)%>%
+                    summarise(n=sum(n))%>%
+                    ungroup()%>%
+                    filter(!is.na(year))%>%
+                    filter(!is.na(fishry))
               
               MAXX=max(d.list$size.class)
               Tab.si.kl=table(d.list$size.class)
@@ -867,7 +866,6 @@ for(w in 1:n.SS)
               }
             }
           }
-          
             #keep only observations for fleets with more than 1 year of data
           if(Drop.single.year.size.comp)
           {
@@ -894,9 +892,8 @@ for(w in 1:n.SS)
                 filter(Fleet%in%Fleet.more.one.year.obs)
             }
           }
-          
             #Reset sex type if required 
-          if(SS.sex.length.type==3)
+          if(SS.sex.length.type==3 & !Neim%in%do.not.set.SS.sex.length.type.to.3)
           {
             #zones combined  
             Kombo=Size.compo.SS.format%>%distinct(year,Seas,Fleet)
@@ -3056,12 +3053,15 @@ for(w in 1:n.SS)
                 
                 if(run_SS_plots)
                 {
-                  this.plot=1:26 
-                  dumii=data.frame(Exp=Report$tagdbase1$Exp,
-                                   Expected=rep(Report$tagdbase2$Exp,each = max(Report$tagdbase1$Fleet)))%>%
-                    mutate(Numbers_Exp = round(Exp * Expected))
-                  if(isTRUE(unique(dumii$Numbers_Exp)==0)) this.plot=this.plot[-21]  #remove Tag plot if this condition
-                  SS_plots(Report,plot=this.plot,  png=T)
+                  this.plot=1:26
+                  if(!is.null(Report[['tagdbase1']]))
+                  {
+                    dumii=data.frame(Exp=Report$tagdbase1$Exp,
+                                     Expected=rep(Report$tagdbase2$Exp,each = max(Report$tagdbase1$Fleet)))%>%
+                      mutate(Numbers_Exp = round(Exp * Expected))
+                    if(isTRUE(unique(dumii$Numbers_Exp)==0)) this.plot=this.plot[-21]  #remove Tag plot if this condition
+                  }
+                   SS_plots(Report,plot=this.plot,  png=T)
                 }
                 
                 #d. Store estimates and likelihoods

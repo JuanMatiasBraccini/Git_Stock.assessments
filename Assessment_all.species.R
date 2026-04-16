@@ -507,6 +507,7 @@ set.initial.F=FALSE  #have an equilibrium F level before start of catch time ser
 
 
   #21.2 Indo IUU
+Test.indo.estim=FALSE    #test estimation of Indo IUU for relevant species
 Indo.years.sel=2000:2005 # years when forfeitures == apprehensions; these are selected to estimate Indo IUU F
 Min.tons.Indo=50 # Indo IUU - F estimation and test of catch recons based on Apprehension for species with at least Min.tons.Indo
 estim.F.INDO=FALSE     #Indo IUU - F estimation. Didn't work (see reply to Andre's suggestion)
@@ -538,7 +539,7 @@ SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Siz
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
                            "Size_composition_Other")
 combine_NSF_Survey=NULL   #combine length composition from NSF and Survey data to estimate logistic selectivity
-combine.sexes.tdgdlf=NULL 
+combine.sexes.tdgdlf=c("gummy shark")  #gummy single area model sex spatial dist biased towards females 
 combine.sexes.tdgdlf.daily=NULL 
 combine.sexes.survey=c("dusky shark")
 combine.sexes.nsf=c("dusky shark")
@@ -547,6 +548,7 @@ combine.sexes=unique(c(combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,combine.s
 
 combine.sex_type=0     #0, males and females combined; 3, data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
 SS.sex.length.type=3   #1 if want to maintain males and females separated
+do.not.set.SS.sex.length.type.to.3=c('gummy shark')  #gummy single area model mostly females (spatial segregation)
 SS.part_length.comps=0 #0, retained and discarded; 1, discards only; 2, retained only. Note, use 2 or 1 for fleets with discards
 
 SS.sex.3_use.missing.sex=TRUE # set to FALSE if only use years when both sexes sampled (e.g. whiskery sexual segregation). Adding all 0s affects sel par estim when Sex=3
@@ -584,7 +586,7 @@ Abundance.error.dist='Lognormal'  #'Lognormal' if stand. cpue in normal space an
 CV.use='loess'  #'fixed'; Francis 2011
 default.CV=0.15  #0.15 used by Punt 2009 gummy model; 0.1 Taylor Big skate; loess method 2015 ICATT blue shark 
                   # Taylor dogfish used CV as is so set Q_extraSD to 0.1 
-test.drop.monthly.cpue=list("gummy shark"=1975:1977) #NULL, gummy early years very few cpue records and 80% decline in cpue but moderate increase in catch
+test.drop.monthly.cpue=list("gummy shark"=1975:1985) #NULL, gummy early years very few cpue records and 80% decline in cpue with moderate increase in catch
 
 
   #21.7 SS Q arguments
@@ -619,8 +621,8 @@ Main.rec.dev_first.year='min.obs'   #'min.ktch' to use first year of catch; 'min
 Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years before, defined by age at maturity
 tuning_sigmaR=round(quantile(sigmaR.steepness.shark$sigmaR,na.rm=T,probs=.5),1)  #0.2; initial value for 1st step tuning
 
-  #21.11 SS spatial modelling arguments
-spatial.model=c('gummy shark','whiskery shark','dusky shark','sandbar shark')  #NULL Build areas-as-fleets model
+  #21.11 SS areas-as-fleet models
+spatial.model=c('whiskery shark','dusky shark','sandbar shark')  #'gummy shark'
 
 
   #21.12 SS retention arguments
@@ -639,7 +641,6 @@ if(retained.discarded.units=='numbers')
 Min.annual.zone.releases=10 #minimum number of observations per released year-zone to be used in assessment
 Min.annual.Tag.group=10    #minimum number of releases per tag group to be used in assessment
 Use.these.tag.year_zones=list("dusky shark"=NULL,   #the only species with shedding and reporting data
-                              "gummy shark"=NULL,
                               "sandbar shark"=NULL,
                               "whiskery shark"=NULL) 
 use.tag.data=names(Use.these.tag.year_zones) #NULL; use tagging data to estimate F
@@ -698,7 +699,7 @@ test.using.length.comps=test.using.cpue   #NULL; have one scenario not using len
 test.using.mean.body=test.using.cpue      #NULL; have one scenario not using mean body weight at all 
 test.using.tags=use.tag.data           #NULL; have one scenario not using tagging data at all 
 if(is.null(test.using.cpue)) test.using.tags=NULL
-test.using.male.sel.offset=c("gummy shark","whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
+test.using.male.sel.offset=c("whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
 test.single.area.model=TRUE   #TRUE to test single area model scenario for spatial.model species
 alternative.NSF.selectivity=c("tiger shark") #NULL
 alternative.Linf=NULL # "sandbar shark"; Reduce Linf to match length comps. Superseded, now estimating Linf inside SS

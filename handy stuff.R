@@ -210,7 +210,7 @@ for(i in 1:N.sp)
   
   #2. Size composition   
   #note: commercial catch and survey. Nsamp set at number of shots
-  #zones together
+    #zones together
   Size.compo.SS.format=NULL
   Life.history$Max.population.TL=Life.history$Min.population.TL=NULL
   if(any(grepl('Size_composition',names(Species.data[[i]]))))
@@ -356,16 +356,16 @@ for(i in 1:N.sp)
                 distinct(dummy)
               
       d.list=d.list%>%
-        mutate(dummy=paste(year,fishry),
-               sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
-        dplyr::select(-dummy)
-      
+                mutate(dummy=paste(year,fishry),
+                       sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
+                dplyr::select(-dummy)
+      if(Neim%in%combine.sexes.tdgdlf) d.list$sex=combine.sex_type   #NEW
       d.list=d.list%>%
-        group_by(year,fishry,sex,size.class)%>%
-        summarise(n=sum(n))%>%
-        ungroup()%>%
-        filter(!is.na(year))%>%
-        filter(!is.na(fishry))
+              group_by(year,fishry,sex,size.class)%>%
+              summarise(n=sum(n))%>%
+              ungroup()%>%
+              filter(!is.na(year))%>%
+              filter(!is.na(fishry))
       
       MAXX=max(d.list$size.class)
       Tab.si.kl=table(d.list$size.class)
@@ -438,16 +438,16 @@ for(i in 1:N.sp)
           relocate(all_of(vars.head))
         #keep years with minimum number of observations
         d.list=d.list%>%
-          mutate(dummy2=paste(year,Fleet))%>%
-          filter(dummy2%in%unique(Table.n$dummy))%>%
-          dplyr::select(-dummy2)%>%
-          mutate(Sex=ifelse(Sex=='F',1,
-                     ifelse(Sex=='M',2,
-                            Sex)))
+                  mutate(dummy2=paste(year,Fleet))%>%
+                  filter(dummy2%in%unique(Table.n$dummy))%>%
+                  dplyr::select(-dummy2)%>%
+                  mutate(Sex=ifelse(Sex=='F',1,
+                             ifelse(Sex=='M',2,
+                                    Sex)))
         d.list=d.list%>%
-          mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
-                 Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
-          dplyr::select(-dumi.n)
+                  mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
+                         Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
+                  dplyr::select(-dumi.n)
         size.flits=Flits.and.survey
         if(!"Survey"%in% names(Catch.rate.series[[i]]) & "Survey"%in%unique(d.list$Fleet))
         {
@@ -457,15 +457,15 @@ for(i in 1:N.sp)
           if(!'Survey'%in%size.flits$Fleet.name) size.flits=rbind(size.flits,ddummis)
         }
         d.list=d.list%>%
-          mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
-                                       Fleet=="Other"~'Other',
-                                       Fleet=="TDGDLF" & year<2006~'Southern.shark_1',
-                                       Fleet=="TDGDLF" & year>=2006~'Southern.shark_2',
-                                       Fleet=="Survey"~'Survey'))%>%
-          left_join(size.flits,by=c('dummy.fleet'='Fleet.name'))%>%
-          mutate(Fleet=Fleet.number)%>%
-          dplyr::select(-c(dummy.fleet,Fleet.number))%>%
-          arrange(Sex,Fleet,year)
+                  mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
+                                               Fleet=="Other"~'Other',
+                                               Fleet=="TDGDLF" & year<2006~'Southern.shark_1',
+                                               Fleet=="TDGDLF" & year>=2006~'Southern.shark_2',
+                                               Fleet=="Survey"~'Survey'))%>%
+                  left_join(size.flits,by=c('dummy.fleet'='Fleet.name'))%>%
+                  mutate(Fleet=Fleet.number)%>%
+                  dplyr::select(-c(dummy.fleet,Fleet.number))%>%
+                  arrange(Sex,Fleet,year)
         
         d.list.0=d.list%>%filter(Sex==combine.sex_type)%>%arrange(year)
         d.list.f=d.list%>%filter(Sex==1)%>%arrange(year)  
@@ -512,20 +512,20 @@ for(i in 1:N.sp)
         clear.log('dummy.Size.compo.SS.format_Sex0')
         clear.log('dummy.Size.compo.SS.format_Sex')
         dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
-          arrange(Fleet,year,Sex)
+                                      arrange(Fleet,year,Sex)
         
         #select min sample size (shots) 
         min.nsamp=Min.Nsamp
         if(!Neim%in%names(Indicator.species)) min.nsamp=ceiling(min.nsamp/2)
         size.flits.min.samp=size.flits%>%
-          mutate(Min.nsamp=case_when(Fleet.name=='Northern.shark'~Min.Nsamp.NSF,
-                                     Fleet.name=='Survey'~Min.Nsamp.Survey,
-                                     TRUE~min.nsamp))%>%
-          dplyr::select(-Fleet.name)%>%
-          rename(Fleet=Fleet.number)%>%
-          filter(Fleet%in%unique(dummy.Size.compo.SS.format$Fleet))
+                              mutate(Min.nsamp=case_when(Fleet.name=='Northern.shark'~Min.Nsamp.NSF,
+                                                         Fleet.name=='Survey'~Min.Nsamp.Survey,
+                                                         TRUE~min.nsamp))%>%
+                              dplyr::select(-Fleet.name)%>%
+                              rename(Fleet=Fleet.number)%>%
+                              filter(Fleet%in%unique(dummy.Size.compo.SS.format$Fleet))
         dummy.Size.compo.SS.format=dummy.Size.compo.SS.format%>%
-          left_join(size.flits.min.samp,by='Fleet')
+                              left_join(size.flits.min.samp,by='Fleet')
         
         dummy.Size.compo.SS.format.all=dummy.Size.compo.SS.format%>%
                                         dplyr::select(-Min.nsamp)
@@ -538,7 +538,7 @@ for(i in 1:N.sp)
       }
     }
   }
-  # by zones 
+    # by zones 
   Size.compo.SS.format.zone=NULL
   if(any(grepl('Size_composition',names(Species.data[[i]]))))
   {
@@ -878,7 +878,7 @@ for(i in 1:N.sp)
       }
     }
   }
-  #keep only observations for fleets with more than 1 year of data
+    #keep only observations for fleets with more than 1 year of data
   if(Drop.single.year.size.comp)
   {
     if(!is.null(Size.compo.SS.format))
@@ -904,9 +904,8 @@ for(i in 1:N.sp)
         filter(Fleet%in%Fleet.more.one.year.obs)
     }
   }
-  
-  #Reset sex type if required  
-  if(SS.sex.length.type==3)
+    #Reset sex type if required  
+  if(SS.sex.length.type==3 & !Neim%in%do.not.set.SS.sex.length.type.to.3)  
   {
     #zones combined  
     Kombo=Size.compo.SS.format%>%distinct(year,Seas,Fleet)
@@ -2960,7 +2959,7 @@ this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional D
 
 
 Scens=list.files(this.wd) 
-for(s in 1:length(Scens)) 
+for(s in c(2,7)) #for(s in 1:length(Scens)) 
 {
   this.wd1=paste(this.wd,Scens[s],sep='/')
   fn.run.SS(where.inputs=this.wd1,  where.exe=Where.exe, args=Arg)
