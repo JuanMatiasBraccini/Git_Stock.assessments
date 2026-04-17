@@ -355,7 +355,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
                       fleetinfo=NULL,abundance=NULL,size.comp=NULL,age.comp=NULL,meanbodywt=NULL,
                       Tags=NULL,F.tagging=NULL,cond.age.len=NULL,MeanSize.at.Age.obs=NULL,Lamdas=NULL,
                       RecDev_Phase=-3,SR_sigmaR=0.2,Var.adjust.factor=NULL,Future.project=NULL,
-                      first.age=0) #SS starts at age 0, if using 1, then Nages must be changed
+                      first.age=0,remove.offset.no.data=FALSE) #SS starts at age 0, if using 1, then Nages must be changed
 {
   # 1.Copy templates
   copy_SS_inputs(dir.old = Templates, dir.new = new.path,overwrite = TRUE,verbose=FALSE)
@@ -1944,35 +1944,60 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       ctl$size_selex_parms=rbind(dumiSel,offset_params)%>%
                             arrange(dumi)%>%
                             dplyr::select(-dumi)
+      #replace apical
+      RwN=rownames(ctl$size_selex_parms)
+      
+      dis.apical.zone=c(paste('SizeSel_P_6_Southern.shark_1',life.history$Apical.prop.male$Zone,'offset.male',sep='_'),
+                       paste('SizeSel_P_6_Southern.shark_2',life.history$Apical.prop.male$Zone,'offset.male',sep='_'))
+      id.apical.zone=grep(paste(dis.apical.zone,collapse='|'),RwN)
+      cheeky.rwn=rownames(ctl$size_selex_parms[id.apical.zone,])
+      ctl$size_selex_parms[id.apical.zone,c('INIT','PRIOR')]=life.history$Apical.prop.male[match(sub(".*_\\d_(.*)_offset.*", "\\1", cheeky.rwn),
+                                                                                                 life.history$Apical.prop.male$Zone), ]%>%
+                                                                                                    pull(Prop)
+      #turn off offset if no male data
+      flits.with.male.offset=RwN[grep('offset.male',RwN)]
+      Male.len.dat=dat$lencomp[,grep(paste(c('Fleet','m'),collapse='|'),names(dat$lencomp))]%>%
+        dplyr::select(-Nsamp)
+      Flits.with.males=rowSums(Male.len.dat[,-1])
+      names(Flits.with.males)=Male.len.dat$Fleet
+      Flits.with.males=as.numeric(unique(names(subset(Flits.with.males,Flits.with.males>0))))
+      
+      id.males.without.len.com=flits.with.male.offset
+      fleets.with.males=id.males.without.len.com[grep(paste(fleetinfo$fleetname[Flits.with.males],collapse='|'),id.males.without.len.com)]
+      id.males.without.len.com=subset(id.males.without.len.com,!id.males.without.len.com%in% fleets.with.males)
+      ctl$size_selex_parms[match(id.males.without.len.com,RwN),'PHASE']=-5
       
       #remove offset if no length comps or if sex=0 for all years
-      RwN=rownames(ctl$size_selex_parms)
-      flits.with.len.comps=fleetinfo$fleetname[unique(dat$lencomp$Fleet)]   
-      flits.with.male.offset=RwN[grep('offset.male',RwN)]
-      flits.with.male.offset.and.len.comps=flits.with.male.offset[grep(paste(flits.with.len.comps,collapse='|'),flits.with.male.offset)]
-      flits.with.male.offset.but.no.len.comps=flits.with.male.offset[which(!flits.with.male.offset%in%flits.with.male.offset.and.len.comps)]
-      if(length(flits.with.male.offset.but.no.len.comps)>0) 
+      if(remove.offset.no.data)
       {
-        ID.fliT=unique(sub("^([^_]+_){3}([^_]+_[^_]+_[^_]+)_.*$", "\\2", flits.with.male.offset.but.no.len.comps))
-        ctl$size_selex_types[rownames(ctl$size_selex_types)%in%ID.fliT,'Male']=0
-        ctl$size_selex_parms=ctl$size_selex_parms[-grep(paste(flits.with.male.offset.but.no.len.comps,collapse='|'),RwN),]
-      }
-      RwN=rownames(ctl$size_selex_parms) 
-      if(!is.null(dat$lencomp))
-      {
-        flits.with.only.sex0.len.comps=dat$lencomp%>%   
-          group_by(Fleet)%>%
-          filter(all(Sex == 0)) %>%
-          pull(Fleet) %>%
-          unique()
-        if(length(flits.with.only.sex0.len.comps)>0) 
+        flits.with.len.comps=fleetinfo$fleetname[unique(dat$lencomp$Fleet)] 
+        flits.with.male.offset.and.len.comps=flits.with.male.offset[grep(paste(flits.with.len.comps,collapse='|'),flits.with.male.offset)]
+        flits.with.male.offset.but.no.len.comps=flits.with.male.offset[which(!flits.with.male.offset%in%flits.with.male.offset.and.len.comps)]
+        if(length(flits.with.male.offset.but.no.len.comps)>0) 
         {
-          ID.fliT=fleetinfo$fleetname[flits.with.only.sex0.len.comps]
+          ID.fliT=unique(sub("^([^_]+_){3}([^_]+_[^_]+_[^_]+)_.*$", "\\2", flits.with.male.offset.but.no.len.comps))
           ctl$size_selex_types[rownames(ctl$size_selex_types)%in%ID.fliT,'Male']=0
-          ctl$size_selex_parms=ctl$size_selex_parms[-grep(paste0(ID.fliT,'_offset.male',collapse='|'),RwN),]
+          ctl$size_selex_parms=ctl$size_selex_parms[-grep(paste(flits.with.male.offset.but.no.len.comps,collapse='|'),RwN),]
+        }
+        RwN=rownames(ctl$size_selex_parms) 
+        if(!is.null(dat$lencomp))
+        {
+          flits.with.only.sex0.len.comps=dat$lencomp%>%   
+            group_by(Fleet)%>%
+            filter(all(Sex == 0)) %>%
+            pull(Fleet) %>%
+            unique()
+          if(length(flits.with.only.sex0.len.comps)>0) 
+          {
+            ID.fliT=fleetinfo$fleetname[flits.with.only.sex0.len.comps]
+            ctl$size_selex_types[rownames(ctl$size_selex_types)%in%ID.fliT,'Male']=0
+            ctl$size_selex_parms=ctl$size_selex_parms[-grep(paste0(ID.fliT,'_offset.male',collapse='|'),RwN),]
+          }
         }
       }
-      if(is.null(dat$lencomp)) #remove offsets all together if no length comps
+      
+      #remove offsets all together if no length comps
+      if(is.null(dat$lencomp)) 
       {
         ctl$size_selex_parms=ctl$size_selex_parms[-grep('offset',rownames(ctl$size_selex_parms)),]
       }

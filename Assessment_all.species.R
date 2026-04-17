@@ -234,7 +234,7 @@ other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
 tdgdlf_daily_not.representative=list("whiskery shark"='West') #NULL; daily whiskery west cpue based on very few vessels
 drop.dodgy.cpue=list("whiskery shark"='monthly.West-1976') #NULL; monthly whiskery west first year very few vessels
-
+tdgdlf_zone_not.representative=list('gummy shark'='Zone1')
 
 
   #10.2 Survey
@@ -245,16 +245,16 @@ survey.year='financial' #'calendar'  Survey standardisation already using financ
 #11. Length composition
 MN.SZE=0    # "size.at.birth"  initial bin size
 TL.bins.cm=5  # size bin
-Min.obs=10  #keep records with at least 10 observations
-Min.shts=5  #keep records from at least 5 shots
+Min.obs=10  #keep records with at least X observations
+Min.shts=5  #keep records from at least X shots
 Min.annual.obs.ktch=150 #Minimum number of annual observations (i.e., records) per sex-yr-fleet for using length composition data
 Min.annual.obs.ktch.zone=100 #min number obs per zone for areas as fleet model
 Min.annual.obs.ktch_NSF=50
 Min.annual.obs.ktch_survey=20
 prop.min.N.accepted_other=1 # set to 0.5 when Min.annual.obs.ktch of indicators was 150
-Min.Nsamp=5   #Minimum number of shots for catch mean weight or length composition
+Min.Nsamp=10   #Minimum number of shots for catch mean weight or length composition
 Min.Nsamp.Survey=5
-Min.Nsamp.zone=5  #lower Nsamp causes  sel pars estimation issues
+Min.Nsamp.zone=10  
 Min.Nsamp.NSF=5
 fill.in.zeros=TRUE  #add missing length classes with all 0s
 drop.dodgy.len.comp=list("gummy shark"='1995-Zone2') #NULL; gummy, 1995-Zone2 trips done close to SA border where males aggregate
@@ -700,7 +700,7 @@ test.using.length.comps=test.using.cpue   #NULL; have one scenario not using len
 test.using.mean.body=test.using.cpue      #NULL; have one scenario not using mean body weight at all 
 test.using.tags=use.tag.data           #NULL; have one scenario not using tagging data at all 
 if(is.null(test.using.cpue)) test.using.tags=NULL
-test.using.male.sel.offset=c("whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
+test.using.male.sel.offset=c("gummy shark","whiskery shark") #NULL, apply selectivity offsets for males (occur in different ratios in different areas and attain smaller size)
 test.single.area.model=TRUE   #TRUE to test single area model scenario for spatial.model species
 alternative.NSF.selectivity=c("tiger shark") #NULL
 alternative.Linf=NULL # "sandbar shark"; Reduce Linf to match length comps. Superseded, now estimating Linf inside SS

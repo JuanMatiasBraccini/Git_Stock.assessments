@@ -23,6 +23,7 @@ RecDev_Phase=-3
 SR_sigmaR=0.2
 first.age=0
 age.comp=NULL
+remove.offset.no.data=FALSE
 
 
 #-----------  set up Scens-------------------------------------------------------------------------
@@ -335,7 +336,7 @@ for(i in 1:N.sp)
         }
       }
       
-      #combine sexes if number of obs per year >Min.size but per sex <Min.size
+      #combine sexes if number of obs per year >Min.size but per sex <Min.size/2
       Table.n=d.list%>%  
               group_by(year,fishry)%>%
               summarise(N=sum(n))%>%
@@ -348,18 +349,33 @@ for(i in 1:N.sp)
       Table.n.sex=d.list%>%  
                 group_by(year,fishry,sex)%>%
                 summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
-                                                fishry=='NSF'~Min.size.NSF,
-                                                TRUE~Min.size))%>%   
+                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey/2,
+                                                fishry=='NSF'~Min.size.NSF/2,
+                                                TRUE~Min.size/2))
+      Len.comps.sex.ratios=Table.n.sex
+      Len.comps.below.Min.accepted.N=Len.comps.sex.ratios%>%
+        filter(N<Min.accepted.N)
+      Len.comps.sex.ratios=Len.comps.sex.ratios%>%
+        dplyr::select(-Min.accepted.N)%>%
+        mutate(sex=ifelse(sex=='F','Female','Male'))%>%
+        spread(sex,N,fill=0)%>%
+        mutate(Total=Female+Male,
+               Fem.prop=Female/Total)
+      Table.n.sex=Table.n.sex%>%
                 filter(N<Min.accepted.N)%>%
-                mutate(dummy=paste(year,fishry))%>%
+                mutate(dummy=paste(year,fishry,sex))%>%
                 distinct(dummy)
-              
-      d.list=d.list%>%
-                mutate(dummy=paste(year,fishry),
-                       sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
-                dplyr::select(-dummy)
-      if(Neim%in%combine.sexes.tdgdlf.single.area) d.list$sex=combine.sex_type   #NEW
+      d.list=d.list%>%  
+        mutate(dummy=paste(year,fishry,sex))%>%
+        filter(!dummy%in% with(Len.comps.below.Min.accepted.N,paste(year,fishry,sex)))%>%
+        mutate(sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
+        dplyr::select(-dummy)
+      if(Neim%in%combine.sexes.tdgdlf.single.area) d.list$sex=combine.sex_type   
+      Apical.prop.female=Len.comps.sex.ratios%>%
+        filter(year<2015)%>%
+        group_by(fishry) %>%
+        summarise(w_mean = weighted.mean(Fem.prop, Total),
+                  w_sd = sqrt(wtd.var(Fem.prop, Total, na.rm = TRUE)))
       d.list=d.list%>%
               group_by(year,fishry,sex,size.class)%>%
               summarise(n=sum(n))%>%
@@ -574,6 +590,28 @@ for(i in 1:N.sp)
       if(any(grepl('Observations',names(d.list)))) d.list=d.list[-grep('Observations',names(d.list))]
       if(sum(grepl('Table',names(d.list)))>0) d.list=d.list[-grep('Table',names(d.list))]
       
+      #explore length comps
+      if(First.run=='YES')
+      {
+        p=do.call(rbind,d.list)%>%
+          rownames_to_column(var = "fishry")%>%
+          filter(!is.na(SEX))%>%
+          mutate(fishry=str_remove_all(fishry,"^Size_composition_|\\.inch.*"),
+                 fishry=sub("\\..*", "", fishry))%>%
+          mutate(fleet=ifelse(year<2006,paste('1.Monthly',fishry),paste('2.Daily',fishry)),
+                 year=factor(year),
+                 TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL)
+        p=p%>%
+          ggplot(aes(TL,fill=year))+
+          geom_density(alpha=.5)+
+          facet_grid(SEX~fleet)+theme_PA()+
+          scale_fill_manual(values = colorRampPalette(c("red",'orange', "steelblue"))(length(unique(p$year))))
+        print(p)
+        ggsave(paste(DiR,'Length comps considered for SS_areas as fleets.tiff',sep='/'), 
+               width = 10,height = 5, dpi = 300, compression = "lzw")
+        
+      }
+      #calculate TL
       for(s in 1:length(d.list))
       {
         NM=names(d.list)[s]
@@ -619,6 +657,19 @@ for(i in 1:N.sp)
         }
       }
       d.list <- d.list[!is.na(d.list)]
+      # Display sex ratio by zone used in SS  
+      if(First.run=="YES")
+      {
+        add.n.samps=Species.data[[i]]$Size_composition_Observations%>%
+          filter(Method=='GN')%>%
+          mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
+          rename(Zone=zone)%>%
+          group_by(Zone,year)%>%
+          summarise(N.shots=sum(N.shots))%>%ungroup()
+        fn.ktch.sex.ratio.zone_SS(size.data=d.list,Min.size=Min.size,N_sampleS=add.n.samps)
+        ggsave(paste(DiR,'Sex ratio by zone_SS size comps data_areas as fleets.tiff',sep='/'), width = 5,height = 6, dpi = 300, compression = "lzw")
+      }
+      #Get min sample size
       if(Neim%in%names(Indicator.species))
       {
         Min.size=Min.annual.obs.ktch.zone
@@ -628,22 +679,6 @@ for(i in 1:N.sp)
       }
       Min.size.NSF=Min.annual.obs.ktch_NSF
       if(Neim%in%c("dusky shark")) Min.size.NSF=20
-      
-      
-      # Display sex ratio by zone used in SS  
-      if(First.run=="YES")
-      {
-        HandL=handl_OneDrive("Analyses/Population dynamics/1.")
-        DiR=paste(HandL,capitalize(Neim),"/",AssessYr,"/1_Inputs/Visualise data",sep='')
-        add.n.samps=Species.data[[i]]$Size_composition_Observations%>%
-                        filter(Method=='GN')%>%
-                        mutate(year=as.numeric(substr(FINYEAR,1,4)))%>%
-                        rename(Zone=zone)%>%
-                        group_by(Zone,year)%>%
-                        summarise(N.shots=sum(N.shots))%>%ungroup()
-        fn.ktch.sex.ratio.zone_SS(size.data=d.list,Min.size=Min.size,N_sampleS=add.n.samps)
-        ggsave(paste(DiR,'Sex ratio by zone_SS size comps data_areas as fleets.tiff',sep='/'), width = 5,height = 6, dpi = 300, compression = "lzw")
-      }
       d.list=do.call(rbind,d.list)   
       if(Neim%in%combine_NSF_Survey) 
       {
@@ -673,7 +708,7 @@ for(i in 1:N.sp)
           d.list$sex=combine.sex_type 
         }
       }
-      #combine sexes if number of obs per year >Min.size but per sex <Min.size
+      #combine sexes if number of obs per year >Min.size but per sex <Min.size/2
       Table.n=d.list%>%
                 group_by(year,fishry)%>%
                 summarise(N=sum(n))%>%
@@ -682,19 +717,36 @@ for(i in 1:N.sp)
                                                 TRUE~Min.size))%>%
                 filter(N>=Min.accepted.N)%>%
                 mutate(dummy=paste(year,fishry))
+ 
       Table.n.sex=d.list%>%  
         group_by(year,fishry,sex)%>%
         summarise(N=sum(n))%>%
-        mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
-                                        fishry=='NSF'~Min.size.NSF,
-                                        TRUE~Min.size))%>%   
+        mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey/2,
+                                        fishry=='NSF'~Min.size.NSF/2,
+                                        TRUE~Min.size/2))
+      Len.comps.sex.ratios=Table.n.sex
+      Len.comps.below.Min.accepted.N=Len.comps.sex.ratios%>%
+                                      filter(N<Min.accepted.N)
+      Len.comps.sex.ratios=Len.comps.sex.ratios%>%
+                             dplyr::select(-Min.accepted.N)%>%
+                              mutate(sex=ifelse(sex=='F','Female','Male'))%>%
+                              spread(sex,N,fill=0)%>%
+                              mutate(Total=Female+Male,
+                                     Fem.prop=Female/Total)
+      Table.n.sex=Table.n.sex%>%   
         filter(N<Min.accepted.N)%>%
-        mutate(dummy=paste(year,fishry))%>%
+        mutate(dummy=paste(year,fishry,sex))%>%
         distinct(dummy)
-      d.list=d.list%>%
-        mutate(dummy=paste(year,fishry),
-               sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
+      d.list=d.list%>%  
+        mutate(dummy=paste(year,fishry,sex))%>%
+        filter(!dummy%in% with(Len.comps.below.Min.accepted.N,paste(year,fishry,sex)))%>%
+        mutate(sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
         dplyr::select(-dummy)
+      Apical.prop.female.zone=Len.comps.sex.ratios%>%
+              filter(year<2015)%>%
+              group_by(fishry) %>%
+              summarise(w_mean = weighted.mean(Fem.prop, Total),
+                        w_sd = sqrt(wtd.var(Fem.prop, Total, na.rm = TRUE)))
       
       d.list=d.list%>%
         group_by(year,fishry,sex,size.class)%>%
@@ -1254,6 +1306,12 @@ for(i in 1:N.sp)
       id.drop=paste0('daily.',tdgdlf_daily_not.representative[[Neim]])
       CPUE.zone=CPUE.zone[-grep(paste(id.drop,collapse='|'),names(CPUE.zone))] 
     }
+    if(Neim%in%names(tdgdlf_zone_not.representative))   
+    {
+      id.drop=tdgdlf_zone_not.representative[[Neim]]
+      CPUE.zone=CPUE.zone[-grep(paste(id.drop,collapse='|'),names(CPUE.zone))] 
+    }
+    
   }
   
   
@@ -2221,7 +2279,7 @@ for(i in 1:N.sp)
     }
     
     #create SS inputs 
-    for(s in 1:1) #for(s in 1:length(Store.sens))  #ACA 
+    for(s in 1:1) #for(s in 1:length(Store.sens))  
     {
       this.wd1=paste(this.wd,names(Store.sens)[s],sep='/')
       if(!dir.exists(this.wd1))dir.create(this.wd1)
@@ -2448,6 +2506,7 @@ for(i in 1:N.sp)
                 mutate(part=ifelse(fleet%in%discard.flits,2,part)) 
             }
           }
+          Life.history$Apical.prop.male=1-Apical.prop.female$w_mean
         }
         if(Scens$Spatial[s]=='areas-as-fleets')   
         {
@@ -2516,6 +2575,15 @@ for(i in 1:N.sp)
             }
 
           }
+          Apical.prop.male=Apical.prop.female.zone%>%
+            mutate(Zone=sub(".*_", "", fishry),
+                   Prop=round(1-w_mean,2))%>%
+            dplyr::select(Zone,Prop)
+          if(Neim%in%c("gummy shark","whiskery shark"))
+          {
+            Apical.prop.male[match('West',Apical.prop.male$Zone),'Prop']=Apical.prop.male[match('Zone1',Apical.prop.male$Zone),'Prop']
+          }
+          Life.history$Apical.prop.male=Apical.prop.male
           
           #Change species specific sel pars for spatial model
           if(Neim=="sandbar shark" & !is.null(Life.history$SS_offset_selectivity))   
@@ -2878,7 +2946,7 @@ for(i in 1:N.sp)
           tags=NULL
         }
         #a.9 remove selectivity offsets 
-        Life.history1=Life.history
+        Life.history1=Life.history  
         if(Scens$Use.male.sel.offset[s]=='No' & any(grepl('offset_selectivity',names(Life.history1))))
         {
           Life.history1=Life.history1[-grep('offset_selectivity',names(Life.history1))]
