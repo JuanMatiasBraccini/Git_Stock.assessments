@@ -2268,6 +2268,23 @@ for(w in 1:n.SS)
                 add.ct.future.zone[,lef.flits.zone[lf]]=mean(unlist(ktch.zone[(NN-years.futures+1):NN,lef.flits.zone[lf]]),na.rm=T)
               }
             }
+            
+            #drop irrelevant lambda scenarios   
+            if('like_comp.w'%in%names(Scens))
+            {
+              if(is.null(Abundance.SS.format) & is.null(Abundance.SS.format.zone))
+              {
+                DROP.ABU=which(Scens$like_comp.w==1)
+                if(length(DROP.ABU)>0) Scens=Scens[-DROP.ABU,]
+              }
+              if(is.null(Size.compo.SS.format) & is.null(Size.compo.SS.format.zone))
+              {
+                DROP.SIZ=which(Scens$like_comp.w==4)
+                if(length(DROP.SIZ)>0) Scens=Scens[-DROP.SIZ,]
+              }
+              Scens$Scenario=paste0('S',1:nrow(Scens))
+              Store.sens=Store.sens[Scens$Scenario]
+            }
 
             #Execute SS 
             for(s in 1:length(Store.sens))
@@ -2497,7 +2514,7 @@ for(w in 1:n.SS)
                     }
 
                   }
-                  Life.history$Apical.prop.male=1-Apical.prop.female$w_mean
+                  Life.history$Apical.prop.male=data.frame(Zone='',Prop=1-Apical.prop.female$w_mean)
                 }
                 if(Scens$Spatial[s]=='areas-as-fleets')
                 {
@@ -2863,7 +2880,9 @@ for(w in 1:n.SS)
                 #a.5 Reset rec pars for tuning
                 if(Scens$Scenario[s]=='S1' & Tune.SS.model)
                 {
-                  Life.history$SR_sigmaR=Scens[s,]$SR_sigmaR=tuning_sigmaR
+                  try.dis.sigmaR=tuning_sigmaR
+                  if(Neim%in%sp.low.productivity) try.dis.sigmaR=tuning_sigmaR_low.prod 
+                  Life.history$SR_sigmaR=Scens[s,]$SR_sigmaR=try.dis.sigmaR
                   Life.history$RecDev_Phase=3
                   
                   #Ramp:

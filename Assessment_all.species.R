@@ -315,6 +315,8 @@ ScallopedHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='scalloped hammerhead
 SmoothHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='smooth hammerhead')%>%pull(Steepness)
 GreatHH.Sedar=sigmaR.steepness.shark%>%filter(Species=='great hammerhead')%>%pull(Steepness)
 Mako.ICCAT=sigmaR.steepness.shark%>%filter(Species=='shortfin mako')%>%pull(Steepness)
+sigma.R_dusky=sigmaR.steepness.shark%>%filter(Species=='dusky shark')%>%pull(sigmaR) 
+sigma.R_sandbar=sigmaR.steepness.shark%>%filter(Species=='sandbar shark')%>%pull(sigmaR)
 
   #15.2 published demographic parameters
 Demo.published.values=data.frame(Species=c("angel sharks","copper shark","grey nurse shark","gummy shark","lemon shark",
@@ -611,7 +613,14 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
 
   #21.10 SS stock recruitment arguments
 alternative.SR_type=NULL    #"sandbar shark"; Sensitivity for Spawner-Recruitment
-alternative.sigmaR=list('dusky shark'=0.15,'sandbar shark'=0.18)     #Sensitivity for sigmaR (effect on rec_devs)
+alternative.sigmaR=list('dusky shark'=sigma.R_dusky,     #Sensitivity for sigmaR (effect on rec_devs)
+                        'gummy shark'=0.25,
+                        'sandbar shark'=sigma.R_sandbar,
+                        'whiskery shark'=0.21)
+alternative.sigmaR_up=list('dusky shark'=0.4,     
+                        'gummy shark'=0.45,
+                        'sandbar shark'=0.4,
+                        'whiskery shark'=0.45) 
 alternative.do_recdev=NULL  #"sandbar shark"; Sensitivity for do_recdev method (effect on rec_devs)
 do_recdev_1="sandbar shark"
 Early_rec_dev_start='mat'     #fixed years (e.g. -5) or age-at-maturity; allow several years for population to stabilize (any non 0 will plot long series of early rec devs); 0 gummy Andre 2009
@@ -621,6 +630,7 @@ rec_dev_data.types=c('Size.com','meanbody','Abund1')    #what data types to cons
 Main.rec.dev_first.year='min.obs'   #'min.ktch' to use first year of catch; 'min.obs' first year abundance or length comps
 Main.rec.dev_first.year_buffer=TRUE  #If TRUE, then start main rec dev 'X' years before, defined by age at maturity
 tuning_sigmaR=round(quantile(sigmaR.steepness.shark$sigmaR,na.rm=T,probs=.5),1)  #0.2; initial value for 1st step tuning
+tuning_sigmaR_low.prod=round(quantile(sigmaR.steepness.shark$sigmaR,na.rm=T,probs=.10),1)
 
   #21.11 SS areas-as-fleet models
 spatial.model=c('dusky shark','gummy shark','sandbar shark','whiskery shark')  
@@ -678,8 +688,10 @@ remove.dodgy.tag.group_age=list("sandbar shark"=25)   #NULL, age/length comp way
   #21.14 SS likelihood arguments
 drop.len.comp.like=NULL
 survey.like.weight=NULL  #"dusky shark"  
-alternative.like.weigthing=NULL  #test alternative lambdas for survey and length comps
-
+Lambda.species=list("dusky shark"=c(3:8,10), #fleets with alternative lambdas for survey and length comps
+                    "gummy shark"=c(3:8),
+                    "sandbar shark"=c(3:9),
+                    "whiskery shark"=c(3:8)) 
 
   #21.15 Fit diagnostics
 #note: very time consuming. Only run once model is defined.
@@ -2629,7 +2641,9 @@ if(compare.FishLife)
 RESILIENCE=vector('list',N.sp)
 names(RESILIENCE)=names(List.sp)
 for(r in 1:length(RESILIENCE)) RESILIENCE[[r]]=Res.fn(store.species.r_M.age.invariant[[r]]$mean,Def="Haddon")
-clear.log('Res.fn')
+clear.log('Res.fn') 
+sp.low.productivity=names(RESILIENCE)[RESILIENCE == "verylow"] 
+
 
 #---11. Extract experimental selectivity at age and at size-----------------------------------------------------------------------
 #note: For gillnet (dome-shape) sel., fix selectivity parameters in SS3 to untangle selectivity from fishing mortality.

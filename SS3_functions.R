@@ -1949,11 +1949,15 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       
       dis.apical.zone=c(paste('SizeSel_P_6_Southern.shark_1',life.history$Apical.prop.male$Zone,'offset.male',sep='_'),
                        paste('SizeSel_P_6_Southern.shark_2',life.history$Apical.prop.male$Zone,'offset.male',sep='_'))
+      dis.apical.zone=gsub("__", "_", dis.apical.zone)
       id.apical.zone=grep(paste(dis.apical.zone,collapse='|'),RwN)
       cheeky.rwn=rownames(ctl$size_selex_parms[id.apical.zone,])
-      ctl$size_selex_parms[id.apical.zone,c('INIT','PRIOR')]=life.history$Apical.prop.male[match(sub(".*_\\d_(.*)_offset.*", "\\1", cheeky.rwn),
-                                                                                                 life.history$Apical.prop.male$Zone), ]%>%
-                                                                                                    pull(Prop)
+      if(nrow(life.history$Apical.prop.male)==1)
+      {
+        ID.Ap.prop.male=1
+      }else ID.Ap.prop.male=match(sub(".*_\\d_(.*)_offset.*", "\\1", cheeky.rwn),life.history$Apical.prop.male$Zone)
+        
+      ctl$size_selex_parms[id.apical.zone,c('INIT','PRIOR')]=life.history$Apical.prop.male[ID.Ap.prop.male, ]%>%pull(Prop)
       #turn off offset if no male data
       flits.with.male.offset=RwN[grep('offset.male',RwN)]
       Male.len.dat=dat$lencomp[,grep(paste(c('Fleet','m'),collapse='|'),names(dat$lencomp))]%>%
@@ -2226,7 +2230,7 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
   # Likelihood components (lambdas)
   # Like_comp codes:  1=surv; 2=disc; 3=mnwt; 4=length; 5=age; 6=SizeFreq; 7=size at age; 8=catch; 9=init_equ_catch; 
   # 10=recrdev; 11=parm_prior; 12=parm_dev; 13=CrashPen; 14=Morphcomp; 15=Tag-comp; 16=Tag-negbin; 17=F_ballpark; 18=initEQregime
-  if(Scenario$Model=='SS')
+  if(Scenario$Model=='SS')  
   {
     Avail.dat=dat.code=dis.dat=fliit=NULL
     if(!is.null(abundance))
@@ -2288,9 +2292,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
         mutate(value=ifelse(!is.na(new.value),new.value,value))%>%
         dplyr::select(-new.value)
     }
-    if(!is.na(Scenario$like_comp.w))
+    if(!is.na(Scenario$like_comp.w))  
     {
-      Like_comp[which( Like_comp$like_comp ==Scenario$like_comp.w & Like_comp$fleet==Scenario$like_comp_fleet.w),'value']=Scenario$like_comp.w.val
+      LIKE.component=Scenario$like_comp.w
+      if(LIKE.component==4) LIKE.component=c(3,LIKE.component)
+      Like_comp[which(Like_comp$like_comp%in%LIKE.component),'value']=Scenario$like_comp.w.val
     }
     ctl$lambdas=Like_comp
     ctl$N_lambdas=nrow(ctl$lambdas)

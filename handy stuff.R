@@ -2278,8 +2278,28 @@ for(i in 1:N.sp)
       }
     }
     
+    #drop irrelevant lambda scenarios   
+    if('like_comp.w'%in%names(Scens))
+    {
+      if(is.null(Abundance.SS.format) & is.null(Abundance.SS.format.zone))
+      {
+        DROP.ABU=which(Scens$like_comp.w==1)
+        if(length(DROP.ABU)>0) Scens=Scens[-DROP.ABU,]
+      }
+      if(is.null(Size.compo.SS.format) & is.null(Size.compo.SS.format.zone))
+      {
+        DROP.SIZ=which(Scens$like_comp.w==4)
+        if(length(DROP.SIZ)>0) Scens=Scens[-DROP.SIZ,]
+      }
+      Scens$Scenario=paste0('S',1:nrow(Scens))
+      Store.sens=Store.sens[Scens$Scenario]
+    }
+
+     
+    
     #create SS inputs 
-    for(s in 1:1) #for(s in 1:length(Store.sens))  
+    #for(s in 1:1)
+    for(s in 1:length(Store.sens))  
     {
       this.wd1=paste(this.wd,names(Store.sens)[s],sep='/')
       if(!dir.exists(this.wd1))dir.create(this.wd1)
@@ -2506,7 +2526,7 @@ for(i in 1:N.sp)
                 mutate(part=ifelse(fleet%in%discard.flits,2,part)) 
             }
           }
-          Life.history$Apical.prop.male=1-Apical.prop.female$w_mean
+          Life.history$Apical.prop.male=data.frame(Zone='',Prop=1-Apical.prop.female$w_mean)
         }
         if(Scens$Spatial[s]=='areas-as-fleets')   
         {
@@ -2869,7 +2889,9 @@ for(i in 1:N.sp)
         #a.5 need to reset rec pars for tuning
         if(Scens$Scenario[s]=='S1' & Tune.SS.model)  #set to NULL in exploratory phase to fully see effect of data
         {
-          Life.history$SR_sigmaR=Scens[s,]$SR_sigmaR=tuning_sigmaR   
+          try.dis.sigmaR=tuning_sigmaR
+          if(Neim%in%sp.low.productivity) try.dis.sigmaR=tuning_sigmaR_low.prod #ACA
+          Life.history$SR_sigmaR=Scens[s,]$SR_sigmaR=try.dis.sigmaR   
           Life.history$RecDev_Phase=3
           
           #Ramp:
@@ -3023,7 +3045,7 @@ computation.time
 i=4
 Neim=Keep.species[i]
 
-this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/handy stuff'
+this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/New folder'
 
 
 Scens=list.files(this.wd) 
@@ -3084,7 +3106,7 @@ this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional D
 #tune ramp years (blue and red lines should match)
 Scens=list.files(this.wd)
 tic("timer")
-for(s in 1:length(Scens))
+for(s in 10:length(Scens)) #for(s in 1:length(Scens))
 {
   this.wd1=paste(this.wd,Scens[s],sep='/')
   print(paste('Tunning ------------------',Scens[s],'-------------------------'))
