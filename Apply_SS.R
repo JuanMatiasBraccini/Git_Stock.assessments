@@ -2200,7 +2200,7 @@ for(w in 1:n.SS)
             
             #Scenarios
             Arg.sens=Arg
-            if(do.all.sensitivity.tests) Arg.sens='-nohess'
+            if(!do.all.sensitivity.tests.uncertainty) Arg.sens='-nohess'
             Scens=Life.history$Sens.test$SS
             if(!do.all.sensitivity.tests) Scens=Scens%>%filter(Scenario=='S1')
             Scens=Scens%>%
@@ -2831,7 +2831,7 @@ for(w in 1:n.SS)
                   KAtch[des.yrs,des.flt]=new.ktch
                 }
                 
-                #a.4 set recruitment devations parameters
+                #a.4 set recruitment deviations parameters
                 #note: Align with data-rich years , mostly comps that have info on recruitment 
                 #      These pars determine how the model applies Bias Adjustment to ensure the mean recruitment
                 #         isn't skewed when shifting between "data-poor" and "data-rich" periods.
@@ -3003,7 +3003,7 @@ for(w in 1:n.SS)
               }
               
               #b. Run SS3
-                #find LnRo init value
+                #b.1 find LnRo init value
               if(Find_Init_LnRo)  
               {
                 start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
@@ -3017,7 +3017,7 @@ for(w in 1:n.SS)
                 rm(Report)
               }
               
-                #find tag overdispersion
+                #b.2 find tag overdispersion
               #note: update 'SS3.Tagging_pars.csv' with the Phi value
               if(Scens$Scenario[s]=='S1' & Find_overdispersion & !is.null(Tags.SS.format))
               {
@@ -3038,8 +3038,7 @@ for(w in 1:n.SS)
                 rm(Report) 
               }
               
-              
-                #tune model and calculate RAMP years (takes 3444 secs for indicator species)
+                #b.3 tune model and calculate RAMP years (takes 3444 secs for indicator species)
               #note: var adjust and ramp already reset in '#a.5 Reset rec pars for tuning'
               #      update ramp years in 'SS3.Recruitment.inputs.csv' using 'Ramp_years_first round'  
               #      and sample sizes in 'SS3.tune_size_comp_effective_sample.csv' if single area model or
@@ -3131,22 +3130,24 @@ for(w in 1:n.SS)
                 rm(ramp_years,out,tune_info)
               }
               
-                #estimate population parameters on tuned model
+                #b.4 estimate population parameters on tuned model
               if(Run.SS & !Tune.SS.model)
               {
                 fn.run.SS(where.inputs=this.wd1,
                           where.exe=Where.exe,
                           args=Arg.sens) 
               }
- 
+              
+              #c. Bring in outputs, plot Report and store estimates
               if(file.exists(paste0(this.wd1,'/Report.sso')))
               {
-                #c. Bring in outputs and plot Report
+                #c.1 Bring report
                 COVAR=FORECAST=FALSE
                 if(Arg.sens=="") COVAR=TRUE
                 if("SS"%in%future.models) FORECAST=TRUE
                 Report=SS_output(this.wd1,covar=COVAR,forecast=FORECAST,readwt=F)
                 
+                #c.2. plot
                 if(run_SS_plots)
                 {
                   this.plot=1:26
@@ -3160,46 +3161,46 @@ for(w in 1:n.SS)
                    SS_plots(Report,plot=this.plot,  png=T)
                 }
                 
-                #d. Store estimates and likelihoods
+                #c.3. Store estimates and likelihoods
                 Estims=Report[["estimated_non_dev_parameters"]]
                 Out.estimates[[s]]=Estims%>%
-                  mutate(Par=rownames(Estims),
-                         Scenario=Scens$Scenario[s])%>%
-                  relocate(Scenario,Par)%>%
-                  `rownames<-`( NULL )
+                                  mutate(Par=rownames(Estims),
+                                         Scenario=Scens$Scenario[s])%>%
+                                  relocate(Scenario,Par)%>%
+                                  `rownames<-`( NULL )
                 F.ref.points=fn.get.f.ref.points(Report)                 
                 dummi.F=Out.estimates[[s]][1:length(F.ref.points),]
                 dummi.F[,]=NA
                 dummi.F=dummi.F%>%
-                  mutate(Scenario=unique(Out.estimates[[s]]$Scenario),
-                         Par=names(F.ref.points),
-                         Value=unlist(F.ref.points))
+                          mutate(Scenario=unique(Out.estimates[[s]]$Scenario),
+                                 Par=names(F.ref.points),
+                                 Value=unlist(F.ref.points))
                 Out.estimates[[s]]=rbind(Out.estimates[[s]],dummi.F)
                 Likelihoods=Report[["likelihoods_used"]]
                 Out.likelihoods[[s]]=Likelihoods%>%
-                  mutate(Likelihood=rownames(Likelihoods),
-                         Scenario=Scens$Scenario[s])%>%
-                  relocate(Scenario,Likelihood)%>%
-                  `rownames<-`( NULL )
-                
+                                      mutate(Likelihood=rownames(Likelihoods),
+                                             Scenario=Scens$Scenario[s])%>%
+                                      relocate(Scenario,Likelihood)%>%
+                                      `rownames<-`( NULL )
+                                    
                 Bratio_current=paste0('Bratio_',max(ktch$finyear))
                 Out.quantities[[s]]=Report[["derived_quants"]]%>%
-                  filter(Label%in%c(Bratio_current,"Dead_Catch_MSY"))%>%
-                  mutate(Label=ifelse(Label==Bratio_current,'Current depletion',
-                                      ifelse(Label=="Dead_Catch_MSY",'MSY',
-                                             Label)),
-                         Species=capitalize(Neim),
-                         Scenario=Scens$Scenario[s])%>%
-                  rename(Median=Value,
-                         SE=StdDev)%>%
-                  dplyr::select(Species,Label,Median,SE,Scenario)%>%
-                  `rownames<-`( NULL )
+                                      filter(Label%in%c(Bratio_current,"Dead_Catch_MSY"))%>%
+                                      mutate(Label=ifelse(Label==Bratio_current,'Current depletion',
+                                                          ifelse(Label=="Dead_Catch_MSY",'MSY',
+                                                                 Label)),
+                                             Species=capitalize(Neim),
+                                             Scenario=Scens$Scenario[s])%>%
+                                      rename(Median=Value,
+                                             SE=StdDev)%>%
+                                      dplyr::select(Species,Label,Median,SE,Scenario)%>%
+                                      `rownames<-`( NULL )
                 
                 
-                #e. Store trajectories
+                #c.4. Store trajectories
                 #note: uncertainty is based on asymptotic error
                 
-                #e.1 relative biomass  
+                  #c.4.1 relative biomass  
                 dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                        mods="SS3",
                                                        Type='Depletion',
@@ -3207,7 +3208,7 @@ for(w in 1:n.SS)
                 Out.rel.biom[[s]]=dummy$Dat
                 Out.probs.rel.biom[[s]]=dummy$Probs 
                 
-                #e.2 F 
+                  #c.4.2 F 
                 dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                        mods="SS3",
                                                        Type='F.series',
@@ -3215,7 +3216,7 @@ for(w in 1:n.SS)
                 Out.f.series[[s]]=dummy$Dat
                 Out.probs.f.series[[s]]=dummy$Probs
                 
-                #e.3 B/Bmsy
+                  #c.4.3 B/Bmsy
                 dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                        mods="SS3",
                                                        Type='B.Bmsy',
@@ -3225,7 +3226,7 @@ for(w in 1:n.SS)
                 Out.probs.B.Bmsy[[s]]=dummy$Probs
                 Kobe.stock=dummy$Out.Kobe
                 
-                #e.4 F/Fmsy
+                  #c.4.4 F/Fmsy
                 dummy=fn.integrated.mod.get.timeseries(d=Report,
                                                        mods="SS3",
                                                        Type='F.Fmsy',
@@ -3234,7 +3235,7 @@ for(w in 1:n.SS)
                 Out.F.Fmsy[[s]]=dummy$Dat
                 Kobe.harvest=dummy$Out.Kobe
                 
-                #Calculate posterior depletion   #takes 4.5 secs per nMC simulation
+                #c.5. Calculate posterior depletion   #takes 4.5 secs per nMC simulation
                 if(Scens$Scenario[s]=='S1' & SS3.run=='final' & do.MC.multi)
                 {
                   dd=fn.MC.sims(this.wd1,
@@ -3252,7 +3253,7 @@ for(w in 1:n.SS)
                   rm(dd)
                 }
                 
-                #add catch for display purposes 
+                #c.6. Add catch for display purposes 
                 Add.katch=Combined.ktch
                 if(any(add.ct.future$finyear%in%unique(Out.rel.biom[[s]]$year)))
                 {
@@ -3263,13 +3264,13 @@ for(w in 1:n.SS)
                   left_join(Add.katch,by=c('year'='Year'))%>%
                   rename(Catch=Total)
                 
-                #Kobe
+                #c.7. Kobe
                 if(Scens$Scenario[s]=='S1') Out.Kobe.probs[[s]]=data.frame(stock=Kobe.stock,
                                                                            harvest=Kobe.harvest)%>%
                   filter(stock>=0 & harvest>=0)
                 
-                #Posterior vs prior 
-                #Steepness
+                #c.8. Posterior vs prior 
+                    #c.8.1 Steepness
                 if(Report$parameters%>%filter(Label=='SR_BH_steep')%>%pull(Phase)>0)
                 {
                   pdf(paste(this.wd1,paste('Prior vs Posterior_Steepness.pdf',sep=''),sep='/'))
@@ -3278,7 +3279,7 @@ for(w in 1:n.SS)
                                         prior_type='beta')
                   dev.off()
                 }
-                #Growth pars
+                    #c.8.2 Growth pars
                 Growth.prior.post=Report$parameters%>%
                   filter(grepl(paste(c('L_at_Amax','VonBert_K'),collapse='|'),Label))%>%
                   filter(Phase>0)
@@ -3343,11 +3344,11 @@ for(w in 1:n.SS)
                   ggsave(paste(this.wd1,paste('Prior vs Posterior_growth.tiff',sep=''),sep='/'),width=7,height=6,compression = "lzw")
                 }
                 
-                # Evaluate fit diagnostics
+                #c.9. Evaluate fit diagnostics
                 GoodnessFit=function.goodness.fit_SS(Rep=Report)  
                 write.csv(GoodnessFit,paste(this.wd1,"/GoodnessFit_",Neim,".csv",sep=''))
                 
-                #Check Life history invariants (M/k=1.5; L50/Linf=0.66; MxA50=1.65)
+                #c.10. Check Life history invariants (M/k=1.5; L50/Linf=0.66; MxA50=1.65)
                 if(Scens$Scenario[s]=='S1')
                 {
                   Mat=Report$Growth_Parameters%>%filter(Sex==1)%>%pull(Mat1)
@@ -3369,7 +3370,7 @@ for(w in 1:n.SS)
                   
                 }
                 
-                #Check if pups per female is not biologically excessively large 
+                #c.11. Check if pups per female is not biologically excessively large 
                 if(Scens$Scenario[s]=='S1')
                 {
                   Report$recruit%>%
@@ -3382,7 +3383,7 @@ for(w in 1:n.SS)
                   ggsave(paste0(this.wd1,"/Pups per female.tiff"),width=6,height=6,compression = "lzw") 
                 }
                 
-                #Check cryptic biomass (The ratio should be less than 25%)
+                #c.12. Check cryptic biomass (The ratio should be less than 25%)
                 if(Scens$Scenario[s]=='S1')
                 {
                   Cryptic=fn.cryptic(yr=as.numeric(substr(Last.yr.ktch,1,4)))
@@ -3392,7 +3393,7 @@ for(w in 1:n.SS)
                   ggsave(paste0(this.wd1,"/Cryptic biomass1.tiff"),width=5,height=6,compression = "lzw")
                 }
                 
-                #Check what sels by fleet SS is applying
+                #c.13. Check what sels by fleet SS is applying
                 if(Scens$Scenario[s]=='S1')
                 {
                   pp=fn.check.SS.sel.used(d=Report$sizeselex%>%filter(Factor=='Lsel')%>%dplyr::select(-c(Factor,Label)),
@@ -3562,7 +3563,7 @@ for(w in 1:n.SS)
           }
         }
       }
-      #compare likelihoods from different scenaris
+      #compare likelihoods from different scenarios
       if(do.all.sensitivity.tests & Compare.sensitivity.test.likelihoods)
       {
         for(i in 1:N.sp)
@@ -3591,7 +3592,9 @@ for(w in 1:n.SS)
 toc(log = TRUE, quiet = TRUE)
 computation.time <- tic.log(format = TRUE)
 tic.clearlog()
-run.with.hess=ifelse(Arg.sens=='','with Hessian estimation',ifelse(Arg.sens=="-nohess","without Hessian estimation",NA))
+run.with.hess=ifelse(Arg.sens=='','with Hessian estimation',
+              ifelse(Arg.sens=="-nohess","without Hessian estimation",
+                     NA))
 send.email(TO=Send.email.to,
            CC='',
            Subject=paste("SS3 models",run.with.hess,"finished running at",Sys.time()),
