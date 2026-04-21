@@ -595,9 +595,11 @@ test.drop.monthly.cpue=list("gummy shark"=1975:1985) #NULL, gummy early years ve
   #21.7 SS Q arguments
 SS3.q.analit.solu=FALSE   #set to TRUE if calculating q analytically to save up pars, set to FALSE if using block Q (time changing Q)
 block.species_Q=c("whiskery shark") #"gummy shark"
-Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Not used
-extra.SD.Q.species=list("sandbar shark"='Survey') #"whiskery shark"='Southern.shark_2'  
-test.effect.extra.SD.Q=TRUE
+Extra_Q_species=c("spinner shark","tiger shark") #needed to allow fit. Used for non-indicator sp
+extra.SD.Q.species=list("sandbar shark"='Survey')  
+extra.CV.species=list("whiskery shark"='TDGDLF.monthly')
+extra.CV.factor=2
+test.effect.extra.SD.Q=test.effect.extra.CV=TRUE
 
   #21.8 SS growth arguments
 estim.growth.pars_SS=c("sandbar shark") #for other species, no great contrast in other data types
@@ -614,13 +616,13 @@ default.Mean.weight.CV=0.2  #bit larger otherwise as it's the only signal for So
   #21.10 SS stock recruitment arguments
 alternative.SR_type=NULL    #"sandbar shark"; Sensitivity for Spawner-Recruitment
 alternative.sigmaR=list('dusky shark'=sigma.R_dusky,     #Sensitivity for sigmaR (effect on rec_devs)
-                        'gummy shark'=0.25,
+                        'gummy shark'=0.31,
                         'sandbar shark'=sigma.R_sandbar,
                         'whiskery shark'=0.21)
-alternative.sigmaR_up=list('dusky shark'=0.4,     
-                        'gummy shark'=0.45,
-                        'sandbar shark'=0.4,
-                        'whiskery shark'=0.45) 
+alternative.sigmaR_up=list('dusky shark'=0.41,     
+                        'gummy shark'=0.51,
+                        'sandbar shark'=0.46,
+                        'whiskery shark'=0.42) 
 alternative.do_recdev=NULL  #"sandbar shark"; Sensitivity for do_recdev method (effect on rec_devs)
 do_recdev_1="sandbar shark"
 Early_rec_dev_start='mat'     #fixed years (e.g. -5) or age-at-maturity; allow several years for population to stabilize (any non 0 will plot long series of early rec devs); 0 gummy Andre 2009

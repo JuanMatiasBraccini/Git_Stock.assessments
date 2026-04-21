@@ -2298,7 +2298,6 @@ for(i in 1:N.sp)
      
     
     #create SS inputs 
-    #for(s in 1:1)
     for(s in 1:length(Store.sens))  
     {
       this.wd1=paste(this.wd,names(Store.sens)[s],sep='/')
@@ -2980,7 +2979,17 @@ for(i in 1:N.sp)
           if(Scens$estim.growth[s]=='No')  Life.history1$SS3.estim.growth.pars=FALSE
         }
         
-        #a.11 create file  
+        #a.11 reset CV's if required by scenario
+        if(!is.null(Abund))
+        {
+          if(!Scens[s,'extra.CV']=='NO')
+          {
+            ID.cvS=grep(Scens[s,'extra.CV'],rownames(Abund))
+            Abund[ID.cvS,'CV']=Abund[ID.cvS,'CV']*extra.CV.factor
+          }
+        }
+        
+        #a.12 create file  
         fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
                      new.path=this.wd1,
                      Scenario=Scens[s,]%>%mutate(Model='SS'),
@@ -3099,14 +3108,14 @@ for(i in c(1,3,4))
 
 
 #-----------  tune model and calculate RAMP years-------------------------------------------------------------------------
-#takes 1800 sec for indicator species
+#takes 3444 sec for indicator species
 #this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/test scenarios/tunning_Whiskery'
 this.wd='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/tunning'
 #this.wd1=this.wd2
 #tune ramp years (blue and red lines should match)
 Scens=list.files(this.wd)
 tic("timer")
-for(s in 10:length(Scens)) #for(s in 1:length(Scens))
+for(s in 1:length(Scens)) #for(s in 1:length(Scens))
 {
   this.wd1=paste(this.wd,Scens[s],sep='/')
   print(paste('Tunning ------------------',Scens[s],'-------------------------'))
@@ -3647,18 +3656,22 @@ rbind(Report_S1$cpue%>%dplyr::select(Fleet,Yr,Obs)%>%mutate(Ass='S1'),
   theme_PA()+facet_wrap(~Fleet,scales='free')
 
 #-----------  Get probabilities and Risk-----------------------------------------------------
-handl_desktop=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/tunning',x,sep='/')
+handl_tune=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/tunning',x,sep='/')
+handl_tune.old=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/tunning_old',x,sep='/')
+
 Model.list.location=list(
-  '2026.dusky'=handl_desktop('Dusky'),
-  '2026.gummy'=handl_desktop('Gummy'),
-  '2026.gummy.singleArea'='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/Gummy',
-  '2026.sandbar'=handl_desktop('Sandbar'),
-  '2026.sandbar.noextraSD'='C:/Users/myb/OneDrive - Department of Primary Industries And Regional Development/Desktop/Sandbar no extra SD',
-  '2026.whiskery'=handl_desktop('Whiskery'),
-  '2022.dusky'=handl_OneDrive('Analyses/Population dynamics/1.Dusky shark/2022/SS3 integrated/S1'),
-  '2022.gummy'=handl_OneDrive('Analyses/Population dynamics/1.Gummy shark/2022/SS3 integrated/S1'),
-  '2022.sandbar'=handl_OneDrive('Analyses/Population dynamics/1.Sandbar shark/2022/SS3 integrated/S1'),
-  '2022.whiskery'=handl_OneDrive('Analyses/Population dynamics/1.Whiskery shark/2022/SS3 integrated/S1')
+  'dusky'=handl_OneDrive('Analyses/Population dynamics/1.Dusky shark/2026/SS3 integrated/S1'),
+  'gummy'=handl_OneDrive('Analyses/Population dynamics/1.Gummy shark/2026/SS3 integrated/S1'),
+  'sandbar'=handl_OneDrive('Analyses/Population dynamics/1.Sandbar shark/2026/SS3 integrated/S1'),
+  'whiskery'=handl_OneDrive('Analyses/Population dynamics/1.Whiskery shark/2026/SS3 integrated/S1'),
+ # 'dusky.old'=handl_tune.old('Dusky'),
+#  'gummy.old'=handl_tune.old('Gummy'),
+#  'sandbar.old'=handl_tune.old('Sandbar'),
+#  'whiskery.old'=handl_tune.old('Whiskery'),
+  'dusky_2022'=handl_OneDrive('Analyses/Population dynamics/1.Dusky shark/2022/SS3 integrated/S1'),
+  'gummy_2022'=handl_OneDrive('Analyses/Population dynamics/1.Gummy shark/2022/SS3 integrated/S1'),
+  'sandbar_2022'=handl_OneDrive('Analyses/Population dynamics/1.Sandbar shark/2022/SS3 integrated/S1'),
+  'whiskery_2022'=handl_OneDrive('Analyses/Population dynamics/1.Whiskery shark/2022/SS3 integrated/S1')
 )
 store.prob.like.risk=Model.list.location
 fn.get.prob.risk=function(report.location, SP, ASS)

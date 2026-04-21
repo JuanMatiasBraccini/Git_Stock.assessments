@@ -507,7 +507,8 @@ for(l in 1:N.sp)
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
   }
 
-    #4.1.1.5 Calculate extra SD for Q 
+    #4.1.1.5 Add extra variability to abundance index 
+      #extra SD for Q
   extra.es.d='NO'
   if(NeiM%in%names(extra.SD.Q.species)) extra.es.d=extra.SD.Q.species[[NeiM]]
   List.sp[[l]]$Sens.test$SS$extra.SD.Q=extra.es.d
@@ -517,9 +518,19 @@ for(l in 1:N.sp)
       mutate(extra.SD.Q='NO',
              Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
     List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
-    
   }
-  
+      #extra CV
+  extra.CV='NO'
+  if(NeiM%in%names(extra.CV.species)) extra.CV=extra.CV.species[[NeiM]]
+  List.sp[[l]]$Sens.test$SS$extra.CV=extra.CV
+  if(NeiM%in%names(extra.CV.species) & test.effect.extra.CV)
+  {
+    add.dumi=List.sp[[l]]$Sens.test$SS[1,]%>%
+      mutate(extra.CV='NO',
+             Scenario=paste0('S',nrow(List.sp[[l]]$Sens.test$SS)+1))
+    List.sp[[l]]$Sens.test$SS=rbind(List.sp[[l]]$Sens.test$SS,add.dumi)
+  }
+
     #4.1.1.6 Alternative dome-shaped selectivity for NSF and survey
   SS.sel.init.pars=SS_selectivity_init_pars%>%filter(Species==NeiM)
   SS.sel.prior.pars=SS_selectivity_priors%>%filter(Species==NeiM)

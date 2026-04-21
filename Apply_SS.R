@@ -2970,7 +2970,17 @@ for(w in 1:n.SS)
                   if(Scens$estim.growth[s]=='No')  Life.history1$SS3.estim.growth.pars=FALSE
                 }
                 
-                #a.11 create file  
+                #a.11 reset CV's if required by scenario
+                if(!is.null(Abund))
+                {
+                  if(!Scens[s,'extra.CV']=='NO')
+                  {
+                    ID.cvS=grep(Scens[s,'extra.CV'],rownames(Abund))
+                    Abund[ID.cvS,'CV']=Abund[ID.cvS,'CV']*extra.CV.factor
+                  }
+                }
+                
+                #a.12 create file  
                 fn.set.up.SS(Templates=handl_OneDrive('SS3/Examples/SS'),   
                              new.path=this.wd1,
                              Scenario=Scens[s,]%>%mutate(Model='SS'),
@@ -3029,7 +3039,7 @@ for(w in 1:n.SS)
               }
               
               
-                #tune model and calculate RAMP years
+                #tune model and calculate RAMP years (takes 3444 secs for indicator species)
               #note: var adjust and ramp already reset in '#a.5 Reset rec pars for tuning'
               #      update ramp years in 'SS3.Recruitment.inputs.csv' using 'Ramp_years_first round'  
               #      and sample sizes in 'SS3.tune_size_comp_effective_sample.csv' if single area model or

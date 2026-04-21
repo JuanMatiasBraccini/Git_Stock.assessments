@@ -226,6 +226,19 @@ for(w in 1:length(State.Space.SPM))
                 mutate(TDGDLF.monthly2.CV=ifelse(Year%in%List.sp[[i]]$Yr_second_q,TDGDLF.monthly.CV,NA),
                        TDGDLF.monthly.CV=ifelse(Year%in%List.sp[[i]]$Yr_second_q,NA,TDGDLF.monthly.CV))
             }
+            #add extra QSD or CV to make it comparable to SS models
+            if(Neim%in%names(extra.SD.Q.species) | Neim%in%names(extra.CV.species)) 
+            {
+              if(Neim%in%names(extra.CV.species))
+              {
+                ID.kls=grep(extra.CV.species[[Neim]],colnames(Cpues.SE))
+              }
+              if(Neim%in%names(extra.SD.Q.species))
+              {
+                ID.kls=grep(extra.SD.Q.species[[Neim]],colnames(Cpues.SE))
+              }
+              Cpues.SE[,ID.kls]=Cpues.SE[,ID.kls]*extra.CV.factor
+            }
             
             #Scenarios
             Scens=List.sp[[i]]$Sens.test$JABBA%>%
@@ -870,6 +883,20 @@ for(w in 1:length(State.Space.SPM))
               Cpues.SE=Cpues.SE%>%
                 mutate(TDGDLF.monthly2.CV=ifelse(Year%in%List.sp[[i]]$Yr_second_q,TDGDLF.monthly.CV,NA),
                        TDGDLF.monthly.CV=ifelse(Year%in%List.sp[[i]]$Yr_second_q,NA,TDGDLF.monthly.CV))
+            }
+            
+            #add extra QSD or CV to make it comparable to SS models
+            if(Neim%in%names(extra.SD.Q.species) | Neim%in%names(extra.CV.species)) #NEW add below
+            {
+              if(Neim%in%names(extra.CV.species))
+              {
+                ID.kls=grep(extra.CV.species[[Neim]],colnames(Cpues.SE))
+              }
+              if(Neim%in%names(extra.SD.Q.species))
+              {
+                ID.kls=grep(extra.SD.Q.species[[Neim]],colnames(Cpues.SE))
+              }
+              Cpues.SE[,ID.kls]=Cpues.SE[,ID.kls]*extra.CV.factor
             }
             
             #Scenarios
