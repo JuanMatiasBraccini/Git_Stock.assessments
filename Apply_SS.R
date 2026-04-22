@@ -15,9 +15,12 @@ for(w in 1:n.SS)
       opts <- list(progress = progress)
       cl <- makeCluster(detectCores()-1)
       registerDoSNOW(cl)
-      out.species=foreach(i= 1:N.sp,.options.snow = opts,.packages=c('gridExtra','Hmisc','JABBA','strex',
-                                                                     'TruncatedDistributions','tidyverse','r4ss',
-                                                                     'mvtnorm','ggrepel','ss3diags','ggpubr')) %dopar%
+      out.species=foreach(i= 1:N.sp,  
+                          .options.snow = opts,
+                          .errorhandling = 'pass',
+                          .packages=c('gridExtra','Hmisc','JABBA','strex',
+                                       'TruncatedDistributions','tidyverse','r4ss',
+                                      'mvtnorm','ggrepel','ss3diags','ggpubr')) %dopar%
       {
         Neim=Keep.species[i]
         
@@ -369,7 +372,8 @@ for(w in 1:n.SS)
                     summarise(n=sum(n))%>%
                     ungroup()%>%
                     filter(!is.na(year))%>%
-                    filter(!is.na(fishry))
+                    filter(!is.na(fishry))%>%
+                    data.frame()
               
               MAXX=max(d.list$size.class)
               Tab.si.kl=table(d.list$size.class)
@@ -479,27 +483,38 @@ for(w in 1:n.SS)
                 id.var.nms.f=which(!names(d.list.f)%in%vars.head)
                 id.var.nms.m=length(id.var.nms.f)+which(!names(d.list.m)%in%vars.head)
                 
-                dummy.zeros.0=d.list.0[,-match(vars.head,names(d.list.0))]
-                dummy.zeros.0[,]=0
-                dummy.zeros.f=d.list.f[,-match(vars.head,names(d.list.f))]
-                dummy.zeros.f[,]=0
-                dummy.zeros.m=d.list.m[,-match(vars.head,names(d.list.m))]
-                dummy.zeros.m[,]=0
-                
                 if(nrow(d.list.0)>0)  
                 {
-                  dummy.Size.compo.SS.format_Sex0=cbind(d.list.0,dummy.zeros.0)
-                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f],sep='')
-                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m],sep='')
+                  dummy.zeros.0=d.list.0[,-match(vars.head,names(d.list.0))]
+                  dummy.zeros.0[,]=0
+                  names(d.list.0)[id.var.nms.f]=paste('f',names(d.list.0)[id.var.nms.f],sep='')  
+                  names(dummy.zeros.0)=paste('m',names(dummy.zeros.0),sep='')
+                  dummy.Size.compo.SS.format_Sex0=bind_cols(d.list.0,dummy.zeros.0)%>%
+                                                        mutate(Sex=as.numeric(Sex))
+
                 }
                 if(nrow(d.list.f)>0)
                 {
-                  dummy.Size.compo.SS.format_Sex=rbind(cbind(d.list.f,dummy.zeros.f),
-                                                       cbind(d.list.m[,match(vars.head,names(d.list.m))],
-                                                             dummy.zeros.m,
-                                                             d.list.m[,-match(vars.head,names(d.list.m))]))
-                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f],sep='')
-                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m],sep='')
+                  dummy.zeros.f=d.list.f[,-match(vars.head,names(d.list.f))]
+                  dummy.zeros.f[,]=0
+                  dummy.zeros.m=d.list.m[,-match(vars.head,names(d.list.m))]
+                  dummy.zeros.m[,]=0
+                  
+                  Fem.Da=d.list.f%>%data.frame(check.names = FALSE)       
+                  names(Fem.Da)[id.var.nms.f]=paste('f',names(Fem.Da)[id.var.nms.f],sep='')
+                  Fem.Da.0=dummy.zeros.f%>%data.frame(check.names = FALSE)
+                  names(Fem.Da.0)=paste('m',names(Fem.Da.0),sep='')
+                  Fem.Da=bind_cols(Fem.Da,Fem.Da.0)
+                  
+                  Mal.hdr=d.list.m[,match(vars.head,names(d.list.m))]%>%data.frame(check.names = FALSE)
+                  Mal.Da.0=dummy.zeros.m%>%data.frame(check.names = FALSE)
+                  names(Mal.Da.0)=paste('f',names(Mal.Da.0),sep='')
+                  Mal.Da=d.list.m[,-match(vars.head,names(d.list.m))]%>%data.frame(check.names = FALSE)
+                  names(Mal.Da)=paste('m',names(Mal.Da),sep='')
+                  Mal.Da=bind_cols(Mal.hdr,Mal.Da.0,Mal.Da)
+                  
+                  dummy.Size.compo.SS.format_Sex=bind_rows(Fem.Da,Mal.Da)%>%
+                                                    mutate(Sex=as.numeric(Sex))
                 }  
                 if(!exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
                 {
@@ -511,7 +526,7 @@ for(w in 1:n.SS)
                 }
                 if(exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
                 {
-                  dummy.Size.compo.SS.format=rbind(dummy.Size.compo.SS.format_Sex0,dummy.Size.compo.SS.format_Sex)
+                  dummy.Size.compo.SS.format=bind_rows(dummy.Size.compo.SS.format_Sex0,dummy.Size.compo.SS.format_Sex)
                 }
                 clear.log('dummy.Size.compo.SS.format_Sex0')
                 clear.log('dummy.Size.compo.SS.format_Sex')
@@ -604,20 +619,21 @@ for(w in 1:n.SS)
               {
                 NM=names(d.list)[s]
                 d.list[[s]]=d.list[[s]]%>%
-                  filter(FL>=Life.history$Lzero)%>%
-                  mutate(fishry=ifelse(grepl("NSF.LONGLINE",NM),'NSF',
-                                       ifelse(grepl("Survey",NM),'Survey',
-                                              ifelse(grepl("Other",NM),'Other',
-                                                     'TDGDLF'))),
-                         year=as.numeric(substr(FINYEAR,1,4)),
-                         TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
-                         size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
-                  filter(TL<=with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))%>%
-                  dplyr::rename(sex=SEX)%>%
-                  filter(!is.na(sex))%>%
-                  group_by(year,fishry,sex,size.class)%>%
-                  summarise(n=n())%>%
-                  ungroup()
+                              filter(FL>=Life.history$Lzero)%>%
+                              mutate(fishry=ifelse(grepl("NSF.LONGLINE",NM),'NSF',
+                                                   ifelse(grepl("Survey",NM),'Survey',
+                                                          ifelse(grepl("Other",NM),'Other',
+                                                                 'TDGDLF'))),
+                                     year=as.numeric(substr(FINYEAR,1,4)),
+                                     TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
+                                     size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
+                              filter(TL<=with(Life.history,max(c(TLmax,Growth.F$FL_inf*a_FL.to.TL+b_FL.to.TL))))%>%
+                              dplyr::rename(sex=SEX)%>%
+                              filter(!is.na(sex))%>%
+                              group_by(year,fishry,sex,size.class)%>%
+                              summarise(n=n())%>%
+                              ungroup()%>%
+                              data.frame()
                 if(grepl(paste(c('West','Zone1','Zone2'),collapse='|'),NM))
                 {
                   ZnE=sub("\\..*", "", str_remove(NM,"Size_composition_"))
@@ -641,7 +657,7 @@ for(w in 1:n.SS)
                   add.dumi.size=d.list[[s]][1:length(extra.bins),]%>%
                     mutate(size.class=extra.bins,
                            n=0)
-                  d.list[[s]]=rbind(d.list[[s]],add.dumi.size)
+                  d.list[[s]]=bind_rows(d.list[[s]],add.dumi.size)
                 }
               }
               d.list <- d.list[!is.na(d.list)]
@@ -854,27 +870,39 @@ for(w in 1:n.SS)
                 id.var.nms.f=which(!names(d.list.f)%in%vars.head)
                 id.var.nms.m=length(id.var.nms.f)+which(!names(d.list.m)%in%vars.head)
                 
-                dummy.zeros.0=d.list.0[,-match(vars.head,names(d.list.0))]
-                dummy.zeros.0[,]=0
-                dummy.zeros.f=d.list.f[,-match(vars.head,names(d.list.f))]
-                dummy.zeros.f[,]=0
-                dummy.zeros.m=d.list.m[,-match(vars.head,names(d.list.m))]
-                dummy.zeros.m[,]=0
-                
                 if(nrow(d.list.0)>0)  
                 {
-                  dummy.Size.compo.SS.format_Sex0=cbind(d.list.0,dummy.zeros.0)
-                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.f],sep='')
-                  names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex0)[id.var.nms.m],sep='')
+                  dummy.zeros.0=d.list.0[,-match(vars.head,names(d.list.0))]
+                  dummy.zeros.0[,]=0
+                  names(d.list.0)[id.var.nms.f]=paste('f',names(d.list.0)[id.var.nms.f],sep='')  
+                  names(dummy.zeros.0)=paste('m',names(dummy.zeros.0),sep='')  
+                  dummy.Size.compo.SS.format_Sex0=bind_cols(d.list.0,dummy.zeros.0)%>%
+                                                    mutate(Sex=as.numeric(Sex))
+
+                  
                 }
                 if(nrow(d.list.f)>0)
                 {
-                  dummy.Size.compo.SS.format_Sex=rbind(cbind(d.list.f,dummy.zeros.f),
-                                                       cbind(d.list.m[,match(vars.head,names(d.list.m))],
-                                                             dummy.zeros.m,
-                                                             d.list.m[,-match(vars.head,names(d.list.m))]))
-                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f]=paste('f',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.f],sep='')
-                  names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m]=paste('m',names(dummy.Size.compo.SS.format_Sex)[id.var.nms.m],sep='')
+                  dummy.zeros.f=d.list.f[,-match(vars.head,names(d.list.f))]
+                  dummy.zeros.f[,]=0
+                  dummy.zeros.m=d.list.m[,-match(vars.head,names(d.list.m))]
+                  dummy.zeros.m[,]=0
+                  
+                  Fem.Da=d.list.f%>%data.frame(check.names = FALSE)       
+                  names(Fem.Da)[id.var.nms.f]=paste('f',names(Fem.Da)[id.var.nms.f],sep='')
+                  Fem.Da.0=dummy.zeros.f%>%data.frame(check.names = FALSE)
+                  names(Fem.Da.0)=paste('m',names(Fem.Da.0),sep='')
+                  Fem.Da=bind_cols(Fem.Da,Fem.Da.0)
+                  
+                  Mal.hdr=d.list.m[,match(vars.head,names(d.list.m))]%>%data.frame(check.names = FALSE)
+                  Mal.Da.0=dummy.zeros.m%>%data.frame(check.names = FALSE)
+                  names(Mal.Da.0)=paste('f',names(Mal.Da.0),sep='')
+                  Mal.Da=d.list.m[,-match(vars.head,names(d.list.m))]%>%data.frame(check.names = FALSE)
+                  names(Mal.Da)=paste('m',names(Mal.Da),sep='')
+                  Mal.Da=bind_cols(Mal.hdr,Mal.Da.0,Mal.Da)
+                  
+                  dummy.Size.compo.SS.format_Sex=bind_rows(Fem.Da,Mal.Da)%>%
+                                                    mutate(Sex=as.numeric(Sex)) 
                 }  
                 if(!exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
                 {
@@ -886,7 +914,7 @@ for(w in 1:n.SS)
                 }
                 if(exists('dummy.Size.compo.SS.format_Sex0') & exists('dummy.Size.compo.SS.format_Sex'))
                 {
-                  dummy.Size.compo.SS.format=rbind(dummy.Size.compo.SS.format_Sex0,dummy.Size.compo.SS.format_Sex)
+                  dummy.Size.compo.SS.format=bind_rows(dummy.Size.compo.SS.format_Sex0,dummy.Size.compo.SS.format_Sex)
                 }
                 clear.log('dummy.Size.compo.SS.format_Sex0')
                 clear.log('dummy.Size.compo.SS.format_Sex')
@@ -2269,20 +2297,31 @@ for(w in 1:n.SS)
               }
             }
             
-            #drop irrelevant lambda scenarios   
+            #drop irrelevant lambda scenarios  #ACA 
             if('like_comp.w'%in%names(Scens))
             {
               if(is.null(Abundance.SS.format) & is.null(Abundance.SS.format.zone))
               {
                 DROP.ABU=which(Scens$like_comp.w==1)
-                if(length(DROP.ABU)>0) Scens=Scens[-DROP.ABU,]
+                if(length(DROP.ABU)>0)
+                {
+                  Scens=Scens[-DROP.ABU,]
+                  List.sp[[i]]$Sens.test$SS=List.sp[[i]]$Sens.test$SS[-DROP.ABU,]
+                }
+                  
               }
               if(is.null(Size.compo.SS.format) & is.null(Size.compo.SS.format.zone))
               {
                 DROP.SIZ=which(Scens$like_comp.w==4)
-                if(length(DROP.SIZ)>0) Scens=Scens[-DROP.SIZ,]
+                if(length(DROP.SIZ)>0)
+                {
+                  Scens=Scens[-DROP.SIZ,]
+                  List.sp[[i]]$Sens.test$SS=List.sp[[i]]$Sens.test$SS[-DROP.SIZ,]
+                }
+                  
               }
               Scens$Scenario=paste0('S',1:nrow(Scens))
+              List.sp[[i]]$Sens.test$SS$Scenario=paste0('S',1:nrow(List.sp[[i]]$Sens.test$SS))
               Store.sens=Store.sens[Scens$Scenario]
             }
 
@@ -2999,7 +3038,12 @@ for(w in 1:n.SS)
                              MeanSize.at.Age.obs=MeanSize.at.Age.obs.SS.format,
                              Lamdas=Lamdas.SS.lambdas,
                              Var.adjust.factor=Var.ad,
-                             Future.project=add.future)    
+                             Future.project=add.future)   
+                clear.log("Abund")
+                clear.log("Size.com")
+                clear.log("meanbody")
+                clear.log("tags")
+                clear.log("Var.ad")
               }
               
               #b. Run SS3
@@ -3721,6 +3765,23 @@ if(SS3.run=='final')
     {
       print(paste("Compare scenarios for ------------",Neim))
       Scens=List.sp[[i]]$Sens.test$SS
+      
+      #drop irrelevant lambda scenarios   
+      if('like_comp.w'%in%names(Scens))
+      {
+        if(is.null(Abundance.SS.format) & is.null(Abundance.SS.format.zone))
+        {
+          DROP.ABU=which(Scens$like_comp.w==1)
+          if(length(DROP.ABU)>0) Scens=Scens[-DROP.ABU,]
+        }
+        if(is.null(Size.compo.SS.format) & is.null(Size.compo.SS.format.zone))
+        {
+          DROP.SIZ=which(Scens$like_comp.w==4)
+          if(length(DROP.SIZ)>0) Scens=Scens[-DROP.SIZ,]
+        }
+        Scens$Scenario=paste0('S',1:nrow(Scens))
+      }
+
       LIST=vector('list',nrow(Scens))
       names(LIST)=Scens$Scenario
       for(s in 1:nrow(Scens))

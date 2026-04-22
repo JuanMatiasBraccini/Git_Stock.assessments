@@ -27,7 +27,7 @@ remove.offset.no.data=FALSE
 
 
 #-----------  set up Scens-------------------------------------------------------------------------
-for(i in 1:N.sp)
+for(i in 1:1)
 {
   Neim=Keep.species[i]
   print(paste("-------------------------",Neim,"---------------------------"))
@@ -3024,15 +3024,15 @@ for(i in 1:N.sp)
 #-----------  Run all scenarios and species-------------------------------------------------------------------------
 Arg='-nohess'
 tic("timer")
-only.dis.scen='S1'
-for(i in 1:N.sp)
+#only.dis.scen='S1'
+for(i in c(1,3)) #for(i in 1:N.sp)
 {
   Neim=Keep.species[i]
   this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
   Scens=List.sp[[i]]$Sens.test$SS
-  if(!is.null(only.dis.scen)) Scens=Scens%>%filter(Scenario%in%only.dis.scen)
+  #if(!is.null(only.dis.scen)) Scens=Scens%>%filter(Scenario%in%only.dis.scen)
   
-  for(s in 1:nrow(Scens))
+  for(s in 2:nrow(Scens))
   {
     this.wd1=paste(this.wd,Scens$Scenario[s],sep='/')
     fn.run.SS(where.inputs=this.wd1,  where.exe=Where.exe, args=Arg)
