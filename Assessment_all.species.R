@@ -159,7 +159,7 @@ do.Size.based.Catch.curve=FALSE
 do.Dynamic.catch.size.comp=FALSE #superseded by length-only SS3 (also, not yet implemented properly)
 
   #2.4 Level 4
-Do.StateSpaceSPM=FALSE
+Do.StateSpaceSPM=TRUE
 
   #2.5 Level 5
 Do.integrated=TRUE  #integrated SS3
@@ -699,12 +699,13 @@ Lambda.species=list("dusky shark"=c(3:8,10), #fleets with alternative lambdas fo
   #21.15 Fit diagnostics
 #note: very time consuming. Only run once model is defined.
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
-Number.of.jitters=50              
+Number.of.jitters=50
+jitters.frction=0.1   #0.05; 0.1 recommended by r4ss Help
 Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.
 Approach.like.prof='SE' #set to 'min.plus' for sequence between [MLE -Number.of.likelihood.profiles] and [MLE +Number.of.likelihood.profiles]
 Number.of.likelihood.profiles.h=6
-diag.extras=""  #"-nohess" to remove hessian estimation (much faster but no uncertainty)
+diag.extras=""  # 5 times faster with "-nohess" but no uncertainty estimation
 like.prof.case='standard'  #as per r4ss (not estimating Hessian by setting extras); set to 'faster' for faster run
 
 

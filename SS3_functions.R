@@ -2606,7 +2606,7 @@ fn.like.range=function(Par.mle,min.par,Par.SE,up,low,ln.out,seq.approach='SE')
 }
 fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.vec.F=NA,Linf.vec.M=NA,
                          exe_path,start.retro=0,end.retro=5,
-                         do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,
+                         do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,fracjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=TRUE,
                          COVAR=FALSE,h.input=NULL,drop_LP_CurSB=TRUE,
                          Par_var_profile=c("R0","h","M","Depl","CurSB"))
@@ -3272,6 +3272,10 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     if(!dir.exists(dirname.Jitter)) dir.create(path=dirname.Jitter, showWarnings = TRUE, recursive = TRUE)
     file.copy(Sys.glob(paste(WD, "*.*", sep="/"), dirmark = FALSE),dirname.Jitter)
     
+    #Set extras
+    Extras=diag.extras
+    if(run.in.parallel) Extras='-nohess'  #recomended by r4ss Help file
+    
     #Run jitter in parallel
     if(run.in.parallel)
     {
@@ -3280,11 +3284,11 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     }
     jit.likes <- r4ss::jitter(dir = dirname.Jitter,
                               Njitter = numjitter,
-                              jitter_fraction =0.1 ,  #0.05
+                              jitter_fraction =fracjitter,  
                               init_values_src = 0,
                               exe=exe_path,
                               verbose = FALSE,
-                              extras=diag.extras) # 5 times faster with "-nohess" but no uncertainty estim
+                              extras=Extras) 
     future::plan(future::sequential)
     
     #Read in results using other r4ss functions
