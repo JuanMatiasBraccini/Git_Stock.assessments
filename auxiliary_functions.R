@@ -4475,103 +4475,106 @@ fn.plot.timeseries=function(d,sp,Type,YLAB,add.50=FALSE,add.sp.nm=FALSE)
   store.plots=vector('list',length(mods))
   names(store.plots)=mods
   store.probs=str.ref.point=store.plots
-  id=match(sp,Keep.species)
-  for(m in 1:length(mods))
+  id=match(sp,names(d[[1]]$estimates)) 
+  if(!is.na(id))
   {
-    if(!is.null(d[[m]]$estimates[[id]]))
+    for(m in 1:length(mods))
     {
-      Hline=NULL 
-      addKtch=FALSE
-      if(Type=='F.series')
+      if(!is.null(d[[m]]$estimates[[id]]))
       {
-        Hline=TRUE
-        Var=d[[m]]$f.series[[id]]
-        didi=d[[m]]$estimates[[id]]
-        if(!'Median'%in%names(didi)) didi=didi%>%rename(Median=Value)
-        if(!'Parameter'%in%names(didi)) didi=didi%>%rename(Parameter=Par)
-        didi=didi%>%
-          dplyr::select(Parameter,Scenario,Median)%>%
-          filter(Parameter%in%c('F.target','F.threshold','F.limit'))
-        dis=data.frame(Target=didi%>%filter(Parameter=='F.target')%>%pull(Median),
-                       Threshold=didi%>%filter(Parameter=='F.threshold')%>%pull(Median),
-                       Limit=didi%>%filter(Parameter=='F.limit')%>%pull(Median),
-                       Scenario=unique(didi$Scenario))
-        Var=Var%>%left_join(dis,by='Scenario')
+        Hline=NULL 
+        addKtch=FALSE
+        if(Type=='F.series')
+        {
+          Hline=TRUE
+          Var=d[[m]]$f.series[[id]]
+          didi=d[[m]]$estimates[[id]]
+          if(!'Median'%in%names(didi)) didi=didi%>%rename(Median=Value)
+          if(!'Parameter'%in%names(didi)) didi=didi%>%rename(Parameter=Par)
+          didi=didi%>%
+            dplyr::select(Parameter,Scenario,Median)%>%
+            filter(Parameter%in%c('F.target','F.threshold','F.limit'))
+          dis=data.frame(Target=didi%>%filter(Parameter=='F.target')%>%pull(Median),
+                         Threshold=didi%>%filter(Parameter=='F.threshold')%>%pull(Median),
+                         Limit=didi%>%filter(Parameter=='F.limit')%>%pull(Median),
+                         Scenario=unique(didi$Scenario))
+          Var=Var%>%left_join(dis,by='Scenario')
+        }
+        if(Type=='B.Bmsy')
+        {
+          Hline=TRUE  
+          Var=d[[m]]$B.Bmsy[[id]]
+          dis=data.frame(Limit=Lim.prop.bmsy,Target=Tar.prop.bmsny,Threshold=1,Scenario=unique(Var$Scenario))
+          Var=Var%>%left_join(dis,by='Scenario')
+          YLAB=expression("B/B"[MSY])
+        }
+        if(Type=='F.Fmsy')
+        {
+          Hline=TRUE  
+          Var=d[[m]]$F.Fmsy[[id]]
+          dis=data.frame(Target=1-(Tar.prop.bmsny-1),
+                         Threshold=1,
+                         Limit=1+Lim.prop.bmsy,
+                         Scenario=unique(Var$Scenario))
+          Var=Var%>%left_join(dis,by='Scenario')
+          YLAB=expression("F/F"[MSY])
+        }
+        if(Type=='Depletion')
+        {
+          addKtch=TRUE
+          Var=d[[m]]$rel.biom[[id]]
+          str.prob=compact(d[[m]]$probs.rel.biom[[id]])   
+          #dis=str.prob[[1]]$Reference.points   
+          dis=fn.get.stuff.from.list(str.prob,'Reference.points')
+          for(y in 1:length(dis)) dis[[y]]$Scenario=paste('S',y,sep='')
+          Var=Var%>%left_join(do.call(rbind,dis)%>%spread(Rf.pt,Value),by='Scenario')
+          Hline='YES'
+          str.ref.point[[m]]=dis
+          #Hline=str.ref.point[[m]]$Value
+          store.probs[[m]]=do.call(rbind,sapply(str.prob,'[',1))%>%  
+            mutate(Model=names(store.probs)[m])
+        }
+        Nfacets=1
+        if(length(unique(Var$Scenario))>6) Nfacets=2
+        Var=Var%>%
+          mutate(Scenario=factor(Scenario,levels=unique(Var$Scenario)))
+        store.plots[[m]]=fn.ribbon(Dat=Var,  
+                                   YLAB='',
+                                   XLAB="",
+                                   Titl=names(d)[m],
+                                   HLIne=Hline,
+                                   addKtch=addKtch,
+                                   nfacets=Nfacets)
+        
       }
-      if(Type=='B.Bmsy')
+    }
+    store.plots=compact(store.plots)
+    if(length(store.plots)>0)
+    {
+      figure=ggarrange(plotlist=store.plots, nrow = length(mods),common.legend=TRUE)
+      if(add.sp.nm) figure=figure+theme(plot.margin = margin(1,0,0,0, "cm"))
+      
+      figure=annotate_figure(figure,
+                             bottom = text_grob('Financial year',size=26,vjust =-0.15),
+                             left = text_grob(YLAB,size=26,rot = 90,vjust=0.8))
+      if(add.sp.nm) figure=annotate_figure(figure,
+                                           fig.lab=capitalize(sp),
+                                           fig.lab.pos='top.left',
+                                           fig.lab.size=28)
+      if(addKtch)
       {
-        Hline=TRUE  
-        Var=d[[m]]$B.Bmsy[[id]]
-        dis=data.frame(Limit=Lim.prop.bmsy,Target=Tar.prop.bmsny,Threshold=1,Scenario=unique(Var$Scenario))
-        Var=Var%>%left_join(dis,by='Scenario')
-        YLAB=expression("B/B"[MSY])
+        figure=annotate_figure(figure,
+                               right=text_grob('Total catch (tonnes)',size=26,rot = 90,
+                                               color ='dodgerblue4',vjust=0))
       }
-      if(Type=='F.Fmsy')
-      {
-        Hline=TRUE  
-        Var=d[[m]]$F.Fmsy[[id]]
-        dis=data.frame(Target=1-(Tar.prop.bmsny-1),
-                       Threshold=1,
-                       Limit=1+Lim.prop.bmsy,
-                       Scenario=unique(Var$Scenario))
-        Var=Var%>%left_join(dis,by='Scenario')
-        YLAB=expression("F/F"[MSY])
-      }
-      if(Type=='Depletion')
-      {
-        addKtch=TRUE
-        Var=d[[m]]$rel.biom[[id]]
-        str.prob=compact(d[[m]]$probs.rel.biom[[id]])   
-        #dis=str.prob[[1]]$Reference.points   
-        dis=fn.get.stuff.from.list(str.prob,'Reference.points')
-        for(y in 1:length(dis)) dis[[y]]$Scenario=paste('S',y,sep='')
-        Var=Var%>%left_join(do.call(rbind,dis)%>%spread(Rf.pt,Value),by='Scenario')
-        Hline='YES'
-        str.ref.point[[m]]=dis
-        #Hline=str.ref.point[[m]]$Value
-        store.probs[[m]]=do.call(rbind,sapply(str.prob,'[',1))%>%  
-          mutate(Model=names(store.probs)[m])
-      }
-      Nfacets=1
-      if(length(unique(Var$Scenario))>6) Nfacets=2
-      Var=Var%>%
-            mutate(Scenario=factor(Scenario,levels=unique(Var$Scenario)))
-      store.plots[[m]]=fn.ribbon(Dat=Var,  
-                                 YLAB='',
-                                 XLAB="",
-                                 Titl=names(d)[m],
-                                 HLIne=Hline,
-                                 addKtch=addKtch,
-                                 nfacets=Nfacets)
+      
+      print(figure)      
+      store.probs=do.call(rbind,store.probs)
+      rownames(store.probs)=NULL
+      return(list(store.probs=store.probs,Ref.points=str.ref.point))
       
     }
-  }
-  store.plots=compact(store.plots)
-  if(length(store.plots)>0)
-  {
-    figure=ggarrange(plotlist=store.plots, nrow = length(mods),common.legend=TRUE)
-    if(add.sp.nm) figure=figure+theme(plot.margin = margin(1,0,0,0, "cm"))
-
-    figure=annotate_figure(figure,
-                           bottom = text_grob('Financial year',size=26,vjust =-0.15),
-                           left = text_grob(YLAB,size=26,rot = 90,vjust=0.8))
-    if(add.sp.nm) figure=annotate_figure(figure,
-                                         fig.lab=capitalize(sp),
-                                         fig.lab.pos='top.left',
-                                         fig.lab.size=28)
-    if(addKtch)
-    {
-      figure=annotate_figure(figure,
-                             right=text_grob('Total catch (tonnes)',size=26,rot = 90,
-                                             color ='dodgerblue4',vjust=0))
-    }
-    
-    print(figure)      
-    store.probs=do.call(rbind,store.probs)
-    rownames(store.probs)=NULL
-    return(list(store.probs=store.probs,Ref.points=str.ref.point))
-    
-  }
+  }else return(NULL)
 }
 fn.plot.timeseries_combined=function(this.sp,d,YLAB,Type,InnerMargin,RefPoint,Kach,SCEn='S1')
 {
@@ -4879,7 +4882,9 @@ fn.plot.timeseries_combined_sensitivity=function(this.sp,d,InnerMargin,RefPoint,
       ggplot(aes(year,median,color=Scenario))+
       facet_wrap(~Species,ncol=nKL)+
       geom_ribbon(aes(ymin = lower.95, ymax = upper.95,fill=Scenario), alpha = 0.1)+
-      geom_line(size=2)+
+      geom_line(size=1.25)+
+      #geom_line(aes(y = upper.95, color = Scenario), linetype = "dotted")+
+      #geom_line(aes(y = lower.95, color = Scenario), linetype = "dotted")+
       guides(color = guide_legend(nrow = 1),fill= guide_legend(nrow = 1))+
       ylim(0,max(ach$upper.95))+
       theme_PA(strx.siz=14)+
@@ -5186,181 +5191,183 @@ kobePlot <- function(f.traj,b.traj,Years,Titl,Probs=NULL,txt.col='black',YrSize=
 }
 fn.get.Kobe.plot_appendix=function(d,sp,Scen='S1',add.sp.nm=FALSE,do.probs=FALSE,txt.size=6)
 {
-  id=match(sp,Keep.species)
-  
-  plotlist=vector('list',length(d))
-  names(plotlist)=names(d)
-  for(pp in 1:length(d))
+  id=match(sp,names(d[[1]]$estimates)) #id=match(sp,Keep.species)
+  if(!is.na(id))  
   {
-    #DBSRA
-    if('DBSRA'%in%names(d)[[pp]])
+    plotlist=vector('list',length(d))
+    names(plotlist)=names(d)
+    for(pp in 1:length(d))
     {
-      dummy=d$DBSRA$B.Bmsy[[id]]%>%
-                  filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
-      yrs=dummy%>%pull(year)
-      Bmsy=dummy$median
-      Fmsy=d$DBSRA$F.Fmsy[[id]]%>%
-              filter(Scenario==Scen& year<=Last.yr.ktch.numeric)%>%
-              pull(median)
-      p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
-                       b.traj=Bmsy[1:length(yrs)],
-                       Years=yrs,
-                       Titl="DBSRA",
-                       YrSize=txt.size)
-      
-    }
-    
-    #CMSY
-    if('CMSY'%in%names(d)[[pp]])
-    {
-      if(CMSY.method=="Froese")
+      #DBSRA
+      if('DBSRA'%in%names(d)[[pp]])
       {
-        yrs=d$CMSY[[id]][[Scen]]$output$ref_ts$year
-        Bmsy=d$CMSY[[id]][[Scen]]$output$ref_ts$bbmsy
-        Fmsy=d$CMSY[[id]][[Scen]]$output$ref_ts$ffmsy
-        
-      }
-      if(CMSY.method=="Haddon")
-      {
-        dummy=d$CMSY$B.Bmsy[[id]]%>%
-                  filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
+        dummy=d$DBSRA$B.Bmsy[[id]]%>%
+          filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
         yrs=dummy%>%pull(year)
         Bmsy=dummy$median
-        Fmsy=d$CMSY$F.Fmsy[[id]]%>%
-              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
-              pull(median)
+        Fmsy=d$DBSRA$F.Fmsy[[id]]%>%
+          filter(Scenario==Scen& year<=Last.yr.ktch.numeric)%>%
+          pull(median)
+        p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
+                        b.traj=Bmsy[1:length(yrs)],
+                        Years=yrs,
+                        Titl="DBSRA",
+                        YrSize=txt.size)
+        
       }
-      p.plot=kobePlot(f.traj=Fmsy,
-                      b.traj=Bmsy,
-                      Years=yrs,
-                      Titl="CMSY",
-                      YrSize=txt.size)
       
-    }
-    
-    #JABBA
-    if('JABBA'%in%names(d)[[pp]])
-    {
-      dummy=d$JABBA$B.Bmsy[[id]]%>%
-                filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
-      yrs=dummy%>%pull(year)
-      Bmsy=dummy$median
-      Fmsy=d$JABBA$F.Fmsy[[id]]%>%
+      #CMSY
+      if('CMSY'%in%names(d)[[pp]])
+      {
+        if(CMSY.method=="Froese")
+        {
+          yrs=d$CMSY[[id]][[Scen]]$output$ref_ts$year
+          Bmsy=d$CMSY[[id]][[Scen]]$output$ref_ts$bbmsy
+          Fmsy=d$CMSY[[id]][[Scen]]$output$ref_ts$ffmsy
+          
+        }
+        if(CMSY.method=="Haddon")
+        {
+          dummy=d$CMSY$B.Bmsy[[id]]%>%
+            filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
+          yrs=dummy%>%pull(year)
+          Bmsy=dummy$median
+          Fmsy=d$CMSY$F.Fmsy[[id]]%>%
             filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
             pull(median)
-      if(!do.probs)
-      {
+        }
         p.plot=kobePlot(f.traj=Fmsy,
-                         b.traj=Bmsy,
-                         Years=yrs,
-                         Titl="JABBA",
+                        b.traj=Bmsy,
+                        Years=yrs,
+                        Titl="CMSY",
                         YrSize=txt.size)
+        
       }
-      if(do.probs)
+      
+      #JABBA
+      if('JABBA'%in%names(d)[[pp]])
       {
-        p.plot=kobePlot(f.traj=Fmsy,
-                         b.traj=Bmsy,
-                         Years=yrs,
-                         Titl="JABBA",
-                         Probs=data.frame(x=d$JABBA$Kobe.probs[[id]]$stock,  
-                                          y=d$JABBA$Kobe.probs[[id]]$harvest),
-                        YrSize=txt.size)
+        dummy=d$JABBA$B.Bmsy[[id]]%>%
+          filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
+        yrs=dummy%>%pull(year)
+        Bmsy=dummy$median
+        Fmsy=d$JABBA$F.Fmsy[[id]]%>%
+          filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
+          pull(median)
+        if(!do.probs)
+        {
+          p.plot=kobePlot(f.traj=Fmsy,
+                          b.traj=Bmsy,
+                          Years=yrs,
+                          Titl="JABBA",
+                          YrSize=txt.size)
+        }
+        if(do.probs)
+        {
+          p.plot=kobePlot(f.traj=Fmsy,
+                          b.traj=Bmsy,
+                          Years=yrs,
+                          Titl="JABBA",
+                          Probs=data.frame(x=d$JABBA$Kobe.probs[[id]]$stock,  
+                                           y=d$JABBA$Kobe.probs[[id]]$harvest),
+                          YrSize=txt.size)
+        }
       }
-    }
-    
-    #SSS
-    if('SSS'%in%names(d)[[pp]])
-    {
-      dummy=d$SSS$B.Bmsy[[id]]%>%
-              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
-      yrs=dummy%>%pull(year)
-      Bmsy=dummy$median
-      Fmsy=d$SSS$F.Fmsy[[id]]%>%
-              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
-              pull(median)
-      p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
-                     b.traj=Bmsy[1:length(yrs)],
-                     Years=yrs,
-                     Titl="SSS",
-                     YrSize=txt.size)
       
-    }
-    
-    #SS
-    if('SS'%in%names(d)[[pp]])
-    {
-      dummy=d$SS$B.Bmsy[[id]]%>%
-              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
-      yrs=dummy%>%pull(year)
-      Bmsy=dummy$median
-      Fmsy=d$SS$F.Fmsy[[id]]%>%
-              filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
-              pull(median)
-      
-      if(!do.probs)
+      #SSS
+      if('SSS'%in%names(d)[[pp]])
       {
+        dummy=d$SSS$B.Bmsy[[id]]%>%
+          filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
+        yrs=dummy%>%pull(year)
+        Bmsy=dummy$median
+        Fmsy=d$SSS$F.Fmsy[[id]]%>%
+          filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
+          pull(median)
         p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
                         b.traj=Bmsy[1:length(yrs)],
                         Years=yrs,
-                        Titl="SS",
+                        Titl="SSS",
                         YrSize=txt.size)
-      }
-      if(do.probs)
-      {
-        p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
-                        b.traj=Bmsy[1:length(yrs)],
-                        Years=yrs,
-                        Titl="SS",
-                        Probs=data.frame(x=d$SS$Kobe.probs[[id]][[1]]$stock,  
-                                         y=d$SS$Kobe.probs[[id]][[1]]$harvest),
-                        YrSize=txt.size)
+        
       }
       
+      #SS
+      if('SS'%in%names(d)[[pp]])
+      {
+        dummy=d$SS$B.Bmsy[[id]]%>%
+          filter(Scenario==Scen & year<=Last.yr.ktch.numeric)
+        yrs=dummy%>%pull(year)
+        Bmsy=dummy$median
+        Fmsy=d$SS$F.Fmsy[[id]]%>%
+          filter(Scenario==Scen & year<=Last.yr.ktch.numeric)%>%
+          pull(median)
+        
+        if(!do.probs)
+        {
+          p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
+                          b.traj=Bmsy[1:length(yrs)],
+                          Years=yrs,
+                          Titl="SS",
+                          YrSize=txt.size)
+        }
+        if(do.probs)
+        {
+          p.plot=kobePlot(f.traj=Fmsy[1:length(yrs)],
+                          b.traj=Bmsy[1:length(yrs)],
+                          Years=yrs,
+                          Titl="SS",
+                          Probs=data.frame(x=d$SS$Kobe.probs[[id]][[1]]$stock,  
+                                           y=d$SS$Kobe.probs[[id]][[1]]$harvest),
+                          YrSize=txt.size)
+        }
+        
+      }
+      
+      plotlist[[pp]]=p.plot+rremove("axis.title")
+    }
+    #Combine plots 
+    # if('DBSRA'%in%names(d) & 'CMSY'%in%names(d)& 'SSS'%in%names(d))
+    # {
+    #   dis.pis=c('p.DBSRA','p.CMSY','p.JABBA','p.SSS')
+    #   dis.pis=dis.pis[objects.exist('p.DBSRA','p.CMSY','p.JABBA','p.SSS')]
+    #   plotlist=vector('list',length(dis.pis))
+    #   names(plotlist)=dis.pis
+    #   for(pp in 1:length(dis.pis)) plotlist[[pp]]=dis.pis[pp] 
+    #   plotlist=list(DBSRA=p.DBSRA+rremove("axis.title"),
+    #                 CMSY=p.CMSY+rremove("axis.title"),
+    #                 JABBA=p.JABBA+rremove("axis.title"),
+    #                 SSS=p.SSS+rremove("axis.title"))
+    # }else
+    # {
+    #   if('JABBA'%in%names(d)) plotlist=list(JABBA=p.JABBA+rremove("axis.title"))
+    #   if('SS'%in%names(d))  plotlist=list(SS=p.SS+rremove("axis.title"))
+    # }
+    if(length(plotlist)<4)
+    {
+      nKl=1
+      nRw=length(plotlist)
+    }
+    if(length(plotlist)>=4)
+    {
+      nKl=2
+      nRw=length(plotlist)/2
     }
     
-    plotlist[[pp]]=p.plot+rremove("axis.title")
-  }
-  #Combine plots 
-  # if('DBSRA'%in%names(d) & 'CMSY'%in%names(d)& 'SSS'%in%names(d))
-  # {
-  #   dis.pis=c('p.DBSRA','p.CMSY','p.JABBA','p.SSS')
-  #   dis.pis=dis.pis[objects.exist('p.DBSRA','p.CMSY','p.JABBA','p.SSS')]
-  #   plotlist=vector('list',length(dis.pis))
-  #   names(plotlist)=dis.pis
-  #   for(pp in 1:length(dis.pis)) plotlist[[pp]]=dis.pis[pp] 
-  #   plotlist=list(DBSRA=p.DBSRA+rremove("axis.title"),
-  #                 CMSY=p.CMSY+rremove("axis.title"),
-  #                 JABBA=p.JABBA+rremove("axis.title"),
-  #                 SSS=p.SSS+rremove("axis.title"))
-  # }else
-  # {
-  #   if('JABBA'%in%names(d)) plotlist=list(JABBA=p.JABBA+rremove("axis.title"))
-  #   if('SS'%in%names(d))  plotlist=list(SS=p.SS+rremove("axis.title"))
-  # }
-  if(length(plotlist)<4)
-  {
-    nKl=1
-    nRw=length(plotlist)
-  }
-  if(length(plotlist)>=4)
-  {
-    nKl=2
-    nRw=length(plotlist)/2
-  }
-  
-  figure <- ggarrange(plotlist=plotlist,
-                      ncol=nKl,nrow=nRw,common.legend = FALSE)
-  if(add.sp.nm) figure=figure+theme(plot.margin = margin(1,0,0,0, "cm"))
-  figure=annotate_figure(figure,
-                         bottom = text_grob(expression(B/~B[MSY]), size=22),
-                         left = text_grob(expression(F/~F[MSY]), rot = 90,size=22))
-  if(add.sp.nm) figure=annotate_figure(figure,
-                                       fig.lab=capitalize(sp),
-                                       fig.lab.pos='top.left',
-                                       fig.lab.size=24)
-  
-  print(figure)
-  return(plotlist)
+    figure <- ggarrange(plotlist=plotlist,
+                        ncol=nKl,nrow=nRw,common.legend = FALSE)
+    if(add.sp.nm) figure=figure+theme(plot.margin = margin(1,0,0,0, "cm"))
+    figure=annotate_figure(figure,
+                           bottom = text_grob(expression(B/~B[MSY]), size=22),
+                           left = text_grob(expression(F/~F[MSY]), rot = 90,size=22))
+    if(add.sp.nm) figure=annotate_figure(figure,
+                                         fig.lab=capitalize(sp),
+                                         fig.lab.pos='top.left',
+                                         fig.lab.size=24)
+    
+    print(figure)
+    return(plotlist)
+  }else {return(NULL)}
 }
 fn.get.Kobe.plot=function(this.sp,d,NKOL,NRW,do.probs=FALSE)
 {

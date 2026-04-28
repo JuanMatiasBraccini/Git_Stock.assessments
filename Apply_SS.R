@@ -3779,7 +3779,6 @@ if(do.SS3.diagnostics)
   {
     Neim=Keep.species[l]
     setTxtProgressBar(pb, l)
-    cat(paste(" completed --- Species:", Neim))
     this.wd=paste(HandL.out,capitalize(Neim),"/",AssessYr,"/SS3 integrated",sep='')
     this.wd1=paste(this.wd,SCEN,sep='/')
     if(file.exists(this.wd1))
@@ -3890,6 +3889,7 @@ if(do.SS3.diagnostics)
                       Par_var_profile=Par_VAR_PROF)
       rm(MLE,this.wd1,R0.range,Estim.LnRo)
     }
+    cat(paste(" completed --- Species:", Neim))
   }
   close(pb)
   toc(log = TRUE, quiet = TRUE)

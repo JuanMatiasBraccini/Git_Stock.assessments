@@ -65,37 +65,6 @@ for(w in 1:length(State.Space.SPM))
         Neim=Keep.species[i]
         if(!is.null(Catch.rate.series[[i]]))
         {
-          this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                        capitalize(List.sp[[i]]$Name),"/",AssessYr,"/JABBA CPUE",sep='')
-          if(!dir.exists(this.wd))dir.create(this.wd)
-          
-          #Catch
-          ktch=ktch.combined%>%
-            filter(Name==Neim)%>%
-            rename(Year=finyear,
-                   Total=Tonnes)%>%
-            ungroup()%>%
-            dplyr::select(Year,Total)%>%
-            arrange(Year)%>%
-            data.frame
-          if(Neim=='milk shark') ktch$Total[1:10]=1 #convergence issues with first 10 years for milk shark, but catch is 0 anyways
-            
-            #future catches
-          outktch=ktch$Total
-          add.ct.future=NULL
-          if('State.Space.SPM'%in%future.models)
-          {
-            if(catches.futures=="constant.last.n.yrs")
-            {
-              NN=nrow(ktch)
-              add.ct.future=ktch[1:years.futures,]%>%
-                mutate(Year=ktch$Year[NN]+(1:years.futures),
-                       Total=rep(mean(ktch$Total[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
-              outktch=c(outktch,add.ct.future$Total)
-            }
-          }
-          
-          
           #CPUE series
           CPUE=compact(Catch.rate.series[[i]])
           DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
@@ -109,14 +78,43 @@ for(w in 1:length(State.Space.SPM))
             drop.dis.yrs=test.drop.monthly.cpue[[match(Neim,names(test.drop.monthly.cpue))]]
             CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%drop.dis.yrs)
           }
-           
           
           len.cpue=length(CPUE)
-          MAX.CV=List.sp[[i]]$MAX.CV
           if(len.cpue>0)
           {
+            this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                          capitalize(List.sp[[i]]$Name),"/",AssessYr,"/JABBA CPUE",sep='')
+            if(!dir.exists(this.wd))dir.create(this.wd)
+            
+            #Catch
+            ktch=ktch.combined%>%
+              filter(Name==Neim)%>%
+              rename(Year=finyear,
+                     Total=Tonnes)%>%
+              ungroup()%>%
+              dplyr::select(Year,Total)%>%
+              arrange(Year)%>%
+              data.frame
+            if(Neim=='milk shark') ktch$Total[1:10]=1 #convergence issues with first 10 years for milk shark, but catch is 0 anyways
+            
+            #future catches
+            outktch=ktch$Total
+            add.ct.future=NULL
+            if('State.Space.SPM'%in%future.models)
+            {
+              if(catches.futures=="constant.last.n.yrs")
+              {
+                NN=nrow(ktch)
+                add.ct.future=ktch[1:years.futures,]%>%
+                  mutate(Year=ktch$Year[NN]+(1:years.futures),
+                         Total=rep(mean(ktch$Total[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+                outktch=c(outktch,add.ct.future$Total)
+              }
+            }
+            
             #reset very low CVs       
-            #note:very low CVs in stand cpues, hence use Francis CVs 
+            #note:very low CVs in stand cpues, hence use Francis CVs
+            MAX.CV=List.sp[[i]]$MAX.CV
             if(increase.CV.JABBA)
             {
               dumi.cpue=CPUE
@@ -166,8 +164,7 @@ for(w in 1:length(State.Space.SPM))
               }
               dev.off() 
             }
-            
-             Cpues=data.frame(Year=ktch$Year)
+           Cpues=data.frame(Year=ktch$Year)
             Cpues.SE=Cpues
             for(x in 1:length(CPUE))    
             {
@@ -189,6 +186,7 @@ for(w in 1:length(State.Space.SPM))
               Cpues=left_join(Cpues,dd%>%dplyr::select(Year,names(CPUE)[x]),by='Year')
               Cpues.SE=left_join(Cpues.SE,dd%>%dplyr::select(Year,paste(names(CPUE)[x],'CV',sep='.')),by='Year')
             }
+            
             #block qs
             if(Neim=="whiskery shark")  
             {
@@ -226,6 +224,7 @@ for(w in 1:length(State.Space.SPM))
                 mutate(TDGDLF.monthly2.CV=ifelse(Year%in%List.sp[[i]]$Yr_second_q,TDGDLF.monthly.CV,NA),
                        TDGDLF.monthly.CV=ifelse(Year%in%List.sp[[i]]$Yr_second_q,NA,TDGDLF.monthly.CV))
             }
+            
             #add extra QSD or CV to make it comparable to SS models
             if(Neim%in%names(extra.SD.Q.species) | Neim%in%names(extra.CV.species)) 
             {
@@ -243,6 +242,8 @@ for(w in 1:length(State.Space.SPM))
             #Scenarios
             Scens=List.sp[[i]]$Sens.test$JABBA%>%
               mutate(Species=capitalize(Neim))
+            if(!do.all.sensitivity.tests) Scens=Scens%>%filter(Scenario=='S1')
+            
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             this.wd1=this.wd
@@ -658,21 +659,21 @@ for(w in 1:length(State.Space.SPM))
             }# end s loop
             
             Out.Scens=Out.Scens%>%
-              dplyr::select(Species,Scenario,
-                            Rdist,r.mean,r.cv,
-                            Kdist,K.mean,K.CV,
-                            PsiDist,Bo.mean,Bo.CV,
-                            bmsyk.mean,Proc.error,Ktch.CV,
-                            Daily.cpues,model.type)%>%
-              mutate(K.mean=round(K.mean),
-                     r.mean=round(r.mean,3),
-                     bmsyk.mean=round(bmsyk.mean,3),
-                     r.cv=round(r.cv,2),
-                     Bo.mean=round(Bo.mean,2),
-                     Bo.CV=round(Bo.CV,2),
-                     Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
-                     Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
-                     PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
+                        dplyr::select(Species,Scenario,
+                                      Rdist,r.mean,r.cv,
+                                      Kdist,K.mean,K.CV,
+                                      PsiDist,Bo.mean,Bo.CV,
+                                      bmsyk.mean,Proc.error,Ktch.CV,
+                                      Daily.cpues,model.type)%>%
+                        mutate(K.mean=round(K.mean),
+                               r.mean=round(r.mean,3),
+                               bmsyk.mean=round(bmsyk.mean,3),
+                               r.cv=round(r.cv,2),
+                               Bo.mean=round(Bo.mean,2),
+                               Bo.CV=round(Bo.CV,2),
+                               Rdist=ifelse(Rdist=='lnorm','Lognormal',Rdist),
+                               Kdist=ifelse(Kdist=='lnorm','Lognormal',Kdist),
+                               PsiDist=ifelse(PsiDist=='lnorm','Lognormal',PsiDist))
 
             return(list(dummy.store.sens.table=Out.Scens,
                         dummy.store.rel.biom=do.call(rbind,Out.rel.biom),
@@ -688,9 +689,38 @@ for(w in 1:length(State.Space.SPM))
                         
             rm(Out.Scens,Out.rel.biom,Out.probs.rel.biom,Out.f.series,
                Out.B.Bmsy,Out.F.Fmsy,Out.Kobe.probs,Out.estimates)
+          } #end 'if(len.cpue>0)'
+          if(len.cpue==0)
+          {
+            if(dir.exists(this.wd)) unlink(this.wd, recursive = TRUE) 
+            return(list(dummy.store.sens.table=NULL,
+                        dummy.store.rel.biom=NULL,
+                        dummy.store.probs.rel.biom=NULL,
+                        dummy.store.probs.B.Bmsy=NULL,
+                        dummy.store.probs.f.series=NULL,
+                        dummy.store.f.series=NULL,
+                        dummy.store.B.Bmsy=NULL,
+                        dummy.store.F.Fmsy=NULL,
+                        dummy.store.Kobe.probs=NULL,
+                        dummy.store.MSY=NULL,
+                        dummy.store.estimates=NULL))
           }
-          if(len.cpue==0) if(dir.exists(this.wd)) unlink(this.wd, recursive = TRUE)
-        } 
+            
+        } #end 'if(!is.null(Catch.rate.series[[i]]))'
+        if(is.null(Catch.rate.series[[i]])) 
+        {
+          return(list(dummy.store.sens.table=NULL,
+                      dummy.store.rel.biom=NULL,
+                      dummy.store.probs.rel.biom=NULL,
+                      dummy.store.probs.B.Bmsy=NULL,
+                      dummy.store.probs.f.series=NULL,
+                      dummy.store.f.series=NULL,
+                      dummy.store.B.Bmsy=NULL,
+                      dummy.store.F.Fmsy=NULL,
+                      dummy.store.Kobe.probs=NULL,
+                      dummy.store.MSY=NULL,
+                      dummy.store.estimates=NULL))
+        }
       }
       stopCluster(cl)
       names(out.species)=Keep.species
@@ -724,36 +754,6 @@ for(w in 1:length(State.Space.SPM))
         
         if(!is.null(Catch.rate.series[[i]]))
         {
-          this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                        capitalize(List.sp[[i]]$Name),"/",AssessYr,"/JABBA CPUE",sep='')
-          if(!dir.exists(this.wd))dir.create(this.wd)
-          
-          #Catch
-          ktch=ktch.combined%>%
-            filter(Name==Neim)%>%
-            rename(Year=finyear,
-                   Total=Tonnes)%>%
-            ungroup()%>%
-            dplyr::select(Year,Total)%>%
-            arrange(Year)%>%
-            data.frame
-          if(Neim=='milk shark') ktch$Total[1:10]=1 #convergence issues with first 10 years for milk shark, but catch is 0 anyways
-          #future catches
-          outktch=ktch$Total
-          add.ct.future=NULL
-          if('State.Space.SPM'%in%future.models)
-          {
-            if(catches.futures=="constant.last.n.yrs")
-            {
-              NN=nrow(ktch)
-              add.ct.future=ktch[1:years.futures,]%>%
-                mutate(Year=ktch$Year[NN]+(1:years.futures),
-                       Total=rep(mean(ktch$Total[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
-              outktch=c(outktch,add.ct.future$Total)
-            }
-          }
-
-          
           #CPUE series
           CPUE=compact(Catch.rate.series[[i]])
           DROP=grep(paste(c('observer','West','Zone'),collapse="|"),names(CPUE))   
@@ -770,11 +770,41 @@ for(w in 1:length(State.Space.SPM))
           
           
           len.cpue=length(CPUE)
-          MAX.CV=List.sp[[i]]$MAX.CV
+          
           if(len.cpue>0)
           {
+            this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                          capitalize(List.sp[[i]]$Name),"/",AssessYr,"/JABBA CPUE",sep='')
+            if(!dir.exists(this.wd))dir.create(this.wd)
+            
+            #Catch
+            ktch=ktch.combined%>%
+              filter(Name==Neim)%>%
+              rename(Year=finyear,
+                     Total=Tonnes)%>%
+              ungroup()%>%
+              dplyr::select(Year,Total)%>%
+              arrange(Year)%>%
+              data.frame
+            if(Neim=='milk shark') ktch$Total[1:10]=1 #convergence issues with first 10 years for milk shark, but catch is 0 anyways
+            #future catches
+            outktch=ktch$Total
+            add.ct.future=NULL
+            if('State.Space.SPM'%in%future.models)
+            {
+              if(catches.futures=="constant.last.n.yrs")
+              {
+                NN=nrow(ktch)
+                add.ct.future=ktch[1:years.futures,]%>%
+                  mutate(Year=ktch$Year[NN]+(1:years.futures),
+                         Total=rep(mean(ktch$Total[(NN-(n.last.catch.yrs-1)):NN]),years.futures))
+                outktch=c(outktch,add.ct.future$Total)
+              }
+            }
+            
             #reset very low CVs       
             #note:very low CVs in stand cpues, hence increase obs error a bit 
+            MAX.CV=List.sp[[i]]$MAX.CV
             if(increase.CV.JABBA)
             {
               dumi.cpue=CPUE
@@ -847,6 +877,7 @@ for(w in 1:length(State.Space.SPM))
               Cpues=left_join(Cpues,dd%>%dplyr::select(Year,names(CPUE)[x]),by='Year')
               Cpues.SE=left_join(Cpues.SE,dd%>%dplyr::select(Year,paste(names(CPUE)[x],'CV',sep='.')),by='Year')
             }
+            
             #block qs
             if(Neim=="whiskery shark")  
             {
@@ -902,6 +933,7 @@ for(w in 1:length(State.Space.SPM))
             #Scenarios
             Scens=List.sp[[i]]$Sens.test$JABBA%>%
               mutate(Species=capitalize(Neim))
+            if(!do.all.sensitivity.tests) Scens=Scens%>%filter(Scenario=='S1')
             Store.sens=vector('list',nrow(Scens))
             names(Store.sens)=Scens$Scenario
             this.wd1=this.wd
@@ -1399,7 +1431,7 @@ for(l in 1: length(Lista.sp.outputs))
 #24.3. Time series  
 YLAB=XLAB=''
 
-#24.3.1 Display all scenarios for each species
+#24.3.1 Display all scenarios for each species 
   #24.3.1.1 Relative biomass (i.e. Depletion)
 Ref.points=vector('list',N.sp)
 names(Ref.points)=Keep.species
@@ -1748,7 +1780,7 @@ for(l in 1:length(Lista.sp.outputs))
 
 #24.4. Compare goodness of fit for different Scenarios  
 #note: compare DIC, RMSE & SDNR 
-for(l in 1:length(Lista.sp.outputs))
+for(l in 1:length(Lista.sp.outputs))  
 {
   Nms=names(compact(State.Space.SPM$JABBA$estimates))
   this.sp=Lista.sp.outputs[[l]]
@@ -1801,11 +1833,13 @@ for(i in 1:N.sp)
     store.kobes[[i]]=fn.get.Kobe.plot_appendix(d=State.Space.SPM,
                                                sp=Keep.species[i],
                                                do.probs=TRUE)
-    ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                 capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_Kobe_plot.tiff",sep=''),
-           width = 10,height = 10, dpi = 300,compression = "lzw")
+    if(!is.null(store.kobes[[i]]))
+    {
+      ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                   capitalize(Keep.species[i]),"/",AssessYr,"/JABBA CPUE/JABBA_CPUE_Kobe_plot.tiff",sep=''),
+             width = 10,height = 10, dpi = 300,compression = "lzw")
+    }
   }
-  
 }
 store.kobes=compact(store.kobes)
 
@@ -1895,8 +1929,3 @@ for(i in 1:N.sp)
 #24.8 store Consequence and likelihood for WoE
 get.cons.like.JABBA=FALSE  #Superseded. Now this is extracted from exported tables 
 if(get.cons.like.JABBA) Store.cons.Like_JABBA=fn.get.cons.like(lista=State.Space.SPM) 
-
-
-
-
-

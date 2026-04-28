@@ -2661,7 +2661,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     }
     runs.test.value=vector('list',length(dis.dat))
     for(pp in 1:length(dis.dat))  runs.test.value[[pp]]=SSrunstest(Report,quants =  dis.dat[[pp]],verbose = FALSE)
-    write.csv(do.call(rbind,runs.test.value),paste(dirname.diagnostics,"runs_tests.csv",sep='/'),row.names = FALSE)
+    write.csv(do.call(bind_rows,runs.test.value),paste(dirname.diagnostics,"runs_tests.csv",sep='/'),row.names = FALSE)
   }
   
   
@@ -2863,7 +2863,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
             new_fleet_num <- dat_temp$Nfleets
             
             # Add fleet info (duplicating a survey is a safe way)
-            dat_temp$fleetinfo <- rbind(dat_temp$fleetinfo, dat_temp$fleetinfo[1, ])
+            dat_temp$fleetinfo <- bind_rows(dat_temp$fleetinfo, dat_temp$fleetinfo[1, ])
             dat_temp$fleetinfo[new_fleet_num, "fleetname"] <- "Depletion_Survey"
             dat_temp$fleetinfo[new_fleet_num, "type"] <- 3
             
@@ -2874,7 +2874,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
             indices_units <- ifelse(Par_var == "Depl",34,30)
             
             # Add CPUE info
-            dat_temp$CPUEinfo <- rbind(as.data.frame(dat_temp$CPUEinfo), 
+            dat_temp$CPUEinfo <- bind_rows(as.data.frame(dat_temp$CPUEinfo), 
                                        c(new_fleet_num, indices_units, 0, 0)) 
             
             # Add settings row for the new fleet to lencomp and agecomp info
@@ -2882,8 +2882,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
               mintailcomp = -1, addtocomp = 0.001, combine_M_F = 0,
               CompressBins = 0, CompError = 0, ParmSelect = 0, minsamplesize = 0.001)
             row.names(new_comp_info_row) <- "Depletion_Survey"
-            dat_temp$len_info <- rbind(dat_temp$len_info, new_comp_info_row)
-            dat_temp$age_info <- rbind(dat_temp$age_info, new_comp_info_row)
+            dat_temp$len_info <- bind_rows(dat_temp$len_info, new_comp_info_row)
+            dat_temp$age_info <- bind_rows(dat_temp$age_info, new_comp_info_row)
             
             # Add the actual index data lines, using the value from the profile vector `vec` 
             if (Par_var %in% c("Depl"))
@@ -2898,7 +2898,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
                 year = dat_temp$endyr, month = 1,
                 index = new_fleet_num, obs = Par_var.vec[n], se_log = 0.0001)
             }
-            dat_temp$CPUE <- rbind(dat_temp$CPUE, new_indices)
+            dat_temp$CPUE <- bind_rows(dat_temp$CPUE, new_indices)
             SS_writedat(dat_temp, file.path(run_dir, "data.dat"), overwrite = TRUE, verbose = FALSE)
             
             # --- Modify control file ---
@@ -2909,11 +2909,11 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
             names(new_q_row) <- names(ctl_temp$Q_options)
             
             # Add the row to the data frame and assign the row name in one step
-            ctl_temp$Q_options <- rbind(ctl_temp$Q_options, Depletion_Survey = new_q_row)
+            ctl_temp$Q_options <- bind_rows(ctl_temp$Q_options, Depletion_Survey = new_q_row)
             new_q_parm <- c(-15, 15, 0, 0, 1, 0, -1, 0, 0, 0, 0, 0, 0, 0) # Phase -1 makes it non-estimated
-            ctl_temp$Q_parms <- rbind(ctl_temp$Q_parms, Depletion_Survey = new_q_parm)
-            ctl_temp$size_selex_types <- rbind(ctl_temp$size_selex_types, Depletion_Survey = c(0, 0, 0, 0)) # Non-selective
-            ctl_temp$age_selex_types <- rbind(ctl_temp$age_selex_types, Depletion_Survey = c(0, 0, 0, 0))   # Non-selective
+            ctl_temp$Q_parms <- bind_rows(ctl_temp$Q_parms, Depletion_Survey = new_q_parm)
+            ctl_temp$size_selex_types <- bind_rows(ctl_temp$size_selex_types, Depletion_Survey = c(0, 0, 0, 0)) # Non-selective
+            ctl_temp$age_selex_types <- bind_rows(ctl_temp$age_selex_types, Depletion_Survey = c(0, 0, 0, 0))   # Non-selective
             
             # --- Modify par file --- 
             starter <- SS_readstarter(file.path(run_dir, "starter.ss"), verbose = FALSE)
@@ -3155,7 +3155,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
         mutate(Profile=as.character(1:nrow(M.vec)))%>%
         gather(Age,M,-Profile)%>%
         mutate(Age=as.numeric(substr(Age,5,7)))
-      pi=rbind(pi,
+      pi=bind_rows(pi,
                Report$Natural_Mortality[1,match(unique(pi$Age),names(Report$Natural_Mortality))]%>%
                  mutate(Profile='Base value')%>%
                  gather(Age,M,-Profile)%>%
@@ -3226,7 +3226,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       if(exists('retroComp'))
       {
         hcL = SSmase(retroSummary=retroComp,quants = "len",verbose = FALSE)
-        out.MASE=rbind(out.MASE,hcL)
+        out.MASE=bind_rows(out.MASE,hcL)
         write.csv(out.MASE,paste(dirname.diagnostics,"retro_hcxval_MASE.csv",sep='/'),row.names = FALSE)
         write.csv(SShcbias(retroSummary,verbose = FALSE),paste(dirname.diagnostics,"retro_Mohns_Rho.csv",sep='/'),row.names = FALSE)
       }
@@ -3762,10 +3762,10 @@ fn.cryptic=function(yr)
       mutate(N=N/max(N))%>%
       dplyr::select(Length,N)%>%
       mutate(Type='Population size')
-    DAT=rbind(DAT,Sel%>%
+    DAT=bind_rows(DAT,Sel%>%
                 dplyr::select(Length,N)%>%
                 mutate(Type='Selectivity'))
-    DAT=rbind(DAT,Mat%>%
+    DAT=bind_rows(DAT,Mat%>%
                 rename(N=Mat)%>%
                 dplyr::select(Length,N)%>%
                 mutate(Type='Maturity'))%>%
