@@ -2837,8 +2837,23 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
             for(f in 1:length(FILEs)) unlink(paste(run_dir, FILEs[f], sep="/"), recursive = TRUE, force = TRUE) 
           }
           for(nn in copylst){file.copy(paste(file.path(dirname.Par_var.profile),"/", nn, sep=''),run_dir)}
-          if(Par_var%in%c("Depl","CurSB")) file.copy(paste(file.path(WD),"/", "ss.par", sep=''),run_dir)
-          
+          if(Par_var%in%c("Depl","CurSB"))
+          {
+            d.files=list.files(file.path(WD))
+            if("ss.par"%in%d.files)
+            {
+              s_par="ss.par"
+              s_par1="ss3.par"
+            }
+              
+            if("ss3.par"%in%d.files)
+            {
+              s_par="ss3.par"
+              s_par1="ss.par"
+            }
+              
+            file.copy(paste(file.path(WD),"/", s_par, sep=''),run_dir)
+          }
           
           #Modify value of profiled quantity
           dat_temp <- SS_readdat(file.path(run_dir, "data.dat"), verbose = FALSE)
@@ -2854,8 +2869,6 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
             ctl_temp$MG_parms[id.L_at_amax,'HI']=max(ctl_temp$MG_parms[id.L_at_amax,'HI'],1.1*Par_var.vec[n])
             ctl_temp$MG_parms[id.L_at_amax,"PHASE"]=-abs(ctl_temp$MG_parms[id.L_at_amax,"PHASE"])
           }
-            
-          
           if(Par_var%in%c("Depl","CurSB"))
           {
             # --- Modify data file ---
@@ -2875,56 +2888,68 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
             
             # Add CPUE info
             dat_temp$CPUEinfo <- bind_rows(as.data.frame(dat_temp$CPUEinfo), 
-                                       c(new_fleet_num, indices_units, 0, 0)) 
+                                          data.frame(fleet=new_fleet_num,
+                                                     units=indices_units,
+                                                     errtype=0,
+                                                     SD_report=0)) 
+            row.names(dat_temp$CPUEinfo)[new_fleet_num] <- "Depletion_Survey"
+            
             
             # Add settings row for the new fleet to lencomp and agecomp info
             new_comp_info_row <- data.frame(
-              mintailcomp = -1, addtocomp = 0.001, combine_M_F = 0,
-              CompressBins = 0, CompError = 0, ParmSelect = 0, minsamplesize = 0.001)
+                                  mintailcomp = -1, addtocomp = 0.001, combine_M_F = 0,
+                                  CompressBins = 0, CompError = 0, ParmSelect = 0, minsamplesize = 0.001)
             row.names(new_comp_info_row) <- "Depletion_Survey"
-            dat_temp$len_info <- bind_rows(dat_temp$len_info, new_comp_info_row)
-            dat_temp$age_info <- bind_rows(dat_temp$age_info, new_comp_info_row)
+            if(!is.null(dat_temp$len_info)) dat_temp$len_info <- bind_rows(dat_temp$len_info, new_comp_info_row)
+            if(!is.null(dat_temp$age_info)) dat_temp$age_info <- bind_rows(dat_temp$age_info, new_comp_info_row)
             
             # Add the actual index data lines, using the value from the profile vector `vec` 
             if (Par_var %in% c("Depl"))
             {
               new_indices <- data.frame(
-                year = c(dat_temp$styr - 1, dat_temp$endyr), month = 1,
-                index = new_fleet_num, obs = c(1.0, Par_var.vec[n]), se_log = 0.0001)
+                              year = c(dat_temp$styr - 1, dat_temp$endyr), month = 1,
+                              index = new_fleet_num, obs = c(1.0, Par_var.vec[n]), se_log = 0.0001)
             }
             if (Par_var %in% c("CurSB"))
             {
               new_indices <- data.frame(
-                year = dat_temp$endyr, month = 1,
-                index = new_fleet_num, obs = Par_var.vec[n], se_log = 0.0001)
+                              year = dat_temp$endyr, month = 1,
+                              index = new_fleet_num, obs = Par_var.vec[n], se_log = 0.0001)
             }
-            dat_temp$CPUE <- bind_rows(dat_temp$CPUE, new_indices)
+            if("CPUE"%in%names(dat_temp)) dat_temp$CPUE <- bind_rows(dat_temp$CPUE, new_indices)  
+            if(!"CPUE"%in%names(dat_temp)) dat_temp$CPUE <- new_indices
             SS_writedat(dat_temp, file.path(run_dir, "data.dat"), overwrite = TRUE, verbose = FALSE)
             
             # --- Modify control file ---
             # ctl_temp$Q_options <- rbind(ctl_temp$Q_options, c(new_fleet_num, 1, 0, 0, 0, 0))
             
             # Create the vector with the correct column names
-            new_q_row <- c(new_fleet_num, 1, 0, 0, 0, 0)
-            names(new_q_row) <- names(ctl_temp$Q_options)
+            new_q_row <- data.frame(fleet=new_fleet_num, link=1, link_info=0, extra_se=0, biasadj=0, float=0)
+            row.names(new_q_row) <- row.names(new_comp_info_row)
             
-            # Add the row to the data frame and assign the row name in one step
-            ctl_temp$Q_options <- bind_rows(ctl_temp$Q_options, Depletion_Survey = new_q_row)
-            new_q_parm <- c(-15, 15, 0, 0, 1, 0, -1, 0, 0, 0, 0, 0, 0, 0) # Phase -1 makes it non-estimated
-            ctl_temp$Q_parms <- bind_rows(ctl_temp$Q_parms, Depletion_Survey = new_q_parm)
-            ctl_temp$size_selex_types <- bind_rows(ctl_temp$size_selex_types, Depletion_Survey = c(0, 0, 0, 0)) # Non-selective
-            ctl_temp$age_selex_types <- bind_rows(ctl_temp$age_selex_types, Depletion_Survey = c(0, 0, 0, 0))   # Non-selective
+            # Add the row to the data frame and assign the row name in one step  
+            if(!is.null(ctl_temp$Q_options)) ctl_temp$Q_options <- bind_rows(ctl_temp$Q_options, new_q_row)
+            if(is.null(ctl_temp$Q_options)) ctl_temp$Q_options <- new_q_row
+            new_q_parm <- data.frame(-15, 15, 0, 0, 1, 0, -1, 0, 0, 0, 0, 0, 0, 0) # Phase -1 makes it non-estimated
+            colnames(new_q_parm)=c("LO","HI","INIT","PRIOR","PR_SD","PR_type","PHASE","env_var&link","dev_link",
+                                   "dev_minyr","dev_maxyr","dev_PH","Block","Block_Fxn")
+            row.names(new_q_parm) <- row.names(new_comp_info_row)
+            if(!is.null(ctl_temp$Q_parms)) ctl_temp$Q_parms <- bind_rows(ctl_temp$Q_parms, new_q_parm)
+            if(is.null(ctl_temp$Q_parms)) ctl_temp$Q_parms <- new_q_parm
+            ctl_temp$size_selex_types <- rbind(ctl_temp$size_selex_types, Depletion_Survey = c(0, 0, 0, 0)) # Non-selective
+            ctl_temp$age_selex_types <- rbind(ctl_temp$age_selex_types, Depletion_Survey = c(0, 0, 0, 0))   # Non-selective
             
             # --- Modify par file --- 
-            starter <- SS_readstarter(file.path(run_dir, "starter.ss"), verbose = FALSE)
-            if(use_par_file)
+            starter <- SS_readstarter(file.path(run_dir, "starter.ss"), verbose = FALSE)  
+            if(use_par_file) 
             {
+              starter[["prior_like"]] <- 1 # include likelihoods of non-estimated params
               starter[["init_values_src"]] <- 1 # use par file as initial values instead of ctl file
               SS_writestarter(starter, dir = run_dir, overwrite = TRUE, verbose = FALSE)
               
               # read the par file
               # 2. Read all lines from the original file
-              lines <- readLines(file.path(run_dir, "ss.par"))
+              lines <- readLines(file.path(run_dir, s_par))
               
               # 3. Find the indices of all lines containing a Q_parm entry
               q_parm_indices <- grep("# Q_parm\\[", lines)
@@ -2942,22 +2967,37 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
                 new_q_number <- last_q_number + 1
                 
                 # 6. Create the new lines to be added
-                new_content <- c(paste0("# Q_parm[", new_q_number, "]:"),"0")
+                new_content <- c(paste0("# Q_parm[", new_q_number, "]:"),"0.000000")
                 
                 # 7. Insert the new content right after the value of the last Q_parm
                 # The insertion point is after the last Q_parm's value line
                 insertion_point <- last_q_parm_label_index + 1
                 modified_lines <- append(lines, new_content, after = insertion_point)
-                
-                # 8. Write the modified lines to a new file
-                writeLines(modified_lines, file.path(run_dir, "ss.par"))
-                
-                #cat("Successfully added '# Q_parm[", new_q_number, "]' to the file '", file.path(run_dir, "ss3.par"), "'.\n", sep = "")
-                
               }else
               {
-                cat("No '# Q_parm' entries were found in the file. No changes were made.\n")
+                cat("No '# Q_parm' entries were found in the file. Added one dummy q for dumy survey.\n")
+                new_q_number <- 1
+                new_content <- c(paste0("# Q_parm[", new_q_number, "]:"), "0.000000")
+                
+                # SS3 expects Q_parms to sit sequentially between init_F and selparms. 
+                # Find the first line of sections that normally follow Q_parms to insert right before them.
+                after_q_patterns <- c("^# selparm", "^# TG_", "^# tag", "^# var", "^# obj", "^# alloc")
+                insertion_point <- length(lines)
+                
+                for (line_idx in seq_along(lines)) {
+                  if (any(sapply(after_q_patterns, function(p) grepl(p, lines[line_idx])))) {
+                    insertion_point <- line_idx - 1
+                    break
+                  }
+                }
+                
+                modified_lines <- append(lines, new_content, after = insertion_point)
+
               }
+              
+              # Write the modified lines to a new file
+              writeLines(modified_lines, file.path(run_dir, s_par))
+              writeLines(modified_lines, file.path(run_dir, s_par1))
             }
           }
           
