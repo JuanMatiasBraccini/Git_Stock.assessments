@@ -5721,6 +5721,117 @@ ggsave(paste0(Rar.path,'/Compare MSY estimates_other species.tiff'), width = 9,h
 
 
 #---28. Outputs for strategic papers  ------------------------------------------------- 
-# Sawfish stock assessment  paper
-fn.source1("Outputs_for_strategic_papers.r")
-if(do.sawfish) fn.do.sawfish()
+#28.1 Dusky, sandbar and whiskery recovery paper
+do.dus.san.whis.rec=FALSE
+if(do.dus.san.whis.rec)
+{
+  library(patchwork)
+  #get management timeline
+  source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/Timelines_management.R'))
+  p_man.timeline=fun.management.timeline(Management,labl.size=2.5,pt.siz=.9,Right.Margin=0)
+  
+  #get effort and catch
+  built_plot <- ggplot_build(p_man.timeline)
+  breaks_numeric <- built_plot$layout$panel_params[[1]]$x$get_breaks()
+  breaks_dates <- as.Date(breaks_numeric, origin = "1970-01-01")
+  
+  Ef.tdgdlf=Effort.monthly%>%
+                mutate(Total=Total/max(Total),
+                       fishery='TDGDLF',
+                       year=substr(FINYEAR,1,4))%>%
+                dplyr::select(-FINYEAR)
+  Ef.nsf=Effort.monthly.north%>%
+              rename(Total='Hook days')%>%
+              dplyr::select(FINYEAR,Total)%>%
+              mutate(Total=Total/max(Total),
+                     fishery='NSF',
+                     year=substr(FINYEAR,1,4))%>%
+              dplyr::select(-FINYEAR)
+  Start.NSF=min(Ef.nsf$year)
+  add.ef.yrs=Ef.tdgdlf$year[which(!Ef.tdgdlf$year%in%Ef.nsf$year)]
+  ad.dumi=Ef.nsf%>%
+          slice(rep(1, length(add.ef.yrs)))%>%
+          mutate(Total=0,year=add.ef.yrs)%>%
+          filter(year>=Start.NSF)
+  Ef.nsf=rbind(Ef.nsf,ad.dumi)%>%arrange(year)
+  Ef.dat=rbind(Ef.tdgdlf,Ef.nsf)%>%
+          mutate(year=as.POSIXct(paste0("01/01/",year),format="%d/%m/%Y"))
+
+    #effort
+  p_eff=Ef.dat%>%
+                mutate(fishery=case_when(fishery=='TDGDLF'~'Southern shark',
+                                         fishery=='NSF'~'Northern shark',
+                                         TRUE~fishery))%>%
+                ggplot(aes(year,Total,color=fishery))+
+                #geom_point(size=.8)+
+                geom_line()+
+                scale_x_date(limits =as.Date(as.POSIXct(paste0("01/01/",c(1940,2025)),format="%d/%m/%Y")),
+                             date_labels = "%Y", date_breaks = "10 years")+
+                theme_PA()+
+                theme(legend.position = 'right',legend.title = element_blank(),
+                      plot.margin = margin(1, 0, 0, 0, "pt"))+
+                ylab('Relative effort')+xlab('')
+    #catch
+  ktch=KtCh%>%
+    filter(Name%in%c('dusky shark','sandbar shark','whiskery shark'))%>%
+    mutate(fishery=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern shark',
+                         ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                  discard.specs),'Southern shark',
+                                ifelse(FishCubeCode%in%c('WRL') & Name%in%WRL.species,'WRL',
+                                       'Other'))))%>%
+    group_by(SPECIES,Name,finyear,fishery)%>%
+    #group_by(finyear,fishery)%>%
+    summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
+    ungroup()%>%
+    group_by(SPECIES,Name)%>%
+    #group_by(fishery)%>%
+    mutate(Rel.tonnes=Tonnes/max(Tonnes))%>%
+    ungroup()%>%
+    mutate(keep=ifelse(fishery=='Northern shark' & finyear<Start.NSF,'no','yes'),
+           year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y")) #%>%filter(keep=='yes')
+  
+  p_ktch=ktch%>%
+    #filter(fishery%in%c('Southern shark','Northern shark'))%>%
+    mutate(Name=capitalize(Name))%>%
+    ggplot(aes(year,Rel.tonnes,color=fishery))+
+    geom_line()+
+    scale_x_date(limits =as.Date(as.POSIXct(paste0("01/01/",c(1940,2025)),format="%d/%m/%Y")),
+                 date_labels = "%Y", date_breaks = "10 years")+
+    theme_PA()+
+    theme(legend.position = 'right',legend.title = element_blank(),
+          plot.margin = margin(0, 0, 0, 0, "pt"))+
+    ylab('Relative catch')+xlab('')+
+    facet_wrap(~Name,ncol=1)
+  
+
+  #Combine all plots
+  p_ktch+theme(axis.text = element_text(size=6),
+               axis.text.x = element_blank(),
+               axis.title= element_text(size=12),
+               strip.text.x = element_text(size=9),
+               legend.text = element_text(size = 8.5),
+               legend.position = 'right',
+               legend.box.margin = margin(l = -20, unit = "pt"),
+               legend.background = element_blank(), 
+               legend.key = element_blank())+
+   # p_eff+theme(legend.position = 'none',axis.text.x = element_blank())+
+    p_man.timeline + 
+    plot_layout(heights = c(1.25, 2))  & 
+    theme(panel.spacing = unit(0, "lines"))
+  ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management_catch.tiff'),
+         width = 7.5,height = 6, dpi = 300, compression = "lzw")
+  
+  #Management only
+  fun.management.timeline(Management,labl.size=3.5,pt.siz=.9,Right.Margin=120)
+  ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management.tiff'),
+         width = 10,height = 6, dpi = 300, compression = "lzw")
+  
+}
+#28.2 Sawfish stock assessment  paper
+do.sawfish=FALSE
+if(do.sawfish)
+{
+  fn.source1("Outputs_for_strategic_papers.r")
+  fn.do.sawfish()
+}
+
