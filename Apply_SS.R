@@ -3036,6 +3036,23 @@ if(create.SS.inputs)
                            Lamdas=Lamdas.SS.lambdas,
                            Var.adjust.factor=Var.ad,
                            Future.project=add.future)   
+              
+              #a.14 update parameter values is needed  
+              if(Neim%in%names(tweak.SS.pars.after.set.up))
+              {
+                start <- r4ss::SS_readstarter(file = file.path(this.wd1, "starter.ss"), verbose = FALSE)
+                dat <- r4ss::SS_readdat(file = file.path(this.wd1, start$datfile), verbose = FALSE)
+                ctl <- r4ss::SS_readctl(file = file.path(this.wd1, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
+                this.section=match(unique(tweak.SS.pars.after.set.up[[Neim]]$Object),names(ctl))
+                these.pars=which(rownames(ctl[[this.section]]) %in% tweak.SS.pars.after.set.up[[Neim]]$Par)
+                if(length(these.pars)>0)
+                {
+                  ctl[[this.section]][these.pars,'INIT']= tweak.SS.pars.after.set.up[[Neim]]$Val
+                  r4ss::SS_writectl(ctl, outfile = file.path(this.wd1, start$ctlfile), overwrite = TRUE, verbose = FALSE)
+                }
+              }
+              
+              #a.15 flush stuff
               clear.log("Abund")
               clear.log("Size.com")
               clear.log("meanbody")
@@ -3640,8 +3657,11 @@ for(w in 1:n.SS)
       {
         for(i in 1:N.sp)
         {
-          print(paste("SS3 rel biom figure and estimates ____",Keep.species[i]))
-          this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated",sep='')
+          print(paste("Export SS3 scenarios and plot SS3 rel biom figure and estimates____",Keep.species[i]))
+          this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Scenario comparison",sep='')
+          if(!file.exists(file.path(this.wd))) dir.create(file.path(this.wd))
+          write.csv(List.sp[[Keep.species[i]]]$Simple.sentest$SS,paste(this.wd,"/Scenarios.csv",sep=''),row.names = F)
+          
           if(!is.null(Age.based[[w]]$rel.biom[[i]]))
           {
             yrS=Age.based[[w]]$rel.biom[[i]]%>%filter(Scenario=='S1')%>%pull(year)
@@ -3652,12 +3672,14 @@ for(w in 1:n.SS)
             TAB=Age.based[[w]]$estimates[[i]]%>%
               filter(Par=='SR_LN(R0)')%>%
               dplyr::select(Par,Value,Init,Parm_StDev,Status,Gradient)%>%
-              `rownames<-`( NULL )
+              `rownames<-`( NULL )%>%
+              mutate(Gradient=round(Gradient,6))
             TAB.scen=Age.based[[w]]$sens.table[[i]]
             this.col=rep('no',ncol(TAB.scen))
             for(u in 1:ncol(TAB.scen)) if(length(unique(TAB.scen[,u]))>1) this.col[u]='Yes'
             TAB.scen=TAB.scen[,which(this.col=='Yes')]
-            Tab.combined=cbind(TAB.scen,TAB)
+            if(add.scenarios.table) Tab.combined=cbind(TAB.scen,TAB)  
+            if(!add.scenarios.table) Tab.combined=TAB%>%mutate(Scenario=paste0('S',row_number()))%>%relocate(Scenario)
             Fnt.size=10
             yMIN=0; yMAX=0.3
             if(ncol(Tab.combined)>10) Fnt.size=6
@@ -3671,8 +3693,8 @@ for(w in 1:n.SS)
             p=Age.based[[w]]$rel.biom[[i]]%>% 
               mutate(Scenario=factor(Scenario,levels=Levls))%>%
               ggplot(aes(year,median,color=Scenario))+
-              annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
-                                xmin=xmin, xmax=xmax, ymin=yMIN, ymax=yMAX)+
+                annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
+                                  xmin=xmin, xmax=xmax, ymin=yMIN, ymax=yMAX)+
               geom_line(linewidth=2,alpha=0.6,na.rm = TRUE)+
               geom_line(aes(year,upper.95),linetype=2,alpha=0.6,na.rm = TRUE)+
               geom_line(aes(year,lower.95),linetype=2,alpha=0.6,na.rm = TRUE)+
@@ -3694,8 +3716,8 @@ for(w in 1:n.SS)
             p=Age.based[[w]]$B.Bmsy[[i]]%>%
               mutate(Scenario=factor(Scenario,levels=Levls))%>%
               ggplot(aes(year,median,color=Scenario))+
-              annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
-                                xmin=xmin+2, xmax=xmax, ymin=yMIN, ymax=yMAX)+
+                annotation_custom(tableGrob(Tab.combined,rows=NULL, theme = ttheme_default(base_size = Fnt.size)),
+                                  xmin=xmin+2, xmax=xmax, ymin=yMIN, ymax=yMAX)+
               geom_line(linewidth=2,alpha=0.6,na.rm = TRUE)+
               geom_line(aes(year,upper.95),linetype=2,alpha=0.6,na.rm = TRUE)+
               geom_line(aes(year,lower.95),linetype=2,alpha=0.6,na.rm = TRUE)+
@@ -3720,7 +3742,7 @@ for(w in 1:n.SS)
       {
         for(i in 1:N.sp)
         {
-          this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated",sep='')
+          this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Scenario comparison",sep='') 
           Scens=List.sp[[i]]$Sens.test$SS  
           dis.files=paste(this.wd,Scens$Scenario,sep='/')
           Report.list=vector('list',length(dis.files))
@@ -3800,7 +3822,8 @@ if(do.SS3.diagnostics)
                              up=delta.likelihood.profiles,
                              low=delta.likelihood.profiles,
                              ln.out=Number.of.likelihood.profiles,
-                             seq.approach=Approach.like.prof)
+                             seq.approach=Approach.like.prof,
+                             selec.max.span=TRUE)
         #h
       Input.h=List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Steepness)
       h.range=fn.like.range(Par.mle=Input.h,

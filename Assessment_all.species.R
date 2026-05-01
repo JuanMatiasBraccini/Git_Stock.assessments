@@ -470,6 +470,7 @@ Integrated.age.based='SS'      # define model types used
 do.all.sensitivity.tests=TRUE # FALSE only runs S1
 do.all.sensitivity.tests.uncertainty=TRUE  #estimate uncertainty for all sensitivity tests
 Compare.sensitivity.test.likelihoods=do.all.sensitivity.tests
+add.scenarios.table=FALSE     #add table of scenarios to plots (too messy)
 do.parallel.SS=TRUE            # run SS sequentially or in parallel
 create.SS.inputs=TRUE          # FALSE once happy with SS input files and only need to run the model
 Tune.SS.model=FALSE             # Tune model if new year of data
@@ -583,7 +584,20 @@ no.empirical.sel.main.fleet=c(GAB.main="angel sharks",
                               WRL.main="tiger shark",
                               Multispecies.no.sel="wobbegongs")
 overwrite.sel.inits=FALSE
-
+#set these fixed pars at MLE
+tweak.SS.pars.after.set.up=list('whiskery shark'=data.frame(Object='size_selex_parms',
+                                                            Par=c('SizeSel_PMalOff_2_Southern.shark_1_West(3)',
+                                                                  'SizeSel_PMalOff_3_Southern.shark_1_West(3)',
+                                                                  'SizeSel_PMalOff_2_Southern.shark_1_Zone1(4)',
+                                                                  'SizeSel_PMalOff_3_Southern.shark_1_Zone1(4)',
+                                                                  'SizeSel_PMalOff_2_Southern.shark_1_Zone2(5)',
+                                                                  'SizeSel_PMalOff_3_Southern.shark_1_Zone2(5)',
+                                                                  'SizeSel_PMalOff_2_Southern.shark_2_Zone1(7)',
+                                                                  'SizeSel_PMalOff_3_Southern.shark_2_Zone1(7)'),
+                                                            Val=c(0.123,-1.536,
+                                                                  -0.0085,-0.222,
+                                                                  0.4658,0.675,
+                                                                  -0.308,0.562)))
 
   #21.6 Survey arguments
 Abundance.error.dist='Lognormal'  #'Lognormal' if stand. cpue in normal space and CVs; 'Normal'
@@ -5047,7 +5061,7 @@ for(l in 1:N.sp)
 m.par=do.call(rbind,m.par)
 
   #Run JABBA
-if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes 0.9 hours (3e4 sims for 8 species with 6 scenarios and fit diagnostics)
+if(Do.StateSpaceSPM) fn.source1("Apply_StateSpaceSPM.R")   #takes ~1 minute per scenario (3e4 sims with diagnostics for S1)
 
   #Get Consequence and likelihoods
 if (any(grepl("Table 9. JABBA CPUE_Current.B.over.Bmsy",list.files(Rar.path))))
@@ -5095,8 +5109,10 @@ clear.log('State.Space.SPM')
   #Run Stock Synthesis   
 HandL.out=handl_OneDrive("Analyses/Population dynamics/1.")
 HandL.out.RAR=Rar.path
-if(Do.integrated) fn.source1("Apply_SS.R")   #Takes ~ 10 hours for 24 species 
-
+if(Do.integrated) fn.source1("Apply_SS.R")   
+#Computational time:
+              # sensitivity tests with Hessian ~ 25 secs per scenario
+              # fit diagnostics (S1 only) takes ~3800 secs per species
   #Get Consequence and likelihoods 
 if(any(grepl("Table 12. Age.based_SS_current.depletion",list.files(Rar.path))))
 {
@@ -5730,7 +5746,7 @@ if(do.dus.san.whis.rec)
   source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/Timelines_management.R'))
   p_man.timeline=fun.management.timeline(Management,labl.size=2.5,pt.siz=.9,Right.Margin=0)
   
-  #get effort and catch
+  #effort 
   built_plot <- ggplot_build(p_man.timeline)
   breaks_numeric <- built_plot$layout$panel_params[[1]]$x$get_breaks()
   breaks_dates <- as.Date(breaks_numeric, origin = "1970-01-01")
@@ -5757,73 +5773,47 @@ if(do.dus.san.whis.rec)
   Ef.dat=rbind(Ef.tdgdlf,Ef.nsf)%>%
           mutate(year=as.POSIXct(paste0("01/01/",year),format="%d/%m/%Y"))
 
-    #effort
-  p_eff=Ef.dat%>%
-                mutate(fishery=case_when(fishery=='TDGDLF'~'Southern shark',
-                                         fishery=='NSF'~'Northern shark',
-                                         TRUE~fishery))%>%
-                ggplot(aes(year,Total,color=fishery))+
-                #geom_point(size=.8)+
-                geom_line()+
-                scale_x_date(limits =as.Date(as.POSIXct(paste0("01/01/",c(1940,2025)),format="%d/%m/%Y")),
-                             date_labels = "%Y", date_breaks = "10 years")+
-                theme_PA()+
-                theme(legend.position = 'right',legend.title = element_blank(),
-                      plot.margin = margin(1, 0, 0, 0, "pt"))+
-                ylab('Relative effort')+xlab('')
-    #catch
+    #catch 
   ktch=KtCh%>%
     filter(Name%in%c('dusky shark','sandbar shark','whiskery shark'))%>%
     mutate(fishery=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern shark',
-                         ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                  discard.specs),'Southern shark',
-                                ifelse(FishCubeCode%in%c('WRL') & Name%in%WRL.species,'WRL',
-                                       'Other'))))%>%
-    group_by(SPECIES,Name,finyear,fishery)%>%
-    #group_by(finyear,fishery)%>%
+                          ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                   discard.specs),'Southern shark',
+                                 ifelse(FishCubeCode%in%c('WRL') & Name%in%WRL.species,'WRL',
+                                        'Other'))))
+  
+  #Management and catch
+  p=fun.management.timeline(Management,labl.size=3.5,pt.siz=.9,Right.Margin=120)
+  built_plot <- ggplot_build(p)
+  SKLR=built_plot$layout$panel_params[[1]]$y$breaks[1]-2
+  ktch2=ktch%>%
+    group_by(SPECIES,Name,finyear)%>%
     summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
     ungroup()%>%
     group_by(SPECIES,Name)%>%
-    #group_by(fishery)%>%
     mutate(Rel.tonnes=Tonnes/max(Tonnes))%>%
     ungroup()%>%
-    mutate(keep=ifelse(fishery=='Northern shark' & finyear<Start.NSF,'no','yes'),
-           year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y")) #%>%filter(keep=='yes')
+    mutate(year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y"),
+           Rel.tonnes=SKLR-Rel.tonnes*SKLR,
+           Name=capitalize(Name)) 
   
-  p_ktch=ktch%>%
-    #filter(fishery%in%c('Southern shark','Northern shark'))%>%
-    mutate(Name=capitalize(Name))%>%
-    ggplot(aes(year,Rel.tonnes,color=fishery))+
-    geom_line()+
-    scale_x_date(limits =as.Date(as.POSIXct(paste0("01/01/",c(1940,2025)),format="%d/%m/%Y")),
-                 date_labels = "%Y", date_breaks = "10 years")+
-    theme_PA()+
-    theme(legend.position = 'right',legend.title = element_blank(),
-          plot.margin = margin(0, 0, 0, 0, "pt"))+
-    ylab('Relative catch')+xlab('')+
-    facet_wrap(~Name,ncol=1)
-  
-
-  #Combine all plots
-  p_ktch+theme(axis.text = element_text(size=6),
-               axis.text.x = element_blank(),
-               axis.title= element_text(size=12),
-               strip.text.x = element_text(size=9),
-               legend.text = element_text(size = 8.5),
-               legend.position = 'right',
-               legend.box.margin = margin(l = -20, unit = "pt"),
-               legend.background = element_blank(), 
-               legend.key = element_blank())+
-   # p_eff+theme(legend.position = 'none',axis.text.x = element_blank())+
-    p_man.timeline + 
-    plot_layout(heights = c(1.25, 2))  & 
-    theme(panel.spacing = unit(0, "lines"))
-  ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management_catch.tiff'),
-         width = 7.5,height = 6, dpi = 300, compression = "lzw")
-  
-  #Management only
-  fun.management.timeline(Management,labl.size=3.5,pt.siz=.9,Right.Margin=120)
-  ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management.tiff'),
+  LBL.alpha=0.35
+  LBL.kl=c('blue3','darkgreen','tan4')
+  Li.wiz=1.25
+  p+
+    geom_line(data=ktch2%>%filter(Name=="Dusky shark"),
+              aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[1],linewidth=Li.wiz)+
+    geom_text_repel(data=ktch2%>%filter(finyear==1941 & Name=="Dusky shark"),
+                    aes(year,Rel.tonnes,label=Name),color=LBL.kl[1],box.padding=10,size=6)+
+    geom_line(data=ktch2%>%filter(Name=="Sandbar shark"),
+              aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[2],linewidth=Li.wiz)+
+    geom_text_repel(data=ktch2%>%filter(finyear==1972 & Name=="Sandbar shark"),
+                    aes(year,Rel.tonnes,label=Name),color=LBL.kl[2],box.padding=1.8,size=6,hjust=1)+
+    geom_line(data=ktch2%>%filter(Name=="Whiskery shark"),
+              aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[3],linewidth=Li.wiz)+
+    geom_text_repel(data=ktch2%>%filter(finyear==1941 & Name=="Whiskery shark"),
+                    aes(year,Rel.tonnes,label=Name),color=LBL.kl[3],box.padding=5,size=6,hjust=1)
+  ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management & catch.tiff'),
          width = 10,height = 6, dpi = 300, compression = "lzw")
   
 }

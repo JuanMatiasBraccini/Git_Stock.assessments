@@ -1990,7 +1990,14 @@ for(l in 1:N.sp)
   
   #Remove simple SS sensitivities if not doing catch only
   if(!do.Ktch.only.pin) List.sp[[l]]$Sens.test=List.sp[[l]]$Sens.test[-fn.mtch('SS3',List.sp[[l]]$Sens.test)]
-    
+  
+  #Create simplified sensitivity test showing only differences among scenarios
+  List.sp[[l]]$Simple.sentest=List.sp[[l]]$Sens.test
+  for(jj in 1:length(List.sp[[l]]$Sens.test))
+  {
+    List.sp[[l]]$Simple.sentest[[jj]]=fun.keep.different.cols.rows(A=List.sp[[l]]$Sens.test[[jj]])
+  }
+  
   rm(NeiM)
 } #end l loop
 

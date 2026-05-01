@@ -50,7 +50,7 @@ for(w in 1:length(State.Space.SPM))
 {
   # JABBA (Winker et al 2018)   
   #summary of method: https://github.com/jabbamodel/JABBA
-  if(names(State.Space.SPM)[w]=="JABBA")  #0.002 secs per species-scenario-simulation
+  if(names(State.Space.SPM)[w]=="JABBA")  
   {
     if(do.parallel.JABBA)
     {

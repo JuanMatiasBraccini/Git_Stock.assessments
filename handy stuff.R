@@ -3032,7 +3032,7 @@ for(i in c(1,3)) #for(i in 1:N.sp)
   Scens=List.sp[[i]]$Sens.test$SS
   #if(!is.null(only.dis.scen)) Scens=Scens%>%filter(Scenario%in%only.dis.scen)
   
-  for(s in 2:nrow(Scens))
+  for(s in 1:nrow(Scens))
   {
     this.wd1=paste(this.wd,Scens$Scenario[s],sep='/')
     fn.run.SS(where.inputs=this.wd1,  where.exe=Where.exe, args=Arg)

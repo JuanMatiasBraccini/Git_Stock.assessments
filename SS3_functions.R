@@ -2571,17 +2571,19 @@ fn.compare.prior.post=function(d,Par,prior_type)
 
 #Fit diagnostic functions ------------------------------------------------------
 #note: this analysis follows Carvalho et al 2021
-fn.like.range=function(Par.mle,min.par,Par.SE,up,low,ln.out,seq.approach='SE')
+fn.like.range=function(Par.mle,min.par,Par.SE,up,low,ln.out,seq.approach='SE',selec.max.span=FALSE)
 {
   if(length(Par.mle)==1)
   {
-    if(seq.approach=='min.plus')
+    Rango_min.plus=seq(max(min.par,Par.mle)*(1-up),Par.mle*(1+up),length.out=ln.out-1)
+    Rango_SE=seq(max(min.par,Par.mle)-1.96*Par.SE,Par.mle+1.96*Par.SE,length.out=ln.out-1)
+    if(seq.approach=='min.plus') Rango=Rango_min.plus
+    if(seq.approach=='SE') Rango=Rango_SE
+    if(selec.max.span)
     {
-      Rango=seq(max(min.par,Par.mle)*(1-up),Par.mle*(1+up),length.out=ln.out-1)
-    }
-    if(seq.approach=='SE')
-    {
-      Rango=seq(max(min.par,Par.mle)-1.96*Par.SE,Par.mle+1.96*Par.SE,length.out=ln.out-1)
+      span_min.plus=diff(range(Rango_min.plus))
+      span_SE=diff(range(Rango_SE))
+      if (span_min.plus > span_SE) Rango=Rango_min.plus else Rango=Rango_SE
     }
     return(sort(unique(c(Rango,round(Par.mle,2)))))
   }else
@@ -3093,10 +3095,12 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       
       # Likelihood components 
       mainlike_components <- c('TOTAL',"Survey", "Catch", 'Length_comp',
-                               "Age_comp","Mean_body_wt",'Recruitment') 
+                               "Age_comp","Mean_body_wt",'Recruitment',
+                               'Discard','Tag_comp','Tag_negbin')  
       
-      mainlike_components_labels  <- c('Total likelihood','Index likelihood',"Catch",'Length likelihood',
-                                       "Age likelihood","Mean body weight",'Recruitment likelihood') 
+      mainlike_components_labels  <- c('Total likelihood','Index',"Catch",'Length comps',
+                                       "Age comps","Mean body weight",'Recruitment',
+                                       'Discard','Tag comps','Tag negbin') 
       
       
       # Plot profile using summary created above

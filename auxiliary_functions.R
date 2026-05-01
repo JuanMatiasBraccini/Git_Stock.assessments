@@ -37,6 +37,13 @@ fn.add.fleet.zone.sel=function(d,x,y)
     mutate(Fleet=y)
   return(d)
 }
+fun.keep.different.cols.rows=function(A)
+{
+  A_filtered <- A[, sapply(A, function(x) length(unique(x)) > 1)]
+  is_different <- apply(A_filtered, 1, function(row) !all(row == A_filtered[1, ]))
+  is_different[1] <- TRUE # Ensure the base case is kept
+  return(A_filtered[is_different, ])
+}
 fn.ktch.sex.ratio.zone=function(size.data,N_sampleS)
 {
   if(any(grepl('Observations',names(size.data)))) size.data=size.data[-grep('Observations',names(size.data))]
