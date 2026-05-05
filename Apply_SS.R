@@ -3895,8 +3895,9 @@ if(do.SS3.diagnostics)
       
       
         #Execute wrapping function to generate diagnostics
+      jit.frac=jitters.frction
+      if(Neim%in%jitter.tweaked.species) jit.frac=0
       fn.fit.diag_SS3(WD=this.wd1,
-                      do.like.prof=TRUE,
                       disfiles=c("control.ss_new", "data.dat","forecast.ss","starter.ss","Report.sso"),
                       R0.vec=R0.range,
                       h.vec=h.range,
@@ -3908,10 +3909,12 @@ if(do.SS3.diagnostics)
                       exe_path=Where.exe,
                       start.retro=Retro_start,
                       end.retro=Retro_end,
-                      do.retros=TRUE,
-                      do.jitter=TRUE,
+                      do.like.prof=do.LikeP,
+                      do.retros=do.RET,
+                      do.jitter=do.JIT,
                       numjitter=Number.of.jitters,
-                      fracjitter=jitters.frction,
+                      fracjitter=jit.frac,
+                      srcjitter=jitters.src,
                       outLength.Cross.Val=FALSE,
                       run.in.parallel=TRUE,
                       flush.files=TRUE,

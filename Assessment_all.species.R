@@ -473,7 +473,7 @@ do.all.sensitivity.tests.uncertainty=TRUE  #estimate uncertainty for all sensiti
 Compare.sensitivity.test.likelihoods=do.all.sensitivity.tests
 add.scenarios.table=FALSE     #add table of scenarios to plots (too messy)
 do.parallel.SS=TRUE            # run SS sequentially or in parallel
-create.SS.inputs=TRUE          # FALSE once happy with SS input files and only need to run the model
+create.SS.inputs=FALSE          # FALSE once happy with SS input files and only need to run the model
 Tune.SS.model=FALSE             # Tune model if new year of data
 Run.SS=TRUE                    #  run parameter estimation with arguments 'Arg' as per defined below
 run_SS_plots=TRUE             
@@ -714,12 +714,16 @@ Lambda.species=list("dusky shark"=c(3:8,10), #fleets with alternative lambdas fo
 
   #21.15 Fit diagnostics
 #note: very time consuming. Only run once model is defined.
+do.LikeP=FALSE
+do.RET=FALSE
+do.JIT=TRUE
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
 Number.of.jitters=25
 jitters.frction=0.1   #0.05; 0.1 recommended by r4ss Help
+jitters.src=0         #0 control; 1 par file
 jitters.without.Hessian=TRUE #recomended by r4ss Help file
-annotate.jitter.init.R0=TRUE  #add table of init R0 values used
 jitter.tweaked.species="sandbar shark"   #NULL, these species need to tweak init values in control file
+jitters.tweak=0.2
 Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.
 Approach.like.prof='SE' #set to 'min.plus' for sequence between [MLE -Number.of.likelihood.profiles] and [MLE +Number.of.likelihood.profiles]

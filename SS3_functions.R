@@ -2608,7 +2608,7 @@ fn.like.range=function(Par.mle,min.par,Par.SE,up,low,ln.out,seq.approach='SE',se
 }
 fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.vec.F=NA,Linf.vec.M=NA,
                          exe_path,start.retro=0,end.retro=5,
-                         do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,fracjitter,
+                         do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,fracjitter,srcjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=TRUE,
                          COVAR=FALSE,h.input=NULL,drop_LP_CurSB=TRUE,
                          Par_var_profile=c("R0","h","M","Depl","CurSB"),
@@ -3305,7 +3305,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
   
   
   #3. Convergence
-    #3.1. Jittering #ACA
+    #3.1. Jittering 
   if(do.jitter)
   {
     #Create directories
@@ -3341,7 +3341,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       jit.likes <- jitter.tweaked(dir = dirname.Jitter,
                                   Njitter = numjitter,
                                   jitter_fraction =fracjitter,   #0 before
-                                  init_values_src = 0,
+                                  init_values_src = srcjitter,
                                   exe=exe_path,
                                   verbose = FALSE,
                                   extras=Extras)
@@ -3350,12 +3350,11 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       jit.likes <- r4ss::jitter(dir = dirname.Jitter,
                                 Njitter = numjitter,
                                 jitter_fraction =fracjitter,  
-                                init_values_src = 0,
+                                init_values_src = srcjitter,
                                 exe=exe_path,
                                 verbose = FALSE,
                                 extras=Extras)  
     }
-
     future::plan(future::sequential)
     
     #Read in results using other r4ss functions
@@ -3369,8 +3368,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     r0_estim.jit.vals <- all_pars[all_pars$Label == "SR_LN(R0)", -match(c('Label','Yr','recdev'),names(all_pars))]%>%
       gather(replist,'SR_LN(R0)')%>%
       rename(SR_LN_R0='SR_LN(R0)')%>%
-      mutate(SR_LN_R0=round(SR_LN_R0,6),
-             jit_frac=fracjitter)
+      mutate(jit_frac=fracjitter)
       #initial Ro
     Rep.files=paste0(paste0('Report',keyvec_1:numjitter),'.sso')
     names(Rep.files)=r0_estim.jit.vals$replist
@@ -3388,8 +3386,11 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     
     r0_table.jit.vals=r0_estim.jit.vals%>%
       left_join(r0_init.jit.vals%>%dplyr::select(Init,replist),by='replist')%>%
-      rename(SR_LN_R0_init=Init)%>%
-      relocate(SR_LN_R0_init,.after='replist')
+      rename(LN.R0.init=Init,
+             LN.R0=SR_LN_R0)%>%
+      relocate(LN.R0.init,.after='replist')%>%
+      mutate(LN.R0.init=round(LN.R0.init,3),
+             LN.R0=round(LN.R0,3))
     
     
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
@@ -3420,7 +3421,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       profsumrY=Report$derived_quants%>%
                       filter(Label%in%paste0('SSB_',Report$timeseries$Yr))%>%
                       mutate(Yr=as.numeric(str_remove(Label, "^SSB_")),
-                             SpawnBioLower=Value-1.96*StdDev,
+                             SpawnBioLower=max(0,Value-1.96*StdDev),
                              SpawnBioUpper=Value+1.96*StdDev)
       Poli.dat=data.frame(Yr=c(profsumrY$Yr,
                                rev(profsumrY$Yr)),
@@ -3431,18 +3432,14 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     p1=profilesummary[["SpawnBioLower"]]%>%
       ggplot(aes(Yr,replist0))+
       geom_line(color='transparent')+
-      ylim(YLIM)+xlim(min(Poli.dat$Yr),NA)+
+      xlim(min(Poli.dat$Yr),NA)+
       ylab('SSB (t)')+xlab('Year')+
       theme_PA()+
       geom_polygon(data=Poli.dat,colour='grey60',fill='grey60',alpha=.6)+
       geom_line(data=dummy.dat,aes(Yr,value,color=replist),linewidth=0.9)+
-      theme(legend.position = 'none')
-    if(annotate.jitter.init.R0)
-    {
-      p1=p1+
-        annotate("table", x = min(Report$catch$Yr)+1, y = 0, label = list(r0_table.jit.vals),size=2,alpha=0.6)
-    }
-    
+      theme(legend.position = 'none')+
+      ylim(YLIM)
+
       #Jitters
     YLIM=c(min(Total.likelihoods)*.9,min(Total.likelihoods)*1.1)
     First.jit=-1
@@ -3455,17 +3452,36 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     p2=dumydat%>%
       ggplot(aes(Jitter.run,Tot.like,color=Col))+
       geom_hline(yintercept=Base.model.like, linetype='longdash')+
-      geom_point(size=4)+
+      geom_point(size=3)+
       theme_PA()+
       theme(legend.position = 'top')+
       ylim(YLIM)+
       labs(colour = NULL)+
       xlab('Jitter runs at a converged solution')+ylab('Total likelihood')+
-      geom_text_repel(aes(label=round(Tot.like,2)),box.padding=1)+
+      geom_text_repel(aes(label=round(Tot.like,2)),box.padding=1,size=3)+
       scale_color_manual(values = c("Base model" = "royalblue","Higher" = "firebrick"))
     
-    ggarrange(plotlist = list(p1,p2),ncol=1)
-    ggsave(file.path(dirname.diagnostics,"Jitter.tiff"),width = 6,height = 7,compression = "lzw")
+    if(Neim%in%jitter.tweaked.species)
+    {
+      p3=ggplot() +
+        theme_void()+annotate("table", x = 0, y = 0, label = list(r0_table.jit.vals),size=2.5)
+      ggarrange(p3,ggarrange(plotlist =list(p1+ theme(plot.margin = margin(t = 5, r = 5, b = 0, l = 5)),
+                                            p2+theme(legend.margin = margin(b = -10),
+                                                     plot.margin = margin(t = 0, r = 5, b = 5, l = 5))),
+                             ncol=1),ncol=2,nrow=1,widths = c(0.4, 0.6))
+      ggsave(file.path(dirname.diagnostics,"Jitter.tiff"),width = 7,height = 6,compression = "lzw")
+
+    }else
+    {
+      ggarrange(plotlist =list(p1+ theme(plot.margin = margin(t = 5, r = 5, b = 0, l = 5)),
+                               p2+theme(legend.margin = margin(b = -10),
+                                        plot.margin = margin(t = 0, r = 5, b = 5, l = 5))),
+                nrow=2)
+      ggsave(file.path(dirname.diagnostics,"Jitter.tiff"),width = 6,height = 7,compression = "lzw")
+    }
+    
+    
+    
     
     
     #remove jitter files
@@ -3488,9 +3504,10 @@ iterate_jitter_tweaked=function (i, printlikes = TRUE, exe = "ss3", verbose = FA
   dat <- r4ss::SS_readdat(file = file.path(jitter_dir, start$datfile), verbose = FALSE)
   ctl <- r4ss::SS_readctl(file = file.path(jitter_dir, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
   active_params <- r4ss::SS_parlines(ctlfile = file.path(jitter_dir,'control.ctl'),active=TRUE)%>%
-    dplyr::select(Label,INIT)%>%
-    mutate(INIT.rand=case_when(nchar(trunc(abs(INIT)))>2~rnorm(n(),INIT,(INIT/10)*jitters.frction),
-                               nchar(trunc(abs(INIT)))<=2~rnorm(n(),INIT,jitters.frction)))
+        dplyr::select(Label,INIT)%>%
+        mutate(INIT.rand=case_when(nchar(trunc(abs(INIT)))>2~rnorm(n(),INIT,(INIT/10)*jitters.tweak),
+                                   nchar(trunc(abs(INIT)))<=2~rnorm(n(),INIT,jitters.tweak)))%>%
+        filter(!grepl('offset',Label))
   ctl$SR_parms[match('SR_LN(R0)',rownames(ctl$SR_parms)),'INIT']=active_params%>%filter(Label=='SR_LN(R0)')%>%pull(INIT.rand)
   id.growth=grep('L_at_Amax',active_params$Label)
   if(length(id.growth)>0)
@@ -3506,9 +3523,7 @@ iterate_jitter_tweaked=function (i, printlikes = TRUE, exe = "ss3", verbose = FA
   r4ss::SS_writectl(ctl, outfile = file.path(jitter_dir, start$ctlfile), overwrite = TRUE, verbose = FALSE)
   
   
-  
-  
-  
+  #run SS
   if (verbose) {
     message(paste0("Starting run of jitter", i))
   }
