@@ -2611,7 +2611,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
                          do.like.prof=FALSE,do.retros=FALSE,do.jitter=FALSE,numjitter,fracjitter,
                          outLength.Cross.Val=FALSE,run.in.parallel=TRUE,flush.files=TRUE,
                          COVAR=FALSE,h.input=NULL,drop_LP_CurSB=TRUE,
-                         Par_var_profile=c("R0","h","M","Depl","CurSB"))
+                         Par_var_profile=c("R0","h","M","Depl","CurSB"),
+                         saveoutput=TRUE,overwrite=TRUE,use_par_file=TRUE)
 {
   Report=SS_output(dir=WD,covar=COVAR,verbose=FALSE,printstats=FALSE)
   
@@ -2684,7 +2685,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
                                 "CurSB",
                                 "L_at_Amax_Fem","L_at_Amax_Mal")
     Par_prof_string=list("R0",'steep',"M","Depl","CurSB","L_at_Amax_Fem","L_at_Amax_Mal")
-    Par_prof_label=list(expression(log(italic(R)[0])),'h',expression(italic(M)[a]),"Current depletion",
+    Par_prof_label=list(expression(log(italic(R)[0])),'h',expression(italic(M)[a==1]),"Current depletion",
                         "Current SB","L_at_Amax_Fem","L_at_Amax_Mal")
     
     Par_var_profile.full=c("R0","h","M","Depl","CurSB","L_at_Amax_Fem","L_at_Amax_Mal")
@@ -2694,7 +2695,6 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     Par_prof_string=Par_prof_string[id.par]
     Par_prof_label=Par_prof_label[id.par]
     names(Par_var.vec_profile)=names(Par_var_string_profile)=names(Par_prof_string)=names(Par_prof_label)=Par_var_profile
-    
     if(drop_LP_CurSB)
     {
       drop.this=match("CurSB",Par_var_profile)
@@ -2707,9 +2707,6 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
         Par_prof_label=Par_prof_label[-drop.this]
       }
     }
-    saveoutput=TRUE
-    overwrite=TRUE
-    use_par_file=TRUE
     for(pp in 1:length(Par_var_profile))
     {
       Par_var=Par_var_profile[pp]
@@ -3130,7 +3127,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
                      cutoff_prob = 0.95,
                      verbose = FALSE)
       if(!is.null(baseval)) abline(v = baseval, lty=2,col='orange',lwd=2)
-      legend('right','Base value',lty = 2,col='orange',lwd=2,bty='n')
+      legend('topleft','Base value',lty = 2,col='orange',lwd=2,bty='n')
       dev.off()
       
       # make timeseries plots comparing models in profile
@@ -3308,17 +3305,30 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
   
   
   #3. Convergence
-    #3.1. Jittering 
+    #3.1. Jittering #ACA
   if(do.jitter)
   {
     #Create directories
     dirname.Jitter <- paste(dirname.diagnostics,"Jitter",sep='/')
     if(!dir.exists(dirname.Jitter)) dir.create(path=dirname.Jitter, showWarnings = TRUE, recursive = TRUE)
-    file.copy(Sys.glob(paste(WD, "*.*", sep="/"), dirmark = FALSE),dirname.Jitter)
+    these.files <- c("control.ctl", "data.dat", "forecast.ss", "starter.ss")
+    sapply(these.files,function(x) file.copy(from=paste(WD,x,sep="/"), to=paste(dirname.Jitter,x,sep="/") ))
+
+    #Copy '0' run
+    base_files_to_rename <- c("Report.sso", "CompReport.sso", "covar.sso", "warning.sso")
+    base_files_to_rename.out <- c("Report0.sso", "CompReport0.sso", "covar0.sso", "warning0.sso")
+    for(ba in 1:length(base_files_to_rename))
+    {
+      if(!file.exists(file.path(dirname.Jitter, base_files_to_rename.out[ba])))
+      {
+        file.copy(from =paste(WD, base_files_to_rename[ba], sep="/"), 
+                  to = file.path(dirname.Jitter, base_files_to_rename.out[ba]), overwrite = TRUE) 
+      }
+    }
     
     #Set extras
     Extras=diag.extras
-    if(run.in.parallel) Extras='-nohess'  #recomended by r4ss Help file
+    if(jitters.without.Hessian) Extras='-nohess'  
     
     #Run jitter in parallel
     if(run.in.parallel)
@@ -3326,13 +3336,26 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       ncores <- parallelly::availableCores(omit = 1)
       future::plan(future::multisession, workers = ncores)
     }
-    jit.likes <- r4ss::jitter(dir = dirname.Jitter,
-                              Njitter = numjitter,
-                              jitter_fraction =fracjitter,  
-                              init_values_src = 0,
-                              exe=exe_path,
-                              verbose = FALSE,
-                              extras=Extras) 
+    if(Neim%in%jitter.tweaked.species)
+    {
+      jit.likes <- jitter.tweaked(dir = dirname.Jitter,
+                                  Njitter = numjitter,
+                                  jitter_fraction =fracjitter,   #0 before
+                                  init_values_src = 0,
+                                  exe=exe_path,
+                                  verbose = FALSE,
+                                  extras=Extras)
+    }else
+    {
+      jit.likes <- r4ss::jitter(dir = dirname.Jitter,
+                                Njitter = numjitter,
+                                jitter_fraction =fracjitter,  
+                                init_values_src = 0,
+                                exe=exe_path,
+                                verbose = FALSE,
+                                extras=Extras)  
+    }
+
     future::plan(future::sequential)
     
     #Read in results using other r4ss functions
@@ -3340,36 +3363,93 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     profilemodels <- SSgetoutput(dirvec = dirname.Jitter, keyvec = keyvec_1:numjitter, getcovar = FALSE,verbose=FALSE) 
     if(any(is.na(profilemodels)))profilemodels=profilemodels[-which(is.na(profilemodels))]
     profilesummary <- SSsummarize(profilemodels,verbose = FALSE)
+    all_pars=profilesummary$pars
+    
+      #estimated Ro
+    r0_estim.jit.vals <- all_pars[all_pars$Label == "SR_LN(R0)", -match(c('Label','Yr','recdev'),names(all_pars))]%>%
+      gather(replist,'SR_LN(R0)')%>%
+      rename(SR_LN_R0='SR_LN(R0)')%>%
+      mutate(SR_LN_R0=round(SR_LN_R0,6),
+             jit_frac=fracjitter)
+      #initial Ro
+    Rep.files=paste0(paste0('Report',keyvec_1:numjitter),'.sso')
+    names(Rep.files)=r0_estim.jit.vals$replist
+    r0_init.jit.vals=vector('list',length(Rep.files))
+    for(Re in 1:length(r0_init.jit.vals))
+    {
+      ddumi=SS_output(dir=dirname.Jitter,repfile = Rep.files[Re],covar=COVAR,verbose=FALSE,printstats=FALSE)
+      r0_init.jit.vals[[Re]]=ddumi$parameters%>%
+        filter(!is.na(Active_Cnt))%>%
+        dplyr::select(Label,Value,Init)%>%
+        mutate(replist=names(Rep.files)[Re])%>%filter(Label=='SR_LN(R0)')
+      
+    }
+    r0_init.jit.vals=do.call(rbind,r0_init.jit.vals)  
+    
+    r0_table.jit.vals=r0_estim.jit.vals%>%
+      left_join(r0_init.jit.vals%>%dplyr::select(Init,replist),by='replist')%>%
+      rename(SR_LN_R0_init=Init)%>%
+      relocate(SR_LN_R0_init,.after='replist')
+    
+    
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
     Params=profilesummary[["pars"]]
-    Base.model.like=Report[["likelihoods_used"]][match("TOTAL",rownames(Report[["likelihoods_used"]])),'values']
+    Base.model.like=round(Report[["likelihoods_used"]][match("TOTAL",rownames(Report[["likelihoods_used"]])),'values'],2)
+    
+    
+    if(!'replist0'%in%names(profilesummary[["SpawnBioLower"]]))
+    {
+      profilesummary[["SpawnBioLower"]]$replist0=profilesummary[["SpawnBioLower"]]$replist1
+      profilesummary[["SpawnBioUpper"]]$replist0=profilesummary[["SpawnBioUpper"]]$replist1
+    }
     
     #Plot
-    if(!'replist0'%in%names(profilesummary[["SpawnBioLower"]])) profilesummary[["SpawnBioLower"]]$replist0=profilesummary[["SpawnBioLower"]]$replist1
-    if(!'replist0'%in%names(profilesummary[["SpawnBioUpper"]])) profilesummary[["SpawnBioUpper"]]$replist0=profilesummary[["SpawnBioUpper"]]$replist1
-
       #Biomass
-    YLIM=c(0,max(profilesummary[["SpawnBioUpper"]]$replist0))
     dummy.dat=profilesummary[["SpawnBio"]][,grep('replist',names(profilesummary[["SpawnBio"]]))]%>%
                 mutate(Yr=profilesummary[["SpawnBio"]]$Yr)%>%
                 gather(replist,value,-Yr)
+    if(!jitters.without.Hessian)
+    {
+      Poli.dat=data.frame(Yr=c(profilesummary[["SpawnBioLower"]]$Yr,
+                               rev(profilesummary[["SpawnBioLower"]]$Yr)),
+                          replist0=c(profilesummary[["SpawnBioLower"]]$replist0,
+                                     rev(profilesummary[["SpawnBioUpper"]]$replist0)))
+    }
+    if(jitters.without.Hessian) 
+    {
+      profsumrY=Report$derived_quants%>%
+                      filter(Label%in%paste0('SSB_',Report$timeseries$Yr))%>%
+                      mutate(Yr=as.numeric(str_remove(Label, "^SSB_")),
+                             SpawnBioLower=Value-1.96*StdDev,
+                             SpawnBioUpper=Value+1.96*StdDev)
+      Poli.dat=data.frame(Yr=c(profsumrY$Yr,
+                               rev(profsumrY$Yr)),
+                          replist0=c(profsumrY$SpawnBioLower,
+                                     rev(profsumrY$SpawnBioUpper)))
+    }
+    YLIM=c(0,max(c(Poli.dat$replist0,profilesummary[["SpawnBioUpper"]]$replist0)))
     p1=profilesummary[["SpawnBioLower"]]%>%
       ggplot(aes(Yr,replist0))+
       geom_line(color='transparent')+
-      ylim(YLIM)+ylab('SSB (t)')+xlab('Year')+
+      ylim(YLIM)+xlim(min(Poli.dat$Yr),NA)+
+      ylab('SSB (t)')+xlab('Year')+
       theme_PA()+
-      geom_polygon(data=data.frame(Yr=c(profilesummary[["SpawnBioLower"]]$Yr,rev(profilesummary[["SpawnBioLower"]]$Yr)),
-                                   replist0=c(profilesummary[["SpawnBioLower"]]$replist0,rev(profilesummary[["SpawnBioUpper"]]$replist0))),
-                   colour='grey60',fill='grey60',alpha=.6)+
+      geom_polygon(data=Poli.dat,colour='grey60',fill='grey60',alpha=.6)+
       geom_line(data=dummy.dat,aes(Yr,value,color=replist),linewidth=0.9)+
       theme(legend.position = 'none')
+    if(annotate.jitter.init.R0)
+    {
+      p1=p1+
+        annotate("table", x = min(Report$catch$Yr)+1, y = 0, label = list(r0_table.jit.vals),size=2,alpha=0.6)
+    }
     
       #Jitters
     YLIM=c(min(Total.likelihoods)*.9,min(Total.likelihoods)*1.1)
     First.jit=-1
     dumydat=data.frame(Jitter.run=1:length(Total.likelihoods[First.jit]),
                        Tot.like=unlist(Total.likelihoods[First.jit]))%>%
-      mutate( Col=ifelse(Tot.like==Base.model.like,'Base model',
+      mutate( Tot.like=round(Tot.like,2),
+              Col=ifelse(Tot.like==Base.model.like,'Base model',
                   ifelse(Tot.like<Base.model.like,'Smaller',
                   'Higher')))
     p2=dumydat%>%
@@ -3381,7 +3461,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       ylim(YLIM)+
       labs(colour = NULL)+
       xlab('Jitter runs at a converged solution')+ylab('Total likelihood')+
-      geom_text_repel(aes(label=round(Tot.like,2)),box.padding=1)
+      geom_text_repel(aes(label=round(Tot.like,2)),box.padding=1)+
+      scale_color_manual(values = c("Base model" = "royalblue","Higher" = "firebrick"))
     
     ggarrange(plotlist = list(p1,p2),ncol=1)
     ggsave(file.path(dirname.diagnostics,"Jitter.tiff"),width = 6,height = 7,compression = "lzw")
@@ -3393,6 +3474,148 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
   }
   
 }
+iterate_jitter_tweaked=function (i, printlikes = TRUE, exe = "ss3", verbose = FALSE, 
+                                 init_values_src = 0, dir = NULL, extras = NULL, ...) 
+{
+  jitter_dir <- file.path(dir, paste0("jitter", i))
+  copy_SS_inputs(dir.old = dir, dir.new = jitter_dir, overwrite = TRUE, 
+                 verbose = verbose, copy_exe = TRUE, copy_par = as.logical(init_values_src))
+  
+  #add extra var to init values of estimable pars
+  start <- r4ss::SS_readstarter(file = file.path(jitter_dir, "starter.ss"), verbose = FALSE)
+  #start$seed=round(runif(1,1,666))
+  #r4ss::SS_writestarter(dir = jitter_dir, start, overwrite = TRUE,verbose = FALSE)
+  dat <- r4ss::SS_readdat(file = file.path(jitter_dir, start$datfile), verbose = FALSE)
+  ctl <- r4ss::SS_readctl(file = file.path(jitter_dir, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
+  active_params <- r4ss::SS_parlines(ctlfile = file.path(jitter_dir,'control.ctl'),active=TRUE)%>%
+    dplyr::select(Label,INIT)%>%
+    mutate(INIT.rand=case_when(nchar(trunc(abs(INIT)))>2~rnorm(n(),INIT,(INIT/10)*jitters.frction),
+                               nchar(trunc(abs(INIT)))<=2~rnorm(n(),INIT,jitters.frction)))
+  ctl$SR_parms[match('SR_LN(R0)',rownames(ctl$SR_parms)),'INIT']=active_params%>%filter(Label=='SR_LN(R0)')%>%pull(INIT.rand)
+  id.growth=grep('L_at_Amax',active_params$Label)
+  if(length(id.growth)>0)
+  {
+    ctl$MG_parms[match(active_params$Label[id.growth],rownames(ctl$MG_parms)),'INIT']=active_params$INIT.rand[id.growth]
+  }
+  id.sel=grep('SizeSel_P',active_params$Label)
+  if(length(id.sel)>0)
+  {
+    ROWNEIM=sub("\\(.*", "", rownames(ctl$size_selex_parms))
+    ctl$size_selex_parms[match(active_params$Label[id.sel],ROWNEIM),'INIT']=active_params$INIT.rand[id.sel]
+  }
+  r4ss::SS_writectl(ctl, outfile = file.path(jitter_dir, start$ctlfile), overwrite = TRUE, verbose = FALSE)
+  
+  
+  
+  
+  
+  if (verbose) {
+    message(paste0("Starting run of jitter", i))
+  }
+  if (!is(future::plan(), "sequential")) {
+    Sys.sleep(i)
+  }
+  r4ss::run(dir = jitter_dir, exe = exe, verbose = verbose, extras = extras)
+  if ("Report.sso" %in% list.files(path = jitter_dir)) {
+    rep <- SS_read_summary(file.path(jitter_dir, "ss_summary.sso"))
+    if (is.null(rep)) {
+      report <- SS_output(dir = jitter_dir, forecast = FALSE, 
+                          covar = FALSE, NoCompOK = TRUE, verbose = verbose, 
+                          warn = verbose, hidewarn = !verbose, printstats = verbose)
+      like <- report[["likelihoods_used"]][row.names(report[["likelihoods_used"]]) == 
+                                             "TOTAL", "values"]
+    }
+    else {
+      like <- rep[["likelihoods"]][grep("TOTAL", row.names(rep[["likelihoods"]])), 
+                                   1]
+    }
+    if (printlikes) {
+      message("Likelihood for jitter ", i, " = ", like)
+    }
+    return(like)
+  }
+  else {
+    unlink(jitter_dir, recursive = TRUE)
+    if (verbose) 
+      warning("No Report.sso file found from run ", i)
+  }
+}
+
+jitter.tweaked=function (dir = NULL, mydir = lifecycle::deprecated(), Intern = lifecycle::deprecated(), 
+                         Njitter, printlikes = TRUE, jitter_fraction = NULL, init_values_src = NULL, 
+                         exe = "ss3", verbose = FALSE, extras = NULL, flush.all=FALSE) 
+{
+  if (lifecycle::is_present(Intern)) {
+    lifecycle::deprecate_warn(when = "1.45.1", what = "jitter(Intern)", 
+                              with = "jitter(show_in_console)")
+  }
+  if (lifecycle::is_present(mydir)) {
+    lifecycle::deprecate_warn(when = "1.46.0", what = "jitter(mydir)", 
+                              with = "jitter(dir)")
+    dir <- mydir
+  }
+  if (is.null(dir)) {
+    dir <- getwd()
+  }
+  exe <- check_exe(exe = exe, dir = dir, verbose = verbose)[["exe"]]
+  if (verbose) {
+    message("Temporarily changing working directory to:\n", 
+            dir)
+    if (!file.exists("Report.sso")) {
+      message("Copy output files from a converged run into\n", 
+              dir, "\nprior to running jitter to enable easier comparisons.")
+    }
+    message("Checking starter file")
+  }
+  starter <- SS_readstarter(file = file.path(dir, "starter.ss"), 
+                            verbose = verbose)
+  starter[["parmtrace"]] <- ifelse(starter[["parmtrace"]] == 
+                                     0, 1, starter[["parmtrace"]])
+  if (starter[["jitter_fraction"]] == 0 & is.null(jitter_fraction)) {
+    stop("Change the jitter value in the starter file to be > 0\n", 
+         "or change the 'jitter_fraction' argument to be > 0.", 
+         call. = FALSE)
+  }
+  if (!is.null(jitter_fraction)) {
+    starter[["jitter_fraction"]] <- jitter_fraction
+  }
+  if (!is.null(init_values_src)) {
+    starter[["init_values_src"]] <- init_values_src
+  }
+  r4ss::SS_writestarter(dir = dir, starter, overwrite = TRUE, 
+                        verbose = FALSE)
+  r4ss:::file_increment(path = dir, 0, verbose = verbose)
+  if (length(Njitter) == 1) {
+    Njitter <- 1:Njitter
+  }
+  likesaved <- furrr::future_map_dbl(.x = Njitter, .f = iterate_jitter_tweaked, 
+                                     printlikes = printlikes, exe = exe, verbose = verbose, 
+                                     init_values_src = starter[["init_values_src"]], dir = dir, 
+                                     extras = extras)
+  to_copy <- purrr::map(Njitter, ~list.files(path = file.path(dir, 
+                                                              paste0("jitter", .x)), pattern = "^[CcPRw][a-zA-Z]+\\.sso|summary\\.sso|\\.par$"))
+  new_name <- purrr::imap(to_copy, ~gsub(pattern = "par", replacement = "par_", 
+                                         x = gsub(pattern = "\\.sso|(\\.par)", replacement = paste0("\\1", 
+                                                                                                    .y, ".sso"), x = .x)))
+  purrr::pwalk(list(Njitter, to_copy, new_name), function(.i, 
+                                                          .x, .y) {
+    file.copy(from = file.path(dir, paste0("jitter", .i), 
+                               .x), to = file.path(dir, .y), overwrite = TRUE)
+  })
+  if (verbose) {
+    message("Finished running jitters, running last few clean-up steps")
+  }
+  if(flush.all) purrr::walk(Njitter, ~unlink(file.path(dir, paste0("jitter",.x)), recursive = TRUE))
+  pattern0 <- list.files(path = dir, pattern = "[a-z_]0\\.sso")
+  file.copy(from = pattern0, to = gsub("([a-zA-Z])0|_0\\.sso", 
+                                       "\\1", pattern0), overwrite = TRUE)
+  if (printlikes) {
+    message("Table of likelihood values:")
+    print(table(likesaved))
+  }
+  return(invisible(likesaved))
+}
+
 SSplotProfile1=function (summaryoutput, plot = TRUE, print = FALSE, models = "all", 
                          profile.string = "steep", profile.label = NULL, Xvec=NULL, exact = FALSE, 
                          ylab = "Change in -log-likelihood", components = c("TOTAL", 

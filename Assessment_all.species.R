@@ -98,6 +98,7 @@ library(ggridges)
 library(janitor)
 library(units)
 library(ggforce)
+library(ggpp)
 
 clear.log <- function(x, env = globalenv()) if(exists(x, envir = env))  rm(list = x, envir = env)
 
@@ -159,7 +160,7 @@ do.Size.based.Catch.curve=FALSE
 do.Dynamic.catch.size.comp=FALSE #superseded by length-only SS3 (also, not yet implemented properly)
 
   #2.4 Level 4
-Do.StateSpaceSPM=TRUE
+Do.StateSpaceSPM=FALSE
 
   #2.5 Level 5
 Do.integrated=TRUE  #integrated SS3
@@ -478,6 +479,7 @@ Run.SS=TRUE                    #  run parameter estimation with arguments 'Arg' 
 run_SS_plots=TRUE             
 SS3.run='final'                 # 'test' for model testing, 'final' for estimating uncertainty
 do.SS3.diagnostics=FALSE       # very time consuming, do only once model is defined 
+diagnostic.scen="S1"           # do diagnostics on this scenario
 Find_Init_LnRo=FALSE           # TRUE if first time fitting a model to find Init LnRo value so that Virgin Total biomass ~ K from JABBA  
 Find_overdispersion=FALSE      # TRUE if first time fitting tagging data
 if(SS3.run=='test') Arg= '-nohess'  else Arg='' #no Hessian
@@ -713,8 +715,11 @@ Lambda.species=list("dusky shark"=c(3:8,10), #fleets with alternative lambdas fo
   #21.15 Fit diagnostics
 #note: very time consuming. Only run once model is defined.
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
-Number.of.jitters=50
+Number.of.jitters=25
 jitters.frction=0.1   #0.05; 0.1 recommended by r4ss Help
+jitters.without.Hessian=TRUE #recomended by r4ss Help file
+annotate.jitter.init.R0=TRUE  #add table of init R0 values used
+jitter.tweaked.species="sandbar shark"   #NULL, these species need to tweak init values in control file
 Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.
 Approach.like.prof='SE' #set to 'min.plus' for sequence between [MLE -Number.of.likelihood.profiles] and [MLE +Number.of.likelihood.profiles]
@@ -5081,14 +5086,18 @@ if (any(grepl("Table 9. JABBA CPUE_Current.B.over.Bmsy",list.files(Rar.path))))
       gather(Species,Probability,-c(Range,finyear))%>%
       mutate(Species=gsub(".", " ", Species, fixed=TRUE))
     
-    DD.f[[l]]=read.csv(paste(Rar.path,'/Table 9. JABBA CPUE_Current.f_',ddis,'.csv',sep=''))%>%
-      dplyr::select(-c(Scenario,Model))%>%
-      gather(Species,Probability,-c(Range,finyear))%>%
-      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    if(do.F.series)
+    {
+      DD.f[[l]]=read.csv(paste(Rar.path,'/Table 9. JABBA CPUE_Current.f_',ddis,'.csv',sep=''))%>%
+        dplyr::select(-c(Scenario,Model))%>%
+        gather(Species,Probability,-c(Range,finyear))%>%
+        mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    }
+
   }
   Store.cons.Like_JABBA$Depletion=do.call(rbind,DD.depletion)
   Store.cons.Like_JABBA$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
-  Store.cons.Like_JABBA$f=do.call(rbind,DD.f)
+  if(do.F.series) Store.cons.Like_JABBA$f=do.call(rbind,DD.f)
 }
   
   #Clear log
@@ -5131,14 +5140,18 @@ if(any(grepl("Table 12. Age.based_SS_current.depletion",list.files(Rar.path))))
       gather(Species,Probability,-c(Range,finyear))%>%
       mutate(Species=gsub(".", " ", Species, fixed=TRUE))
     
-    DD.f[[l]]=read.csv(paste(Rar.path,'/Table 12. Age.based_SS_Current.f_',ddis,'.csv',sep=''))%>%
-      dplyr::select(-c(Scenario,Model))%>%
-      gather(Species,Probability,-c(Range,finyear))%>%
-      mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    if(do.F.series)
+    {
+      DD.f[[l]]=read.csv(paste(Rar.path,'/Table 12. Age.based_SS_Current.f_',ddis,'.csv',sep=''))%>%
+        dplyr::select(-c(Scenario,Model))%>%
+        gather(Species,Probability,-c(Range,finyear))%>%
+        mutate(Species=gsub(".", " ", Species, fixed=TRUE))
+    }
+
   }
   Store.cons.Like_Age.based$Depletion=do.call(rbind,DD.depletion)
   Store.cons.Like_Age.based$B.over.Bmsy=do.call(rbind,DD.B.over.Bmsy)
-  Store.cons.Like_Age.based$f=do.call(rbind,DD.f)
+  if(do.F.series) Store.cons.Like_Age.based$f=do.call(rbind,DD.f)
 }
 
   #Clear log

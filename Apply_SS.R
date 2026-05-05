@@ -3795,8 +3795,8 @@ if(do.SS3.diagnostics)
   options(warn=-1)
   tic("timer")
   set.seed(1234)
+  SCEN=diagnostic.scen
   pb <- txtProgressBar(min = 0,max =N.sp, style = 3,width = 50)
-  SCEN="S1"
   for(l in 1:N.sp)
   {
     Neim=Keep.species[l]
@@ -3836,11 +3836,19 @@ if(do.SS3.diagnostics)
         #Ma
       M.range=fn.like.range(Par.mle=unlist(ctl_temp$natM[1,]),
                             min.par=0.01,
-                            Par.SE=3*List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Msd),
-                            up=0.03,
-                            low=0.03,
+                            Par.SE=15*List.sp[[Neim]]$Sens.test$SS%>%filter(Scenario==SCEN)%>%pull(Msd),
+                            up=0.1,
+                            low=0.1,
                             ln.out=Number.of.likelihood.profiles.h,
-                            seq.approach='SE')
+                            seq.approach='SE',
+                            selec.max.span=TRUE)
+        #keep values >0
+      M.range <- t(apply(M.range, 1, function(row) {
+        min_pos <- min(row[row >= 0], na.rm = TRUE)
+        row[row < 0] <- min_pos
+        return(row)
+      }))
+
   
         #Current depletion
       Depl.range=fn.like.range(Par.mle=derived_quants[paste0("Bratio_",replist$endyr),'Value'],
@@ -3909,6 +3917,7 @@ if(do.SS3.diagnostics)
                       flush.files=TRUE,
                       COVAR=TRUE,
                       h.input=Input.h,
+                      drop_LP_CurSB=TRUE,
                       Par_var_profile=Par_VAR_PROF)
       rm(MLE,this.wd1,R0.range,Estim.LnRo)
     }
