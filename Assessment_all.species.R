@@ -99,6 +99,8 @@ library(janitor)
 library(units)
 library(ggforce)
 library(ggpp)
+library(future)
+library(future.apply)
 
 clear.log <- function(x, env = globalenv()) if(exists(x, envir = env))  rm(list = x, envir = env)
 
@@ -722,8 +724,10 @@ Number.of.jitters=25
 jitters.frction=0.1   #0.05; 0.1 recommended by r4ss Help
 jitters.src=0         #0 control; 1 par file
 jitters.without.Hessian=TRUE #recomended by r4ss Help file
-jitter.tweaked.species="sandbar shark"   #NULL, these species need to tweak init values in control file
-jitters.tweak=0.2
+run.Brett.jitter=TRUE   #run Brett's approach to running Jitters (yields same results) 
+tweak.init=TRUE
+jitters.tweak=1         #tweaking factor of init values
+jitter.tweaked.species="NULL"   #"sandbar shark", superseded by these species need to tweak init values in control file
 Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.
 Approach.like.prof='SE' #set to 'min.plus' for sequence between [MLE -Number.of.likelihood.profiles] and [MLE +Number.of.likelihood.profiles]

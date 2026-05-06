@@ -3315,8 +3315,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     sapply(these.files,function(x) file.copy(from=paste(WD,x,sep="/"), to=paste(dirname.Jitter,x,sep="/") ))
 
     #Copy '0' run
-    base_files_to_rename <- c("Report.sso", "CompReport.sso", "covar.sso", "warning.sso")
-    base_files_to_rename.out <- c("Report0.sso", "CompReport0.sso", "covar0.sso", "warning0.sso")
+    base_files_to_rename <- c("Report.sso", "CompReport.sso", "covar.sso", "warning.sso","ss3.par")
+    base_files_to_rename.out <- c("Report0.sso", "CompReport0.sso", "covar0.sso", "warning0.sso","ss3.par")
     for(ba in 1:length(base_files_to_rename))
     {
       if(!file.exists(file.path(dirname.Jitter, base_files_to_rename.out[ba])))
@@ -3328,83 +3328,57 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     
     #Set extras
     Extras=diag.extras
-    if(jitters.without.Hessian) Extras='-nohess'  
+    if(jitters.without.Hessian) Extras='-nohess'
     
-    #Run jitter in parallel
-    if(run.in.parallel)
+    #Run Jitters
+    if(run.Brett.jitter)
     {
-      ncores <- parallelly::availableCores(omit = 1)
-      future::plan(future::multisession, workers = ncores)
-    }
-    if(Neim%in%jitter.tweaked.species)
+      jitter_brett(Njitter=numjitter,JITTER_FRACTION=fracjitter,base_model_dir=dirname.Jitter,
+                   TWEAK.init=tweak.init,TWEAK.amount=jitters.tweak)
+    }else
     {
-      jit.likes <- jitter.tweaked(dir = dirname.Jitter,
+      if(run.in.parallel)
+      {
+        ncores <- parallelly::availableCores(omit = 1)
+        future::plan(future::multisession, workers = ncores)
+      }
+      if(Neim%in%jitter.tweaked.species)
+      {
+        jit.likes <- jitter.tweaked(dir = dirname.Jitter,
+                                    Njitter = numjitter,
+                                    jitter_fraction =fracjitter,   
+                                    init_values_src = srcjitter,
+                                    exe=exe_path,
+                                    verbose = FALSE,
+                                    extras=Extras)
+      }else
+      {
+        jit.likes <- r4ss::jitter(dir = dirname.Jitter,
                                   Njitter = numjitter,
-                                  jitter_fraction =fracjitter,   #0 before
+                                  jitter_fraction =fracjitter,  
                                   init_values_src = srcjitter,
                                   exe=exe_path,
                                   verbose = FALSE,
-                                  extras=Extras)
-    }else
-    {
-      jit.likes <- r4ss::jitter(dir = dirname.Jitter,
-                                Njitter = numjitter,
-                                jitter_fraction =fracjitter,  
-                                init_values_src = srcjitter,
-                                exe=exe_path,
-                                verbose = FALSE,
-                                extras=Extras)  
+                                  extras=Extras)  
+      }
+      future::plan(future::sequential)
     }
-    future::plan(future::sequential)
     
     #Read in results using other r4ss functions
     keyvec_1=0 #0 is basecase
     profilemodels <- SSgetoutput(dirvec = dirname.Jitter, keyvec = keyvec_1:numjitter, getcovar = FALSE,verbose=FALSE) 
     if(any(is.na(profilemodels)))profilemodels=profilemodels[-which(is.na(profilemodels))]
     profilesummary <- SSsummarize(profilemodels,verbose = FALSE)
-    all_pars=profilesummary$pars
-    
-      #estimated Ro
-    r0_estim.jit.vals <- all_pars[all_pars$Label == "SR_LN(R0)", -match(c('Label','Yr','recdev'),names(all_pars))]%>%
-      gather(replist,'SR_LN(R0)')%>%
-      rename(SR_LN_R0='SR_LN(R0)')%>%
-      mutate(jit_frac=fracjitter)
-      #initial Ro
-    Rep.files=paste0(paste0('Report',keyvec_1:numjitter),'.sso')
-    names(Rep.files)=r0_estim.jit.vals$replist
-    r0_init.jit.vals=vector('list',length(Rep.files))
-    for(Re in 1:length(r0_init.jit.vals))
-    {
-      ddumi=SS_output(dir=dirname.Jitter,repfile = Rep.files[Re],covar=COVAR,verbose=FALSE,printstats=FALSE)
-      r0_init.jit.vals[[Re]]=ddumi$parameters%>%
-        filter(!is.na(Active_Cnt))%>%
-        dplyr::select(Label,Value,Init)%>%
-        mutate(replist=names(Rep.files)[Re])%>%filter(Label=='SR_LN(R0)')
-      
-    }
-    r0_init.jit.vals=do.call(rbind,r0_init.jit.vals)  
-    
-    r0_table.jit.vals=r0_estim.jit.vals%>%
-      left_join(r0_init.jit.vals%>%dplyr::select(Init,replist),by='replist')%>%
-      rename(LN.R0.init=Init,
-             LN.R0=SR_LN_R0)%>%
-      relocate(LN.R0.init,.after='replist')%>%
-      mutate(LN.R0.init=round(LN.R0.init,3),
-             LN.R0=round(LN.R0,3))
-    
-    
     Total.likelihoods=profilesummary[["likelihoods"]][1, -match('Label',names(profilesummary[["likelihoods"]]))]
     Params=profilesummary[["pars"]]
     Base.model.like=round(Report[["likelihoods_used"]][match("TOTAL",rownames(Report[["likelihoods_used"]])),'values'],2)
-    
-    
     if(!'replist0'%in%names(profilesummary[["SpawnBioLower"]]))
     {
       profilesummary[["SpawnBioLower"]]$replist0=profilesummary[["SpawnBioLower"]]$replist1
       profilesummary[["SpawnBioUpper"]]$replist0=profilesummary[["SpawnBioUpper"]]$replist1
     }
     
-    #Plot
+    #Plots
       #Biomass
     dummy.dat=profilesummary[["SpawnBio"]][,grep('replist',names(profilesummary[["SpawnBio"]]))]%>%
                 mutate(Yr=profilesummary[["SpawnBio"]]$Yr)%>%
@@ -3419,10 +3393,11 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     if(jitters.without.Hessian) 
     {
       profsumrY=Report$derived_quants%>%
-                      filter(Label%in%paste0('SSB_',Report$timeseries$Yr))%>%
-                      mutate(Yr=as.numeric(str_remove(Label, "^SSB_")),
-                             SpawnBioLower=max(0,Value-1.96*StdDev),
-                             SpawnBioUpper=Value+1.96*StdDev)
+                filter(Label%in%paste0('SSB_',Report$timeseries$Yr))%>%
+                mutate(Yr=as.numeric(str_remove(Label, "^SSB_")),
+                       SpawnBioLower=Value-1.96*StdDev,
+                       SpawnBioUpper=Value+1.96*StdDev,
+                       SpawnBioLower=ifelse(SpawnBioLower<0,0,SpawnBioLower))
       Poli.dat=data.frame(Yr=c(profsumrY$Yr,
                                rev(profsumrY$Yr)),
                           replist0=c(profsumrY$SpawnBioLower,
@@ -3461,14 +3436,42 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       geom_text_repel(aes(label=round(Tot.like,2)),box.padding=1,size=3)+
       scale_color_manual(values = c("Base model" = "royalblue","Higher" = "firebrick"))
     
-    if(Neim%in%jitter.tweaked.species)
+    if(tweak.init)
     {
+        #get estimated Ro
+      all_pars=profilesummary$pars
+      r0_estim.jit.vals <- all_pars[all_pars$Label == "SR_LN(R0)", -match(c('Label','Yr','recdev'),names(all_pars))]%>%
+        gather(replist,'SR_LN(R0)')%>%
+        rename(SR_LN_R0='SR_LN(R0)')
+        #get initial Ro
+      Rep.files=paste0(paste0('Report',keyvec_1:numjitter),'.sso')
+      names(Rep.files)=paste0('replist',keyvec_1:numjitter)
+      Rep.files=subset(Rep.files,names(Rep.files)%in%names(Total.likelihoods))
+      r0_init.jit.vals=vector('list',length(Rep.files))
+      for(Re in 1:length(r0_init.jit.vals))
+      {
+        ddumi=SS_output(dir=dirname.Jitter,repfile = Rep.files[Re],covar=COVAR,verbose=FALSE,printstats=FALSE)
+        r0_init.jit.vals[[Re]]=ddumi$parameters%>%
+          filter(!is.na(Active_Cnt))%>%
+          dplyr::select(Label,Value,Init)%>%
+          mutate(replist=names(Rep.files)[Re])%>%filter(Label=='SR_LN(R0)')
+        
+      }
+      r0_init.jit.vals=do.call(rbind,r0_init.jit.vals)
+      r0_table.jit.vals=r0_estim.jit.vals%>%
+        left_join(r0_init.jit.vals%>%dplyr::select(Init,replist),by='replist')%>%
+        rename(LN.R0.init=Init,
+               LN.R0=SR_LN_R0)%>%
+        relocate(LN.R0.init,.after='replist')%>%
+        mutate(LN.R0.init=round(LN.R0.init,3),
+               LN.R0=round(LN.R0,3))
+      
       p3=ggplot() +
         theme_void()+annotate("table", x = 0, y = 0, label = list(r0_table.jit.vals),size=2.5)
       ggarrange(p3,ggarrange(plotlist =list(p1+ theme(plot.margin = margin(t = 5, r = 5, b = 0, l = 5)),
                                             p2+theme(legend.margin = margin(b = -10),
                                                      plot.margin = margin(t = 0, r = 5, b = 5, l = 5))),
-                             ncol=1),ncol=2,nrow=1,widths = c(0.4, 0.6))
+                             ncol=1),ncol=2,nrow=1,widths = c(0.35, 0.65))
       ggsave(file.path(dirname.diagnostics,"Jitter.tiff"),width = 7,height = 6,compression = "lzw")
 
     }else
@@ -3480,13 +3483,16 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       ggsave(file.path(dirname.diagnostics,"Jitter.tiff"),width = 6,height = 7,compression = "lzw")
     }
     
-    
-    
-    
+      #r4ss plots
+    plot.compare.file=file.path(dirname.diagnostics,"Jitter.plots comparison")
+    if(!dir.exists(plot.compare.file)) dir.create(plot.compare.file)
+    SSplotComparisons(profilesummary,
+                      plot = FALSE, subplots=c(2,4,12,16), print = TRUE, plotdir = plot.compare.file,
+                      legendlabels = paste("Model", 0:numjitter),
+                      btarg = 0.4, minbthresh = 0.2)
     
     #remove jitter files
     if(flush.files) unlink(paste(WD, "Diagnostics/Jitter", sep="/"), recursive = TRUE, force = TRUE)
-      
   }
   
 }
@@ -3499,8 +3505,8 @@ iterate_jitter_tweaked=function (i, printlikes = TRUE, exe = "ss3", verbose = FA
   
   #add extra var to init values of estimable pars
   start <- r4ss::SS_readstarter(file = file.path(jitter_dir, "starter.ss"), verbose = FALSE)
-  #start$seed=round(runif(1,1,666))
-  #r4ss::SS_writestarter(dir = jitter_dir, start, overwrite = TRUE,verbose = FALSE)
+  start$seed=i
+  r4ss::SS_writestarter(dir = jitter_dir, start, overwrite = TRUE,verbose = FALSE)
   dat <- r4ss::SS_readdat(file = file.path(jitter_dir, start$datfile), verbose = FALSE)
   ctl <- r4ss::SS_readctl(file = file.path(jitter_dir, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
   active_params <- r4ss::SS_parlines(ctlfile = file.path(jitter_dir,'control.ctl'),active=TRUE)%>%
@@ -3517,6 +3523,7 @@ iterate_jitter_tweaked=function (i, printlikes = TRUE, exe = "ss3", verbose = FA
   id.sel=grep('SizeSel_P',active_params$Label)
   if(length(id.sel)>0)
   {
+    active_params=active_params%>%mutate(Label=sub("\\(.*", "", Label))
     ROWNEIM=sub("\\(.*", "", rownames(ctl$size_selex_parms))
     ctl$size_selex_parms[match(active_params$Label[id.sel],ROWNEIM),'INIT']=active_params$INIT.rand[id.sel]
   }
@@ -3600,9 +3607,7 @@ jitter.tweaked=function (dir = NULL, mydir = lifecycle::deprecated(), Intern = l
   r4ss::SS_writestarter(dir = dir, starter, overwrite = TRUE, 
                         verbose = FALSE)
   r4ss:::file_increment(path = dir, 0, verbose = verbose)
-  if (length(Njitter) == 1) {
-    Njitter <- 1:Njitter
-  }
+  if (length(Njitter) == 1) { Njitter <- 1:Njitter}
   likesaved <- furrr::future_map_dbl(.x = Njitter, .f = iterate_jitter_tweaked, 
                                      printlikes = printlikes, exe = exe, verbose = verbose, 
                                      init_values_src = starter[["init_values_src"]], dir = dir, 
@@ -3629,6 +3634,133 @@ jitter.tweaked=function (dir = NULL, mydir = lifecycle::deprecated(), Intern = l
     print(table(likesaved))
   }
   return(invisible(likesaved))
+}
+jitter_brett=function(Njitter,JITTER_FRACTION,base_model_dir,TWEAK.init=FALSE,TWEAK.amount=0.1)
+{
+  #create directories
+  #jitter_main_dir <- file.path(base_model_dir, "jitter_parallel") 
+  jitter_main_dir=base_model_dir
+  if(!dir.exists(jitter_main_dir)) dir.create(jitter_main_dir, showWarnings = FALSE, recursive = TRUE)
+  
+  # Copy the parameter file from the base run (ss.par or ss3.par) and set to '0' run
+  base_par_file <- file.path(base_model_dir, "ss.par")
+  if (!file.exists(base_par_file)) base_par_file <- file.path(base_model_dir, "ss3.par")
+  if (!file.exists(base_par_file)) stop("Could not find 'ss.par' or 'ss3.par' in the base model directory: ", base_model_dir)
+  file.copy(from = base_par_file, to = file.path(jitter_main_dir, "ss.par_0.sso"), overwrite = TRUE)
+  
+  # Create all jitter directories
+  message("\n--- Jitter: Setting up ", Njitter, " Jitter Subdirectories ---")
+  lapply(1:Njitter, FUN = setup_single_jitter_dir,
+         base_dir = base_model_dir,
+         main_jitter_dir = jitter_main_dir,
+         jitter_frac = JITTER_FRACTION)
+  
+  # Tweak control init files of key estimable pars  
+  if(TWEAK.init)
+  {
+    for(i in 1:Njitter)
+    {
+      jitter_dir <- file.path(jitter_main_dir, paste0("jitter_", i))
+      start <- r4ss::SS_readstarter(file = file.path(jitter_dir, "starter.ss"), verbose = FALSE)
+      start$init_values_src=0
+      start$jitter_fraction=0
+      r4ss::SS_writestarter(dir = jitter_dir, start, overwrite = TRUE,verbose = FALSE)
+      
+      dat <- r4ss::SS_readdat(file = file.path(jitter_dir, start$datfile), verbose = FALSE)
+      ctl <- r4ss::SS_readctl(file = file.path(jitter_dir, start$ctlfile), verbose = FALSE, use_datlist = TRUE, datlist = dat)
+      active_params <- r4ss::SS_parlines(ctlfile = file.path(jitter_dir,'control.ctl'),active=TRUE)%>%
+                  dplyr::select(Label,INIT)%>%
+                  mutate(INIT.rand=case_when(nchar(trunc(abs(INIT)))>2~rnorm(n(),INIT,(INIT/10)*TWEAK.amount),
+                                             nchar(trunc(abs(INIT)))<=2~rnorm(n(),INIT,TWEAK.amount)))%>%
+                  filter(!grepl('offset',Label))
+      ctl$SR_parms[match('SR_LN(R0)',rownames(ctl$SR_parms)),'INIT']=active_params%>%filter(Label=='SR_LN(R0)')%>%pull(INIT.rand)
+      id.growth=grep('L_at_Amax',active_params$Label)
+      if(length(id.growth)>0)
+      {
+        ctl$MG_parms[match(active_params$Label[id.growth],rownames(ctl$MG_parms)),'INIT']=active_params$INIT.rand[id.growth]
+      }
+      id.sel=grep('SizeSel_P',active_params$Label)
+      if(length(id.sel)>0)
+      {
+        active_params=active_params%>%mutate(Label=sub("\\(.*", "", Label))
+        ROWNEIM=sub("\\(.*", "", rownames(ctl$size_selex_parms))
+        ctl$size_selex_parms[match(active_params$Label[id.sel],ROWNEIM),'INIT']=active_params$INIT.rand[id.sel]
+      }
+      r4ss::SS_writectl(ctl, outfile = file.path(jitter_dir, start$ctlfile), overwrite = TRUE, verbose = FALSE)
+    }
+  }
+  
+  # Run jitter in parallel
+  message("\n--- Jitter: Starting Parallel Model Runs ---")
+  plan(multisession)
+  message(paste("Executing", Njitter, "jitters on", nbrOfWorkers(), "cores."))
+  future_lapply(1:Njitter, FUN = run_ss_in_dir, main_jitter_dir = jitter_main_dir)
+  plan(sequential) 
+  
+  # Copy results from each run directory back to the main jitter directory and rename them
+  for (i in 1:Njitter)
+  {
+    run_dir <- file.path(jitter_main_dir, paste0("jitter_", i))
+    
+    if (file.exists(file.path(run_dir, "Report.sso"))) {
+      files_to_collect <- c("Report.sso", "CompReport.sso", "covar.sso", "warning.sso", "ss.par")
+      existing_files <- files_to_collect[file.exists(file.path(run_dir, files_to_collect))]
+      
+      # Create new names with the run number suffix (e.g., Report1.sso)
+      new_names <- sub("\\.par$", paste0(".par_", i, ".sso"), sub("\\.sso$", paste0(i, ".sso"), existing_files))
+      
+      file.copy(from = file.path(run_dir, existing_files),
+                to = file.path(jitter_main_dir, new_names),
+                overwrite = TRUE)
+    } else {
+      message(paste("Run", i, "failed or did not produce Report.sso. Skipping."))
+    }
+  }
+}
+setup_single_jitter_dir <- function(i, base_dir, main_jitter_dir, jitter_frac) {
+  
+  # Define the dedicated directory for this run
+  run_dir <- file.path(main_jitter_dir, paste0("jitter_", i))
+  dir.create(run_dir, showWarnings = FALSE, recursive = TRUE)
+  
+  # Copy all files from the base model into the run directory
+  all_files <- list.files(base_dir, full.names = TRUE)
+  file.copy(from = all_files, to = run_dir, overwrite = TRUE)
+  
+  # --- Modify the starter.ss file ---
+  starter_path <- file.path(run_dir, "starter.ss")
+  starter <- SS_readstarter(starter_path, verbose = FALSE)
+  
+  # Tell SS to read initial values from the ss.par file
+  starter$init_values_src <- 1
+  
+  # Set the jitter fraction
+  starter$jitter_fraction <- jitter_frac
+  
+  # Set a unique seed for this run to ensure reproducible, different jitters
+  starter$seed <- i
+  
+  # Write the modified starter file back
+  SS_writestarter(starter, dir = run_dir, overwrite = TRUE, verbose = FALSE)
+  
+  return(TRUE)
+}
+run_ss_in_dir <- function(i, main_jitter_dir,SS.exe=Where.exe,ARGS=Extras)  #new, I replaced exe location
+{
+  run_dir <- file.path(main_jitter_dir, paste0("jitter_", i))
+  if(is.null(SS.exe))
+  {
+    ss_exe_name <- ifelse(.Platform$OS.type == "windows", "ss.exe", "ss")
+    SS.exe=file.path(run_dir, ss_exe_name)
+  }
+  
+  # Use processx::run for robust execution
+  processx::run(command = SS.exe,
+                args = ARGS, #c("-nohess", "-nox")
+                wd = run_dir, # Critical: set the working directory for the process
+                error_on_status = FALSE # Don't stop the R script if a model fails
+  )
+  return(TRUE)
 }
 
 SSplotProfile1=function (summaryoutput, plot = TRUE, print = FALSE, models = "all", 
