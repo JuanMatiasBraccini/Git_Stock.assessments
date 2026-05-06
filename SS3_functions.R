@@ -3388,7 +3388,8 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       Poli.dat=data.frame(Yr=c(profilesummary[["SpawnBioLower"]]$Yr,
                                rev(profilesummary[["SpawnBioLower"]]$Yr)),
                           replist0=c(profilesummary[["SpawnBioLower"]]$replist0,
-                                     rev(profilesummary[["SpawnBioUpper"]]$replist0)))
+                                     rev(profilesummary[["SpawnBioUpper"]]$replist0)))%>%
+                        mutate(replist0=ifelse(replist0<0,0,replist0))
     }
     if(jitters.without.Hessian) 
     {
