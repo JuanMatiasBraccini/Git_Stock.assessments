@@ -165,7 +165,7 @@ do.Dynamic.catch.size.comp=FALSE #superseded by length-only SS3 (also, not yet i
 Do.StateSpaceSPM=FALSE
 
   #2.5 Level 5
-Do.integrated=TRUE  #integrated SS3
+Do.integrated=FALSE  #integrated SS3
 Do.bespoke=FALSE   #bespoke integrated size-based
 Do.sim.Test="NO" #do simulation testing bespoke size-based model
 do.Andre.model=FALSE
@@ -720,7 +720,7 @@ do.LikeP=FALSE
 do.RET=FALSE
 do.JIT=TRUE
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
-Number.of.jitters=50
+Number.of.jitters=25
 jitters.frction=0.1   #0.1 recommended by r4ss Help
 jitters.src=0         #0 control; 1 par file
 jitters.without.Hessian=TRUE #recomended by r4ss Help file
@@ -5469,12 +5469,16 @@ if(exists("Store.cons.Like_JABBA"))
   Risk.JABBA$LoE='JABBA'
   
   #F based
-  Risk.JABBA_f=fn.risk_f(d=Store.cons.Like_JABBA$f,w=1)  
-  Risk.JABBA_f$LoE='JABBA'
+  if(do.F.series)
+  {
+    Risk.JABBA_f=fn.risk_f(d=Store.cons.Like_JABBA$f,w=1)  
+    Risk.JABBA_f$LoE='JABBA'
+  }
+
   
   do.this=FALSE
-  if(do.this) fn.compare.risk.ref.point(Depletion=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=1)%>%filter(finyear==2021),
-                                        B.over.Bmsy=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=1)%>%filter(finyear==2021),
+  if(do.this) fn.compare.risk.ref.point(Depletion=fn.risk(d=Store.cons.Like_JABBA$Depletion,w=1)%>%filter(finyear==min(finyear)),
+                                        B.over.Bmsy=fn.risk(d=Store.cons.Like_JABBA$B.over.Bmsy,w=1)%>%filter(finyear==min(finyear)),
                                         TITL='JABBA')
 }
 
@@ -5487,8 +5491,12 @@ if(exists("Store.cons.Like_Age.based"))
   Risk.integrated$LoE='integrated'
   
   #F based
-  Risk.integrated_f=fn.risk_f(d=Store.cons.Like_Age.based$f,w=1)  
-  Risk.integrated_f$LoE='integrated'
+  if(do.F.series)
+  {
+    Risk.integrated_f=fn.risk_f(d=Store.cons.Like_Age.based$f,w=1)  
+    Risk.integrated_f$LoE='integrated'
+  }
+
 }
 
 
@@ -5508,6 +5516,7 @@ if(exists("Risk.integrated"))
     
 
   #2.2. Combine Risks from all individual LoEs 
+  #current
 if(exists('Risk.COM')) Risk.COM=Risk.COM%>%relocate(names(Risk.JABBA))
 LOE.risks=list()
 if(exists("Risk.PSA")) LOE.risks$PSA=Risk.PSA
@@ -5529,25 +5538,54 @@ Table.risks=Store.risks%>%
               mutate(LoE=factor(LoE,levels=names(LOE.risks)))%>%
               spread(LoE,Risk)%>%
               rename(Integrated=integrated)
-
+  #future
+LOE.risks_future=list()
+if(exists("Risk.JABBA")) LOE.risks_future$JABBA=Risk.JABBA_future
+if(exists("Risk.integrated")) LOE.risks_future$integrated=Risk.integrated_future
+Store.risks_future=LOE.risks_future
+for(r in 1:length(LOE.risks_future))
+{
+  Store.risks_future[[r]]=fn.risk.figure(d=LOE.risks_future[[r]], Risk.colors=RiskColors, out.plot=FALSE)%>%
+    dplyr::select(Species,LoE,Consequence,Likelihood,Risk,Score)
+}
+Store.risks_future=do.call(rbind,Store.risks_future)
+Table.risks_future=Store.risks_future%>%
+              mutate(Risk=paste0(Risk, ' (', Consequence,'x',Likelihood,')'))%>%
+              dplyr::select(-c(Consequence,Likelihood,Score))%>%
+              mutate(LoE=factor(LoE,levels=names(LOE.risks_future)))%>%
+              spread(LoE,Risk)%>%
+              rename(Integrated=integrated)
 
   #2.3. Calculate and display overall risk
 this.loe.risks=LOE.risks
-if('PSA'%in%names(LOE.risks)) this.loe.risks=LOE.risks[-match('PSA',names(LOE.risks))]
+this.loe.risks_future=LOE.risks_future
+if('PSA'%in%names(LOE.risks))
+{
+  this.loe.risks=LOE.risks[-match('PSA',names(LOE.risks))]
+  this.loe.risks_future=LOE.risks_future[-match('PSA',names(LOE.risks_future))]
+}
+  
+  #current
 Weighted.overall.risk=do.call(rbind,this.loe.risks)%>%
+                              left_join(data.frame(LoE=names(LoE.Weights),
+                                                   LoE.weight=LoE.Weights),by='LoE')%>%
+                              mutate(LoE.weight=ifelse(LoE=='PSA',1,LoE.weight))
+  #future
+Weighted.overall.risk_future=do.call(rbind,this.loe.risks_future)%>%
                               left_join(data.frame(LoE=names(LoE.Weights),
                                                    LoE.weight=LoE.Weights),by='LoE')%>%
                               mutate(LoE.weight=ifelse(LoE=='PSA',1,LoE.weight))
   
   #if no integrated assessment, use next highest assessment
-  en.spi=unique(Weighted.overall.risk$Species)
-  for(x in 1:length(en.spi))
-  {
-    a=Weighted.overall.risk%>%filter(Species==en.spi[x])
+en.spi=unique(Weighted.overall.risk$Species)
+for(x in 1:length(en.spi))
+{
+  #Current  
+  a=Weighted.overall.risk%>%filter(Species==en.spi[x])
     Weighted.overall.risk=Weighted.overall.risk%>%filter(!Species==en.spi[x])
     disLoes=unique(a$LoE)
-    if(!"integrated"%in%disLoes)
-    {
+  if(!"integrated"%in%disLoes)
+  {
       if("JABBA"%in%disLoes)
       {
         a=a%>%
@@ -5565,10 +5603,46 @@ Weighted.overall.risk=do.call(rbind,this.loe.risks)%>%
         }
       }
     }
-    Weighted.overall.risk=rbind(Weighted.overall.risk,a)
-  }
+  Weighted.overall.risk=rbind(Weighted.overall.risk,a)
   
+  #Future
+  a=Weighted.overall.risk_future%>%filter(Species==en.spi[x])
+  Weighted.overall.risk_future=Weighted.overall.risk_future%>%filter(!Species==en.spi[x])
+  disLoes=unique(a$LoE)
+  if(!"integrated"%in%disLoes)
+  {
+    if("JABBA"%in%disLoes)
+    {
+      a=a%>%
+        mutate(LoE.weight=ifelse(LoE=="JABBA",1,LoE.weight))
+    }else
+    {
+      if("CatchCurve"%in%disLoes)
+      {
+        a=a%>%
+          mutate(LoE.weight=ifelse(LoE=="CatchCurve",1,LoE.weight))
+      }else
+      {
+        a=a%>%
+          mutate(LoE.weight=ifelse(LoE%in%c("Spatial","COM"),1,LoE.weight))
+      }
+    }
+  }
+  Weighted.overall.risk_future=rbind(Weighted.overall.risk_future,a)
+}
+
+  #set up overall risk dataframe
 Weighted.overall.risk=Weighted.overall.risk%>%
+                filter(!LoE.weight==0)%>%
+                filter(!(LoE=='Spatial' & Consequence%in%1:3))%>%  #only assigning Risk to C = 4 for spatial
+                group_by(Species,Consequence)%>%
+                mutate(Weighted.Likelihood=weighted.mean(x=Likelihood,w=LoE.weight))%>%
+                dplyr::select(Species,LoE,Consequence,Weighted.Likelihood,Probability,w)%>%
+                rename(Likelihood=Weighted.Likelihood)%>%
+                distinct(Species,Consequence,Likelihood,w)%>%
+                mutate(Likelihood=round(Likelihood))
+
+Weighted.overall.risk_future=Weighted.overall.risk_future%>%
                 filter(!LoE.weight==0)%>%
                 filter(!(LoE=='Spatial' & Consequence%in%1:3))%>%  #only assigning Risk to C = 4 for spatial
                 group_by(Species,Consequence)%>%
@@ -5584,66 +5658,87 @@ if('PSA'%in%names(LOE.risks))
                             dplyr::select(-LoE)
 }
 
-Store.risk_Other.sp=fn.risk.figure(d=Weighted.overall.risk%>%filter(tolower(Species)%in%Lista.sp.outputs$Other.sp),
-                                   Risk.colors=RiskColors,
-                                   out.plot=TRUE)
-ggsave(paste(Rar.path,"Risk_Other.sp.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
-
-Store.risk_Indicator.sp=fn.risk.figure(d=Weighted.overall.risk%>%filter(tolower(Species)%in%Lista.sp.outputs$Indicator.sp),
-                                       Risk.colors=RiskColors,
-                                       out.plot=TRUE)
-ggsave(paste(Rar.path,"Risk_Indicator.sp.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
-
+  #current
+Store.risk.overall=Lista.sp.outputs
+for(l in 1: length(Lista.sp.outputs))
+{
+  Store.risk.overall[[l]]=fn.risk.figure(d=Weighted.overall.risk%>%
+                                      filter(tolower(Species)%in%Lista.sp.outputs[[l]]),
+                                 Risk.colors=RiskColors,
+                                 out.plot=TRUE)
+  ggsave(paste(Rar.path,paste0("Risk_",names(Lista.sp.outputs)[l],".tiff"),sep='/'),width = 10,height = 8,compression = "lzw")
+}
+  #future
+Store.risk.overall.future=Lista.sp.outputs
+for(l in 1: length(Lista.sp.outputs))
+{
+  Store.risk.overall.future[[l]]=fn.risk.figure(d=Weighted.overall.risk_future%>%
+                                                  filter(tolower(Species)%in%Lista.sp.outputs[[l]]),
+                                                Risk.colors=RiskColors,
+                                                out.plot=TRUE)
+  ggsave(paste(Rar.path,paste0("Risk_future_",names(Lista.sp.outputs)[l],".tiff"),sep='/'),width = 10,height = 8,compression = "lzw")
+}
 
   #2.4. Export Risk table
-Out.overall.risk=rbind(Store.risk_Other.sp,Store.risk_Indicator.sp)
-if(exists('Store.risk_Drop.species'))
-{
-  Out.overall.risk=rbind(Store.risk_Drop.species,Store.risk_Other.sp,Store.risk_Indicator.sp)
-}
+  #current
+Out.overall.risk=do.call(rbind,Store.risk.overall)
+if(exists('Store.risk_Drop.species')) Out.overall.risk=rbind(Store.risk_Drop.species,Out.overall.risk)
 Out.overall.risk=Out.overall.risk%>%
                     mutate(Risk.overall=paste0(Risk,' (',Consequence,'x',Likelihood,')'))%>%
                     dplyr::select(Species,Risk.overall)
 write.csv(Table.risks%>%left_join(Out.overall.risk,by='Species'),
           paste(Rar.path,'Table 13. Risk of each LoE and Overall.csv',sep='/'),row.names=F)
-
+  #future
+Out.overall.risk_future=do.call(rbind,Store.risk.overall.future)
+Out.overall.risk_future=Out.overall.risk_future%>%
+                        mutate(Risk.overall=paste0(Risk,' (',Consequence,'x',Likelihood,')'))%>%
+                        dplyr::select(Species,Risk.overall)
+write.csv(Table.risks_future%>%left_join(Out.overall.risk_future,by='Species'),
+          paste(Rar.path,'Table 13. Risk of each LoE and Overall_future.csv',sep='/'),row.names=F)
 
   #2.5. Export future Risk from JABBA and Integrated
 write.csv(rbind(Risk.JABBA_future,Risk.integrated_future),
           paste(Rar.path,'Table 14. Risk_Future.csv',sep='/'),row.names=F)
 
-
-  #2.6. Export current and future Risk based on F from JABBA and Integrated  
-write.csv(rbind(Risk.JABBA_f,Risk.integrated_f),
-          paste(Rar.path,'Table 15. Risk_based on F_Current and Future.csv',sep='/'),row.names=F)
+  #2.6. Export F-based Risk (current and future) from JABBA and Integrated
+if(do.F.series)
+{
+  write.csv(rbind(Risk.JABBA_f,Risk.integrated_f),
+            paste(Rar.path,'Table 15. Risk_based on F_Current and Future.csv',sep='/'),row.names=F)
+}
 
 
 #3. Display final risk for all species combined 
+  #current
+Final.risk=Store.risk.overall
+for(f in 1:length(Final.risk)) Final.risk[[f]]=Final.risk[[f]]%>%dplyr::select(Species,Score,Risk)
 if(exists('Store.risk_Drop.species'))
 {
-  Final.risk_Drop.species=Store.risk_Drop.species%>%
-                            group_by(Score,Risk)%>%
-                            tally()%>%
-                            mutate(Species=paste0("PSA-only species \n", "(n=",n,")"))%>%
-                            dplyr::select(Species,Score,Risk) 
+  Final.risk$Drop.species=Store.risk_Drop.species%>%
+                              group_by(Score,Risk)%>%
+                              tally()%>%
+                              mutate(Species=paste0("PSA-only species \n", "(n=",n,")"))%>%
+                              dplyr::select(Species,Score,Risk) 
 }
-Final.risk_Other.sp=Store.risk_Other.sp%>%dplyr::select(Species,Score,Risk)
-Final.risk_Indicator.sp=Store.risk_Indicator.sp%>%dplyr::select(Species,Score,Risk)
+  #future
+Final.risk_future=Store.risk.overall.future
+for(f in 1:length(Final.risk_future)) Final.risk_future[[f]]=Final.risk_future[[f]]%>%dplyr::select(Species,Score,Risk)
 
   #3.1 Overall risk by species (combined PSA species)
-dd1=rbind(Final.risk_Other.sp,Final.risk_Indicator.sp)
-if(exists('Final.risk_Drop.species')) dd1=rbind(Final.risk_Drop.species,Final.risk_Other.sp,Final.risk_Indicator.sp)
+  #current
+dd1=do.call(rbind,Final.risk)
 fn.risk.all.sp(d=dd1)
 ggsave(paste(Rar.path,"Risk_all species together.tiff",sep='/'),width = 8,height = 10,compression = "lzw")
+  #future
+dd1_future=do.call(rbind,Final.risk_future)
+fn.risk.all.sp(d=dd1_future)
+ggsave(paste(Rar.path,"Risk_all species together_future.tiff",sep='/'),width = 8,height = 10,compression = "lzw")
+
 
   #3.2 Overall risk by species (all species)
+  #current
 add.non.interacting.species=FALSE
-p1=rbind(Final.risk_Other.sp,Final.risk_Indicator.sp)
-if(exists('Store.risk_Drop.species'))
-{
-  p1=rbind(Store.risk_Drop.species%>%dplyr::select(Species,Score,Risk),
-           Final.risk_Other.sp,Final.risk_Indicator.sp)
-}
+p1=dd1%>%dplyr::select(Species,Score,Risk)
 if(add.non.interacting.species)  #display species not interacting with fishing?
 {
   All.WA.species= #missing
@@ -5653,107 +5748,141 @@ if(add.non.interacting.species)  #display species not interacting with fishing?
     filter(!Species%in%c(p$Species,capitalize(assessed.elsewhere)))
   p1=rbind(p1,non.interacting.species)
 }
-fn.risk.all.sp.eye(d=p1,show.all.risk.cat=TRUE)  
+fn.risk.all.sp.eye(d=p1,show.all.risk.cat=TRUE)    
 ggsave(paste(Rar.path,"Risk_all species together_proportion.tiff",sep='/'),width = 8,height = 8,compression = "lzw")
+  #future
+p1_future=dd1_future%>%dplyr::select(Species,Score,Risk)
+if(add.non.interacting.species)  #display species not interacting with fishing?
+{
+  All.WA.species= #missing
+    non.interacting.species=data.frame(Species=All.WA.species,
+                                       Score=2,
+                                       Risk='Negligible')%>%
+    filter(!Species%in%c(p$Species,capitalize(assessed.elsewhere)))
+  p1_future=rbind(p1_future,non.interacting.species)
+}
+fn.risk.all.sp.eye(d=p1_future,show.all.risk.cat=TRUE)    
+ggsave(paste(Rar.path,"Risk_all species together_proportion_future.tiff",sep='/'),width = 8,height = 8,compression = "lzw")
+
 
   #3.3 Each LoE risk and overall risk  
+  #current
 fn.risk.figure.all.LOE(d=Store.risks,
                        d1=Out.overall.risk,
                        lbl.cols=label_colors,
                        RiskCls=RiskColors)
 ggsave(paste(Rar.path,"Risk_all LoE for each species.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
-
-fn.risk.figure.all.LOE(d=Store.risks%>%filter(!Species%in%capitalize(names(Indicator.species))),
-                       d1=Out.overall.risk%>%filter(!Species%in%capitalize(names(Indicator.species))),
+if(!is.null( Other.species))
+{
+  fn.risk.figure.all.LOE(d=Store.risks%>%filter(!Species%in%capitalize(names(Indicator.species))),
+                         d1=Out.overall.risk%>%filter(!Species%in%capitalize(names(Indicator.species))),
+                         lbl.cols=label_colors,
+                         RiskCls=RiskColors)
+  ggsave(paste(Rar.path,"Risk_all LoE for each species_non_indicators only.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
+}
+  #future
+fn.risk.figure.all.LOE(d=Store.risks_future,
+                       d1=Out.overall.risk_future,
                        lbl.cols=label_colors,
                        RiskCls=RiskColors)
-ggsave(paste(Rar.path,"Risk_all LoE for each species_non_indicators only.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
+ggsave(paste(Rar.path,"Risk_all LoE for each species_future.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
+if(!is.null( Other.species))
+{
+  fn.risk.figure.all.LOE(d=Store.risks_future%>%filter(!Species%in%capitalize(names(Indicator.species))),
+                         d1=Out.overall.risk_future%>%filter(!Species%in%capitalize(names(Indicator.species))),
+                         lbl.cols=label_colors,
+                         RiskCls=RiskColors)
+  ggsave(paste(Rar.path,"Risk_all LoE for each species_non_indicators only_future.tiff",sep='/'),width = 10,height = 8,compression = "lzw")
+}
 
 
-#Compare MSY estimates by method
+#4. Compare MSY estimates by method
 MSY_combined=vector('list')
 if(exists("Store.cons.Like_COM")) 
 {
   Catch.only_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Indicator.sp.csv'))
   Catch.only_MSY_Indicator.sp.appendix=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Indicator.sp_Appendix.csv'))
-  Catch.only_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp.csv'))
-  Catch.only_MSY_Other.sp.appendix=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp_Appendix.csv'))
-  
   Catch.only_MSY_Indicator.sp=Catch.only_MSY_Indicator.sp%>%
-    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
-    mutate(Method='CoM_ensemble')
-  Catch.only_MSY_Other.sp=Catch.only_MSY_Other.sp%>%
-    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
-    mutate(Method='CoM_ensemble')
+                                dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
+                                mutate(Method='CoM_ensemble')
   Catch.only_MSY_Indicator.sp.appendix=Catch.only_MSY_Indicator.sp.appendix%>%
-    mutate(Method=paste0('CoM_',Model))%>%
-    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-  Catch.only_MSY_Other.sp.appendix=Catch.only_MSY_Other.sp.appendix%>%
-    mutate(Method=paste0('CoM_',Model))%>%
-    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-  
+                                    mutate(Method=paste0('CoM_',Model))%>%
+                                    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
   MSY_combined$Catch.only_MSY_Indicator.sp=Catch.only_MSY_Indicator.sp
-  MSY_combined$Catch.only_MSY_Other.sp=Catch.only_MSY_Other.sp
   MSY_combined$Catch.only_MSY_Indicator.sp.appendix=Catch.only_MSY_Indicator.sp.appendix
-  MSY_combined$Catch.only_MSY_Other.sp.appendix=Catch.only_MSY_Other.sp.appendix
+  if(!is.null( Other.species))
+  {
+    Catch.only_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp.csv'))
+    Catch.only_MSY_Other.sp.appendix=read.csv(paste0(Rar.path,'/Table 4. Catch.only_catch_vs_MSY_Other.sp_Appendix.csv'))
+    Catch.only_MSY_Other.sp=Catch.only_MSY_Other.sp%>%
+                dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95)%>%
+                mutate(Method='CoM_ensemble')
+    Catch.only_MSY_Other.sp.appendix=Catch.only_MSY_Other.sp.appendix%>%
+                mutate(Method=paste0('CoM_',Model))%>%
+                dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+    MSY_combined$Catch.only_MSY_Other.sp=Catch.only_MSY_Other.sp
+    MSY_combined$Catch.only_MSY_Other.sp.appendix=Catch.only_MSY_Other.sp.appendix    
+  }
+  
 }
 if(exists("Store.cons.Like_JABBA"))
 {
   JABBA_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 8. JABBA CPUE_estimates_Indicator.sp.csv'))
-  JABBA_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 8. JABBA CPUE_estimates_Other.sp.csv'))
-  
   JABBA_MSY_Indicator.sp=JABBA_MSY_Indicator.sp%>%
-    filter(Parameter=="MSY")%>%
-    mutate(Method=paste0('JABBA_',Scenario))%>%
-    rename(MSY_Lower.95=Lower.95,
-           MSY_Median=Median,
-           MSY_Upper.95=Upper.95)%>%
-    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-  JABBA_MSY_Other.sp=JABBA_MSY_Other.sp%>%
-    filter(Parameter=="MSY")%>%
-    mutate(Method=paste0('JABBA_',Scenario))%>%
-    rename(MSY_Lower.95=Lower.95,
-           MSY_Median=Median,
-           MSY_Upper.95=Upper.95)%>%
-    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-  
+                            filter(Parameter=="MSY")%>%
+                            mutate(Method=paste0('JABBA_',Scenario))%>%
+                            rename(MSY_Lower.95=Lower.95,
+                                   MSY_Median=Median,
+                                   MSY_Upper.95=Upper.95)%>%
+                            dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
   MSY_combined$JABBA_MSY_Indicator.sp=JABBA_MSY_Indicator.sp
-  MSY_combined$JABBA_MSY_Other.sp=JABBA_MSY_Other.sp
+  if(!is.null( Other.species)) 
+  {
+    JABBA_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 8. JABBA CPUE_estimates_Other.sp.csv'))
+    JABBA_MSY_Other.sp=JABBA_MSY_Other.sp%>%
+                        filter(Parameter=="MSY")%>%
+                        mutate(Method=paste0('JABBA_',Scenario))%>%
+                        rename(MSY_Lower.95=Lower.95,
+                               MSY_Median=Median,
+                               MSY_Upper.95=Upper.95)%>%
+                        dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+    MSY_combined$JABBA_MSY_Other.sp=JABBA_MSY_Other.sp
+  }
 }
 if(exists("Store.cons.Like_Age.based"))
 {
   SS_MSY_Indicator.sp=read.csv(paste0(Rar.path,'/Table 11. Age.based_SS_quantities_Indicator.sp.csv'))
-  SS_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 11. Age.based_SS_quantities_Other.sp.csv'))
-  
   SS_MSY_Indicator.sp=SS_MSY_Indicator.sp%>%
-    filter(Label=='MSY')%>%
-    mutate(Method=paste0('SS3_',Scenario),
-           MSY_Lower.95=Median-1.96*SE,
-           MSY_Median=Median,
-           MSY_Upper.95=Median+1.96*SE)%>%
-    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-  SS_MSY_Other.sp=SS_MSY_Other.sp%>%
-    filter(Label=='MSY')%>%
-    mutate(Method=paste0('SS3_',Scenario),
-           MSY_Lower.95=Median-1.96*SE,
-           MSY_Median=Median,
-           MSY_Upper.95=Median+1.96*SE)%>%
-    dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
-  
+                          filter(Label=='MSY')%>%
+                          mutate(Method=paste0('SS3_',Scenario),
+                                 MSY_Lower.95=Median-1.96*SE,
+                                 MSY_Median=Median,
+                                 MSY_Upper.95=Median+1.96*SE)%>%
+                          dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
   MSY_combined$SS_MSY_Indicator.sp=SS_MSY_Indicator.sp
-  MSY_combined$SS_MSY_Other.sp=SS_MSY_Other.sp
+  if(!is.null( Other.species)) 
+  {
+    SS_MSY_Other.sp=read.csv(paste0(Rar.path,'/Table 11. Age.based_SS_quantities_Other.sp.csv'))
+    SS_MSY_Other.sp=SS_MSY_Other.sp%>%
+                        filter(Label=='MSY')%>%
+                        mutate(Method=paste0('SS3_',Scenario),
+                               MSY_Lower.95=Median-1.96*SE,
+                               MSY_Median=Median,
+                               MSY_Upper.95=Median+1.96*SE)%>%
+                        dplyr::select(Species,MSY_Lower.95,MSY_Median,MSY_Upper.95,Method)
+    MSY_combined$SS_MSY_Other.sp=SS_MSY_Other.sp
+  }
 }
-
 MSY_combined=do.call(rbind,MSY_combined)%>%arrange(Species,Method)
-
 write.csv(MSY_combined,paste0(Rar.path,'/Table_Compare MSY estimates.csv'),row.names = F)
-
 fn.compare.MSY(d=MSY_combined%>%filter(Species%in%capitalize(names(Indicator.species))),ncols=2)
 ggsave(paste0(Rar.path,'/Compare MSY estimates_indicators.tiff'), width = 6,height = 6, dpi = 300, compression = "lzw")
-
-fn.compare.MSY(d=MSY_combined%>%filter(!Species%in%capitalize(names(Indicator.species))),
-               ncols=5,xlab.angle=90,xlab.size=8,Str.siz=9)
-ggsave(paste0(Rar.path,'/Compare MSY estimates_other species.tiff'), width = 9,height = 10, dpi = 300, compression = "lzw")
+if(!is.null( Other.species))
+{
+  fn.compare.MSY(d=MSY_combined%>%filter(!Species%in%capitalize(names(Indicator.species))),
+                 ncols=5,xlab.angle=90,xlab.size=8,Str.siz=9)
+  ggsave(paste0(Rar.path,'/Compare MSY estimates_other species.tiff'), width = 9,height = 10, dpi = 300, compression = "lzw")
+}
 
 
 

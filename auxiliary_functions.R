@@ -6351,12 +6351,20 @@ fn.risk.figure=function(d,Risk.colors,out.plot)
   }
   return(d[iid.dups,]%>%dplyr::select(-c(w,Cons.lbl,Like.lbl,Max.val,id)))
 }
+ggsave <- function(..., bg = "white") ggplot2::ggsave(..., bg = bg)  #wrapper to fix the black background created by Windows
+
 fn.risk.figure.all.LOE=function(d,d1,lbl.cols,RiskCls)
 {
   a=d%>%
-    mutate(Species.lbl=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
-                                 Species%in%Store.risk_Other.sp$Species~'Non.indicator',
-                                 TRUE~'PSA.only'))%>%
+    mutate(Species.lbl=case_when(Species%in%capitalize(names(Indicator.species))~'Indicator',
+                                 TRUE~'PSA.only'))
+  if(!is.null(Other.species))
+  {
+    a=a%>%
+      mutate(Species.lbl=case_when(Species%in%capitalize(Other.species)~'Non.indicator',
+                                   TRUE~Species.lbl))
+  }
+  a=a%>%
     left_join(d1,by='Species')%>%
     mutate(Risk.overall=gsub( " .*$", "", Risk.overall))
   b=a%>%
@@ -6373,16 +6381,30 @@ fn.risk.figure.all.LOE=function(d,d1,lbl.cols,RiskCls)
     arrange(Risk.overall)
   Sp.position=D%>%distinct(Species)%>%pull(Species)
   Sp.color=data.frame(Species=Sp.position)%>%
-            mutate(Sp.color=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
-                                      Species%in%Store.risk_Other.sp$Species~'Non.indicator',
-                                      TRUE~'PSA.only'))%>%
+            mutate(Sp.color=case_when(Species%in%capitalize(names(Indicator.species))~'Indicator',
+                                      TRUE~'PSA.only'))
+  if(!is.null(Other.species))
+  {
+    Sp.color=Sp.color%>%
+      mutate(Sp.color=case_when(Species%in%capitalize(Other.species)~'Non.indicator',
+                                   TRUE~Sp.color))
+  }
+  Sp.color=Sp.color%>%
             left_join(data.frame(Sp.color=names(lbl.cols),CL=lbl.cols),by='Sp.color')%>%
             pull(CL)
   lbl.face=c(Indicator="bold", Non.indicator="plain", PSA.only="plain")
+  
   Sp.face=data.frame(Species=Sp.position)%>%
-            mutate(Sp.face=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
-                                      Species%in%Store.risk_Other.sp$Species~'Non.indicator',
-                                      TRUE~'PSA.only'))%>%
+            mutate(Sp.face=case_when(Species%in%capitalize(names(Indicator.species))~'Indicator',
+                                      TRUE~'PSA.only'))
+  if(!is.null(Other.species))
+  {
+    Sp.face=Sp.face%>%
+      mutate(Sp.face=case_when(Species%in%capitalize(Other.species)~'Non.indicator',
+                                TRUE~Sp.face))
+  }
+  
+  Sp.face=Sp.face%>%
             left_join(data.frame(Sp.face=names(lbl.face),bold=lbl.face),by='Sp.face')%>%
             pull(bold)
   LoE.wei=rbind(data.frame(LoE='PSA',LoE.width=1),
@@ -6394,7 +6416,7 @@ fn.risk.figure.all.LOE=function(d,d1,lbl.cols,RiskCls)
     left_join(LoE.wei,by='LoE')%>%
     mutate(LoE=factor(capitalize(LoE),levels=capitalize(names(LOE.risks))))%>% 
     ggplot(aes(LoE,Species)) +
-    geom_tile(aes(fill = Risk,width = LoE.width))+
+    geom_tile(aes(fill = Risk,width = LoE.width), show.legend = TRUE)+
     labs(x="LOE risk", y="")+
     theme_PA(axs.t.siz=12)+
     theme(legend.title = element_blank(),
@@ -6426,7 +6448,7 @@ fn.risk.all.sp=function(d)
   p=d%>%
     mutate(Species=factor(Species,levels=d%>%arrange(Score)%>%pull(Species)))%>%
     ggplot(aes(Species,Score,fill=Risk))+
-    geom_bar(stat="identity")+ coord_flip()+
+    geom_bar(stat="identity", show.legend = TRUE)+ coord_flip()+
     theme_PA(axs.t.siz=14)+
     theme(legend.title = element_blank(),
           legend.position = 'bottom')+
@@ -6450,12 +6472,17 @@ fn.risk.all.sp.eye=function(d,show.all.risk.cat=FALSE)
            angle=ifelse(angle < -90, angle+180, angle),
            Species=case_when(Species=='Australian sharpnose shark'~'Au. sharpnose shark',
                              TRUE~Species),
-           lbl.col=case_when(Species%in%Store.risk_Indicator.sp$Species~'Indicator',
-                             Species%in%Store.risk_Other.sp$Species~'Non.indicator',
+           lbl.col=case_when(Species%in%capitalize(names(Indicator.species))~'Indicator',
                              TRUE~'PSA.only'))
+  if(!is.null(Other.species))
+  {
+    label_pp=label_pp%>%
+      mutate(lbl.col=case_when(Species%in%capitalize(Other.species)~'Non.indicator',
+                               TRUE~lbl.col))
+  }
   p=pp%>%
     ggplot(aes(x=as.factor(id), y=Score1)) +  
-    geom_bar(aes(fill=Risk),stat="identity")+
+    geom_bar(aes(fill=Risk),stat="identity", show.legend = TRUE)+
     ylim(-5,12)+
     scale_fill_manual(values=Risk.values,drop=FALSE)+
     theme_minimal() +
