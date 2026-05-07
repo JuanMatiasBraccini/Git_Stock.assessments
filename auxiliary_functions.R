@@ -6457,7 +6457,16 @@ fn.risk.all.sp=function(d)
     scale_y_continuous(breaks = breaks_width(1))  
   return(p)
 }
-fn.risk.all.sp.eye=function(d,show.all.risk.cat=FALSE)
+calc_text_size <- function(max_rows = 120,df, size_max,size_min) {
+  n <- nrow(df)
+  if (n <= 4) size=size_max else
+    if (n >= max_rows) size=size_min else
+    {
+      size <- size_max - ((n - 1) / (max_rows - 1)) * (size_max - size_min)
+    }
+    return(size)
+}
+fn.risk.all.sp.eye=function(d,show.all.risk.cat=FALSE,Max.font.size=6)
 {
   Risk.values=subset(RiskColors,names(RiskColors)%in%unique(d$Risk))
   if(show.all.risk.cat) Risk.values=RiskColors
@@ -6480,6 +6489,7 @@ fn.risk.all.sp.eye=function(d,show.all.risk.cat=FALSE)
       mutate(lbl.col=case_when(Species%in%capitalize(Other.species)~'Non.indicator',
                                TRUE~lbl.col))
   }
+  SIZE <- calc_text_size(size_max=Max.font.size,size_min = 2.8,df=pp)
   p=pp%>%
     ggplot(aes(x=as.factor(id), y=Score1)) +  
     geom_bar(aes(fill=Risk),stat="identity", show.legend = TRUE)+
@@ -6496,7 +6506,7 @@ fn.risk.all.sp.eye=function(d,show.all.risk.cat=FALSE)
           legend.text = element_text(size=20)) +
     coord_polar(start = 0)+
     geom_text(data=label_pp, aes(x=id, y=Score1*1.1, label=Species, hjust=hjust,color=lbl.col),
-              fontface="bold",alpha=0.6, size=2.8, angle= label_pp$angle,
+              fontface="bold",alpha=0.6, size=SIZE, angle= label_pp$angle,
               inherit.aes = FALSE )+
     scale_color_manual(values =label_colors)+
     guides(color = guide_none())

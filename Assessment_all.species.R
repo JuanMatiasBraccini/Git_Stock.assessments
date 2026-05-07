@@ -5748,7 +5748,7 @@ if(add.non.interacting.species)  #display species not interacting with fishing?
     filter(!Species%in%c(p$Species,capitalize(assessed.elsewhere)))
   p1=rbind(p1,non.interacting.species)
 }
-fn.risk.all.sp.eye(d=p1,show.all.risk.cat=TRUE)    
+fn.risk.all.sp.eye(d=p1,show.all.risk.cat=TRUE,Max.font.size=7)    
 ggsave(paste(Rar.path,"Risk_all species together_proportion.tiff",sep='/'),width = 8,height = 8,compression = "lzw")
   #future
 p1_future=dd1_future%>%dplyr::select(Species,Score,Risk)
@@ -5876,7 +5876,7 @@ if(exists("Store.cons.Like_Age.based"))
 MSY_combined=do.call(rbind,MSY_combined)%>%arrange(Species,Method)
 write.csv(MSY_combined,paste0(Rar.path,'/Table_Compare MSY estimates.csv'),row.names = F)
 fn.compare.MSY(d=MSY_combined%>%filter(Species%in%capitalize(names(Indicator.species))),ncols=2)
-ggsave(paste0(Rar.path,'/Compare MSY estimates_indicators.tiff'), width = 6,height = 6, dpi = 300, compression = "lzw")
+ggsave(paste0(Rar.path,'/Compare MSY estimates_indicators.tiff'), width = 8,height = 6, dpi = 300, compression = "lzw")
 if(!is.null( Other.species))
 {
   fn.compare.MSY(d=MSY_combined%>%filter(!Species%in%capitalize(names(Indicator.species))),
