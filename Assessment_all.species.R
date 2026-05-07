@@ -720,13 +720,13 @@ do.LikeP=FALSE
 do.RET=FALSE
 do.JIT=TRUE
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
-Number.of.jitters=25
-jitters.frction=0.1   #0.05; 0.1 recommended by r4ss Help
+Number.of.jitters=50
+jitters.frction=0.1   #0.1 recommended by r4ss Help
 jitters.src=0         #0 control; 1 par file
 jitters.without.Hessian=TRUE #recomended by r4ss Help file
-run.Brett.jitter=TRUE   #run Brett's approach to running Jitters (yields same results) 
+run.Brett.jitter=FALSE   #run Brett's approach to running Jitters or r4SS (they yield same result) 
 tweak.init=TRUE
-jitters.tweak=1         #tweaking factor of init values
+jitters.tweak=0.2         #tweaking factor of init values
 jitter.tweaked.species="NULL"   #"sandbar shark", superseded by these species need to tweak init values in control file
 Number.of.likelihood.profiles=10
 delta.likelihood.profiles=0.2  #margine around Ro MLE for setting range of Ro values tested in like prof.

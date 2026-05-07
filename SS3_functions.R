@@ -3334,7 +3334,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
     if(run.Brett.jitter)
     {
       jitter_brett(Njitter=numjitter,JITTER_FRACTION=fracjitter,base_model_dir=dirname.Jitter,
-                   TWEAK.init=tweak.init,TWEAK.amount=jitters.tweak)
+                   TWEAK.init=tweak.init,TWEAK.amount=jitters.tweak,values_src=srcjitter) 
     }else
     {
       if(run.in.parallel)
@@ -3435,7 +3435,7 @@ fn.fit.diag_SS3=function(WD,disfiles,R0.vec,h.vec,M.vec,depl.vec,curSB.vec,Linf.
       labs(colour = NULL)+
       xlab('Jitter runs at a converged solution')+ylab('Total likelihood')+
       geom_text_repel(aes(label=round(Tot.like,2)),box.padding=1,size=3)+
-      scale_color_manual(values = c("Base model" = "royalblue","Higher" = "firebrick"))
+      scale_color_manual(values = c("Base model" = "grey","Higher" = "firebrick","Smaller"="royalblue"))
     
     if(tweak.init)
     {
@@ -3636,7 +3636,7 @@ jitter.tweaked=function (dir = NULL, mydir = lifecycle::deprecated(), Intern = l
   }
   return(invisible(likesaved))
 }
-jitter_brett=function(Njitter,JITTER_FRACTION,base_model_dir,TWEAK.init=FALSE,TWEAK.amount=0.1)
+jitter_brett=function(Njitter,JITTER_FRACTION,base_model_dir,TWEAK.init=FALSE,TWEAK.amount=0.1,values_src)
 {
   #create directories
   #jitter_main_dir <- file.path(base_model_dir, "jitter_parallel") 
@@ -3663,8 +3663,8 @@ jitter_brett=function(Njitter,JITTER_FRACTION,base_model_dir,TWEAK.init=FALSE,TW
     {
       jitter_dir <- file.path(jitter_main_dir, paste0("jitter_", i))
       start <- r4ss::SS_readstarter(file = file.path(jitter_dir, "starter.ss"), verbose = FALSE)
-      start$init_values_src=0
-      start$jitter_fraction=0
+      start$init_values_src=values_src
+      start$jitter_fraction=JITTER_FRACTION
       r4ss::SS_writestarter(dir = jitter_dir, start, overwrite = TRUE,verbose = FALSE)
       
       dat <- r4ss::SS_readdat(file = file.path(jitter_dir, start$datfile), verbose = FALSE)
@@ -3695,7 +3695,7 @@ jitter_brett=function(Njitter,JITTER_FRACTION,base_model_dir,TWEAK.init=FALSE,TW
   message("\n--- Jitter: Starting Parallel Model Runs ---")
   plan(multisession)
   message(paste("Executing", Njitter, "jitters on", nbrOfWorkers(), "cores."))
-  future_lapply(1:Njitter, FUN = run_ss_in_dir, main_jitter_dir = jitter_main_dir)
+  future_lapply(1:Njitter, FUN = run_ss_in_dir, main_jitter_dir = jitter_main_dir, future.seed=TRUE)
   plan(sequential) 
   
   # Copy results from each run directory back to the main jitter directory and rename them
