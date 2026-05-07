@@ -171,7 +171,7 @@ Do.sim.Test="NO" #do simulation testing bespoke size-based model
 do.Andre.model=FALSE
 
   #2.6 Outputs
-do.F.series=FALSE   #output Fishing mortality time series
+do.F.series=TRUE   #output Fishing mortality time series
 do.B.over.Bmsy.series=TRUE
 do.F.over.Fmsy.series=TRUE
 
@@ -451,7 +451,7 @@ Rdist = "lnorm"
 KDIST="lnorm"  
 PsiDist='beta'
 Whiskery.q.periods=2        # split monthly cpue into this number of periods (Simpfendorfer 2000, Braccini et al 2021)
-drop.intermediate.yrs=FALSE #remove whiskery inermediate Q years or not
+drop.intermediate.yrs=FALSE #remove whiskery intermediate Q years or not
 Gummy.q.periods=1     
 Obs.Err.JABBA=0.01          #JABBA uses SE2" = CPUE.se^2 + fixed.obsE^2 
 increase.CV.JABBA=TRUE      #for consistency with SS3 and because not using fixed.obsE

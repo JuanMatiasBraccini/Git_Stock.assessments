@@ -55,7 +55,7 @@ for(w in 1:length(State.Space.SPM))
     if(do.parallel.JABBA)
     {
       set.seed(1234)
-      progress <- function(n) cat(Keep.species[n],sprintf(": JABBA-CPUE fit complete-----------\n", n))
+      progress <- function(n) cat(Keep.species[n],sprintf("(iteration %d): JABBA-CPUE fit complete-----------\n", n))
       opts <- list(progress = progress)
       cl <- makeCluster(detectCores()-1)
       registerDoSNOW(cl)
@@ -78,14 +78,12 @@ for(w in 1:length(State.Space.SPM))
             drop.dis.yrs=test.drop.monthly.cpue[[match(Neim,names(test.drop.monthly.cpue))]]
             CPUE$TDGDLF.monthly=CPUE$TDGDLF.monthly%>%filter(!yr.f%in%drop.dis.yrs)
           }
-          
+          this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
+                        capitalize(List.sp[[i]]$Name),"/",AssessYr,"/JABBA CPUE",sep='')
+          if(!dir.exists(this.wd))dir.create(this.wd)
           len.cpue=length(CPUE)
           if(len.cpue>0)
           {
-            this.wd=paste(handl_OneDrive("Analyses/Population dynamics/1."),
-                          capitalize(List.sp[[i]]$Name),"/",AssessYr,"/JABBA CPUE",sep='')
-            if(!dir.exists(this.wd))dir.create(this.wd)
-            
             #Catch
             ktch=ktch.combined%>%
               filter(Name==Neim)%>%
