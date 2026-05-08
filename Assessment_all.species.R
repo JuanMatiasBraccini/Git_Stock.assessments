@@ -837,6 +837,7 @@ Indicator.species=c(17001,17003,18003,18007)
 names(Indicator.species)=c("gummy shark","whiskery shark","dusky shark","sandbar shark")
 Shar_other=22999
 Scien.nm=All.species.names[,c('SPECIES','Scien.nm')]
+discard.specs=c('TEP','Discards_TDGDLF')
 
 #define what species are assessed elsewhere
 assessed.elsewhere=c("white shark","school shark","spot-tail shark",
@@ -5927,13 +5928,18 @@ if(do.dus.san.whis.rec)
   ktch=KtCh%>%
     filter(Name%in%c('dusky shark','sandbar shark','whiskery shark'))%>%
     mutate(fishery=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern shark',
-                          ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                   discard.specs),'Southern shark',
-                                 ifelse(FishCubeCode%in%c('WRL') & Name%in%WRL.species,'WRL',
-                                        'Other'))))
+                   ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                             discard.specs),'Southern shark',
+                   ifelse(FishCubeCode%in%c('WRL') & Name%in%WRL.species,'WRL',
+                   'Other')))) 
   
   #Management and catch
-  p=fun.management.timeline(Management,labl.size=3.5,pt.siz=.9,Right.Margin=120)
+  add.repel.sp.name=FALSE
+  LBL.alpha=0.3
+  LBL.kl=c('tan4','aquamarine4','navy') 
+  Li.wiz=1.25
+  p=fun.management.timeline(Management,labl.size=3.25,pt.siz=.9,
+                            Right.Margin=120,Start.first.top=TRUE)
   built_plot <- ggplot_build(p)
   SKLR=built_plot$layout$panel_params[[1]]$y$breaks[1]-2
   ktch2=ktch%>%
@@ -5946,25 +5952,37 @@ if(do.dus.san.whis.rec)
     mutate(year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y"),
            Rel.tonnes=SKLR-Rel.tonnes*SKLR,
            Name=capitalize(Name)) 
-  
-  LBL.alpha=0.35
-  LBL.kl=c('blue3','darkgreen','tan4')
-  Li.wiz=1.25
-  p+
+  p=p+
     geom_line(data=ktch2%>%filter(Name=="Dusky shark"),
               aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[1],linewidth=Li.wiz)+
-    geom_text_repel(data=ktch2%>%filter(finyear==1941 & Name=="Dusky shark"),
-                    aes(year,Rel.tonnes,label=Name),color=LBL.kl[1],box.padding=10,size=6)+
     geom_line(data=ktch2%>%filter(Name=="Sandbar shark"),
               aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[2],linewidth=Li.wiz)+
+    geom_line(data=ktch2%>%filter(Name=="Whiskery shark"),
+              aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[3],linewidth=Li.wiz)
+if(add.repel.sp.name)
+{
+  p=p+
+    geom_text_repel(data=ktch2%>%filter(finyear==1941 & Name=="Dusky shark"),
+                    aes(year,Rel.tonnes,label=Name),color=LBL.kl[1],box.padding=10,size=6)+
     geom_text_repel(data=ktch2%>%filter(finyear==1972 & Name=="Sandbar shark"),
                     aes(year,Rel.tonnes,label=Name),color=LBL.kl[2],box.padding=1.8,size=6,hjust=1)+
-    geom_line(data=ktch2%>%filter(Name=="Whiskery shark"),
-              aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[3],linewidth=Li.wiz)+
     geom_text_repel(data=ktch2%>%filter(finyear==1941 & Name=="Whiskery shark"),
                     aes(year,Rel.tonnes,label=Name),color=LBL.kl[3],box.padding=5,size=6,hjust=1)
-  ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management & catch.tiff'),
-         width = 10,height = 6, dpi = 300, compression = "lzw")
+}else
+{
+  Pos.y=max(ktch2$Rel.tonnes)
+ p=p+
+   geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Dusky shark"),
+                   aes(year,Pos.y-4,label=Name),color=LBL.kl[1],size=6,hjust=0)+
+   geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Sandbar shark"),
+                   aes(year,Pos.y-6,label=Name),color=LBL.kl[2],size=6,hjust=0)+
+   geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Whiskery shark"),
+                   aes(year,Pos.y-8,label=Name),color=LBL.kl[3],size=6,hjust=0)
+ 
+}
+  print(p)
+    ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management & catch.tiff'),
+         width = 11,height = 6, dpi = 300, compression = "lzw")
   
 }
 #28.2 Sawfish stock assessment  paper

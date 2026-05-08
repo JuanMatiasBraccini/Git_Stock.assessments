@@ -26,7 +26,6 @@ if(create.SS.inputs)
           ktch=KtCh%>%
             filter(Name==Neim)
           retained.discarded.ktch=NULL
-          discard.specs=c('TEP','Discards_TDGDLF')
           if(Neim%in%retained.discarded.sp)
           {
             if(Neim=="dusky shark") this.discard.sp='TEP'
