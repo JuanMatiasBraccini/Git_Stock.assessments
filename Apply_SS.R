@@ -3741,9 +3741,10 @@ for(w in 1:n.SS)
       {
         for(i in 1:N.sp)
         {
-          this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Scenario comparison",sep='') 
+          this.wd=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated/Scenario comparison",sep='')
+          this.wd.files=paste(HandL.out,capitalize(Keep.species[i]),"/",AssessYr,"/SS3 integrated",sep='')
           Scens=List.sp[[i]]$Sens.test$SS  
-          dis.files=paste(this.wd,Scens$Scenario,sep='/')
+          dis.files=paste(this.wd.files,Scens$Scenario,sep='/')
           Report.list=vector('list',length(dis.files))
           names(Report.list)=Scens$Scenario
           for(k in 1:length(Report.list)) Report.list[[k]]=SS_output(dis.files[[k]],covar=FALSE,forecast=TRUE,readwt=F)
