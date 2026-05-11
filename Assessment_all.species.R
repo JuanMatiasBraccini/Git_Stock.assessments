@@ -5677,7 +5677,7 @@ for(l in 1: length(Lista.sp.outputs))
                                                   filter(tolower(Species)%in%Lista.sp.outputs[[l]]),
                                                 Risk.colors=RiskColors,
                                                 out.plot=TRUE)
-  ggsave(paste(Rar.path,paste0("Risk_future_",names(Lista.sp.outputs)[l],".tiff"),sep='/'),width = 10,height = 8,compression = "lzw")
+  ggsave(paste(Rar.path,paste0("Risk_",names(Lista.sp.outputs)[l],"_future.tiff"),sep='/'),width = 10,height = 8,compression = "lzw")
 }
 
   #2.4. Export Risk table
@@ -5933,55 +5933,106 @@ if(do.dus.san.whis.rec)
                    ifelse(FishCubeCode%in%c('WRL') & Name%in%WRL.species,'WRL',
                    'Other')))) 
   
-  #Management and catch
+  #Management 
   add.repel.sp.name=FALSE
-  LBL.alpha=0.3
+  LBL.alpha=0.45
   LBL.kl=c('tan4','aquamarine4','navy') 
   Li.wiz=1.25
-  p=fun.management.timeline(Management,labl.size=3.25,pt.siz=.9,
-                            Right.Margin=120,Start.first.top=TRUE)
-  built_plot <- ggplot_build(p)
-  SKLR=built_plot$layout$panel_params[[1]]$y$breaks[1]-2
-  ktch2=ktch%>%
-    group_by(SPECIES,Name,finyear)%>%
-    summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
-    ungroup()%>%
-    group_by(SPECIES,Name)%>%
-    mutate(Rel.tonnes=Tonnes/max(Tonnes))%>%
-    ungroup()%>%
-    mutate(year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y"),
-           Rel.tonnes=SKLR-Rel.tonnes*SKLR,
-           Name=capitalize(Name)) 
-  p=p+
-    geom_line(data=ktch2%>%filter(Name=="Dusky shark"),
-              aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[1],linewidth=Li.wiz)+
-    geom_line(data=ktch2%>%filter(Name=="Sandbar shark"),
-              aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[2],linewidth=Li.wiz)+
-    geom_line(data=ktch2%>%filter(Name=="Whiskery shark"),
-              aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[3],linewidth=Li.wiz)
-if(add.repel.sp.name)
-{
-  p=p+
-    geom_text_repel(data=ktch2%>%filter(finyear==1941 & Name=="Dusky shark"),
-                    aes(year,Rel.tonnes,label=Name),color=LBL.kl[1],box.padding=10,size=6)+
-    geom_text_repel(data=ktch2%>%filter(finyear==1972 & Name=="Sandbar shark"),
-                    aes(year,Rel.tonnes,label=Name),color=LBL.kl[2],box.padding=1.8,size=6,hjust=1)+
-    geom_text_repel(data=ktch2%>%filter(finyear==1941 & Name=="Whiskery shark"),
-                    aes(year,Rel.tonnes,label=Name),color=LBL.kl[3],box.padding=5,size=6,hjust=1)
-}else
-{
-  Pos.y=max(ktch2$Rel.tonnes)
- p=p+
-   geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Dusky shark"),
-                   aes(year,Pos.y-4,label=Name),color=LBL.kl[1],size=6,hjust=0)+
-   geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Sandbar shark"),
-                   aes(year,Pos.y-6,label=Name),color=LBL.kl[2],size=6,hjust=0)+
-   geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Whiskery shark"),
-                   aes(year,Pos.y-8,label=Name),color=LBL.kl[3],size=6,hjust=0)
- 
-}
+  p=fun.management.timeline(Management,labl.size=3.15,pt.siz=.9,Right.Margin=120,
+                            Start.first.top=TRUE,alpha.decades=0.35,
+                            connect.alpha=0.35,connect.kl="black",connect.size=.3,
+                            Rev.dec.kl=FALSE)
+  #Add effort
+  add.eFFort=TRUE
+  if(add.eFFort)
+  {
+    LBL.kl.eff=c('black','red')
+    LBL.y.pos=ktch2%>%filter(finyear==min(finyear))%>%distinct(year)%>%pull(year)
+    Ef.dat2=Ef.dat%>%
+      rename(finyear=year)%>%
+      group_by(fishery,finyear)%>%
+      summarise(Total=sum(Total,na.rm=T))%>%
+      ungroup()%>%
+      group_by(fishery)%>%
+      mutate(Rel.effort=Total/max(Total))%>%
+      ungroup()%>%
+      mutate(year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y"),
+             Rel.effort=SKLR-Rel.effort*SKLR) 
+    NSF.pol=Ef.dat2%>%
+              filter(fishery=="NSF")%>%
+              dplyr::select(Rel.effort,year)
+    NSF.pol=data.frame(year=c(NSF.pol$year,rev(NSF.pol$year)),
+                       Rel.effort=c(NSF.pol$Rel.effort,rep(min(NSF.pol$Rel.effort),nrow(NSF.pol))))
+    
+    TDGDLF.pol=Ef.dat2%>%
+      filter(fishery=="TDGDLF")%>%
+      dplyr::select(Rel.effort,year)
+    TDGDLF.pol=data.frame(year=c(TDGDLF.pol$year,rev(TDGDLF.pol$year)),
+                       Rel.effort=c(TDGDLF.pol$Rel.effort,rep(min(NSF.pol$Rel.effort),nrow(TDGDLF.pol))))
+    
+    
+    p=p+
+      geom_polygon(data=TDGDLF.pol,aes(year,Rel.effort),
+                   alpha=.2,fill=LBL.kl.eff[2])+
+      geom_polygon(data=NSF.pol,aes(year,Rel.effort),
+                   alpha=.2,fill=LBL.kl.eff[1])+
+      #geom_line(data=Ef.dat2%>%filter(fishery=="NSF"),aes(year,Rel.effort),
+      #          alpha=LBL.alpha,color=LBL.kl.eff[1],linewidth=1.1,linetype='dashed')+
+      #geom_line(data=Ef.dat2%>%filter(fishery=="TDGDLF"),aes(year,Rel.effort),
+      #          alpha=LBL.alpha,color=LBL.kl.eff[2],linewidth=1.1,linetype='dashed')+
+      geom_text(aes(x=LBL.y.pos,y=-11,label="NSF relative effort"),alpha=LBL.alpha,color=LBL.kl.eff[1],size=6,hjust=0)+
+      geom_text(aes(x=LBL.y.pos,y=-13,label="TDGDLF relative effort"),alpha=LBL.alpha,color=LBL.kl.eff[2],size=6,hjust=0)
+    
+  }
+  #Add catch
+  add.kTch=TRUE
+  if(add.kTch)
+  {
+    built_plot <- ggplot_build(p)
+    SKLR=built_plot$layout$panel_params[[1]]$y$breaks
+    SKLR=subset(SKLR,!is.na(SKLR))
+    SKLR=SKLR[1]-7
+    ktch2=ktch%>%
+      group_by(SPECIES,Name,finyear)%>%
+      summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
+      ungroup()%>%
+      group_by(SPECIES,Name)%>%
+      mutate(Rel.tonnes=Tonnes/max(Tonnes))%>%
+      ungroup()%>%
+      mutate(year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y"),
+             Rel.tonnes=SKLR-Rel.tonnes*SKLR,
+             Name=capitalize(Name)) 
+    p=p+
+      geom_line(data=ktch2%>%filter(Name=="Dusky shark"),
+                aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[1],linewidth=Li.wiz)+
+      geom_line(data=ktch2%>%filter(Name=="Sandbar shark"),
+                aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[2],linewidth=Li.wiz)+
+      geom_line(data=ktch2%>%filter(Name=="Whiskery shark"),
+                aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[3],linewidth=Li.wiz)
+    if(add.repel.sp.name)
+    {
+      p=p+
+        geom_text_repel(data=ktch2%>%filter(finyear==1941 & Name=="Dusky shark"),
+                        aes(year,Rel.tonnes,label=Name),color=LBL.kl[1],box.padding=10,size=6)+
+        geom_text_repel(data=ktch2%>%filter(finyear==1972 & Name=="Sandbar shark"),
+                        aes(year,Rel.tonnes,label=Name),color=LBL.kl[2],box.padding=1.8,size=6,hjust=1)+
+        geom_text_repel(data=ktch2%>%filter(finyear==1941 & Name=="Whiskery shark"),
+                        aes(year,Rel.tonnes,label=Name),color=LBL.kl[3],box.padding=5,size=6,hjust=1)
+    }else
+    {
+      Pos.y=max(ktch2$Rel.tonnes)
+      p=p+
+        geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Dusky shark"),
+                  aes(year,Pos.y-4,label=paste(Name,'relative catch')),alpha=LBL.alpha,color=LBL.kl[1],size=6,hjust=0)+
+        geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Sandbar shark"),
+                  aes(year,Pos.y-6,label=paste(Name,'relative catch')),alpha=LBL.alpha,color=LBL.kl[2],size=6,hjust=0)+
+        geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Whiskery shark"),
+                  aes(year,Pos.y-8,label=paste(Name,'relative catch')),alpha=LBL.alpha,color=LBL.kl[3],size=6,hjust=0)
+    }
+  }
+  
   print(p)
-    ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management & catch.tiff'),
+  ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management & catch.tiff'),
          width = 11,height = 6, dpi = 300, compression = "lzw")
   
 }
