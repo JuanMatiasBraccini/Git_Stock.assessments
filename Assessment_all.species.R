@@ -230,9 +230,10 @@ NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue 
                           "lemon shark","pigeye shark","tiger shark",
                          "dusky shark","sandbar shark")
 tdgdlf_not.representative=c("smooth hammerhead","spinner shark")   #catch rates are for 'hammerheads' and for both species cpue tracks catch so no depletion signal
-tdgdlf_not.representative=c(tdgdlf_not.representative,"dusky shark") #Dusky.monthly: massive 'recruitment drop' follow moderate catches and fitting cpue needs a 
-                                                                    # massive peak in recruitment in 1975 not consistent with shark biology
 tdgdlf_monthly_not.representative=c("sandbar shark")                #Sandbar increasing cpue with increasing catch and very jumpy index  
+tdgdlf_monthly_not.representative=c(tdgdlf_monthly_not.representative,"dusky shark") #Dusky.monthly: massive 'recruitment drop' follow moderate catches and fitting cpue needs a 
+                                                                      # massive peak in recruitment in 1975 not consistent with shark biology
+only.use.survey.dusky=FALSE
 other_not.representative=c("green sawfish","narrow sawfish") #Pilbara trawl cpue, rare event & not within species distribution core
 drop.daily.cpue='2007&2008'  #drop from TDGDLF daily cpue (consistently higher cpues across species due to likely effort reporting bias)
 tdgdlf_daily_not.representative=list("whiskery shark"='West') #NULL; daily whiskery west cpue based on very few vessels
@@ -5892,16 +5893,16 @@ if(!is.null( Other.species))
 do.dus.san.whis.rec=FALSE
 if(do.dus.san.whis.rec)
 {
+  #Figure 1. Management timeline
   library(patchwork)
-  #get management timeline
+  
   source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/Timelines_management.R'))
   p_man.timeline=fun.management.timeline(Management,labl.size=2.5,pt.siz=.9,Right.Margin=0)
   
-  #effort 
+    #effort 
   built_plot <- ggplot_build(p_man.timeline)
   breaks_numeric <- built_plot$layout$panel_params[[1]]$x$get_breaks()
   breaks_dates <- as.Date(breaks_numeric, origin = "1970-01-01")
-  
   Ef.tdgdlf=Effort.monthly%>%
                 mutate(Total=Total/max(Total),
                        fishery='TDGDLF',
@@ -5931,9 +5932,19 @@ if(do.dus.san.whis.rec)
                    ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
                                              discard.specs),'Southern shark',
                    ifelse(FishCubeCode%in%c('WRL') & Name%in%WRL.species,'WRL',
-                   'Other')))) 
+                   'Other'))))
+  ktch2=ktch%>%
+    group_by(SPECIES,Name,finyear)%>%
+    summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
+    ungroup()%>%
+    group_by(SPECIES,Name)%>%
+    mutate(Rel.tonnes=Tonnes/max(Tonnes))%>%
+    ungroup()%>%
+    mutate(year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y"),
+           Rel.tonnes=SKLR-Rel.tonnes*SKLR,
+           Name=capitalize(Name))
   
-  #Management 
+    #get timeline 
   add.repel.sp.name=FALSE
   LBL.alpha=0.45
   LBL.kl=c('tan4','aquamarine4','navy') 
@@ -5941,13 +5952,21 @@ if(do.dus.san.whis.rec)
   p=fun.management.timeline(Management,labl.size=3.15,pt.siz=.9,Right.Margin=120,
                             Start.first.top=TRUE,alpha.decades=0.35,
                             connect.alpha=0.35,connect.kl="black",connect.size=.3,
-                            Rev.dec.kl=FALSE)
-  #Add effort
+                            Rev.dec.kl=FALSE,Start.decadal.col='burlywood4')
+    #add effort
   add.eFFort=TRUE
+  LBL.kl.eff=c('#F8766D','#619CFF')
+  names(LBL.kl.eff)=c('NSF','TDGDLF')
   if(add.eFFort)
   {
-    LBL.kl.eff=c('black','red')
-    LBL.y.pos=ktch2%>%filter(finyear==min(finyear))%>%distinct(year)%>%pull(year)
+    LBL.x.pos=ktch2%>%filter(finyear==min(finyear))%>%distinct(year)%>%pull(year)
+    LBL.x.pos_NSF=ktch%>%filter(fishery=='Northern shark')%>%filter(finyear==1991)%>%ungroup()%>%
+      mutate(year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y"))%>%distinct(year)%>%pull(year)
+    LBL.x.pos_TDGDLF=ktch%>%filter(fishery=='Southern shark' & !FishCubeCode=='Historic')%>%filter(finyear==1975)%>%ungroup()%>%
+      mutate(year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y"))%>%distinct(year)%>%pull(year)
+    LBL.y.pos_NSF=min(ktch2$Rel.tonnes)+1 #-26
+    LBL.y.pos_TDGDLF=min(ktch2$Rel.tonnes)+1 #-24
+
     Ef.dat2=Ef.dat%>%
       rename(finyear=year)%>%
       group_by(fishery,finyear)%>%
@@ -5980,28 +5999,19 @@ if(do.dus.san.whis.rec)
       #          alpha=LBL.alpha,color=LBL.kl.eff[1],linewidth=1.1,linetype='dashed')+
       #geom_line(data=Ef.dat2%>%filter(fishery=="TDGDLF"),aes(year,Rel.effort),
       #          alpha=LBL.alpha,color=LBL.kl.eff[2],linewidth=1.1,linetype='dashed')+
-      geom_text(aes(x=LBL.y.pos,y=-11,label="NSF relative effort"),alpha=LBL.alpha,color=LBL.kl.eff[1],size=6,hjust=0)+
-      geom_text(aes(x=LBL.y.pos,y=-13,label="TDGDLF relative effort"),alpha=LBL.alpha,color=LBL.kl.eff[2],size=6,hjust=0)
+      geom_text(aes(x=LBL.x.pos_NSF,y=LBL.y.pos_NSF,label="NSF effort"),alpha=LBL.alpha+0.3,color=LBL.kl.eff[1],size=5.5,hjust=0)+
+      geom_text(aes(x=LBL.x.pos_TDGDLF,y=LBL.y.pos_TDGDLF,label="TDGDLF effort"),alpha=LBL.alpha+0.3,color=LBL.kl.eff[2],size=5.5,hjust=0)
     
   }
-  #Add catch
+    #add catch
   add.kTch=TRUE
+  add.total.ktch.prop=FALSE
   if(add.kTch)
   {
     built_plot <- ggplot_build(p)
     SKLR=built_plot$layout$panel_params[[1]]$y$breaks
     SKLR=subset(SKLR,!is.na(SKLR))
     SKLR=SKLR[1]-7
-    ktch2=ktch%>%
-      group_by(SPECIES,Name,finyear)%>%
-      summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
-      ungroup()%>%
-      group_by(SPECIES,Name)%>%
-      mutate(Rel.tonnes=Tonnes/max(Tonnes))%>%
-      ungroup()%>%
-      mutate(year=as.POSIXct(paste0("01/01/",finyear),format="%d/%m/%Y"),
-             Rel.tonnes=SKLR-Rel.tonnes*SKLR,
-             Name=capitalize(Name)) 
     p=p+
       geom_line(data=ktch2%>%filter(Name=="Dusky shark"),
                 aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[1],linewidth=Li.wiz)+
@@ -6023,17 +6033,79 @@ if(do.dus.san.whis.rec)
       Pos.y=max(ktch2$Rel.tonnes)
       p=p+
         geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Dusky shark"),
-                  aes(year,Pos.y-4,label=paste(Name,'relative catch')),alpha=LBL.alpha,color=LBL.kl[1],size=6,hjust=0)+
+                  aes(year,Pos.y-6.5,label=Name),alpha=LBL.alpha+0.1,color=LBL.kl[1],size=6,hjust=0)+
         geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Sandbar shark"),
-                  aes(year,Pos.y-6,label=paste(Name,'relative catch')),alpha=LBL.alpha,color=LBL.kl[2],size=6,hjust=0)+
+                  aes(year,Pos.y-10,label=Name),alpha=LBL.alpha+0.1,color=LBL.kl[2],size=6,hjust=0)+
         geom_text(data=ktch2%>%filter(finyear==1941 & Name=="Whiskery shark"),
-                  aes(year,Pos.y-8,label=paste(Name,'relative catch')),alpha=LBL.alpha,color=LBL.kl[3],size=6,hjust=0)
+                  aes(year,Pos.y-3,label=Name),alpha=LBL.alpha+0.1,color=LBL.kl[3],size=6,hjust=0)
+    }
+    if(add.total.ktch.prop)
+    {
+      ktch.prop=ktch%>%
+        mutate(fishery=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern shark',
+                              ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                       discard.specs),'Southern shark',
+                                     FishCubeCode)))%>%
+        group_by(Name,fishery)%>%
+        summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
+        arrange(-Tonnes, .by_group = TRUE)%>%
+        mutate(Kum=cumsum(Tonnes),
+               Rel=Kum/sum(Tonnes),
+               fishery=ifelse(!Name=='whiskery shark'& Rel<0.9,fishery,
+                              ifelse(Name=='whiskery shark'& Rel<0.99,fishery,'other')))%>%
+        group_by(Name,fishery)%>%
+        summarise(Tonnes=sum(Tonnes,na.rm=T))%>%
+        group_by(Name)%>%
+        mutate(Prop=Tonnes/sum(Tonnes))%>%
+        ungroup()%>%
+        mutate(fishery=ifelse(fishery=='Southern shark','TDGDLF',ifelse(fishery=='Northern shark','NSF',fishery)))
+      Kl.rec=c("Recreational"="floralwhite");Kl.other=c("other"="#00BA38");Kl.WRL=c("WRL"="black");Kl.taiwan=c('Taiwan'='darkorange')
+      p.bar.dusky=ktch.prop%>%
+        filter(Name=='dusky shark')%>%
+        mutate(fishery=factor(fishery,levels=rev(c('TDGDLF','other','WRL','Recreational'))),
+               LBL=case_when(fishery%in%c('TDGDLF','NSF')~'',
+                             !fishery%in%c()~fishery),
+               LBL=capitalize(LBL))%>%
+        ggplot(aes(x=1,y=Prop,fill=fishery))+geom_bar(stat='identity',alpha=LBL.alpha,colour = "black")+
+        scale_fill_manual(values = c(LBL.kl.eff[2],Kl.rec,Kl.WRL,Kl.other))+
+        theme_void()+theme(legend.position = 'top',legend.box.spacing = unit(-15, "pt"),legend.title=element_blank())+
+        coord_flip(clip = "off")+
+        geom_text(aes(label = LBL),angle = -45,position = position_stack(vjust = 0.5))
+      p.bar.sandbar=ktch.prop%>%
+        filter(Name=='sandbar shark')%>%
+        mutate(fishery=factor(fishery,levels=rev(c('TDGDLF','NSF','other','Taiwan'))),
+               LBL=case_when(fishery%in%c('TDGDLF','NSF','other')~'',
+                             !fishery%in%c()~fishery))%>%
+        ggplot(aes(x=1,y=Prop,fill=fishery))+geom_bar(stat='identity',alpha=LBL.alpha,colour = "black")+
+        scale_fill_manual(values = c(LBL.kl.eff,Kl.taiwan,Kl.other))+
+        theme_void()+theme(legend.position = 'top',legend.box.spacing = unit(-15, "pt"),legend.title=element_blank())+
+        coord_flip(clip = "off")+
+        geom_text(aes(label = LBL),angle = -45,position = position_stack(vjust = 0.5))
+      p.bar.whiskery=ktch.prop%>%
+        filter(Name=='whiskery shark')%>%
+        mutate(fishery=factor(fishery,levels=rev(c('TDGDLF','other'))))%>%
+        ggplot(aes(x=1,y=Prop,fill=fishery))+geom_bar(stat='identity',alpha=LBL.alpha,colour = "black")+
+        scale_fill_manual(values = c(LBL.kl.eff[2],Kl.other))+
+        theme_void()+theme(legend.position = 'top',legend.box.spacing = unit(-15, "pt"),legend.title=element_blank())+
+        coord_flip()
+      
+      y.prop=0.035
+      D.y=0.72;S.y=0.63;W.y=0.81
+      p=p+
+        inset_element(p.bar.dusky, left = 0.04, bottom = D.y, right = 0.4, top = D.y+y.prop)+
+        theme(legend.position = 'none')+
+        inset_element(p.bar.sandbar, left = 0.04, bottom = S.y, right = 0.4, top = S.y+y.prop)+
+        theme(legend.position = 'none')+
+        inset_element(p.bar.whiskery, left = 0.04, bottom = W.y, right = 0.4, top = W.y+y.prop)+
+        theme(legend.position = 'none')
     }
   }
-  
+    #export
   print(p)
   ggsave(handl_OneDrive('Scientific manuscripts/Population dynamics/Recovery/Management & catch.tiff'),
          width = 11,height = 6, dpi = 300, compression = "lzw")
+  
+  #Figure 2. Biomass and F  #ACA
   
 }
 #28.2 Sawfish stock assessment  paper

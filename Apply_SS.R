@@ -1,7 +1,8 @@
-#---Create input files -------------------------------------------------
+#---Create list for storing outputs -------------------------------------------------
 n.SS=length(Integrated.age.based)  
 Age.based=vector('list',n.SS)
 names(Age.based)=Integrated.age.based
+#---Create input files -------------------------------------------------
 if(create.SS.inputs)
 {
   for(w in 1:n.SS)
@@ -2293,8 +2294,8 @@ if(create.SS.inputs)
                 {
                   Scens=Scens[-DROP.ABU,]
                   List.sp[[i]]$Sens.test$SS=List.sp[[i]]$Sens.test$SS[-DROP.ABU,]
+                  List.sp[[i]]$Simple.sentest$SS=List.sp[[i]]$Simple.sentest$SS[-DROP.ABU,]
                 }
-                
               }
               if(is.null(Size.compo.SS.format) & is.null(Size.compo.SS.format.zone))
               {
@@ -2303,11 +2304,12 @@ if(create.SS.inputs)
                 {
                   Scens=Scens[-DROP.SIZ,]
                   List.sp[[i]]$Sens.test$SS=List.sp[[i]]$Sens.test$SS[-DROP.SIZ,]
+                  List.sp[[i]]$Simple.sentest$SS=List.sp[[i]]$Simple.sentest$SS[-DROP.SIZ,]
                 }
-                
               }
               Scens$Scenario=paste0('S',1:nrow(Scens))
               List.sp[[i]]$Sens.test$SS$Scenario=paste0('S',1:nrow(List.sp[[i]]$Sens.test$SS))
+              List.sp[[i]]$Simple.sentest$SS$Scenario=paste0('S',1:nrow(List.sp[[i]]$Simple.sentest$SS))
               Store.sens=Store.sens[Scens$Scenario]
             }
             
