@@ -1627,12 +1627,9 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
           life.history$SS_selectivity_phase[no.length.comp[n],-1]=-2
         }
       }
-
-
       Sel_phase=life.history$SS_selectivity_phase%>%
                   gather(P,PHASE1,-Fleet)%>%
                   mutate(dumy=paste('SizeSel',P,Fleet,sep="_"))
-      
       xx=ctl$size_selex_parms%>%
                 tibble::rownames_to_column(var = "dumy")%>%
                 left_join(Sel_phase%>%dplyr::select(PHASE1,dumy),by='dumy')%>%
@@ -1702,6 +1699,17 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       
       id.fleet.to.estim=unique(c(dis.daily.size.comp.flit,dis.mean.w.flit))  
       id.fleet.to.estim=id.fleet.to.estim[!is.na(id.fleet.to.estim)]
+      if(life.history$Name=="dusky shark") 
+      {
+        neg.face=life.history$SS_selectivity_phase%>%
+                  filter(Fleet%in%id.fleet.to.estim & P_3<0)%>%
+                  pull(Fleet)
+        if(length(neg.face)>0)
+        {
+          id.fleet.to.estim=subset(id.fleet.to.estim,!id.fleet.to.estim%in%neg.face)
+        }
+        
+      }    
       if(length(id.fleet.to.estim)>0)
       {
         id.fleet.to.estim=paste0(sort(rep(c('SizeSel_P_1_','SizeSel_P_3_'),times=length(id.fleet.to.estim))),rep(id.fleet.to.estim,times=2))
