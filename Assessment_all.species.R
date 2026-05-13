@@ -478,7 +478,7 @@ add.scenarios.table=FALSE     #add table of scenarios to plots (too messy)
 do.parallel.SS=TRUE            # run SS sequentially or in parallel
 create.SS.inputs=FALSE          # FALSE once happy with SS input files and only need to run the model
 Tune.SS.model=FALSE             # Tune model if new year of data
-Run.SS=TRUE                    #  run parameter estimation with arguments 'Arg' as per defined below
+Run.SS=FALSE                    #  run parameter estimation with arguments 'Arg' as per defined below
 SS3.run='final'                 # 'test' for model testing, 'final' for estimating uncertainty
 if(!SS3.run=='final') run_SS_plots=TRUE else run_SS_plots=FALSE  
 do.SS3.diagnostics=FALSE       # very time consuming, do only once model is defined 
