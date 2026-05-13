@@ -3516,19 +3516,60 @@ fn.kmpr.Linf_length.comp=function(d,FL.TL.conv,Linf,Linf.m,TLmax)
   return(p)
 }
 
-fn.compare.MSY=function(d,ncols,xlab.angle=90,xlab.size=10, Str.siz=12)
+my_palette_fn_JABBA <- colorRampPalette(c("lightblue", "cadetblue4"))
+my_palette_fn_SS3<- colorRampPalette(c("darkgreen","greenyellow"))
+fn.compare.MSY=function(d,ncols,xlab.angle=90,xlab.size=10, Str.siz=12,add.msy.table=TRUE)
 {
-  p=d%>%
+  d1=d%>%
+    mutate(MSY_Lower.95=ifelse(MSY_Lower.95<0,0,MSY_Lower.95),
+           Met=str_remove(Method, "_.*$"))%>%
+    group_by(Species,Met)%>%
+    mutate(overal_MSY.met=round(mean(MSY_Median),1),
+           overal_MSY.met.SD=round(sd(MSY_Median),1))%>%
+    group_by(Species)%>%
+    mutate(overal_MSY=round(mean(MSY_Median),1),
+           overal_MSY.SD=round(sd(MSY_Median),1))%>%
+    ungroup()%>%
+    mutate(Method=factor(Method,levels=str_sort(unique(Method), numeric = TRUE)))
+   
+  KL.scale=ifelse(str_detect(levels(d1$Method), "^JABBA"), my_palette_fn_JABBA(sum(str_detect(levels(d1$Method), "^JABBA"))),
+           ifelse(str_detect(levels(d1$Method), "^SS3"),my_palette_fn_SS3(sum(str_detect(levels(d1$Method), "^SS3"))),
+           "red4"))
+  names(KL.scale) <- levels(d1$Method)
+  p=d1%>%
     ggplot(aes(Method,MSY_Median))+
-    geom_point(aes(color=Method),show.legend = FALSE)+
+    geom_point(aes(color=Method),size=2,show.legend = FALSE)+
     geom_errorbar(aes(ymin=MSY_Lower.95, ymax=MSY_Upper.95,color=Method), width=.2,
                   position=position_dodge(.9),show.legend = FALSE)+
-    geom_text_repel(aes(label=round(MSY_Median),color=Method),show.legend = FALSE)+
+    #geom_text_repel(aes(label=round(MSY_Median),color=Method),show.legend = FALSE)+
+    #geom_hline(aes(yintercept = overal_MSY.met,color=Met),show.legend = FALSE)+
+    #geom_hline(aes(yintercept = overal_MSY),color='black',show.legend = FALSE)+
     facet_wrap(~Species,scales='free',ncol=ncols)+
     ylab('MSY (tonnes)')+xlab('')+
     ylim(0,NA)+
     theme_PA(axs.t.siz=xlab.size,strx.siz=Str.siz)+
-    theme(axis.text.x = element_text(angle = xlab.angle, vjust = 0.5, hjust=1))
+    theme(axis.text.x = element_text(angle = xlab.angle, vjust = 0.5, hjust=1))+
+    scale_color_manual(values = KL.scale)
+  
+  #add MSY table
+  if(add.msy.table)
+  {
+    Tbl=d1%>%
+      left_join(d1%>%distinct(Method,Met)%>%group_by(Met)%>%tally()%>%mutate(N=sum(n)),by='Met')%>%
+      mutate(overal_MSY.met.SE=round(overal_MSY.met.SD/sqrt(n)),
+             overal_MSY.SE=round(overal_MSY.SD/sqrt(N)),
+             LBL.met=paste0(overal_MSY.met,' (',overal_MSY.met.SE,')'),
+             LBL=paste0(overal_MSY,' (',overal_MSY.SE,')'))
+    
+    TAB.msy=rbind(Tbl%>%distinct(Species,LBL.met,Met)%>%rename(LBL=LBL.met),
+                  Tbl%>%distinct(Species,LBL)%>%mutate(Met='Combined'))%>%
+      spread(Met,LBL)
+    table_data=TAB.msy%>%nest(.by = Species)
+    
+    p=p+
+      geom_table_npc(data = table_data,aes(npcx = 0.95, npcy = 0.95, label = data),
+                     hjust = 1, vjust = 1,table.theme = ttheme_gtminimal)
+  }
   return(p)
 }
 

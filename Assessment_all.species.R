@@ -717,8 +717,8 @@ Lambda.species=list("dusky shark"=c(3:8,10), #fleets with alternative lambdas fo
 
   #21.15 Fit diagnostics
 #note: very time consuming. Only run once model is defined.
-do.LikeP=FALSE
-do.RET=FALSE
+do.LikeP=TRUE
+do.RET=TRUE
 do.JIT=TRUE
 Retro_start=0; Retro_end=5 #Last 5 years of observations for retrospective analysis
 Number.of.jitters=25
