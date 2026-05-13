@@ -12,10 +12,15 @@ fn.do.2026.recovery=function(do.fig1=TRUE,do.fig2=TRUE,do.fig3=TRUE,do.fig4=TRUE
     source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/Timelines_management.R'))
     p_man.timeline=fun.management.timeline(Management,labl.size=2.5,pt.siz=.9,Right.Margin=0)
     
-    #effort 
+    #get plot scales
     built_plot <- ggplot_build(p_man.timeline)
     breaks_numeric <- built_plot$layout$panel_params[[1]]$x$get_breaks()
     breaks_dates <- as.Date(breaks_numeric, origin = "1970-01-01")
+    SKLR=built_plot$layout$panel_params[[1]]$y$breaks
+    SKLR=subset(SKLR,!is.na(SKLR))
+    SKLR=SKLR[1]-7
+    
+    #effort 
     Ef.tdgdlf=Effort.monthly%>%
       mutate(Total=Total/max(Total),
              fishery='TDGDLF',
@@ -66,6 +71,8 @@ fn.do.2026.recovery=function(do.fig1=TRUE,do.fig2=TRUE,do.fig3=TRUE,do.fig4=TRUE
                               Start.first.top=TRUE,alpha.decades=0.35,
                               connect.alpha=0.35,connect.kl="black",connect.size=.3,
                               Rev.dec.kl=FALSE,Start.decadal.col='burlywood4')
+
+    
     #add effort
     add.eFFort=TRUE
     LBL.kl.eff=c('#F8766D','#619CFF')
@@ -121,10 +128,6 @@ fn.do.2026.recovery=function(do.fig1=TRUE,do.fig2=TRUE,do.fig3=TRUE,do.fig4=TRUE
     add.total.ktch.prop=FALSE
     if(add.kTch)
     {
-      built_plot <- ggplot_build(p)
-      SKLR=built_plot$layout$panel_params[[1]]$y$breaks
-      SKLR=subset(SKLR,!is.na(SKLR))
-      SKLR=SKLR[1]-7
       p=p+
         geom_line(data=ktch2%>%filter(Name=="Dusky shark"),
                   aes(year,Rel.tonnes),alpha=LBL.alpha,color=LBL.kl[1],linewidth=Li.wiz)+
@@ -232,7 +235,6 @@ fn.do.2026.recovery=function(do.fig1=TRUE,do.fig2=TRUE,do.fig3=TRUE,do.fig4=TRUE
         t.siz=13
         WID=14
       }
-      if(length(Paper.species)<4) SIZ=3
       Tot.ktch%>%
         filter(Name%in%Paper.species)%>%
         group_by(Type,finyear,Name)%>%
@@ -283,7 +285,7 @@ fn.do.2026.recovery=function(do.fig1=TRUE,do.fig2=TRUE,do.fig3=TRUE,do.fig4=TRUE
                      filter(tolower(Species)%in%Paper.species),
                    Risk.colors=RiskColors,
                    out.plot=TRUE)
-    ggsave(paste0(hndl.paper,'/Risk_final.tiff'),width = 10,height = 11, dpi = 300, compression = "lzw")
+    ggsave(paste0(hndl.paper,'/Risk_final.tiff'),width = 7,height = 10, dpi = 300, compression = "lzw")
     write.csv(Final.risk.table,paste0(hndl.paper,'/Risk_final.csv'),row.names=F)
   }
 }  

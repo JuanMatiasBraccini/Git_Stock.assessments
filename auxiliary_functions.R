@@ -6293,7 +6293,7 @@ fn.overall.risk=function(N,RISK,sp,CX=1.5)
   polygon(x.Vec, y.Vec, col = CL, border = "transparent")
   text(1.5,mean(y.Vec),sp,cex=CX)
 }
-fn.risk.figure=function(d,Risk.colors,out.plot)   
+fn.risk.figure=function(d,Risk.colors,out.plot,split.caption=TRUE)   
 {
   d=d%>%
     mutate(Score=round(Consequence*Likelihood),
@@ -6381,13 +6381,28 @@ fn.risk.figure=function(d,Risk.colors,out.plot)
       scale_y_discrete(expand = c(0, 0))+scale_x_discrete(expand = c(0, 0),position = "top")+
       geom_hline(yintercept=c(1.5,2.5,3.5),color='grey75')+
       geom_vline(xintercept=c(1.5,2.5,3.5),color='grey75')+
-      geom_text(aes(Like.lbl,Cons.lbl,label=Max.val),size=6,fontface='bold')+
-       labs(caption=expression(atop('Cons.: Minor, B'[Cur]*'>B'[Tar]*'; Moderate, B'[Tar]*'>B'[Cur]*'>B'[Thr]*
-                                      '; High, B'[Thr]*'>B'[Cur]*'>B'[Lim]*'; Major, B'[Lim]*'>B'[Cur]*
-                                    '   Like.: Remote, <5%, Unlikely, 5-20%, Possible, 20-50%, Likely, >50%')))
-      # labs(caption=expression(atop('Consequence: Minor, B'[Cur]*'>B'[Tar]*'; Moderate, B'[Tar]*'>B'[Cur]*'>B'[Thr]*
-      #                                '; High, B'[Thr]*'>B'[Cur]*'>B'[Lim]*'; Major, B'[Lim]*'>B'[Cur],
-      #                              'Likelihood: Remote, <5%, Unlikely, 5-20%, Possible, 20-50%, Likely, >50%                                  ')))
+      geom_text(aes(Like.lbl,Cons.lbl,label=Max.val),size=6,fontface='bold')
+    if(split.caption)
+    {
+      p=p+
+        labs(
+          caption = expression(
+            atop(
+              'Cons.: Minor, B'[Cur]*'>B'[Tar]*'; Moderate, B'[Tar]*'>B'[Cur]*'>B'[Thr]*
+                '; High, B'[Thr]*'>B'[Cur]*'>B'[Lim]*'; Major, B'[Lim]*'>B'[Cur],
+              'Like.: Remote, <5%, Unlikely, 5-20%, Possible, 20-50%, Likely, >50%'
+            )
+          )
+        ) +theme(plot.caption = element_text(hjust = 0.5))
+      
+    }else
+    {
+      p=p+
+        labs(caption=expression(atop('Cons.: Minor, B'[Cur]*'>B'[Tar]*'; Moderate, B'[Tar]*'>B'[Cur]*'>B'[Thr]*
+                                       '; High, B'[Thr]*'>B'[Cur]*'>B'[Lim]*'; Major, B'[Lim]*'>B'[Cur]*
+                                       '   Like.: Remote, <5%, Unlikely, 5-20%, Possible, 20-50%, Likely, >50%')))
+      
+    }
     print(p)
   }
   return(d[iid.dups,]%>%dplyr::select(-c(w,Cons.lbl,Like.lbl,Max.val,id)))

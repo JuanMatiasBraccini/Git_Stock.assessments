@@ -5896,7 +5896,7 @@ if(do.strategic.papers)
   
   #28.1 Dusky, sandbar and whiskery recovery paper
   do.dus.san.whis.rec=FALSE
-  if(do.dus.san.whis.rec) fn.do.2026.recovery(do.fig1=FALSE,do.fig2=FALSE,do.fig3=FALSE,do.fig4=FALSE)
+  if(do.dus.san.whis.rec) fn.do.2026.recovery(do.fig1=TRUE,do.fig2=TRUE,do.fig3=TRUE,do.fig4=TRUE)
   
   #28.2 Sawfish stock assessment  paper
   do.sawfish=FALSE
