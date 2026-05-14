@@ -3791,7 +3791,7 @@ send.email(TO=Send.email.to,
 #notes: 
         # runs test only displays for series with >1 year
         # Hindcasting cross-validation only available for species with abundance series
-        # takes ~30 mins per species (in parallel)
+        # takes ~60 mins per species (in parallel)
 if(do.SS3.diagnostics)
 {
   options(warn=-1)

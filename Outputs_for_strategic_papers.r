@@ -67,10 +67,10 @@ fn.do.2026.recovery=function(do.fig1=TRUE,do.fig2=TRUE,do.fig3=TRUE,do.fig4=TRUE
     LBL.alpha=0.45
     LBL.kl=c('tan4','aquamarine4','navy') 
     Li.wiz=1.25
-    p=fun.management.timeline(Management,labl.size=3.15,pt.siz=.9,Right.Margin=120,
+    p=fun.management.timeline(Management,labl.size=3.15,pt.siz=.9,Right.Margin=115,
                               Start.first.top=TRUE,alpha.decades=0.35,
                               connect.alpha=0.35,connect.kl="black",connect.size=.3,
-                              Rev.dec.kl=FALSE,Start.decadal.col='burlywood4')
+                              Rev.dec.kl=FALSE,Start.decadal.col='burlywood4',LGN.size=8)
 
     
     #add effort
@@ -216,8 +216,11 @@ fn.do.2026.recovery=function(do.fig1=TRUE,do.fig2=TRUE,do.fig3=TRUE,do.fig4=TRUE
           theme(legend.position = 'none')
       }
     }
+    
+    #move legend to topright
+    p1=p+theme(legend.position = "inside",legend.position.inside = c(1, 1), legend.justification = c(0, 2))
     #export
-    print(p)
+    print(p1)
     ggsave(paste0(hndl.paper,'/Management & catch.tiff'),width = 11,height = 6, dpi = 300, compression = "lzw")
     
   }
@@ -285,8 +288,8 @@ fn.do.2026.recovery=function(do.fig1=TRUE,do.fig2=TRUE,do.fig3=TRUE,do.fig4=TRUE
                      filter(tolower(Species)%in%Paper.species),
                    Risk.colors=RiskColors,
                    out.plot=TRUE)
-    ggsave(paste0(hndl.paper,'/Risk_final.tiff'),width = 7,height = 10, dpi = 300, compression = "lzw")
-    write.csv(Final.risk.table,paste0(hndl.paper,'/Risk_final.csv'),row.names=F)
+    ggsave(paste0(hndl.paper,'/Risk_final_future.tiff'),width = 7,height = 10, dpi = 300, compression = "lzw")
+    write.csv(Final.risk.table,paste0(hndl.paper,'/Risk_final_future.csv'),row.names=F)
   }
 }  
 
