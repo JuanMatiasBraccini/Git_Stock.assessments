@@ -1302,6 +1302,13 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
     {
       ddumy[rownames(ddumy)=='Northern.shark','Pattern']=1
     }
+    
+    Logis.sel=life.history$SS_selectivity%>%filter(Fleet=='NT')
+    if('NT'%in%flitinfo$fleetname & all(is.na(Logis.sel[,c('P_3','P_4','P_5','P_6')])))
+    {
+      ddumy[rownames(ddumy)=='NT','Pattern']=1
+    }
+    
     Logis.sel=life.history$SS_selectivity%>%filter(Fleet=='Other')
     if(!'Northern.shark'%in%dis.flits & all(is.na(Logis.sel[,c('P_3','P_4','P_5','P_6')])))
     {
@@ -1406,8 +1413,11 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
     Souther2.condition=FALSE
     if(!Zones.condition)
     {
-      Souther2.condition=ddumy[grep('Southern.shark_2',rownames(ddumy)),'Pattern']
-      Souther2.condition=!Souther2.condition==15
+      if('Southern.shark_2'%in%rownames(ddumy))
+      {
+        Souther2.condition=ddumy[grep('Southern.shark_2',rownames(ddumy)),'Pattern']
+        Souther2.condition=!Souther2.condition==15
+      }
     }
 
     if(Zones.condition | Souther2.condition)
@@ -1546,6 +1556,31 @@ fn.set.up.SS=function(Templates,new.path,Scenario,Catch,Catch.ret.disc,life.hist
       if(any(!rownames(add.WRL)%in%rownames(ctl$size_selex_parms)))
       {
         aaaa=rbind(ctl$size_selex_parms,add.WRL)
+        aaaa=aaaa%>%
+          mutate(fleet=str_replace(rownames(aaaa), "^([^_]*_){2}[^_]*_", ""),
+                 order=parse_number(rownames(aaaa)))%>%
+          left_join(data.frame(fleet=rownames(ctl$size_selex_types%>%filter(Special==0)))%>%mutate(Fleet.order=row_number()),
+                    by='fleet')%>%
+          arrange(Fleet.order,order)
+        rownames(aaaa)=paste0('SizeSel_P_',aaaa$order,'_',aaaa$fleet)
+        aaaa=aaaa%>%dplyr::select(-order,-fleet,-Fleet.order)
+        ctl$size_selex_parms=aaaa
+      }
+    }
+    #add NT 
+    if('NT'%in%dis.flits & !'NT'%in%rownames(ctl$size_selex_parms))
+    {
+      NT.sel=life.history$SS_selectivity%>%filter(Fleet=='NT')
+      if(all(!is.na(NT.sel[,c('P_1','P_2','P_3','P_4','P_5','P_6')]))) Ptrn=24
+      if(all(is.na(NT.sel[,c('P_3','P_4','P_5','P_6')]))) Ptrn=1
+      
+      add.this=ctl$size_selex_parms[which(row_nm_size_selex_parms%in%dis.flits),]
+      add.NT=add.this[which(row_nm_size_selex_parms==dis.flits[1]),]
+      rownames(add.NT)=str_replace(rownames(add.NT), dis.flits[1], "NT")
+      if(Ptrn==1) add.NT=add.NT[1:2,]
+      if(any(!rownames(add.NT)%in%rownames(ctl$size_selex_parms)))
+      {
+        aaaa=rbind(ctl$size_selex_parms,add.NT)
         aaaa=aaaa%>%
           mutate(fleet=str_replace(rownames(aaaa), "^([^_]*_){2}[^_]*_", ""),
                  order=parse_number(rownames(aaaa)))%>%

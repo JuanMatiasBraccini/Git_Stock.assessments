@@ -136,8 +136,8 @@ Send.email.to="matias.braccini@dpird.wa.gov.au"   #send email when model run fin
 
 #1.New assessment and assessed species
 #assess.these.species.only=NULL  #select this if all species meeting criteria are assessed
-#assess.these.species.only=c("dusky shark","gummy shark","sandbar shark","whiskery shark")      
-assess.these.species.only='spot-tail shark'
+assess.these.species.only=c("dusky shark","gummy shark","sandbar shark","whiskery shark")      
+#assess.these.species.only='spot-tail shark'
 
 New.assessment="NO"   #set to 'YES' if a new assessment is done for the first time
 
@@ -225,11 +225,11 @@ Min.cpue.yrs=5 #minimum number of years for abundance index to be used
 drop.large.CVs=FALSE  #drop observations with CV larger than MAX.CV or not. Superseded by Francis CVs 
 
   #10.1 Define species for which cpue is not considered to be indexing abundance:
-survey_not.representative=c("scalloped hammerhead","great hammerhead",
+survey_not.representative=c("scalloped hammerhead","great hammerhead","spot-tail shark",
                             "lemon shark","pigeye shark","dusky shark") #few individuals caught (<5 per trip) and huge CVs 
 NSF_not.representative=c("scalloped hammerhead","great hammerhead",   #NSF cpue not used as unlikely to be representative
                           "lemon shark","pigeye shark","tiger shark",
-                         "dusky shark","sandbar shark")
+                         "dusky shark","sandbar shark","spot-tail shark")
 tdgdlf_not.representative=c("smooth hammerhead","spinner shark")   #catch rates are for 'hammerheads' and for both species cpue tracks catch so no depletion signal
 tdgdlf_monthly_not.representative=c("sandbar shark")                #Sandbar increasing cpue with increasing catch and very jumpy index  
 tdgdlf_monthly_not.representative=c(tdgdlf_monthly_not.representative,"dusky shark") #Dusky.monthly: massive 'recruitment drop' follow moderate catches and fitting cpue needs a 
@@ -502,7 +502,8 @@ alternative.forecasting=NULL  #"sandbar shark"; Forecasting F rather than catch
 #                                             'Southern.shark_1'=0,
 #                                             'Southern.shark_2'=1.04784e-02)) 
 WRL.species=c("copper shark","dusky shark","shortfin mako",   #Set WRL as a separate fleet for these species
-              "smooth hammerhead","spinner shark","tiger shark") 
+              "smooth hammerhead","spinner shark","tiger shark")
+NT.species=c('spot-tail shark')    #set NT separate fleet
 
 do.MC.multi=FALSE #doesn't work if estimating rec devs as rec devs are not updated with random sample
 nMCsims=200  #number of Monte Carlo simulations for multivaritenormal
@@ -547,15 +548,16 @@ drop.min.pop.bin.size=NULL  #reduce min pop size bin a bit
   #21.4 SS length comps arguments
 SS3_fleet.size.comp.used=c("Size_composition_West","Size_composition_Zone1","Size_composition_Zone2",
                            "Size_composition_NSF.LONGLINE","Size_composition_Survey",
-                           "Size_composition_Other")
+                           "Size_composition_Other","Size_composition_NT")
 combine_NSF_Survey=NULL   #combine length composition from NSF and Survey data to estimate logistic selectivity
 combine.sexes.tdgdlf=NULL   
 combine.sexes.tdgdlf.single.area=c("gummy shark")  #gummy single area model sex spatial dist biased towards females 
 combine.sexes.tdgdlf.daily=NULL 
 combine.sexes.survey=c("dusky shark")
 combine.sexes.nsf=c("dusky shark")
+combine.sexes.nt="spot-tail shark"
 combine.sexes=unique(c(combine.sexes.tdgdlf,combine.sexes.tdgdlf.daily,combine.sexes.survey,combine.sexes.nsf,
-                       "angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark"))
+                       combine.sexes.nt,"angel sharks","lemon shark","milk shark","scalloped hammerhead","tiger shark"))
 
 combine.sex_type=0     #0, males and females combined; 3, data from both sexes will be used and they are scaled so that they together sum to 1.0; i.e., sex ratio is preserved
 SS.sex.length.type=3   #1 if want to maintain males and females separated
@@ -1348,7 +1350,7 @@ RAR.species=Keep.species
 if(!is.null(additional.sp)) Keep.species=c(Keep.species,additional.sp)
 Keep.species=sort(Keep.species)
 N.sp=length(Keep.species)
-Other.species=RAR.species[-match(names(Indicator.species),RAR.species)]
+Other.species=subset(RAR.species,!RAR.species%in%names(Indicator.species))
 if(length(Other.species)==0) Other.species=NULL
 clear.log('PSA.fn')
 clear.log('Agg')
@@ -1607,7 +1609,7 @@ for(i in 1:N.sp)
 
   #6.8 remove nonsense length comp values
 nems=c('Size_composition_dropline','Size_composition_NSF.LONGLINE',
-       'Size_composition_Survey','Size_composition_Other',
+       'Size_composition_Survey','Size_composition_Other','Size_composition_NT',
        'Size_composition_West.6.5.inch.raw','Size_composition_West.7.inch.raw',
        'Size_composition_Zone1.6.5.inch.raw','Size_composition_Zone1.7.inch.raw',
        'Size_composition_Zone2.6.5.inch.raw','Size_composition_Zone2.7.inch.raw')
@@ -1866,7 +1868,7 @@ for(s in 1:N.sp)
                       dplyr::select(Finyear,Species,South,South.west,West,North)
   }
     #Display tag reporting rates
-  if(First.run=="YES")
+  if(First.run=="YES" & "Con_tag_SS.format_releases"%in%names(Species.data[[s]]))
   {
     d=Species.data[[s]]$Con_tag_non_reporting_from_F.estimation.R_%>%
       dplyr::select(Finyear,South,South.west,West)%>%
@@ -1911,8 +1913,11 @@ if(use.sandbar.tags.2000)
 }
 
 #Set sandbar Zone 2 non-reporting rate to Zone 1 if NA
-Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_=Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_%>%
-                                              mutate(South=ifelse(is.na(South),South.west,South))
+if('sandbar shark'%in%names(Species.data))
+{
+  Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_=Species.data$`sandbar shark`$Con_tag_non_reporting_from_F.estimation.R_%>%
+    mutate(South=ifelse(is.na(South),South.west,South))
+}
   
   #6.13 Look at growth Cvs
 Growth.CVs=vector('list',N.sp)
@@ -2228,13 +2233,15 @@ if(!is.null(Other.species))
   Lista.sp.outputs=list(Other.species,names(Indicator.species))
   names(Lista.sp.outputs)=c('Other.sp','Indicator.sp')
 }
-
 if(!is.null(additional.sp))
 {
   Lista.sp.outputs[[3]]=additional.sp
   names(Lista.sp.outputs)[3]='additional.sp'
 }
-
+if(sum(!Lista.sp.outputs$Indicator.sp%in%Keep.species)==length(Indicator.species))
+{
+  Lista.sp.outputs$Indicator.sp=NULL
+}
 
 #---9. Calculate r prior -----  
   #calculate prior
@@ -2963,6 +2970,15 @@ for(l in 1:N.sp)
       if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$TDGDLF.daily.Zone2=d
       rm(d)
     }
+    if('annual.abundance.NT'%in%names(Species.data[[l]]))
+    {
+      d=Species.data[[l]]$annual.abundance.NT%>%
+        rename(Finyear=FINYEAR)%>%
+        mutate(yr.f=as.numeric(substr(Finyear,1,4)))%>%
+        filter(yr.f<=Last.yr.ktch.numeric)
+      if(nrow(d)>=Min.cpue.yrs & !any(apply( Filter(is.numeric, d),2,is.infinite))) dummy$NT=d
+      rm(d)
+    }
     
     #reset CV if in percentage
     if(length(dummy)>0)
@@ -3052,7 +3068,7 @@ if(First.run=="YES")
   for(l in 1:N.sp)
   {
     A=Catch.rate.series[[l]]
-    IID=grep(paste(c("Survey","TDGDLF.monthly","TDGDLF.daily"),collapse='|'),names(A))
+    IID=grep(paste(c("Survey","TDGDLF.monthly","TDGDLF.daily","NT"),collapse='|'),names(A))
     if(length(IID)>0)
     {
       A=A[IID]
@@ -3111,8 +3127,6 @@ for(l in 1:N.sp)
   if(length(dummy)==0) Catch.rate.series[l]=list(NULL) 
   rm(dummy,drop.this)
 }
-
-
 
 #---13. Calculate Steepness ----------------------------------------------------------------------- 
   #calculate prior
@@ -3314,17 +3328,20 @@ for(s in 1:length(dis.sp.h))
 }
 if(test.Sedar)
 {
-  store.species.steepness.S2$`dusky shark`=Dusky.Sedar
-  store.species.steepness.S2$`sandbar shark`=Sandbar.Sedar
+  if("dusky shark" %in% Keep.species) store.species.steepness.S2$`dusky shark`=Dusky.Sedar
+  if("sandbar shark" %in% Keep.species) store.species.steepness.S2$`sandbar shark`=Sandbar.Sedar
 }
 if(test.lower.gummy.h)
 {
-  store.species.steepness.S2$`gummy shark`=store.species.steepness_M.at.age$`gummy shark`$mean*.8
+  if("gummy shark" %in% Keep.species) store.species.steepness.S2$`gummy shark`=store.species.steepness_M.at.age$`gummy shark`$mean*.8
 }
 if(test.lower.whiskery.h)
 {
-  dis.H=min(store.species.steepness.S2$`whiskery shark`,store.species.steepness_M.at.age$`whiskery shark`$mean*.8)
-  store.species.steepness.S2$`whiskery shark`=dis.H
+  if("whiskery shark" %in% Keep.species) 
+  {
+    dis.H=min(store.species.steepness.S2$`whiskery shark`,store.species.steepness_M.at.age$`whiskery shark`$mean*.8)
+    store.species.steepness.S2$`whiskery shark`=dis.H
+  }
 }
 
   #display h2 priors  
@@ -4123,9 +4140,10 @@ for(i in 1:N.sp)
         d.list[[s]]=d.list[[s]]%>%
           filter(FL>=Life.history$Lzero)%>%
           mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
-                               ifelse(grepl("Survey",names(d.list)[s]),'Survey',
-                                      ifelse(grepl("Other",names(d.list)[s]),'Other',
-                                             'TDGDLF'))),
+                        ifelse(grepl("NT",names(d.list)[s]),'NT',
+                        ifelse(grepl("Survey",names(d.list)[s]),'Survey',
+                        ifelse(grepl("Other",names(d.list)[s]),'Other',
+                        'TDGDLF')))),
                  year=as.numeric(substr(FINYEAR,1,4)),
                  TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
                  size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
@@ -4451,19 +4469,19 @@ if(First.run=="YES")
         ggplot(aes(Age,TL,color=Sex))+
         geom_line(size=1.25)+ylab("TL (cm)")+
         theme_PA()+
-        annotate("text", x = 1.5, y = TLmax*1.04,parse = T, label = as.character(Lmx))+
+        ggplot2::annotate("text", x = 1.5, y = TLmax*1.04,parse = T, label = as.character(Lmx))+
         geom_hline(yintercept=TLmax, linetype="dashed",alpha=0.5)+
-        annotate("text", x = 1.1, y = TLo*.8,parse = T, label = as.character(L0))+
+        ggplot2::annotate("text", x = 1.1, y = TLo*.8,parse = T, label = as.character(L0))+
         geom_hline(yintercept=TLo, linetype="dashed",alpha=0.5)+
-        annotate("text", x = mean(Max.age.F), y = 0,parse = T, label = as.character(Amx),color='darkorange4')+
+        ggplot2::annotate("text", x = mean(Max.age.F), y = 0,parse = T, label = as.character(Amx),color='darkorange4')+
         geom_vline(xintercept=Max.age.F[1], linetype="dashed",alpha=0.5,color='darkorange4')+
         geom_vline(xintercept=Max.age.F[2], linetype="dashed",alpha=0.5,color='darkorange4')+
-        annotate("text", x = mean(Age.50.mat), y = 0, parse = T, label = as.character(A50),col='chartreuse4')+
+        ggplot2::annotate("text", x = mean(Age.50.mat), y = 0, parse = T, label = as.character(A50),col='chartreuse4')+
         geom_vline(xintercept=Age.50.mat[1], linetype="dashed",alpha=0.5,col='chartreuse4')+
         geom_vline(xintercept=Age.50.mat[2], linetype="dashed",alpha=0.5,col='chartreuse4')+
-        annotate("text", y = TL.50.mat*.95, x = 1.1,parse = T, label = as.character(L50),col='brown2')+
+        ggplot2::annotate("text", y = TL.50.mat*.95, x = 1.1,parse = T, label = as.character(L50),col='brown2')+
         geom_hline(yintercept=TL.50.mat, linetype="dashed",alpha=0.5,color='brown2')+
-        annotate("text", y = TL.95.mat*.95, x = 1.1,parse = T, label =as.character(L95) ,col='brown2')+
+        ggplot2::annotate("text", y = TL.95.mat*.95, x = 1.1,parse = T, label =as.character(L95) ,col='brown2')+
         geom_hline(yintercept=TL.95.mat, linetype="dashed",alpha=0.5,color='brown2')+
         theme(legend.title=element_blank(),
               legend.position="top")+
@@ -4474,8 +4492,8 @@ if(First.run=="YES")
         ggplot(aes(TL,Maturity))+
         geom_line(size=1.25,color="#F8766D")+xlab("TL (cm)")+ylab('Proportion mature')+
         theme_PA()+
-        annotate("text", x = TL.50.mat*.75, y = .8, label = paste('Fecundity [',Fecundity[1],',',Fecundity[2],']',sep=''))+
-        annotate("text", x = TL.50.mat*.75, y = .85, label = paste('Cycle [',Breed.cycle[1],',',Breed.cycle[2],']',sep=''))+
+        ggplot2::annotate("text", x = TL.50.mat*.75, y = .8, label = paste('Fecundity [',Fecundity[1],',',Fecundity[2],']',sep=''))+
+        ggplot2::annotate("text", x = TL.50.mat*.75, y = .85, label = paste('Cycle [',Breed.cycle[1],',',Breed.cycle[2],']',sep=''))+
         expand_limits(x = 0, y = 0)
       
       plt[[3]]=rbind(
@@ -4502,7 +4520,7 @@ if(First.run=="YES")
         ggplot(aes(FL,TL))+
         geom_line(size=1.25)+xlab("FL (cm)")+ylab('TL (cm)')+
         theme_PA()+
-        annotate("text", x = mean(lengz), y = mean(lengz)*.8,
+        ggplot2::annotate("text", x = mean(lengz), y = mean(lengz)*.8,
                  label = paste('TL =',a_FL.to.TL,' FL + ',b_FL.to.TL ,sep=''))+
         expand_limits(x = 0, y = 0)
 

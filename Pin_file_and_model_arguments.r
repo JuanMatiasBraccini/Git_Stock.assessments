@@ -82,19 +82,26 @@ Get.CV_youn_old=vector('list',N.sp)
 for(i in 1:N.sp)
 {
   d=fun.cv_young_old(d=Species.data[[i]],NM=names(Species.data)[i])
-  if(First.run=='YES')
+  if(First.run=='YES' & !is.null(d))
   {
     d$p
     ggsave(paste(handl_OneDrive("Analyses/Population dynamics/1."),capitalize(List.sp[[i]]$Name),
                  "/",AssessYr,"/1_Inputs/Visualise data","/CVs young and old.tiff",sep=''),
            width = 8,height = 8, dpi = 300, compression = "lzw")
   }
-    
-  Get.CV_youn_old[[i]]=d$d
+  if(!is.null(d)) Get.CV_youn_old[[i]]=d$d
 }
 Get.CV_youn_old=do.call(rbind,Get.CV_youn_old)
-Young.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='1.young')%>%pull(CV)),2)
-Old.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='3.old')%>%pull(CV)),2)
+if(!is.null(Get.CV_youn_old))
+{
+  Young.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='1.young')%>%pull(CV)),2)
+  Old.CV=round(mean(Get.CV_youn_old%>%filter(Age.group=='3.old')%>%pull(CV)),2) 
+}
+if(is.null(Get.CV_youn_old))
+{
+  Young.CV=0.14
+  Old.CV= 0.1 
+}
 Old.CV_long.lived=0.05
 Old.CV_short.lived=0.1
 
@@ -848,12 +855,13 @@ for(l in 1:N.sp)
                                           'Southern.shark_1','Southern.shark_2',
                                           'Survey','F.series_Southern.shark_1',
                                           'Southern.shark_1_West','Southern.shark_1_Zone1','Southern.shark_1_Zone2',
-                                          'Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2'),
-                                  Fleet.n=c(1:6,3:8),
+                                          'Southern.shark_2_West','Southern.shark_2_Zone1','Southern.shark_2_Zone2',
+                                          'NT'),
+                                  Fleet.n=c(1:6,3:8,9),
                                   Q=log(c(fn.ji(1e-2),fn.ji(1e-2),
                                           fn.ji(1e-3),fn.ji(4e-4),
                                           fn.ji(1e-2),fn.ji(1e-3),
-                                          rep(fn.ji(1e-3),3),rep(fn.ji(4e-4),3))))
+                                          rep(fn.ji(1e-3),3),rep(fn.ji(4e-4),3),fn.ji(4e-4))))
   
     #4.1.3.1 use analytical solution if not splitting Q in blocks   
   List.sp[[l]]$SS3.q.an.sol=SS3.q.analit.solu
@@ -971,6 +979,19 @@ for(l in 1:N.sp)
                                                       WRL.sel.pars,
                                                       List.sp[[l]]$SS_selectivity.sensitivity%>%filter(Fleet=='Survey'))
       }
+    }
+    if(NeiM%in%NT.species)
+    {
+      NT.sel.pars=data.frame(Fleet="NT",
+                              P_1=SS.sel.init.pars$NT_p1,
+                              P_2=SS.sel.init.pars$NT_p2,
+                              P_3=NA,
+                              P_4=NA,
+                              P_5=NA,
+                              P_6=NA)
+      List.sp[[l]]$SS_selectivity=rbind(List.sp[[l]]$SS_selectivity%>%filter(!Fleet=='Survey'),
+                                        NT.sel.pars,
+                                        List.sp[[l]]$SS_selectivity%>%filter(Fleet=='Survey'))
     }
     
     #Mimicking (these are fleets with dodgy length comps or no length comps at all)
@@ -1191,6 +1212,22 @@ for(l in 1:N.sp)
                                                 WRL.sel.phases,
                                                 List.sp[[l]]$SS_selectivity.sensitivity_phase%>%filter(Fleet=='Survey'))
       }
+    }
+    if(NeiM%in%NT.species)  
+    {
+      NT.sel.phases=data.frame(Fleet="NT",
+                                P_1=SS.sel.init.pars$Phase_NT_p1,
+                                P_2=SS.sel.init.pars$Phase_NT_p2,
+                                P_3=-2,
+                                P_4=-2,
+                                P_5=-2,
+                                P_6=-2)
+      
+      List.sp[[l]]$SS_selectivity_phase=rbind(List.sp[[l]]$SS_selectivity_phase%>%filter(!Fleet=='Survey'),
+                                              NT.sel.phases,
+                                              List.sp[[l]]$SS_selectivity_phase%>%filter(Fleet=='Survey'))
+      
+
     }
     
     #4.1.4.1.3 Populate Zones values for spatial model   

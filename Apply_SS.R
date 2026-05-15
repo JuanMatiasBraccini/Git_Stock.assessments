@@ -59,10 +59,11 @@ if(create.SS.inputs)
           }
           ktch=ktch%>%
             mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
-                                 ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                          discard.specs),'Southern.shark',
-                                        ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
-                                               'Other'))))%>%
+                          ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                    discard.specs),'Southern.shark',
+                          ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
+                          ifelse(FishCubeCode%in%c('NT') & Neim%in%NT.species,'NT',   
+                          'Other')))))%>%
             group_by(SPECIES,Name,finyear,Fishry)%>%
             summarise(Tonnes=sum(LIVEWT.c,na.rm=T))%>%
             mutate(Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
@@ -81,7 +82,8 @@ if(create.SS.inputs)
               dplyr::select(-zone)
             ktch.zone=ktch.zone%>%filter(!FishCubeCode=='Historic')
             First.year.k=ktch.zone%>%filter(FishCubeCode%in%c("JASDGDL","WCDGDL"))
-            Dis.Yr=min(First.year.k$finyear)
+            if(nrow(First.year.k)==0) Dis.Yr=min(ktch.zone$finyear)
+            if(nrow(First.year.k)>0)Dis.Yr=min(First.year.k$finyear)
             if(Neim=='sandbar shark') Dis.Yr=1985
             prop.k=First.year.k%>%
               filter(finyear==Dis.Yr)%>%
@@ -132,10 +134,11 @@ if(create.SS.inputs)
           }
           ktch.zone=ktch.zone%>%
             mutate(Fishry=ifelse(FishCubeCode%in%c('OANCGC','JANS','WANCS'),'Northern.shark',
-                                 ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
-                                                          discard.specs),'Southern.shark',
-                                        ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
-                                               'Other'))),
+                          ifelse(FishCubeCode%in%c('Historic','JASDGDL','WCDGDL','C070','OAWC',
+                                                  discard.specs),'Southern.shark',
+                          ifelse(FishCubeCode%in%c('WRL') & Neim%in%WRL.species,'WRL',
+                          ifelse(FishCubeCode%in%c('NT') & Neim%in%NT.species,'NT',   
+                          'Other')))),
                    Fishry=case_when(Fishry=="Southern.shark" & finyear<2006 ~'Southern.shark_1',
                                     Fishry=="Southern.shark" & finyear>=2006~'Southern.shark_2',
                                     TRUE~Fishry),
@@ -193,7 +196,7 @@ if(create.SS.inputs)
           
           #2. Size composition   
           #note: commercial catch and survey. Nsamp set at number of shots
-          #zones together
+            #zones together
           Size.compo.SS.format=NULL
           Life.history$Max.population.TL=Life.history$Min.population.TL=NULL
           if(any(grepl('Size_composition',names(Species.data[[i]]))))
@@ -204,8 +207,8 @@ if(create.SS.inputs)
                 mutate(SEX=ifelse(is.na(SEX) & FINYEAR=='2005-06' & FL==200,'F',SEX))
             }
             d.list.n.shots=Species.data[[i]][grep(paste(c("Size_composition_Survey_Observations","Size_composition_Observations",
-                                                          "Size_composition_Other_Observations"),collapse="|"),
-                                                  names(Species.data[[i]]))]
+                                                          "Size_composition_Other_Observations","Size_composition_NT_Observations"),
+                                                        collapse="|"), names(Species.data[[i]]))]
             d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),
                                           names(Species.data[[i]]))]
             if(length(d.list)>0)
@@ -230,9 +233,10 @@ if(create.SS.inputs)
               {
                 d.list[[s]]=d.list[[s]]%>%
                   mutate(fishry=ifelse(grepl("NSF.LONGLINE",names(d.list)[s]),'NSF',
-                                       ifelse(grepl("Survey",names(d.list)[s]),'Survey',
-                                              ifelse(grepl("Other",names(d.list)[s]),'Other',
-                                                     'TDGDLF'))),
+                                ifelse(grepl("Survey",names(d.list)[s]),'Survey',
+                                ifelse(grepl("NT",names(d.list)[s]),'NT',
+                                ifelse(grepl("Other",names(d.list)[s]),'Other',
+                                'TDGDLF')))),
                          year=as.numeric(substr(FINYEAR,1,4)),
                          TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
                          size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
@@ -304,6 +308,11 @@ if(create.SS.inputs)
                 {
                   d.list$sex=ifelse(d.list$fishry=="NSF",combine.sex_type,d.list$sex)
                 }
+                if(Neim%in%combine.sexes.nt)
+                {
+                  d.list$sex=ifelse(d.list$fishry=="NT",combine.sex_type,d.list$sex)
+                }
+                
                 if(Neim%in%combine.sexes.tdgdlf)
                 {
                   d.list=d.list%>%mutate(sex=ifelse(fishry=="TDGDLF",combine.sex_type,sex))
@@ -319,51 +328,53 @@ if(create.SS.inputs)
               }
               #combine sexes if number of obs per year >Min.size but per sex <Min.size/2
               Table.n=d.list%>%
-                group_by(year,fishry)%>%
-                summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
-                                                fishry=='NSF'~Min.size.NSF,
-                                                TRUE~Min.size))%>%   
-                filter(N>=Min.accepted.N)%>%
-                mutate(dummy=paste(year,fishry))
+                      group_by(year,fishry)%>%
+                      summarise(N=sum(n))%>%
+                      mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
+                                                      fishry=='NSF'~Min.size.NSF,
+                                                      fishry=='NT'~Min.size.NSF,
+                                                      TRUE~Min.size))%>%   
+                      filter(N>=Min.accepted.N)%>%
+                      mutate(dummy=paste(year,fishry))
               Table.n.sex=d.list%>%  
-                group_by(year,fishry,sex)%>%
-                summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey/2,
-                                                fishry=='NSF'~Min.size.NSF/2,
-                                                TRUE~Min.size/2))
+                      group_by(year,fishry,sex)%>%
+                      summarise(N=sum(n))%>%
+                      mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey/2,
+                                                      fishry=='NSF'~Min.size.NSF/2,
+                                                      fishry=='NT'~Min.size.NSF/2,
+                                                      TRUE~Min.size/2))
               Len.comps.sex.ratios=Table.n.sex
               Len.comps.below.Min.accepted.N=Len.comps.sex.ratios%>%
-                filter(N<Min.accepted.N)
+                    filter(N<Min.accepted.N)
               Len.comps.sex.ratios=Len.comps.sex.ratios%>%
-                dplyr::select(-Min.accepted.N)%>%
-                mutate(sex=ifelse(sex=='F','Female','Male'))%>%
-                spread(sex,N,fill=0)%>%
-                mutate(Total=Female+Male,
-                       Fem.prop=Female/Total)
+                    dplyr::select(-Min.accepted.N)%>%
+                    mutate(sex=ifelse(sex=='F','Female','Male'))%>%
+                    spread(sex,N,fill=0)%>%
+                    mutate(Total=Female+Male, #ACA why not working when combined sex??
+                           Fem.prop=Female/Total)
               Table.n.sex=Table.n.sex%>%   
-                filter(N<Min.accepted.N)%>%
-                mutate(dummy=paste(year,fishry,sex))%>%
-                distinct(dummy)
+                    filter(N<Min.accepted.N)%>%
+                    mutate(dummy=paste(year,fishry,sex))%>%
+                    distinct(dummy)
               d.list=d.list%>%  
-                mutate(dummy=paste(year,fishry,sex))%>%
-                filter(!dummy%in% with(Len.comps.below.Min.accepted.N,paste(year,fishry,sex)))%>%
-                mutate(sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
-                dplyr::select(-dummy)
+                    mutate(dummy=paste(year,fishry,sex))%>%
+                    filter(!dummy%in% with(Len.comps.below.Min.accepted.N,paste(year,fishry,sex)))%>%
+                    mutate(sex=ifelse(dummy%in%Table.n.sex$dummy,combine.sex_type,sex))%>%
+                    dplyr::select(-dummy)
               if(Neim%in%combine.sexes.tdgdlf.single.area) d.list$sex=combine.sex_type
               Apical.prop.female=Len.comps.sex.ratios%>%
-                filter(year<2015)%>%
-                group_by(fishry) %>%
-                summarise(w_mean = weighted.mean(Fem.prop, Total),
-                          w_sd = sqrt(wtd.var(Fem.prop, Total, na.rm = TRUE)))
+                    filter(year<2015)%>%
+                    group_by(fishry) %>%
+                    summarise(w_mean = weighted.mean(Fem.prop, Total),
+                              w_sd = sqrt(wtd.var(Fem.prop, Total, na.rm = TRUE)))
               d.list=d.list%>%
-                group_by(year,fishry,sex,size.class)%>%
-                summarise(n=sum(n))%>%
-                ungroup()%>%
-                filter(!is.na(year))%>%
-                filter(!is.na(fishry))%>%
-                data.frame()
-              
+                    group_by(year,fishry,sex,size.class)%>%
+                    summarise(n=sum(n))%>%
+                    ungroup()%>%
+                    filter(!is.na(year))%>%
+                    filter(!is.na(fishry))%>%
+                    data.frame()
+                  
               MAXX=max(d.list$size.class)
               Tab.si.kl=table(d.list$size.class)
               if(sum(Tab.si.kl[(length(Tab.si.kl)-1):length(Tab.si.kl)])/sum(Tab.si.kl)>.05) MAXX=MAXX*1.2
@@ -415,13 +426,14 @@ if(create.SS.inputs)
                   if(!'zone'%in%names(dd)) dd$zone=NA
                   dd=dd%>%
                     mutate(fishry=ifelse(Method=='GN','TDGDLF',
-                                         ifelse(Method=='LL' & zone!='SA','NSF',
-                                                ifelse(zone%in%c('SA','GAB.trawl'),'Other',
-                                                       NA))),
+                                  ifelse(Method=='LL' & zone!='SA','NSF',
+                                  ifelse(zone%in%c('SA','GAB.trawl'),'Other',
+                                  NA))),
                            year=as.numeric(substr(FINYEAR,1,4)))%>%
                     group_by(year,fishry)%>%
                     summarise(Nsamp=sum(N.shots))
                   if(iii>0) dd$fishry='Survey'
+                  if(grepl('NT',names(d.list.n.shots)[pai])) dd$fishry='NT' 
                   d.list.n.shots[[pai]]=dd
                   rm(dd)
                 }
@@ -439,8 +451,8 @@ if(create.SS.inputs)
                   filter(dummy2%in%unique(Table.n$dummy))%>%
                   dplyr::select(-dummy2)%>%
                   mutate(Sex=ifelse(Sex=='F',1,
-                                    ifelse(Sex=='M',2,
-                                           Sex)))
+                             ifelse(Sex=='M',2,
+                             Sex)))
                 d.list=d.list%>%
                   mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
                          Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
@@ -455,6 +467,7 @@ if(create.SS.inputs)
                 }
                 d.list=d.list%>%
                   mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
+                                               Fleet=="NT"~'NT',
                                                Fleet=="Other"~'Other',
                                                Fleet=="TDGDLF" & year<2006~'Southern.shark_1',
                                                Fleet=="TDGDLF" & year>=2006~'Southern.shark_2',
@@ -462,7 +475,8 @@ if(create.SS.inputs)
                   left_join(size.flits,by=c('dummy.fleet'='Fleet.name'))%>%
                   mutate(Fleet=Fleet.number)%>%
                   dplyr::select(-c(dummy.fleet,Fleet.number))%>%
-                  arrange(Sex,Fleet,year)
+                  arrange(Sex,Fleet,year)%>%
+                  mutate(Sex=ifelse(Sex=='U',combine.sex_type,Sex))
                 
                 d.list.0=d.list%>%filter(Sex==combine.sex_type)%>%arrange(year)
                 d.list.f=d.list%>%filter(Sex==1)%>%arrange(year)  
@@ -526,7 +540,7 @@ if(create.SS.inputs)
                 min.nsamp=Min.Nsamp
                 if(!Neim%in%names(Indicator.species)) min.nsamp=ceiling(min.nsamp/2)
                 size.flits.min.samp=size.flits%>%
-                  mutate(Min.nsamp=case_when(Fleet.name=='Northern.shark'~Min.Nsamp.NSF,
+                  mutate(Min.nsamp=case_when(Fleet.name%in%c('NT','Northern.shark')~Min.Nsamp.NSF,
                                              Fleet.name=='Survey'~Min.Nsamp.Survey,
                                              TRUE~min.nsamp))%>%
                   dplyr::select(-Fleet.name)%>%
@@ -546,13 +560,13 @@ if(create.SS.inputs)
               }
             }
           }
-          # by zones 
+            # by zones 
           Size.compo.SS.format.zone=NULL
           if(any(grepl('Size_composition',names(Species.data[[i]]))))
           {
             d.list.n.shots=Species.data[[i]][grep(paste(c("Size_composition_Survey_Observations","Size_composition_Observations",
-                                                          "Size_composition_Other_Observations"),collapse="|"),
-                                                  names(Species.data[[i]]))]
+                                                          "Size_composition_Other_Observations","Size_composition_NT_Observations"),
+                                                        collapse="|"), names(Species.data[[i]]))]
             d.list=Species.data[[i]][grep(paste(SS3_fleet.size.comp.used,collapse="|"),names(Species.data[[i]]))]
             
             if(Neim%in%names(drop.dodgy.len.comp))
@@ -610,9 +624,10 @@ if(create.SS.inputs)
                 d.list[[s]]=d.list[[s]]%>%
                   filter(FL>=Life.history$Lzero)%>%
                   mutate(fishry=ifelse(grepl("NSF.LONGLINE",NM),'NSF',
-                                       ifelse(grepl("Survey",NM),'Survey',
-                                              ifelse(grepl("Other",NM),'Other',
-                                                     'TDGDLF'))),
+                                ifelse(grepl("Survey",NM),'Survey',
+                                ifelse(grepl("NT",NM),'NT',
+                                ifelse(grepl("Other",NM),'Other',
+                                'TDGDLF')))),
                          year=as.numeric(substr(FINYEAR,1,4)),
                          TL=FL*Life.history$a_FL.to.TL+Life.history$b_FL.to.TL,
                          size.class=TL.bins.cm*floor(TL/TL.bins.cm))%>%
@@ -690,6 +705,10 @@ if(create.SS.inputs)
                 {
                   d.list$sex=ifelse(d.list$fishry=="NSF",combine.sex_type,d.list$sex)
                 }
+                if(Neim%in%combine.sexes.nt)
+                {
+                  d.list$sex=ifelse(d.list$fishry=="NT",combine.sex_type,d.list$sex)
+                }
                 if(Neim%in%combine.sexes.tdgdlf)
                 {
                   d.list=d.list%>%mutate(sex=ifelse(grepl("TDGDLF",fishry),combine.sex_type,sex))
@@ -705,19 +724,19 @@ if(create.SS.inputs)
               }
               #combine sexes if number of obs per year >Min.size but per sex <Min.size/2
               Table.n=d.list%>%
-                group_by(year,fishry)%>%
-                summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
-                                                fishry=='NSF'~Min.size.NSF,
-                                                TRUE~Min.size))%>%
-                filter(N>=Min.accepted.N)%>%
-                mutate(dummy=paste(year,fishry))
+                    group_by(year,fishry)%>%
+                    summarise(N=sum(n))%>%
+                    mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey,
+                                                    fishry%in%c('NT','NSF')~Min.size.NSF,
+                                                    TRUE~Min.size))%>%
+                    filter(N>=Min.accepted.N)%>%
+                    mutate(dummy=paste(year,fishry))
               Table.n.sex=d.list%>%  
-                group_by(year,fishry,sex)%>%
-                summarise(N=sum(n))%>%
-                mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey/2,
-                                                fishry=='NSF'~Min.size.NSF/2,
-                                                TRUE~Min.size/2))
+                    group_by(year,fishry,sex)%>%
+                    summarise(N=sum(n))%>%
+                    mutate(Min.accepted.N=case_when(fishry=='Survey'~Min.annual.obs.ktch_survey/2,
+                                                    fishry%in%c('NT','NSF')~Min.size.NSF/2,
+                                                    TRUE~Min.size/2))
               Len.comps.sex.ratios=Table.n.sex
               Len.comps.below.Min.accepted.N=Len.comps.sex.ratios%>%
                 filter(N<Min.accepted.N)
@@ -805,6 +824,7 @@ if(create.SS.inputs)
                     group_by(year,fishry)%>%
                     summarise(Nsamp=sum(N.shots))
                   if(iii>0) dd$fishry='Survey'
+                  if(grepl('NT',names(d.list.n.shots)[pai])) dd$fishry='NT'
                   d.list.n.shots[[pai]]=dd
                   rm(dd)
                 }
@@ -823,7 +843,8 @@ if(create.SS.inputs)
                   dplyr::select(-dummy2)%>%
                   mutate(Sex=ifelse(Sex=='F',1,
                                     ifelse(Sex=='M',2,
-                                           Sex)))
+                                           ifelse(Sex=='U',combine.sex_type,
+                                           Sex))))
                 d.list=d.list%>%
                   mutate(dumi.n=rowSums(d.list[,-match(c('year','Seas','Fleet','Sex','Part','Nsamp'),names(d.list))]),
                          Nsamp=ifelse(Nsamp>dumi.n,dumi.n,Nsamp))%>%
@@ -838,6 +859,7 @@ if(create.SS.inputs)
                 }
                 d.list=d.list%>%
                   mutate(dummy.fleet=case_when(Fleet=="NSF"~'Northern.shark',
+                                               Fleet=="NT"~'NT',
                                                Fleet=="Other"~'Other',
                                                Fleet=="TDGDLF_West" & year<2006~'Southern.shark_1_West',
                                                Fleet=="TDGDLF_West" & year>=2006~'Southern.shark_2_West',
@@ -867,8 +889,6 @@ if(create.SS.inputs)
                   names(dummy.zeros.0)=paste('m',names(dummy.zeros.0),sep='')  
                   dummy.Size.compo.SS.format_Sex0=bind_cols(d.list.0,dummy.zeros.0)%>%
                     mutate(Sex=as.numeric(Sex))
-                  
-                  
                 }
                 if(nrow(d.list.f)>0)
                 {
@@ -914,7 +934,7 @@ if(create.SS.inputs)
                 min.nsamp=Min.Nsamp.zone
                 if(!Neim%in%names(Indicator.species)) min.nsamp=ceiling(min.nsamp/2)
                 size.flits.min.samp=size.flits.zone%>%
-                  mutate(Min.nsamp=case_when(Fleet.name=='Northern.shark'~Min.Nsamp.NSF,
+                  mutate(Min.nsamp=case_when(Fleet.name%in%c('NT','Northern.shark')~Min.Nsamp.NSF,
                                              Fleet.name=='Survey'~Min.Nsamp.Survey,
                                              TRUE~min.nsamp))%>%
                   dplyr::select(-Fleet.name)%>%
@@ -1361,7 +1381,6 @@ if(create.SS.inputs)
               dplyr::select(-c(Fleet.number,Fleet))%>%
               relocate(year,month,fleet,Mean,CV)%>%
               arrange(year)
-            
           }
           
           
@@ -2032,7 +2051,7 @@ if(create.SS.inputs)
           
           
           #10. Fleet info
-          #zones together
+            #zones together
           flitinfo=data.frame(fleet=Flits)%>%
             mutate(type=1,
                    surveytiming=-1,
@@ -2044,7 +2063,7 @@ if(create.SS.inputs)
             mutate(type=ifelse(fleetname=="Survey",3,type),
                    surveytiming=ifelse(fleetname=="Survey",1,surveytiming))
           rownames(flitinfo)=NULL
-          #by zone
+            #by zone
           flitinfo.zone=data.frame(fleet=Flits.zone)%>%
             mutate(type=1,
                    surveytiming=-1,
@@ -2383,7 +2402,7 @@ if(create.SS.inputs)
               }
               
               #Completely remove a data type
-              #CPUE  
+                #CPUE  
               if(Scens$CPUE[s]=='No') 
               {
                 Abund.single.area=Abund.areas.as.fleets=NULL
@@ -2407,7 +2426,7 @@ if(create.SS.inputs)
                 if(!is.null(Abund.areas.as.fleets)) if(nrow(Abund.areas.as.fleets)==0) Abund.areas.as.fleets=NULL
                 
               }
-              #Length.comps
+                #Length.comps
               Size.comp.single.area=Size.compo.SS.format
               Size.comp.areas.as.fleets=Size.compo.SS.format.zone
               if(Scens$Length.comps[s]=='No') 
@@ -2415,7 +2434,7 @@ if(create.SS.inputs)
                 Size.comp.single.area=Size.comp.areas.as.fleets=NULL
                 Scens$Use.male.sel.offset[s]="No"
               }
-              #Mean.body
+                #Mean.body
               Meanbodywt.single.area=meanbodywt.SS.format
               Meanbodywt.areas.as.fleets=meanbodywt.SS.format.zone
               if(Scens$Mean.body[s]=='No') 

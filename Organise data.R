@@ -1327,9 +1327,9 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=16)+
         scale_color_manual(values=colfunc(nKl))+
         geom_vline(xintercept=LH.par$TL.50.mat,color='deeppink')+
-        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
+        ggplot2::annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
         geom_vline(xintercept=Fem.linf.TL)+
-        annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
+        ggplot2::annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
         geom_vline(xintercept=Male.linf.TL,linetype="dashed")+
         xlim(min(tdgdlf.size$Size.class),max(tdgdlf.size$Size.class,Fem.linf.TL))+
         labs(caption = TL.ratio)+theme(plot.caption = element_text(size = 15))
@@ -1349,9 +1349,9 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=18)+
         scale_color_manual(values=colfunc(nKl))+
         geom_vline(xintercept=LH.par$TL.50.mat,color='deeppink')+
-        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
+        ggplot2::annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
         geom_vline(xintercept=Fem.linf.TL)+
-        annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
+        ggplot2::annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
         geom_vline(xintercept=Male.linf.TL,linetype="dashed")+
         xlim(min(nsf.size$Size.class),max(nsf.size$Size.class,Fem.linf.TL))+
         labs(caption = TL.ratio)+theme(plot.caption = element_text(size = 15))
@@ -1371,9 +1371,9 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=18)+
         scale_color_manual(values=colfunc(nKl))+
         geom_vline(xintercept=LH.par$TL.50.mat,color='deeppink')+
-        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
+        ggplot2::annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
         geom_vline(xintercept=Fem.linf.TL)+
-        annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
+        ggplot2::annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
         geom_vline(xintercept=Male.linf.TL,linetype="dashed")+
         xlim(min(Survey.size$Size.class),max(Survey.size$Size.class,Fem.linf.TL))+
         labs(caption = TL.ratio)+theme(plot.caption = element_text(size = 15))
@@ -1393,9 +1393,9 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=18)+
         scale_color_manual(values=colfunc(nKl))+
         geom_vline(xintercept=LH.par$TL.50.mat,color='deeppink')+
-        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
+        ggplot2::annotate("text",LH.par$TL.50.mat,0,label="50% maturity",angle='90',size=5,vjust=-0.1,hjust=-0.1,color='deeppink')+
         geom_vline(xintercept=Fem.linf.TL)+
-        annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
+        ggplot2::annotate("text",Fem.linf.TL,0,label="Linf",angle='90',size=5,vjust=-0.1,hjust=-0.1)+
         geom_vline(xintercept=Male.linf.TL,linetype="dashed")+
         xlim(min(pilbara.size$Size.class),max(pilbara.size$Size.class,Fem.linf.TL))+
         labs(caption = TL.ratio)+theme(plot.caption = element_text(size = 15))
@@ -1415,7 +1415,7 @@ fn.input.data=function(Name,Name.inputs,SP,Species,First.year,Last.year,Min.obs,
         theme_PA(leg.siz=14,axs.t.siz=12,axs.T.siz=20,strx.siz=18)+
         scale_color_manual(values=colfunc(nKl))+
         geom_vline(xintercept=LH.par$TL.50.mat)+
-        annotate("text",LH.par$TL.50.mat,0,label="50% maturity",size=5,vjust=1.5)
+        ggplot2::annotate("text",LH.par$TL.50.mat,0,label="50% maturity",size=5,vjust=1.5)
       ggsave("Size.comp.Other_dist.tiff",width = 10,height = 10,compression = "lzw")
     }
     
