@@ -158,6 +158,7 @@ NT.non.retained.sharks=c('Green sawfish','Narrow sawfish','Dwarf sawfish',
                          'Largetooth sawfish','Manta rays','River sharks')
 NT_dusky_sandbar=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "NT commercial") #catch in tonnes, source NT Michael Usher and Grant Johnson
 NT_dusky_sandbar.IUU=read_excel(fn.hndl("Nt_catch_dusky_sandbar.xlsx"), sheet = "IUU")
+NT_others=read_excel(fn.hndl("Nt_catch_other sharks.xlsx"), sheet = "NT commercial") #catch in tonnes, source NT Sandra
 
     #SA
 Whaler_SA=read.csv(fn.hndl("SA_marine_scalefish_whaler_ktch.csv"))  #catch in tonnes; source SARDI's Angelo Tsolos, Jon Smart
@@ -1822,7 +1823,7 @@ GAB.trawl_catch=AFMA_GAB_WTB%>%
   
 
 
-  #-- 3.2.3 NT catches 
+  #-- 3.2.3 NT catches #ACA
 NT_dusky_sandbar.IUU= NT_dusky_sandbar.IUU%>%
   gather(species,LIVEWT.c,-Year)%>%
   mutate(FINYEAR=paste(Year,substr(Year+1,3,4),sep='-'),
@@ -1836,8 +1837,16 @@ NT_dusky_sandbar= NT_dusky_sandbar%>%
                  SPECIES=case_when(tolower(species)=='sandbar shark'~18007,
                                    tolower(species)=='dusky whaler'~18003))%>%
           dplyr::select(names(GAB.trawl_catch))
+NT_others=NT_others%>%
+          mutate(FINYEAR=paste(year,substr(year+1,3,4),sep='-'),
+                 LIVEWT.c=catch_kg,
+                 species=capitalize(tolower(species)))%>%
+          left_join(Species.code%>%dplyr::select(COMMON_NAME,CAAB_code),by=c('species'='COMMON_NAME'))%>%
+          rename(SPECIES=CAAB_code)%>%
+          dplyr::select(names(GAB.trawl_catch))
 
-NT_catch=rbind(NT_dusky_sandbar,NT_dusky_sandbar.IUU)%>%
+
+NT_catch=rbind(NT_dusky_sandbar,NT_dusky_sandbar.IUU,NT_others)%>%
           group_by(FINYEAR,SPECIES)%>%
           summarise(LIVEWT.c=sum(LIVEWT.c))
 

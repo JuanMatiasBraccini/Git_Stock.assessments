@@ -136,7 +136,8 @@ Send.email.to="matias.braccini@dpird.wa.gov.au"   #send email when model run fin
 
 #1.New assessment and assessed species
 #assess.these.species.only=NULL  #select this if all species meeting criteria are assessed
-assess.these.species.only=c("dusky shark","gummy shark","sandbar shark","whiskery shark")      
+#assess.these.species.only=c("dusky shark","gummy shark","sandbar shark","whiskery shark")      
+assess.these.species.only='spot-tail shark'
 
 New.assessment="NO"   #set to 'YES' if a new assessment is done for the first time
 
@@ -843,7 +844,7 @@ discard.specs=c('TEP','Discards_TDGDLF')
 #define what species are assessed elsewhere
 assessed.elsewhere=c("white shark","school shark","spot-tail shark",
                      "blacktips","unidentified sharks")  
-
+if(!is.null(assess.these.species.only)) assessed.elsewhere=subset(assessed.elsewhere,!assessed.elsewhere%in%assess.these.species.only)
 
 #2.2. Import Total effort
 fn.in=function(NM) fread(paste(Dat.repository,NM,sep=""),data.table=FALSE)
